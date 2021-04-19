@@ -7,22 +7,19 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { stripIcons } from 'vs/base/common/iconLabels';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ChangeCellLanguageAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
 
@@ -39,10 +36,8 @@ export const enum ClickTargetType {
 }
 
 export class CellEditorStatusBar extends Disposable {
-	readonly cellStatusMessageContainer: HTMLElement;
 	readonly cellRunStatusContainer: HTMLElement;
 	readonly statusBarContainer: HTMLElement;
-	readonly languageStatusBarItem: CellLanguageStatusBarItem;
 	readonly durationContainer: HTMLElement;
 
 	private readonly leftContributedItemsContainer: HTMLElement;
@@ -64,10 +59,8 @@ export class CellEditorStatusBar extends Disposable {
 		const rightItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-right'));
 		this.cellRunStatusContainer = DOM.append(leftItemsContainer, $('.cell-run-status'));
 		this.durationContainer = DOM.append(leftItemsContainer, $('.cell-run-duration'));
-		this.cellStatusMessageContainer = DOM.append(leftItemsContainer, $('.cell-status-message'));
 		this.leftContributedItemsContainer = DOM.append(leftItemsContainer, $('.cell-contributed-items.cell-contributed-items-left'));
 		this.rightContributedItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items.cell-contributed-items-right'));
-		this.languageStatusBarItem = instantiationService.createInstance(CellLanguageStatusBarItem, rightItemsContainer);
 
 		this.itemsDisposable = this._register(new DisposableStore());
 
@@ -79,8 +72,7 @@ export class CellEditorStatusBar extends Disposable {
 					event: e
 				});
 			} else if (e.target && (
-				this.cellStatusMessageContainer.contains(e.target as Node)
-				|| this.cellRunStatusContainer.contains(e.target as Node)
+				this.cellRunStatusContainer.contains(e.target as Node)
 				|| this.durationContainer.contains(e.target as Node)
 			)) {
 				this._onDidClick.fire({
@@ -107,7 +99,6 @@ export class CellEditorStatusBar extends Disposable {
 	update(context: INotebookCellActionContext) {
 		this.currentContext = context;
 		this.itemsDisposable.clear();
-		this.languageStatusBarItem.update(context.cell, context.notebookEditor);
 		this.updateStatusBarItems();
 	}
 
@@ -224,61 +215,6 @@ class CellStatusBarItem extends Disposable {
 		} catch (error) {
 			this.notificationService.error(toErrorMessage(error));
 		}
-	}
-}
-
-export class CellLanguageStatusBarItem extends Disposable {
-	private readonly labelElement: HTMLElement;
-
-	private cell: ICellViewModel | undefined;
-	private editor: INotebookEditor | undefined;
-
-	private cellDisposables: DisposableStore;
-
-	constructor(
-		readonly container: HTMLElement,
-		@IModeService private readonly modeService: IModeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super();
-		this.labelElement = DOM.append(container, $('.cell-language-picker.cell-status-item'));
-		this.labelElement.tabIndex = 0;
-		this.labelElement.classList.add('cell-status-item-has-command');
-
-		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
-			this.run();
-		}));
-		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
-				this.run();
-			}
-		}));
-		this._register(this.cellDisposables = new DisposableStore());
-	}
-
-	private run() {
-		this.instantiationService.invokeFunction(accessor => {
-			if (!this.editor || !this.editor.hasModel() || !this.cell) {
-				return;
-			}
-			new ChangeCellLanguageAction().run(accessor, { notebookEditor: this.editor, cell: this.cell });
-		});
-	}
-
-	update(cell: ICellViewModel, editor: INotebookEditor): void {
-		this.cellDisposables.clear();
-		this.cell = cell;
-		this.editor = editor;
-
-		this.render();
-		this.cellDisposables.add(this.cell.model.onDidChangeLanguage(() => this.render()));
-	}
-
-	private render(): void {
-		const modeId = this.cell?.cellKind === CellKind.Markdown ? 'markdown' : this.modeService.getModeIdForLanguageName(this.cell!.language) || this.cell!.language;
-		this.labelElement.textContent = this.modeService.getLanguageName(modeId) || this.modeService.getLanguageName('plaintext');
-		this.labelElement.title = localize('notebook.cell.status.language', "Select Cell Language Mode");
 	}
 }
 

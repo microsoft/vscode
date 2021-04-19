@@ -45,6 +45,8 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
+import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -231,7 +233,7 @@ export abstract class SharedDesktopMain extends Disposable {
 
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
-		const services = await Promise.all([
+		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
@@ -260,6 +262,11 @@ export abstract class SharedDesktopMain extends Disposable {
 			})
 		]);
 
+		// Workspace Trust Service
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, configurationService);
+		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -274,7 +281,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		return { serviceCollection, logService, storageService: services[1] };
+		return { serviceCollection, logService, storageService };
 	}
 
 	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IWorkspaceInitializationPayload {

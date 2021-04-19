@@ -62,7 +62,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessEnvironment, isLinux, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -129,6 +129,7 @@ import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerm
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isArray } from 'vs/base/common/types';
+import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -1539,8 +1540,17 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	createWindowsShellHelper(shellProcessId: number, xterm: any): any { throw new Error('Method not implemented.'); }
 }
 
-export class TestLocalTerminalService implements ILocalTerminalService {
+export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
+	_serviceBrand: undefined;
+	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void { }
+	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> { }
+	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { return { path: '/default', profileName: 'Default' }; }
+	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { return '/default'; }
+	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { return []; }
+	async getShellEnvironment(): Promise<IProcessEnvironment> { return process.env; }
+}
 
+export class TestLocalTerminalService implements ILocalTerminalService {
 	declare readonly _serviceBrand: undefined;
 
 	onPtyHostExit = Event.None;
@@ -1553,6 +1563,8 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	}
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
+	getShellEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
 	async setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById) { throw new Error('Method not implemented.'); }
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
 	async reduceConnectionGraceTime(): Promise<void> { throw new Error('Method not implemented.'); }

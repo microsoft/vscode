@@ -33,6 +33,8 @@ import { IExtensionBisectService } from 'vs/workbench/services/extensionManageme
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
+import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -70,7 +72,8 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IHostService),
 			new class extends mock<IExtensionBisectService>() { override isDisabledByBisect() { return false; } },
 			instantiationService.get(IWorkspaceTrustManagementService) || instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService()),
-			instantiationService.get(IWorkspaceTrustRequestService) || instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService())
+			instantiationService.get(IWorkspaceTrustRequestService) || instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService()),
+			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, new ExtensionManifestPropertiesService(TestProductService, instantiationService.get(IConfigurationService)))
 		);
 	}
 

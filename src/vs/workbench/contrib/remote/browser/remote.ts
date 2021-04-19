@@ -921,7 +921,7 @@ class RemoteAgentConnectionStatusListener extends Disposable implements IWorkben
 							console.log(`Error handled: Not showing a notification for the error.`);
 						} else if (!this._reloadWindowShown) {
 							this._reloadWindowShown = true;
-							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, useCustom: true }).then(result => {
+							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, custom: true }).then(result => {
 								// Reload the window
 								if (result.choice === 0) {
 									commandService.executeCommand(ReloadWindowAction.ID);

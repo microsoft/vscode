@@ -31,12 +31,22 @@ export type BuiltinGettingStartedCategory = {
 	when?: string,
 	content:
 	| { type: 'items', items: BuiltinGettingStartedItem[] }
+};
+
+export type BuiltinGettingStartedStartEntry = {
+	id: string
+	title: string,
+	description: string,
+	icon: ThemeIcon,
+	when?: string,
+	content:
 	| { type: 'startEntry', command: string }
 };
 
-type GettingStartedContent = BuiltinGettingStartedCategory[];
+type GettingStartedWalkthroughContent = BuiltinGettingStartedCategory[];
+type GettingStartedStartEntryContent = BuiltinGettingStartedStartEntry[];
 
-export const content: GettingStartedContent = [
+export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'topLevelNewFile',
 		title: localize('gettingStarted.newFile.title', "New File"),
@@ -100,6 +110,9 @@ export const content: GettingStartedContent = [
 			command: 'workbench.action.showCommands',
 		}
 	},
+];
+
+export const walkthroughs: GettingStartedWalkthroughContent = [
 	{
 		id: 'Codespaces',
 		title: localize('gettingStarted.codespaces.title', "Primer on Codespaces"),

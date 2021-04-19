@@ -15,7 +15,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
-import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -27,6 +26,7 @@ import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementServ
 import { Promises } from 'vs/base/common/async';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -39,8 +39,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	protected readonly servers: IExtensionManagementServer[] = [];
 
-	protected readonly extensionKindController: ExtensionKindController;
-
 	constructor(
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
@@ -51,7 +49,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
@@ -68,8 +67,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this.onDidInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>())).event;
 		this.onUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<IExtensionIdentifier>, server) => { emitter.add(server.extensionManagementService.onUninstallExtension); return emitter; }, new EventMultiplexer<IExtensionIdentifier>())).event;
 		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>())).event;
-
-		this.extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
@@ -113,7 +110,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, options?: UninstallOptions): Promise<void> {
 		if (server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getInstalled(ExtensionType.User);
-			const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionKindController.prefersExecuteOnUI(i.manifest)
+			const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
 				&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
 			if (dependentNonUIExtensions.length) {
 				return Promise.reject(new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
@@ -184,7 +181,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				const [local] = await Promises.settled([this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer].map(server => this.installVSIX(vsix, server)));
 				return local;
 			}
-			if (this.extensionKindController.prefersExecuteOnUI(manifest)) {
+			if (this.extensionManifestPropertiesService.prefersExecuteOnUI(manifest)) {
 				// Install only on local server
 				return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer);
 			}
@@ -299,7 +296,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return this.extensionManagementServerService.localExtensionManagementServer;
 		}
 
-		const extensionKind = this.extensionKindController.getExtensionKind(manifest);
+		const extensionKind = this.extensionManifestPropertiesService.getExtensionKind(manifest);
 		for (const kind of extensionKind) {
 			if (kind === 'ui' && this.extensionManagementServerService.localExtensionManagementServer) {
 				return this.extensionManagementServerService.localExtensionManagementServer;

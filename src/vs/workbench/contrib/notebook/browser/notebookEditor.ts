@@ -29,6 +29,7 @@ import { NotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -61,9 +62,19 @@ export class NotebookEditor extends EditorPane {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
+	}
+
+	private onDidFileSystemProviderChange(scheme: string): void {
+		if (this.input?.resource?.scheme === scheme && this._widget.value) {
+			this._widget.value.setOptions(new NotebookEditorOptions({ isReadOnly: this.input.isReadonly() }));
+		}
 	}
 
 	get viewModel(): NotebookViewModel | undefined {
@@ -185,7 +196,8 @@ export class NotebookEditor extends EditorPane {
 
 		this._widget.value?.setParentContextKeyService(this._contextKeyService);
 		await this._widget.value!.setModel(model.notebook, viewState);
-		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options : undefined);
+		const isReadonly = input.isReadonly();
+		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options.with({ isReadOnly: isReadonly }) : new NotebookEditorOptions({ isReadOnly: isReadonly }));
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {

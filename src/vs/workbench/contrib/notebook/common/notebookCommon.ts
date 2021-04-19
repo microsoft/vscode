@@ -58,15 +58,11 @@ export enum NotebookRunState {
 }
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
-	editable: true,
-	cellEditable: true,
 	custom: {},
 	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
-	editable: boolean;
-	cellEditable: boolean;
 	custom?: { [key: string]: unknown };
 	trusted: boolean;
 }
@@ -87,22 +83,23 @@ export interface NotebookCellMetadata {
 	editable?: boolean;
 	breakpointMargin?: boolean;
 	executionOrder?: number;
-	statusMessage?: string;
 	lastRunSuccess?: boolean;
 	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
-	lastRunDuration?: number;
+	runEndTime?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
 	custom?: { [key: string]: unknown };
 }
 
-export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
-	transientMetadata: TransientMetadata;
+	transientCellMetadata: TransientCellMetadata;
+	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
 export interface INotebookMimeTypeSelector {
@@ -665,6 +662,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: NotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
+	isReadonly(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;
@@ -798,7 +796,7 @@ export interface INotebookKernelProvider {
 export interface INotebookCellStatusBarItemProvider {
 	selector: INotebookDocumentFilter;
 	onDidChangeStatusBarItems?: Event<void>;
-	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList>;
+	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
 export class CellSequence implements ISequence {

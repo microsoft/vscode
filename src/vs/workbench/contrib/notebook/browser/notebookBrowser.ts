@@ -72,6 +72,8 @@ export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('noteboo
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
 export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
+export const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
+export const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
 
 //#endregion
 
@@ -313,12 +315,14 @@ export class NotebookEditorOptions extends EditorOptions {
 
 	readonly cellOptions?: IResourceEditorInput;
 	readonly cellSelections?: ICellRange[];
+	readonly isReadOnly?: boolean;
 
 	constructor(options: Partial<NotebookEditorOptions>) {
 		super();
 		this.overwrite(options);
 		this.cellOptions = options.cellOptions;
 		this.cellSelections = options.cellSelections;
+		this.isReadOnly = options.isReadOnly;
 	}
 
 	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {

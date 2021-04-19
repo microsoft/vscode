@@ -202,7 +202,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
-		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) ${extension.identifier} called openTunnel API for ${forward.remoteAddress.port}.`);
+		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) ${extension.identifier.value} called openTunnel API for ${forward.remoteAddress.port}.`);
 		const tunnel = await this._proxy.$openTunnel(forward, extension.displayName);
 		if (tunnel) {
 			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remoteAddress, tunnel.localAddress, () => {

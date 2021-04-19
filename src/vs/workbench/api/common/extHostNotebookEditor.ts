@@ -84,8 +84,8 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
 export class ExtHostNotebookEditor {
 
-	private _selections: vscode.NotebookCellRange[] = [];
-	private _visibleRanges: vscode.NotebookCellRange[] = [];
+	private _selections: vscode.NotebookRange[] = [];
+	private _visibleRanges: vscode.NotebookRange[] = [];
 	private _viewColumn?: vscode.ViewColumn;
 
 	private _visible: boolean = false;
@@ -99,8 +99,8 @@ export class ExtHostNotebookEditor {
 		readonly id: string,
 		private readonly _proxy: MainThreadNotebookEditorsShape,
 		readonly notebookData: ExtHostNotebookDocument,
-		visibleRanges: vscode.NotebookCellRange[],
-		selections: vscode.NotebookCellRange[],
+		visibleRanges: vscode.NotebookRange[],
+		selections: vscode.NotebookRange[],
 		viewColumn: vscode.ViewColumn | undefined
 	) {
 		this._selections = selections;
@@ -124,7 +124,7 @@ export class ExtHostNotebookEditor {
 				revealRange(range, revealType) {
 					that._proxy.$tryRevealRange(
 						that.id,
-						extHostConverter.NotebookCellRange.from(range),
+						extHostConverter.NotebookRange.from(range),
 						revealType ?? extHostTypes.NotebookEditorRevealType.Default
 					);
 				},
@@ -159,11 +159,11 @@ export class ExtHostNotebookEditor {
 		this._visible = value;
 	}
 
-	_acceptVisibleRanges(value: vscode.NotebookCellRange[]): void {
+	_acceptVisibleRanges(value: vscode.NotebookRange[]): void {
 		this._visibleRanges = value;
 	}
 
-	_acceptSelections(selections: vscode.NotebookCellRange[]): void {
+	_acceptSelections(selections: vscode.NotebookRange[]): void {
 		this._selections = selections;
 	}
 
@@ -207,7 +207,7 @@ export class ExtHostNotebookEditor {
 		return this._proxy.$tryApplyEdits(this.id, editData.documentVersionId, compressedEdits);
 	}
 
-	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookCellRange): void {
+	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookRange): void {
 		if (range.isEmpty && !this._hasDecorationsForKey.has(decorationType.key)) {
 			// avoid no-op call to the renderer
 			return;
@@ -220,7 +220,7 @@ export class ExtHostNotebookEditor {
 
 		return this._proxy.$trySetDecorations(
 			this.id,
-			extHostConverter.NotebookCellRange.from(range),
+			extHostConverter.NotebookRange.from(range),
 			decorationType.key
 		);
 	}

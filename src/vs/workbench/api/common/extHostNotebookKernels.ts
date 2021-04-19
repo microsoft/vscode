@@ -8,51 +8,76 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as vscode from 'vscode';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookCellRange } from 'vs/workbench/api/common/extHostTypeConverters';
+import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 
-type ExecuteHandler = (executions: vscode.NotebookCellExecutionTask[]) => void;
-type InterruptHandler = (notebook: vscode.NotebookDocument) => void;
+interface IKernelData {
+	extensionId: ExtensionIdentifier,
+	controller: vscode.NotebookController;
+	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument; }>;
+	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any }>;
+}
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 
-	private readonly _kernelData = new Map<number, { id: string, executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, onDidChangeSelection: Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }> }>();
+	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
 
 	constructor(
 		mainContext: IMainContext,
+		private readonly _initData: IExtHostInitDataService,
 		private readonly _extHostNotebook: ExtHostNotebookController
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createKernel(extension: IExtensionDescription, options: vscode.NotebookKernelOptions): vscode.NotebookController {
+	createNotebookController(extension: IExtensionDescription, id: string, selector: vscode.NotebookSelector, label: string, handler?: vscode.NotebookExecutionHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
+
+		for (let data of this._kernelData.values()) {
+			if (data.controller.id === id) {
+				throw new Error(`notebook controller with id '${id}' ALREADY exist`);
+			}
+		}
 
 		const handle = this._handlePool++;
 		const that = this;
 
+		const _defaultSupportedLanguages = ['plaintext'];
+		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
+
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
 
-		const emitter = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }>();
-		this._kernelData.set(handle, { id: options.id, executeHandler: options.executeHandler, onDidChangeSelection: emitter });
+		const onDidChangeSelection = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }>();
+		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id: options.id,
-			selector: options.selector,
+			id: id,
+			selector: selector,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
-			label: options.label,
-			supportedLanguages: [],
+			label: label || extension.identifier.value,
+			supportedLanguages: _defaultSupportedLanguages,
+			preloads: preloads ? preloads.map(extHostTypeConverters.NotebookKernelPreload.from) : []
 		};
 
+		//
+		let _executeHandler: vscode.NotebookExecutionHandler = handler ?? _defaultExecutHandler;
+		let _interruptHandler: vscode.NotebookInterruptHandler | undefined;
+
 		// todo@jrieken the selector needs to be massaged
-		this._proxy.$addKernel(handle, data);
+		this._proxy.$addKernel(handle, data).catch(err => {
+			// this can happen when a kernel with that ID is already registered
+			console.log(err);
+			isDisposed = true;
+		});
 
 		// update: all setters write directly into the dto object
 		// and trigger an update. the actual update will only happen
@@ -70,15 +95,15 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			});
 		};
 
-		const result: vscode.NotebookController = {
+		const controller: vscode.NotebookController = {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
-			onDidChangeNotebookAssociation: emitter.event,
+			onDidChangeNotebookAssociation: onDidChangeSelection.event,
 			get label() {
 				return data.label;
 			},
 			set label(value) {
-				data.label = value;
+				data.label = value ?? extension.displayName ?? extension.name;
 				_update();
 			},
 			get description() {
@@ -88,11 +113,18 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.description = value;
 				_update();
 			},
+			get isPreferred() {
+				return data.isPreferred ?? false;
+			},
+			set isPreferred(value) {
+				data.isPreferred = value;
+				_update();
+			},
 			get supportedLanguages() {
 				return data.supportedLanguages;
 			},
 			set supportedLanguages(value) {
-				data.supportedLanguages = isNonEmptyArray(value) ? value : ['plaintext'];
+				data.supportedLanguages = isNonEmptyArray(value) ? value : _defaultSupportedLanguages;
 				_update();
 			},
 			get hasExecutionOrder() {
@@ -102,40 +134,52 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.hasExecutionOrder = value;
 				_update();
 			},
+			get preloads() {
+				return data.preloads ? data.preloads.map(extHostTypeConverters.NotebookKernelPreload.to) : [];
+			},
 			get executeHandler() {
-				return that._kernelData.get(handle)!.executeHandler;
+				return _executeHandler;
+			},
+			set executeHandler(value) {
+				_executeHandler = value ?? _defaultExecutHandler;
 			},
 			get interruptHandler() {
-				return that._kernelData.get(handle)!.interruptHandler;
+				return _interruptHandler;
 			},
 			set interruptHandler(value) {
-				that._kernelData.get(handle)!.interruptHandler = value;
+				_interruptHandler = value;
 				data.supportsInterrupt = Boolean(value);
 				_update();
 			},
 			createNotebookCellExecutionTask(cell) {
 				if (isDisposed) {
-					throw new Error('object disposed');
+					throw new Error('notebook controller is DISPOSED');
 				}
 				//todo@jrieken
-				return that._extHostNotebook.createNotebookCellExecution(cell.document.uri, cell.index, data.id)!;
+				return that._extHostNotebook.createNotebookCellExecution(cell.notebook.uri, cell.index, data.id)!;
 			},
 			dispose: () => {
 				if (!isDisposed) {
 					isDisposed = true;
 					this._kernelData.delete(handle);
 					commandDisposables.dispose();
-					emitter.dispose();
+					onDidChangeSelection.dispose();
+					onDidReceiveMessage.dispose();
 					this._proxy.$removeKernel(handle);
 				}
+			},
+			// --- ipc
+			onDidReceiveMessage: onDidReceiveMessage.event,
+			postMessage(message, editor) {
+				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
+			},
+			asWebviewUri(uri: URI) {
+				return asWebviewUri(that._initData.environment, data.id, uri);
 			}
 		};
 
-		result.supportedLanguages = options.supportedLanguages ?? [];
-		result.interruptHandler = options.interruptHandler;
-		result.hasExecutionOrder = options.hasExecutionOrder ?? false;
-
-		return result;
+		this._kernelData.set(handle, { extensionId: extension.identifier, controller, onDidChangeSelection, onDidReceiveMessage });
+		return controller;
 	}
 
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void {
@@ -159,22 +203,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			throw new Error('MISSING notebook');
 		}
 
-		const execs: vscode.NotebookCellExecutionTask[] = [];
+		const cells: vscode.NotebookCell[] = [];
 		for (let range of ranges) {
-			const cells = document.notebookDocument.getCells(NotebookCellRange.to(range));
-			for (let cell of cells) {
-				const exec = this._extHostNotebook.createNotebookCellExecution(document.uri, cell.index, obj.id);
-				if (exec) {
-					execs.push(exec);
-				} else {
-					// todo@jrieken there should always be an exec-object
-					console.warn('could NOT create notebook cell execution task for: ' + cell.document.uri);
-				}
-			}
+			cells.push(...document.notebookDocument.getCells(extHostTypeConverters.NotebookRange.to(range)));
 		}
 
 		try {
-			obj.executeHandler(execs);
+			obj.controller.executeHandler.call(obj.controller, cells, obj.controller);
 		} catch (err) {
 			//
 			console.error(err);
@@ -191,8 +226,33 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (!document) {
 			throw new Error('MISSING notebook');
 		}
-		if (obj.interruptHandler) {
-			obj.interruptHandler(document.notebookDocument);
+		if (obj.controller.interruptHandler) {
+			obj.controller.interruptHandler.call(obj.controller);
 		}
+
+		// we do both? interrupt and cancellation or should we be selective?
+		for (const range of ranges) {
+			for (let i = range.start; i < range.end; i++) {
+				const cell = document.getCellFromIndex(i);
+				if (cell) {
+					this._extHostNotebook.cancelOneNotebookCellExecution(cell);
+				}
+			}
+		}
+	}
+
+	$acceptRendererMessage(handle: number, editorId: string, message: any): void {
+		const obj = this._kernelData.get(handle);
+		if (!obj) {
+			// extension can dispose kernels in the meantime
+			return;
+		}
+
+		const editor = this._extHostNotebook.getEditorById(editorId);
+		if (!editor) {
+			throw new Error(`send message for UNKNOWN editor: ${editorId}`);
+		}
+
+		obj.onDidReceiveMessage.fire(Object.freeze({ editor: editor.apiEditor, message }));
 	}
 }

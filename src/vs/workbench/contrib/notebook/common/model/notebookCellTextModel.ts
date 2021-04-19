@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata, TransientOptions, IOutputDto, ICellOutput, CellMetadataChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, TransientOptions, IOutputDto, ICellOutput, CellMetadataChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -159,11 +159,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	private _getPersisentMetadata() {
 		let filteredMetadata: { [key: string]: any } = {};
-		const transientMetadata = this.transientOptions.transientMetadata;
+		const transientCellMetadata = this.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(this.metadata)]);
 		for (let key of keys) {
-			if (!(transientMetadata[key as keyof NotebookCellMetadata])
+			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
 			) {
 				filteredMetadata[key] = this.metadata[key as keyof NotebookCellMetadata];
 			}
@@ -189,19 +189,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			this._onDidChangeOutputs.fire(splices);
 		}
 	}
-
-	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
-		const editable = this.metadata?.editable ??
-			documentMetadata.cellEditable;
-
-		return {
-			...(this.metadata || {}),
-			...{
-				editable,
-			}
-		};
-	}
-
 	override dispose() {
 		// Manually release reference to previous text buffer to avoid large leaks
 		// in case someone leaks a CellTextModel reference
@@ -215,7 +202,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 export function cloneMetadata(cell: NotebookCellTextModel) {
 	return {
 		editable: cell.metadata?.editable,
-		breakpointMargin: cell.metadata?.breakpointMargin,
 		inputCollapsed: cell.metadata?.inputCollapsed,
 		outputCollapsed: cell.metadata?.outputCollapsed,
 		custom: cell.metadata?.custom

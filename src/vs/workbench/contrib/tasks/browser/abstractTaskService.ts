@@ -45,7 +45,8 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace,
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
 
-import { ITerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
@@ -252,7 +253,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
+		@ITerminalProfileResolverService private readonly terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly pathService: IPathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -1639,7 +1640,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.terminalService, this.outputService, this.panelService, this.viewsService, this.markerService,
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
-			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
+			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
 			this.pathService, this.viewDescriptorService, this.logService, this.configurationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {

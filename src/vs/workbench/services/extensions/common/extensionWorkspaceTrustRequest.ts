@@ -11,8 +11,7 @@ import { ExtensionIdentifier, ExtensionWorkspaceTrustRequestType, IExtensionMani
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { WORKSPACE_TRUST_EXTENSION_REQUEST } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EXTENSION_REQUEST } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export const IExtensionWorkspaceTrustRequestService = createDecorator<IExtensionWorkspaceTrustRequestService>('extensionWorkspaceTrustRequestService');
 
@@ -30,8 +29,7 @@ export class ExtensionWorkspaceTrustRequestService extends Disposable implements
 
 	constructor(
 		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -69,7 +67,7 @@ export class ExtensionWorkspaceTrustRequestService extends Disposable implements
 
 	getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType {
 		// Workspace trust feature is disabled, or extension has no entry point
-		if (!this._workspaceTrustManagementService.isWorkspaceTrustEnabled() || !manifest.main) {
+		if (!isWorkspaceTrustEnabled(this.configurationService) || !manifest.main) {
 			return 'never';
 		}
 

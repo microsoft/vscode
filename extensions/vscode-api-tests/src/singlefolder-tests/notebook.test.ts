@@ -59,7 +59,7 @@ const kernel1 = new class implements vscode.NotebookKernel {
 	readonly isPreferred = true;
 	readonly supportedLanguages = ['typescript', 'javascript'];
 
-	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 		if (ranges.length > 1 || ranges[0].start + 1 < ranges[0].end) {
 			// Keeping same behavior... if the full notebook is executed, just execute the first cell
 			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, 0, 'mainKernel');
@@ -110,7 +110,7 @@ const kernel2 = new class implements vscode.NotebookKernel {
 	readonly isPreferred = false;
 	readonly supportedLanguages = ['typescript', 'javascript'];
 
-	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 		if (ranges.length > 1 || ranges[0].start + 1 < ranges[0].end) {
 			// Keeping same behavior... if the full notebook is executed, just execute the first cell
 			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, 0, 'secondaryKernel');
@@ -218,7 +218,7 @@ suite('Notebook API tests', function () {
 							kind: vscode.NotebookCellKind.Code,
 							outputs: [],
 							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } }),
-							latestExecutionSummary: { duration: 25 }
+							latestExecutionSummary: { startTime: 10, endTime: 20 }
 						},
 						{
 							source: 'test2',
@@ -492,7 +492,7 @@ suite('Notebook API tests', function () {
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ breakpointMargin: false }));
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ inputCollapsed: false }));
 		});
 
 		await cellsChangeEvent;
@@ -510,18 +510,18 @@ suite('Notebook API tests', function () {
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ breakpointMargin: false }));
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ inputCollapsed: false }));
 		});
 
 		await cellsChangeEvent;
 		await cellMetadataChangeEvent;
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 3);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata?.breakpointMargin, false);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata?.inputCollapsed, false);
 		assert.strictEqual(version + 1, vscode.window.activeNotebookEditor!.document.version);
 
 		await vscode.commands.executeCommand('undo');
 		assert.strictEqual(version + 2, vscode.window.activeNotebookEditor!.document.version);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata?.breakpointMargin, undefined);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata?.inputCollapsed, undefined);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 2);
 
 		await saveAllFilesAndCloseAll(resource);
@@ -833,7 +833,7 @@ suite('Notebook API tests', function () {
 			readonly isPreferred = false;
 			readonly supportedLanguages = ['typescript', 'javascript'];
 
-			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 				const idx = ranges[0].start;
 
 				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'cancelableKernel');
@@ -882,7 +882,7 @@ suite('Notebook API tests', function () {
 
 			private _task: vscode.NotebookCellExecutionTask | undefined;
 
-			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 				const idx = ranges[0].start;
 
 				this._task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'interruptableKernel');
@@ -1327,7 +1327,7 @@ suite('Notebook API tests', function () {
 			readonly isPreferred = false;
 			readonly supportedLanguages = ['typescript', 'javascript'];
 
-			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 				const idx = ranges[0].start;
 
 				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, this.id);
@@ -1379,7 +1379,8 @@ suite('Notebook API tests', function () {
 		const cell = editor.document.cellAt(0);
 
 		assert.strictEqual(cell.latestExecutionSummary?.success, undefined);
-		assert.strictEqual(cell.latestExecutionSummary?.duration, 25);
+		assert.strictEqual(cell.latestExecutionSummary?.startTime, 10);
+		assert.strictEqual(cell.latestExecutionSummary?.endTime, 20);
 
 		await saveAllFilesAndCloseAll(undefined);
 	});
@@ -1393,7 +1394,7 @@ suite('Notebook API tests', function () {
 			readonly isPreferred = false;
 			readonly supportedLanguages = ['typescript', 'javascript'];
 
-			async executeCellsRequest(document: vscode.NotebookDocument, _ranges: vscode.NotebookCellRange[]) {
+			async executeCellsRequest(document: vscode.NotebookDocument, _ranges: vscode.NotebookRange[]) {
 				try {
 					vscode.notebook.createNotebookCellExecutionTask(document.uri, 1000, this.id);
 					missedError = 'Expected to throw for invalid index';

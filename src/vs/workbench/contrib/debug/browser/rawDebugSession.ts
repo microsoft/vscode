@@ -303,9 +303,9 @@ export class RawDebugSession implements IDisposable {
 		return Promise.reject(new Error('terminated not supported'));
 	}
 
-	restart(): Promise<DebugProtocol.RestartResponse | undefined> {
+	restart(args: DebugProtocol.RestartArguments): Promise<DebugProtocol.RestartResponse | undefined> {
 		if (this.capabilities.supportsRestartRequest) {
-			return this.send('restart', null);
+			return this.send('restart', args);
 		}
 		return Promise.reject(new Error('restart not supported'));
 	}

@@ -19,6 +19,7 @@ import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementServ
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -33,9 +34,10 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IDialogService dialogService: IDialogService,
-		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(extensionManagementServerService, extensionGalleryService, extensionWorkspaceTrustRequestService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService);
+		super(extensionManagementServerService, extensionGalleryService, extensionWorkspaceTrustRequestService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService);
 	}
 
 	protected async override installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {

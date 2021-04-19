@@ -68,7 +68,6 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
 				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
-				inTree.ownState = lookup?.state.state ?? TestResultState.Unset;
 				const computed = lookup?.computedState ?? TestResultState.Unset;
 				if (computed !== inTree.state) {
 					inTree.state = computed;
@@ -84,7 +83,6 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		this._register(results.onTestChanged(({ item: result }) => {
 			const item = this.items.get(result.item.extId);
 			if (item) {
-				item.ownState = result.state.state;
 				item.retired = result.retired;
 				refreshComputedState(computedStateAccessor, item, this.addUpdated, result.computedState);
 				this.addUpdated(item);
@@ -270,7 +268,6 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 		const prevState = this.results.getStateById(treeElement.test.item.extId)?.[1];
 		if (prevState) {
-			treeElement.ownState = prevState.state.state;
 			treeElement.retired = prevState.retired;
 			refreshComputedState(computedStateAccessor, treeElement, this.addUpdated, prevState.computedState);
 		}

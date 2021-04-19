@@ -29,7 +29,8 @@
 	width: auto;
 	height: auto;
 	line-height: 14px;
-	margin-top: 2px;
+	margin-top: 2px; /* margin for outline */
+	margin-bottom: 2px; /* margin for outline */
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,

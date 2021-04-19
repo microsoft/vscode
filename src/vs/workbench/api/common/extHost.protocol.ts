@@ -50,13 +50,13 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, ProvidedPortAttributes } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, TransientMetadata, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto, TransientOptions, IImmediateCellEditOperation, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, TransientCellMetadata, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto, TransientOptions, IImmediateCellEditOperation, INotebookCellStatusBarItem, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff, ISerializedTestResults, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff, ISerializedTestResults, ITestMessage, ITestItem, ITestRunTask, ExtensionRunTestsRequest } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -874,10 +874,11 @@ export interface INotebookCellStatusBarListDto {
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: {
 		transientOutputs: boolean;
-		transientMetadata: TransientMetadata;
+		transientCellMetadata: TransientCellMetadata;
+		transientDocumentMetadata: TransientDocumentMetadata;
 		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	}): Promise<void>;
-	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientMetadata: TransientMetadata; }): Promise<void>;
+	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; }): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 
 	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions): void;
@@ -899,10 +900,6 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$removeNotebookEditorDecorationType(key: string): void;
 	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean>
-
-	$addRendererIpc(rendererId: string, handle: number): Promise<void>;
-	$removeRendererIpc(rendererId: string, handle: number): void;
-	$postRendererIpcMessage(rendererId: string, handle: number, editorId: string | undefined, message: unknown): Promise<boolean>;
 }
 
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
@@ -926,7 +923,8 @@ export interface INotebookKernelDto2 {
 }
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
-	$addKernel(handle: number, data: INotebookKernelDto2): void;
+	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
+	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
 	$removeKernel(handle: number): void;
 }
@@ -1721,7 +1719,6 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestInitialCwd(id: number): void;
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
-	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$getAvailableProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
@@ -1942,8 +1939,8 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
 
-	$dataToNotebook(handle: number, data: VSBuffer): Promise<NotebookDataDto>;
-	$notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer>;
+	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<NotebookDataDto>;
+	$notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer>;
 }
 
 export interface ExtHostNotebookDocumentsAndEditorsShape {
@@ -1962,14 +1959,13 @@ export type INotebookEditorViewColumnInfo = Record<string, number>;
 export interface ExtHostNotebookEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
 	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void;
-
-	$acceptEditorIpcMessage(editorId: string, rendererId: string, handles: number[], message: unknown): void;
 }
 
 export interface ExtHostNotebookKernelsShape {
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void;
 	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
 	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
+	$acceptRendererMessage(handle: number, editorId: string, message: any): void;
 }
 
 export interface ExtHostStorageShape {
@@ -2012,16 +2008,39 @@ export interface ExtHostTestingShape {
 }
 
 export interface MainThreadTestingShape {
-	$registerTestProvider(id: string): void;
-	$unregisterTestProvider(id: string): void;
+	/** Registeres that there's a test controller with the given ID */
+	$registerTestController(id: string): void;
+	/** Diposes of the test controller with the given ID */
+	$unregisterTestController(id: string): void;
+	/** Requests tests from the given resource/uri, from the observer API. */
 	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	/** Stops requesting tests from the given resource/uri, from the observer API. */
 	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	/** Publishes that new tests were available on the given source. */
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
-	$updateTestStateInRun(runId: string, testId: string, state: TestResultState, duration?: number): void;
-	$appendTestMessageInRun(runId: string, testId: string, message: ITestMessage): void;
-	$appendOutputToRun(runId: string, output: VSBuffer): void;
+	/** Request by an extension to run tests. */
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
-	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void;
+
+	// --- test run handling:
+	/**
+	 * Adds tests to the run. The tests are given in descending depth. The first
+	 * item will be a previously-known test, or a test root.
+	 */
+	$addTestsToRun(runId: string, tests: ITestItem[]): void;
+	/** Updates the state of a test run in the given run. */
+	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
+	/** Appends a message to a test in the run. */
+	$appendTestMessageInRun(runId: string, taskId: string, testId: string, message: ITestMessage): void;
+	/** Appends raw output to the test run.. */
+	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer): void;
+	/** Signals a task in a test run started. */
+	$startedTestRunTask(runId: string, task: ITestRunTask): void;
+	/** Signals a task in a test run ended. */
+	$finishedTestRunTask(runId: string, taskId: string): void;
+	/** Start a new extension-provided test run. */
+	$startedExtensionTestRun(req: ExtensionRunTestsRequest): void;
+	/** Signals that an extension-provided test run finished. */
+	$finishedExtensionTestRun(runId: string): void;
 }
 
 // --- proxy identifiers

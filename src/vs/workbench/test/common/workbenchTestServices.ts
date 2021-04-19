@@ -8,7 +8,7 @@ import { basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace, IWorkspaceFoldersWillChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -22,6 +22,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import product from 'vs/platform/product/common/product';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -51,6 +52,9 @@ export class TestContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkspaceName: Emitter<void>;
 	get onDidChangeWorkspaceName(): Event<void> { return this._onDidChangeWorkspaceName.event; }
 
+	private readonly _onWillChangeWorkspaceFolders: Emitter<IWorkspaceFoldersWillChangeEvent>;
+	get onWillChangeWorkspaceFolders(): Event<IWorkspaceFoldersWillChangeEvent> { return this._onWillChangeWorkspaceFolders.event; }
+
 	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> { return this._onDidChangeWorkspaceFolders.event; }
 
@@ -61,6 +65,7 @@ export class TestContextService implements IWorkspaceContextService {
 		this.workspace = workspace;
 		this.options = options || Object.create(null);
 		this._onDidChangeWorkspaceName = new Emitter<void>();
+		this._onWillChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersWillChangeEvent>();
 		this._onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
 		this._onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
 	}
@@ -210,3 +215,5 @@ export interface Ctor<T> {
 }
 
 export class TestExtensionService extends NullExtensionService { }
+
+export const TestProductService = { _serviceBrand: undefined, ...product };

@@ -6,9 +6,13 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { getNoDefaultTerminalShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { BrowserTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
+
+registerSingleton(ITerminalProfileResolverService, BrowserTerminalProfileResolverService, true);
 
 // Desktop shell configuration are registered in electron-browser as their default values rely
 // on process.env

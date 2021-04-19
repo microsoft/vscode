@@ -25,7 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalExecutable, ITerminalProfileSource, ITerminalTypeContribution } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -100,6 +100,8 @@ export class TerminalService implements ITerminalService {
 	public get onInstanceTitleChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceTitleChanged.event; }
 	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
+	private readonly _onInstancePrimaryStatusChanged = new Emitter<ITerminalInstance>();
+	public get onInstancePrimaryStatusChanged(): Event<ITerminalInstance> { return this._onInstancePrimaryStatusChanged.event; }
 	private readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
 	private readonly _onRequestAvailableProfiles = new Emitter<IAvailableProfilesRequest>();
@@ -308,54 +310,14 @@ export class TerminalService implements ITerminalService {
 		return this._availableProfiles || [];
 	}
 
-	private async _getWorkspaceProfilePermissions(profile: ITerminalProfile): Promise<boolean> {
-		const platformKey = await this._getPlatformKey();
-		const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(`terminal.integrated.profiles.${platformKey}`);
-		if (!profiles || !profiles.workspaceValue || !profiles.defaultValue) {
-			return false;
-		}
-		const workspaceProfile = Object.entries(profiles.workspaceValue).find(p => p[0] === profile.profileName);
-		const defaultProfile = Object.entries(profiles.defaultValue).find(p => p[0] === profile.profileName);
-		if (workspaceProfile && defaultProfile && workspaceProfile[0] === defaultProfile[0]) {
-			let result = !this._terminalProfileObjectEqual(workspaceProfile[1], defaultProfile[1]);
-			return result;
-		} else if (!workspaceProfile && !defaultProfile) {
-			// user profile
-			return false;
-		} else {
-			// this key is missing from either default or the workspace config
-			return true;
-		}
-	}
-
-	private _terminalProfileObjectEqual(one?: ITerminalProfileObject, two?: ITerminalProfileObject): boolean {
-		if (one === null && two === null) {
-			return true;
-		} else if ((one as ITerminalExecutable).path && (two as ITerminalExecutable).path) {
-			const oneExec = (one as ITerminalExecutable);
-			const twoExec = (two as ITerminalExecutable);
-			return ((Array.isArray(oneExec.path) && Array.isArray(twoExec.path) && oneExec.path.length === twoExec.path.length && oneExec.path.every((p, index) => p === twoExec.path[index])) ||
-				(oneExec.path === twoExec.path)
-			) && ((Array.isArray(oneExec.args) && Array.isArray(twoExec.args) && oneExec.args?.every((a, index) => a === twoExec.args?.[index])) ||
-				(oneExec.args === twoExec.args)
-				);
-		} else if ((one as ITerminalProfileSource).source && (two as ITerminalProfileSource).source) {
-			const oneSource = (one as ITerminalProfileSource);
-			const twoSource = (two as ITerminalProfileSource);
-			return oneSource.source === twoSource.source
-				&& ((Array.isArray(oneSource.args) && Array.isArray(twoSource.args) && oneSource.args?.every((a, index) => a === twoSource.args?.[index])) ||
-					(oneSource.args === twoSource.args)
-				);
-		}
-		return false;
+	public async getAvailableProfilesAsync(): Promise<ITerminalProfile[]> {
+		await this._updateAvailableProfilesNow();
+		return this._availableProfiles || [];
 	}
 
 	// when relevant config changes, update without debouncing
 	private async _updateAvailableProfilesNow(): Promise<void> {
 		const result = await this._detectProfiles(true);
-		for (const p of result) {
-			p.isWorkspaceProfile = await this._getWorkspaceProfilePermissions(p);
-		}
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
 			this._onProfilesConfigChanged.fire();
@@ -668,6 +630,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
+		instance.addDisposable(instance.statusList.onDidChangePrimaryStatus(() => this._onInstancePrimaryStatusChanged.fire(instance)));
 		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => {
 			this._onInstanceDimensionsChanged.fire(instance);
@@ -746,16 +709,6 @@ export class TerminalService implements ITerminalService {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
 		return terminalIndex;
-	}
-
-	public async manageWorkspaceShellPermissions(): Promise<void> {
-		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration") };
-		const disallowItem: IQuickPickItem = { label: nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration") };
-		const value = await this._quickInputService.pick([allowItem, disallowItem], { canPickMany: false });
-		if (!value) {
-			return;
-		}
-		this.configHelper.setWorkspaceShellAllowed(value === allowItem);
 	}
 
 	protected async _showTerminalCloseConfirmation(): Promise<boolean> {
@@ -860,8 +813,8 @@ export class TerminalService implements ITerminalService {
 					return;
 				}
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
-				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
-				const existingProfiles = configProfiles.userValue ? Object.keys(configProfiles.userValue) : [];
+				const configProfiles = this._configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(configKey);
+				const existingProfiles = configProfiles ? Object.keys(configProfiles) : [];
 				const name = await this._quickInputService.input({
 					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
 					value: context.item.profile.profileName,
@@ -875,7 +828,7 @@ export class TerminalService implements ITerminalService {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles.userValue } ?? {};
+				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles } ?? {};
 				newConfigValue[name] = {
 					path: context.item.profile.path,
 					args: context.item.profile.args
@@ -978,6 +931,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
+		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
 			return {
@@ -988,7 +942,14 @@ export class TerminalService implements ITerminalService {
 				name: profile.overrideName ? profile.profileName : undefined
 			};
 		}
-		return shellLaunchConfigOrProfile || {};
+
+		// Shell launch config was provided
+		if (shellLaunchConfigOrProfile) {
+			return shellLaunchConfigOrProfile;
+		}
+
+		// Return empty shell launch config
+		return {};
 	}
 
 	public createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
@@ -1014,11 +975,12 @@ export class TerminalService implements ITerminalService {
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
 		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		this._initInstanceListeners(instance);
+		this._onInstancesChanged.fire();
 		if (this.terminalInstances.length === 1) {
-			// It's the first instance so it should be made active automatically
+			// It's the first instance so it should be made active automatically, this must fire
+			// after onInstancesChanged so consumers can react to the instance being added first
 			this.setActiveInstanceByIndex(0);
 		}
-		this._onInstancesChanged.fire();
 		return instance;
 	}
 

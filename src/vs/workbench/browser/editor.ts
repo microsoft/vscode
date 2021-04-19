@@ -221,7 +221,7 @@ export type EditorAssociation = {
 	readonly filenamePattern?: string;
 };
 
-export type EditorsAssociations = readonly EditorAssociation[];
+export type EditorAssociations = readonly EditorAssociation[];
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 

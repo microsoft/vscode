@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ICellRange, INotebookCellStatusBarItemProvider, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookDataDto, TransientMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange, INotebookCellStatusBarItemProvider, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookDataDto, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
 
@@ -65,17 +65,19 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 
 	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: {
 		transientOutputs: boolean;
-		transientMetadata: TransientMetadata;
+		transientCellMetadata: TransientCellMetadata;
+		transientDocumentMetadata: TransientDocumentMetadata;
 		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	}): Promise<void> {
-		let contentOptions = { transientOutputs: options.transientOutputs, transientMetadata: options.transientMetadata };
+		let contentOptions = { transientOutputs: options.transientOutputs, transientCellMetadata: options.transientCellMetadata, transientDocumentMetadata: options.transientDocumentMetadata };
 
 		const controller: IMainNotebookController = {
 			get options() {
 				return contentOptions;
 			},
 			set options(newOptions) {
-				contentOptions.transientMetadata = newOptions.transientMetadata;
+				contentOptions.transientCellMetadata = newOptions.transientCellMetadata;
+				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
 			viewOptions: options.viewOptions,
@@ -107,7 +109,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		this._notebookProviders.set(viewType, { controller, disposable });
 	}
 
-	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientMetadata: TransientMetadata; }): Promise<void> {
+	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; }): Promise<void> {
 		const provider = this._notebookProviders.get(viewType);
 
 		if (provider && options) {
@@ -132,10 +134,10 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: (data: VSBuffer): Promise<NotebookDataDto> => {
-				return this._proxy.$dataToNotebook(handle, data);
+				return this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
 			},
 			notebookToData: (data: NotebookDataDto): Promise<VSBuffer> => {
-				return this._proxy.$notebookToData(handle, data);
+				return this._proxy.$notebookToData(handle, data, CancellationToken.None);
 			}
 		});
 		this._notebookSerializer.set(handle, registration);

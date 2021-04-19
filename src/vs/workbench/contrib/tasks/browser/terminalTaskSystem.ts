@@ -27,8 +27,8 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalService, ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
@@ -211,7 +211,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
 		private fileService: IFileService,
-		private terminalInstanceService: ITerminalInstanceService,
+		private terminalProfileResolverService: ITerminalProfileResolverService,
 		private pathService: IPathService,
 		private viewDescriptorService: IViewDescriptorService,
 		private logService: ILogService,
@@ -1010,7 +1010,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let terminalName = this.createTerminalName(task);
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			const defaultConfig = variableResolver.taskSystemInfo ? await variableResolver.taskSystemInfo.getDefaultShellAndArgs() : await this.terminalInstanceService.getDefaultShellAndArgs(true, platform);
+			let defaultConfig: { shell: string, args: string[] | string | undefined };
+			if (variableResolver.taskSystemInfo) {
+				defaultConfig = await variableResolver.taskSystemInfo.getDefaultShellAndArgs();
+			} else {
+				const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({
+					allowAutomationShell: true,
+					os: Platform.OS,
+					remoteAuthority: this.environmentService.remoteAuthority
+				});
+				defaultConfig = {
+					shell: defaultProfile.path,
+					args: defaultProfile.args
+				};
+			}
 			shellLaunchConfig = { name: terminalName, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;

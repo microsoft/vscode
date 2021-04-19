@@ -40,7 +40,7 @@ export class NotebookKernelService implements INotebookKernelService {
 
 	registerKernel(kernel: INotebookKernel2): IDisposable {
 		if (this._kernels.has(kernel.id)) {
-			throw new Error(`KERNEL with id '${kernel.id}' already exists`);
+			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
 		}
 
 		this._kernels.set(kernel.id, kernel);
@@ -59,7 +59,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		});
 	}
 
-	getKernels(notebook: INotebookTextModel): INotebookKernel2[] {
+	getMatchingKernels(notebook: INotebookTextModel): INotebookKernel2[] {
 		const result: INotebookKernel2[] = [];
 		for (const kernel of this._kernels.values()) {
 			if (score(kernel.selector, notebook.uri, notebook.viewType) > 0) {
@@ -97,6 +97,10 @@ export class NotebookKernelService implements INotebookKernelService {
 			}
 			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel });
 		}
+	}
+
+	getBoundKernel(notebook: INotebookTextModel): INotebookKernel2 | undefined {
+		return this._kernelBindings.get(notebook.uri);
 	}
 }
 
@@ -144,7 +148,7 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 				if (!model) {
 					return [];
 				}
-				return notebookKernelService.getKernels(model).map((kernel: INotebookKernel2): INotebookKernel => {
+				return notebookKernelService.getMatchingKernels(model).map((kernel: INotebookKernel2): INotebookKernel => {
 					return {
 						id: kernel.id,
 						friendlyId: kernel.id,

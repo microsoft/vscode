@@ -185,17 +185,21 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 					continue; // do not show decorations for outdated tests
 				}
 
-				for (let i = 0; i < stateItem.state.messages.length; i++) {
-					const m = stateItem.state.messages[i];
-					if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-						const uri = buildTestUri({
-							type: TestUriType.ResultActualOutput,
-							messageIndex: i,
-							resultId: result.id,
-							testExtId: stateItem.item.extId,
-						});
+				for (let taskId = 0; taskId < stateItem.tasks.length; taskId++) {
+					const state = stateItem.tasks[taskId];
+					for (let i = 0; i < state.messages.length; i++) {
+						const m = state.messages[i];
+						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
+							const uri = buildTestUri({
+								type: TestUriType.ResultActualOutput,
+								messageIndex: i,
+								taskIndex: taskId,
+								resultId: result.id,
+								testExtId: stateItem.item.extId,
+							});
 
-						newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+						}
 					}
 				}
 			}
@@ -275,7 +279,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
 
 		const hoverMessage = new MarkdownString('', true).appendText(localize('failedHoverMessage', '{0} has failed. ', test.item.label));
-		if (stateItem?.state.messages.length) {
+		if (stateItem?.tasks.some(s => s.messages.length > 0)) {
 			const args = encodeURIComponent(JSON.stringify([test.item.extId]));
 			hoverMessage.appendMarkdown(`[${localize('failedPeekAction', 'Peek Error')}](command:vscode.peekTestError?${args})`);
 		}

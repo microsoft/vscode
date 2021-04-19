@@ -440,6 +440,7 @@ export class SuggestWidget implements IDisposable {
 				this._contentWidget.hide();
 				this._ctxSuggestWidgetVisible.reset();
 				this._ctxSuggestWidgetMultipleSuggestions.reset();
+				this._showTimeout.cancel();
 				this.element.domNode.classList.remove('visible');
 				this._list.splice(0, this._list.length);
 				this._focusedItem = undefined;

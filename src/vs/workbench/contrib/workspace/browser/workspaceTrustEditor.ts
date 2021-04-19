@@ -9,9 +9,8 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { Action } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { values } from 'vs/base/common/collections';
+import { Color, RGBA } from 'vs/base/common/color';
 import { debounce } from 'vs/base/common/decorators';
-import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { splitName } from 'vs/base/common/labels';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -21,20 +20,19 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
+import { IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -43,6 +41,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { trustedForegroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
+import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 
@@ -85,7 +84,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
@@ -108,6 +107,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 			this.rootElement.style.setProperty('--workspace-trust-state-trusted-color', colors.trustedForegroundColor?.toString() || '');
 			this.rootElement.style.setProperty('--workspace-trust-state-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
 		}));
+
+		this._register(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+			const foregroundColor = theme.getColor(foreground);
+			if (foregroundColor) {
+				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.3));
+				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 0px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
+			}
+		}));
 	}
 
 	async override setInput(input: WorkspaceTrustEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -120,10 +127,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private registerListeners(): void {
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
 		this._register(this.extensionWorkbenchService.onChange(() => this.render()));
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		this._register(Event.any(configurationRegistry.onDidUpdateConfiguration, configurationRegistry.onDidSchemaChange)(() => this.render()));
+		this._register(this.configurationService.onDidChangeUntrustdSettings(() => this.render()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this.render()));
 	}
 
 	private getHeaderContainerClass(trusted: boolean): string {
@@ -195,7 +202,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.headerContainer.className = this.getHeaderContainerClass(isWorkspaceTrusted);
 
 		// Settings
-		const settingsRequiringTrustedWorkspaceCount = this.getSettingsRequiringTrustedTargetCount();
+		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.unTrustedSettings.default).length;
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
@@ -205,16 +212,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.renderAffectedFeatures(settingsRequiringTrustedWorkspaceCount, onDemandExtensionCount + onStartExtensionCount);
 
 		// Configuration Tree
-		this.workspaceTrustSettingsTreeModel.update(this.workspaceTrustStorageService.getTrustStateInfo());
+		this.workspaceTrustSettingsTreeModel.update(this.workspaceTrustManagementService.getTrustedFolders());
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
 
 		this.bodyScrollBar.scanDomNode();
 		this.rendering = false;
-	}
-
-	private getSettingsRequiringTrustedTargetCount(): number {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		return values(configurationRegistry.getConfigurationProperties()).reduce((count, property) => property.requireTrust && property.scope !== ConfigurationScope.APPLICATION && property.scope !== ConfigurationScope.MACHINE ? count + 1 : count, 0);
 	}
 
 	private getExtensionCountByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): number {
@@ -282,10 +284,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
-		const workspaceFolders = this.workspaceService.getWorkspace().folders;
-
-
-		if (workspaceFolders.length) {
+		if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 			const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
 			const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
 			const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
@@ -315,8 +314,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 			};
 
 			const trustUris = async (uris?: URI[]) => {
-				const folderURIs = uris || this.workspaceService.getWorkspace().folders.map(folder => folder.uri);
-				this.workspaceTrustStorageService.setFoldersTrust(folderURIs, true);
+				if (!uris) {
+					this.workspaceTrustManagementService.setWorkspaceTrust(true);
+				} else {
+					this.workspaceTrustManagementService.setFoldersTrust(uris, true);
+				}
 			};
 
 			const trustChoiceWithMenu: IPromptChoiceWithMenu = {
@@ -349,8 +351,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private addUntrustedTextToElement(parent: HTMLElement): void {
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+		const canSetWorkspaceTrust = this.workspaceTrustManagementService.canSetWorkspaceTrust();
 
-		if (isWorkspaceTrusted) {
+		if (canSetWorkspaceTrust && isWorkspaceTrusted) {
 			const textElement = append(parent, $('.workspace-trust-untrusted-description'));
 			textElement.innerText = localize('untrustedFolder', "This workspace is trusted via one or more of the trusted folders below.");
 		}
@@ -399,8 +402,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 				const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
 				const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
 
-				const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
-				if (!result.confirmed) {
+				const result = await this.dialogService.show(Severity.Info, message, [primaryButton, secondaryButton], { cancelId: 1, detail, custom: { icon: Codicon.shield } });
+				if (result.choice !== 0) {
 					return;
 				}
 			}
@@ -408,10 +411,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 			applyChanges();
 		};
 
-
 		if (isArray(change.value)) {
 			if (change.key === 'trustedFolders') {
-				applyChangesWithPrompt(change.type === 'changed' || change.type === 'removed', () => this.workspaceTrustStorageService.setTrustedFolders(change.value!));
+				applyChangesWithPrompt(false, () => this.workspaceTrustManagementService.setTrustedFolders(change.value!));
 			}
 		}
 	}

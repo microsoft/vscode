@@ -74,6 +74,7 @@ import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
+import 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import 'vs/workbench/services/extensionManagement/common/webExtensionsScannerService';
 import 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
