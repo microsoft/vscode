@@ -47,6 +47,11 @@ export interface IFileService {
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
+	 * Returns a file system provider for a certain scheme.
+	 */
+	getProvider(scheme: string): IFileSystemProvider | undefined;
+
+	/**
 	 * Tries to activate a provider with the given scheme.
 	 */
 	activateProvider(scheme: string): Promise<void>;
