@@ -79,7 +79,7 @@ export class ExtensionMemento implements vscode.Memento {
 					}
 				} catch (e) {
 					for (value of records.entries()) {
-						value.resolve();
+						value.reject();
 					}
 				}
 			})();
