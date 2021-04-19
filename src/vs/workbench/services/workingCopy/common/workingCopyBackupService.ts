@@ -450,14 +450,14 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 
 		// Build a new stream without the preamble
 		const firstBackupChunkWithoutPreamble = firstBackupChunk.slice(preambleEndIndex + 1);
-		let backupValue: VSBufferReadableStream;
+		let value: VSBufferReadableStream;
 		if (peekedBackupStream.ended) {
-			backupValue = bufferToStream(firstBackupChunkWithoutPreamble);
+			value = bufferToStream(firstBackupChunkWithoutPreamble);
 		} else {
-			backupValue = prefixedBufferStream(firstBackupChunkWithoutPreamble, peekedBackupStream.stream);
+			value = prefixedBufferStream(firstBackupChunkWithoutPreamble, peekedBackupStream.stream);
 		}
 
-		return { value: backupValue, meta };
+		return { value, meta };
 	}
 
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
@@ -531,7 +531,7 @@ export function hashIdentifier(identifier: IWorkingCopyIdentifier): string {
 	// the type id as a seed to the resource path.
 	let resource: URI;
 	if (identifier.typeId.length > 0) {
-		const typeIdHash = hash(identifier.typeId).toString(16);
+		const typeIdHash = hashString(identifier.typeId);
 		resource = joinPath(identifier.resource, typeIdHash);
 	} else {
 		resource = identifier.resource;
@@ -543,6 +543,10 @@ export function hashIdentifier(identifier: IWorkingCopyIdentifier): string {
 function hashPath(resource: URI): string {
 	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
 
+	return hashString(str);
+}
+
+function hashString(str: string): string {
 	return hash(str).toString(16);
 }
 
