@@ -57,7 +57,8 @@
     "node-fetch": "2.6.1",
     "uuid": "8.1.0",
     "vscode-extension-telemetry": "0.1.7",
-    "vscode-nls": "^4.1.2"
+    "vscode-nls": "^4.1.2",
+    "vscode-tas-client": "^0.1.22"
   },
   "devDependencies": {
     "@types/node": "^12.19.9",

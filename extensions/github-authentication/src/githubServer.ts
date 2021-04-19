@@ -9,7 +9,7 @@ import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import { ExperimentationTelemetry } from './experimentationService';
 
 const localize = nls.loadMessageBundle();
 
@@ -42,7 +42,7 @@ export class GitHubServer {
 	private _pendingStates = new Map<string, string[]>();
 	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
 
-	constructor(private readonly telemetryReporter: TelemetryReporter) { }
+	constructor(private readonly telemetryReporter: ExperimentationTelemetry) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
 		return /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
