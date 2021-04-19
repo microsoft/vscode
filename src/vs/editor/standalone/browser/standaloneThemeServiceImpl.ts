@@ -233,9 +233,15 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 			this._updateCSS();
 		});
 
-		window.matchMedia('(forced-colors: active)').addEventListener('change', () => {
+		const matchForcedColors = window.matchMedia('(forced-colors: active)');
+		const matchForcedColorsListener = () => {
 			this._updateActualTheme();
-		});
+		};
+		if (typeof matchForcedColors.addEventListener === 'function') {
+			matchForcedColors.addEventListener('change', matchForcedColorsListener);
+		} else {
+			matchForcedColors.addListener(matchForcedColorsListener);
+		}
 	}
 
 	public registerEditorContainer(domNode: HTMLElement): IDisposable {
