@@ -84,29 +84,23 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	context.subscriptions.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.random-nb' }, {
-		provideKernels(_document: vscode.NotebookDocument, _token: vscode.CancellationToken) {
-			return [new TestKernel()];
-		}
-	}));
+	const controller = vscode.notebook.createNotebookController(
+		'notebookRandomTest',
+		{ pattern: '*.random-nb' },
+		'notebook random test',
+		execute
+	);
+	controller.supportedLanguages = ['typescript'];
 }
 
-class TestKernel implements vscode.NotebookKernel {
-	readonly label = 'notebookRandomTest';
-
-	supportedLanguages: string[] = ['typescript'];
-
-	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]): Promise<void> {
-		for (let r in ranges) {
-			for (let i = ranges[r].start; i < ranges[r].end; i++) {
-				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, i, '')!;
-				task.start();
-				task.appendOutput([new vscode.NotebookCellOutput([getRandomOutput()])]);
-				task.end();
-			}
-		}
+const execute = (cells: vscode.NotebookCell[], _controller: vscode.NotebookController) => {
+	for (let cell of cells) {
+		const task = vscode.notebook.createNotebookCellExecutionTask(cell.document.uri, cell.index, '')!;
+		task.start();
+		task.appendOutput([new vscode.NotebookCellOutput([getRandomOutput()])]);
+		task.end();
 	}
-}
+};
 
 function getRandomOutput(): vscode.NotebookCellOutputItem {
 	const r = Math.random() > 0.5;

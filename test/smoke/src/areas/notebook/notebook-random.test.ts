@@ -290,9 +290,9 @@ function getActions(app: Application): INotebookActions {
 		},
 		focusPrevious: () => n.focusPreviousCell(),
 		focusNext: () => n.focusNextCell(),
-		focusTop: () => app.code.dispatchKeybinding('cmd+up'),
+		focusTop: () => qa.runCommand('notebook.focusTop'),
 		focusBottom: async () => {
-			await app.code.dispatchKeybinding('cmd+down');
+			await qa.runCommand('notebook.focusBottom');
 			await app.code.dispatchKeybinding('down');
 		},
 		moveUp: () => app.code.dispatchKeybinding('alt+up'),

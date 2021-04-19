@@ -53,7 +53,7 @@ export class Notebook {
 		const [cells, cellEditorsOrMarkdowns, languagePickersOrMarkdowns] = await Promise.all([
 			this.getElementsWithoutWaiting(`#${notebookId} .monaco-list-row`),
 			this.getElementsWithoutWaiting(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-editor-container > .monaco-editor, ${markdownSelector}`),
-			this.getElementsWithoutWaiting(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-language-picker, #${notebookId} .monaco-list-row .markdown:not([aria-hidden=true]), ${markdownSelector}`)
+			this.getElementsWithoutWaiting(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-status-item[title='Select Cell Language Mode'], #${notebookId} .monaco-list-row .markdown:not([aria-hidden=true]), ${markdownSelector}`)
 		]);
 
 		if (cells.length !== cellEditorsOrMarkdowns.length) {
