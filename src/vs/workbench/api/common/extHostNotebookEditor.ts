@@ -89,8 +89,6 @@ export class ExtHostNotebookEditor {
 	private _viewColumn?: vscode.ViewColumn;
 
 	private _visible: boolean = false;
-	private _kernel?: vscode.NotebookKernel;
-
 	private readonly _hasDecorationsForKey = new Set<string>();
 
 	private _editor?: vscode.NotebookEditor;
@@ -136,19 +134,12 @@ export class ExtHostNotebookEditor {
 					callback(edit);
 					return that._applyEdit(edit.finalize());
 				},
-				get kernel() {
-					return that._kernel;
-				},
 				setDecorations(decorationType, range) {
 					return that.setDecorations(decorationType, range);
 				}
 			};
 		}
 		return this._editor;
-	}
-
-	_acceptKernel(kernel?: vscode.NotebookKernel) {
-		this._kernel = kernel;
 	}
 
 	get visible(): boolean {

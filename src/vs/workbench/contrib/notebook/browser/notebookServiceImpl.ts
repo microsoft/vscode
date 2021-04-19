@@ -739,22 +739,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return ret;
 	}
 
-	// --- data provider IPC (deprecated)
-
-	async resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void> {
-		const entry = this._notebookProviders.get(viewType);
-		if (entry instanceof ComplexNotebookProviderInfo) {
-			entry.controller.resolveNotebookEditor(viewType, uri, editorId);
-		}
-	}
-
-	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: any): void {
-		const provider = this._notebookProviders.get(viewType);
-		if (provider instanceof ComplexNotebookProviderInfo) {
-			return provider.controller.onDidReceiveMessage(editorId, rendererType, message);
-		}
-	}
-
 	// --- copy & paste
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean) {

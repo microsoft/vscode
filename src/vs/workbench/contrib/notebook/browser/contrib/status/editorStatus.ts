@@ -22,6 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -89,7 +90,7 @@ registerAction2(class extends Action2 {
 		const availableKernels = await editor.beginComputeContributedKernels();
 
 		const selectedKernel = availableKernels.length ? availableKernels.find(
-			kernel => kernel.id && context?.id && kernel.id === context?.id && kernel.extension.value === context?.extension
+			kernel => kernel.id && context?.id && kernel.id === context?.id && ExtensionIdentifier.equals(kernel.extension, context?.extension)
 		) : undefined;
 
 		if (selectedKernel) {

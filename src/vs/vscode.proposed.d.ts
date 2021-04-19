@@ -1471,11 +1471,11 @@ declare module 'vscode' {
 		 * @param cells The notebook cells to execute
 		 * @param controller The controller that the handler is attached to
 		 */
-		(this: NotebookController, cells: NotebookCell[], controller: NotebookController): void
+		(this: NotebookController, cells: NotebookCell[], controller: NotebookController): void | Thenable<void>
 	}
 
 	export interface NotebookInterruptHandler {
-		(this: NotebookController): void;
+		(this: NotebookController): void | Thenable<void>;
 	}
 
 	export interface NotebookController {
@@ -1707,12 +1707,7 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		/**
-		 * Creates a [`NotebookCellExecutionTask`](#NotebookCellExecutionTask). Should only be called by a kernel. Returns undefined unless requested by the active kernel.
-		 * @param uri The [uri](#Uri) of the notebook document.
-		 * @param index The index of the cell.
-		 * @param kernelId The id of the kernel requesting this run task. If this kernel is not the current active kernel, `undefined` is returned.
-		 */
+		/** @deprecated use NotebookController */
 		export function createNotebookCellExecutionTask(uri: Uri, index: number, kernelId: string): NotebookCellExecutionTask | undefined;
 
 		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
@@ -1721,28 +1716,10 @@ declare module 'vscode' {
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
 
 	// todo@API why not for NotebookContentProvider?
+	/** @deprecated use NotebookSelector */
 	export interface NotebookDocumentFilter {
 		viewType?: string | string[];
 		filenamePattern?: NotebookFilenamePattern;
-	}
-
-	/** @deprecated used NotebookController */
-	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
-		onDidChangeKernels?: Event<NotebookDocument | undefined>;
-		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
-		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
-	}
-
-	export interface NotebookEditor {
-		/** @deprecated kernels are private object*/
-		readonly kernel?: NotebookKernel;
-	}
-
-	export namespace notebook {
-		/** @deprecated */
-		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
-		/** @deprecated used NotebookController */
-		export function registerNotebookKernelProvider(selector: NotebookDocumentFilter, provider: NotebookKernelProvider): Disposable;
 	}
 
 	//#endregion

@@ -22,8 +22,6 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface IMainNotebookController {
 	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: TransientOptions;
-	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
-	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 
 	open(uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
@@ -92,11 +90,6 @@ export interface INotebookService {
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 
-	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: unknown): void;
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
 	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
-
-	// editor events
-
-	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 }
