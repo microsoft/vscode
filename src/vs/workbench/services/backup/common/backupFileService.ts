@@ -21,6 +21,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { BackupRestorer } from 'vs/workbench/services/backup/common/backupRestorer';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<void>;
@@ -509,3 +513,6 @@ export function hashPath(resource: URI): string {
 
 	return hash(str).toString(16);
 }
+
+// Register Backup Restorer
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BackupRestorer, LifecyclePhase.Starting);

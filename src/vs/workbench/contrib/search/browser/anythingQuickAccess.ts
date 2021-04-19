@@ -200,7 +200,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
+	override provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Update the pick state for this run

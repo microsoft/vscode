@@ -13,85 +13,64 @@ export enum WorkspaceTrustScope {
 	Remote = 1
 }
 
-export enum WorkspaceTrustState {
-	Untrusted = 0,
-	Trusted = 1,
-	Unknown = 2
-}
-
-export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
-	switch (trustState) {
-		case WorkspaceTrustState.Trusted:
-			return localize('trusted', "Trusted");
-		case WorkspaceTrustState.Untrusted:
-			return localize('untrusted', "Untrusted");
-		case WorkspaceTrustState.Unknown:
-		default:
-			return localize('unknown', "Unknown");
+export function workspaceTrustToString(trustState: boolean) {
+	if (trustState) {
+		return localize('trusted', "Trusted");
+	} else {
+		return localize('untrusted', "Untrusted");
 	}
 }
 
-export interface IWorkspaceTrustModel {
-
-	readonly onDidChangeTrustState: Event<void>;
-
-	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
-	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo;
-
-	setTrustedFolders(folders: URI[]): void;
-	setUntrustedFolders(folders: URI[]): void;
-
-	getTrustStateInfo(): IWorkspaceTrustStateInfo;
-}
-
 export interface WorkspaceTrustRequestButton {
-	label: string;
-	type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+	readonly label: string;
+	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
 }
 
 export interface WorkspaceTrustRequestOptions {
-	buttons?: WorkspaceTrustRequestButton[];
-	message?: string;
-	modal: boolean;
+	readonly buttons?: WorkspaceTrustRequestButton[];
+	readonly message?: string;
+	readonly modal: boolean;
 }
 
-export interface IWorkspaceTrustRequestModel {
-	readonly trustRequestOptions: WorkspaceTrustRequestOptions | undefined;
+export type WorkspaceTrustChangeEvent = Event<boolean>;
+export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustManagementService>('workspaceTrustManagementService');
 
-	readonly onDidInitiateRequest: Event<void>;
-	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
-	readonly onDidCancelRequest: Event<void>;
-
-	initiateRequest(options?: WorkspaceTrustRequestOptions): void;
-	completeRequest(trustState?: WorkspaceTrustState): void;
-	cancelRequest(): void;
-}
-
-export interface WorkspaceTrustStateChangeEvent {
-	previousTrustState: WorkspaceTrustState;
-	currentTrustState: WorkspaceTrustState;
-}
-
-export type WorkspaceTrustChangeEvent = Event<WorkspaceTrustStateChangeEvent>;
-
-export const IWorkspaceTrustService = createDecorator<IWorkspaceTrustService>('workspaceTrustService');
-
-export interface IWorkspaceTrustService {
+export interface IWorkspaceTrustManagementService {
 	readonly _serviceBrand: undefined;
 
-	readonly requestModel: IWorkspaceTrustRequestModel;
+	onDidChangeTrust: WorkspaceTrustChangeEvent;
+	onDidChangeTrustedFolders: Event<void>;
 
-	onDidChangeTrustState: WorkspaceTrustChangeEvent;
-	getWorkspaceTrustState(): WorkspaceTrustState;
-	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState>;
+	isWorkpaceTrusted(): boolean;
+	canSetParentFolderTrust(): boolean;
+	setParentFolderTrust(trusted: boolean): void;
+	canSetWorkspaceTrust(): boolean;
+	setWorkspaceTrust(trusted: boolean): void;
+	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
+	setOpenEditors(openEditors: URI[]): void;
+	setFoldersTrust(folders: URI[], trusted: boolean): void;
+	getTrustedFolders(): URI[];
+	setTrustedFolders(folders: URI[]): void;
+}
+
+export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
+
+export interface IWorkspaceTrustRequestService {
+	readonly _serviceBrand: undefined;
+
+	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions>;
+	readonly onDidCompleteWorkspaceTrustRequest: Event<boolean>;
+
+	cancelRequest(): void;
+	completeRequest(trusted?: boolean): void;
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean>;
 }
 
 export interface IWorkspaceTrustUriInfo {
 	uri: URI,
-	trustState: WorkspaceTrustState
+	trusted: boolean
 }
 
-export interface IWorkspaceTrustStateInfo {
+export interface IWorkspaceTrustInfo {
 	uriTrustInfo: IWorkspaceTrustUriInfo[]
 }

@@ -63,6 +63,8 @@ import './mainThreadWebviewManager';
 import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadNotebook';
+import './mainThreadNotebookKernels';
+import './mainThreadNotebookDocumentsAndEditors';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';

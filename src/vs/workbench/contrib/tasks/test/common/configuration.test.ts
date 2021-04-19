@@ -361,7 +361,7 @@ class PatternBuilder {
 }
 
 class TasksMockContextKeyService extends MockContextKeyService {
-	public getContext(domNode: HTMLElement): IContext {
+	public override getContext(domNode: HTMLElement): IContext {
 		return {
 			getValue: <T>(_key: string) => {
 				return <T><unknown>true;

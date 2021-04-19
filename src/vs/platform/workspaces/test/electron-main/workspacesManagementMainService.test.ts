@@ -102,7 +102,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 				super(parseArgs(process.argv, OPTIONS), productService);
 			}
 
-			get untitledWorkspacesHome(): URI {
+			override get untitledWorkspacesHome(): URI {
 				return URI.file(untitledWorkspacesHomePath);
 			}
 		};

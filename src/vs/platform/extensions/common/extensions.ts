@@ -117,9 +117,6 @@ export interface IWalkthroughTask {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
-	readonly button:
-	| { title: string, link: string, command?: never }
-	| { title: string, command: string, link?: never },
 	readonly media: { path: string, altText: string },
 	readonly doneOn?: { command: string };
 	readonly when?: string;
@@ -131,6 +128,14 @@ export interface IWalkthrough {
 	readonly description: string;
 	readonly tasks: IWalkthroughTask[];
 	readonly primary?: boolean;
+	readonly when?: string;
+}
+
+export interface IStartEntry {
+	readonly title: string;
+	readonly description: string;
+	readonly command: string;
+	readonly type?: 'sample-folder' | 'sample-notebook' | string;
 	readonly when?: string;
 }
 
@@ -155,11 +160,12 @@ export interface IExtensionContributions {
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
+	startEntries?: IStartEntry[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
-export type ExtensionWorkspaceTrust = { required: ExtensionWorkspaceTrustRequirement, description?: string };
+export type ExtensionWorkspaceTrustRequestType = 'never' | 'onStart' | 'onDemand';
+export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart', description: string } | { request: 'onDemand', description: string, requiredForConfigurations?: string[] };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -305,18 +311,6 @@ export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 
 export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
-}
-
-export function getExtensionWorkspaceTrustRequirement(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequirement {
-	if (manifest.workspaceTrust?.required !== undefined) {
-		return manifest.workspaceTrust.required;
-	}
-
-	if (!manifest.main) {
-		return false;
-	}
-
-	return 'onStart';
 }
 
 export interface IScannedExtension {

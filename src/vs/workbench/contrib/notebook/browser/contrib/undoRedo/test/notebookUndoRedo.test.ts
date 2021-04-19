@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
@@ -16,7 +16,7 @@ suite('Notebook Undo/Redo', () => {
 				['body', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				const textModelService = accessor.get(ITextModelService);
+				const modeService = accessor.get(IModeService);
 				const viewModel = editor.viewModel;
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.getVersionId(), 0);
@@ -41,7 +41,7 @@ suite('Notebook Undo/Redo', () => {
 
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], textModelService),
+						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
 					]
 				}], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(viewModel.getVersionId(), 4);
@@ -61,7 +61,7 @@ suite('Notebook Undo/Redo', () => {
 				['body', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				const textModelService = accessor.get(ITextModelService);
+				const modeService = accessor.get(IModeService);
 				const viewModel = editor.viewModel;
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
@@ -70,7 +70,7 @@ suite('Notebook Undo/Redo', () => {
 				assert.doesNotThrow(() => {
 					viewModel.notebookDocument.applyEdits([{
 						editType: CellEditType.Replace, index: 0, count: 2, cells: [
-							new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], textModelService),
+							new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
 						]
 					}], true, undefined, () => undefined, undefined, true);
 				});
@@ -104,7 +104,7 @@ suite('Notebook Undo/Redo', () => {
 				['body', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				const textModelService = accessor.get(ITextModelService);
+				const modeService = accessor.get(IModeService);
 				const viewModel = editor.viewModel;
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
@@ -112,7 +112,7 @@ suite('Notebook Undo/Redo', () => {
 
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], textModelService),
+						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], modeService),
 					]
 				}], true, undefined, () => undefined, undefined, true);
 

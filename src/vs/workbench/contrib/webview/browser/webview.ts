@@ -33,6 +33,11 @@ export interface IWebviewService {
 	readonly activeWebview: Webview | undefined;
 
 	/**
+	 * Fired when the currently focused webview changes.
+	 */
+	readonly onDidChangeActiveWebview: Event<Webview | undefined>;
+
+	/**
 	 * Create a basic webview dom element.
 	 */
 	createWebviewElement(
@@ -167,8 +172,6 @@ export interface WebviewOverlay extends Webview {
 
 	claim(owner: any, scopedContextKeyService: IContextKeyService | undefined): void;
 	release(owner: any): void;
-
-	getInnerWebview(): Webview | undefined;
 
 	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }

@@ -208,7 +208,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				cellList.setFocus([1]);
-				cellList.updateElementHeight2(viewModel.viewCells[0], 100);
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 100);
 				assert.deepStrictEqual(cellList.scrollHeight, 400);
 
 				// bug!

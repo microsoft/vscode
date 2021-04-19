@@ -30,6 +30,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onStart: Event<void> = this._onStart.event;
 	private readonly _onInput = this._register(new Emitter<string>());
 	public readonly onInput: Event<string> = this._onInput.event;
+	private readonly _onBinary = this._register(new Emitter<string>());
+	public readonly onBinary: Event<string> = this._onBinary.event;
 	private readonly _onResize: Emitter<{ cols: number, rows: number }> = this._register(new Emitter<{ cols: number, rows: number }>());
 	public readonly onResize: Event<{ cols: number, rows: number }> = this._onResize.event;
 	private readonly _onAcknowledgeDataEvent = this._register(new Emitter<number>());
@@ -45,16 +47,16 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
+
 	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
 	private _pendingCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
 	private _pendingLatencyRequests: ((value: number | PromiseLike<number>) => void)[] = [];
 
 	constructor(
 		public instanceId: number,
-		private _shellLaunchConfig: IShellLaunchConfig,
 		private _cols: number,
 		private _rows: number,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 	}
@@ -103,9 +105,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
-		if (!this._shellLaunchConfig.isExtensionCustomPtyTerminal) {
-			throw new Error('Attempt to start an ext host process that is not an extension terminal');
-		}
 		return this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);
 	}
 
@@ -123,6 +122,11 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 
 	public acknowledgeDataEvent(): void {
 		// Flow control is disabled for extension terminals
+	}
+
+	public async processBinary(data: string): Promise<void> {
+		// Disabled for extension terminals
+		this._onBinary.fire(data);
 	}
 
 	public getInitialCwd(): Promise<string> {

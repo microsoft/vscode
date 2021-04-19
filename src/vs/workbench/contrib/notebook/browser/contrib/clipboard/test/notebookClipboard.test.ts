@@ -18,16 +18,16 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 suite('Notebook Clipboard', () => {
 	const createEditorService = (editor: IActiveNotebookEditor) => {
 		const visibleEditorPane = new class extends mock<IVisibleEditorPane>() {
-			getId(): string {
+			override getId(): string {
 				return NOTEBOOK_EDITOR_ID;
 			}
-			getControl(): INotebookEditor {
+			override getControl(): INotebookEditor {
 				return editor;
 			}
 		};
 
 		const editorService: IEditorService = new class extends mock<IEditorService>() {
-			get activeEditorPane(): IVisibleEditorPane | undefined {
+			override get activeEditorPane(): IVisibleEditorPane | undefined {
 				return visibleEditorPane;
 			}
 		};
@@ -43,7 +43,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
@@ -52,7 +52,7 @@ suite('Notebook Clipboard', () => {
 				assert.ok(clipboardContrib.runCutAction(accessor));
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
 				assert.strictEqual(viewModel.length, 1);
-				assert.strictEqual(viewModel.viewCells[0].getText(), 'paragraph 2');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), 'paragraph 2');
 			});
 	});
 
@@ -78,7 +78,7 @@ suite('Notebook Clipboard', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
 
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 				clipboardContrib.runCutAction(accessor);
@@ -112,8 +112,8 @@ suite('Notebook Clipboard', () => {
 
 				let _cells: NotebookCellTextModel[] = [];
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy(cells: NotebookCellTextModel[]) { _cells = cells; }
-					getToCopy() { return { items: _cells, isCopy: true }; }
+					override setToCopy(cells: NotebookCellTextModel[]) { _cells = cells; }
+					override getToCopy() { return { items: _cells, isCopy: true }; }
 				});
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
@@ -122,7 +122,7 @@ suite('Notebook Clipboard', () => {
 				clipboardContrib.runPasteAction(accessor);
 
 				assert.strictEqual(viewModel.length, 9);
-				assert.strictEqual(viewModel.viewCells[8].getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(8)?.getText(), 'var b = 1;');
 			});
 	});
 
@@ -134,7 +134,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
 				const viewModel = editor.viewModel;
@@ -154,11 +154,11 @@ suite('Notebook Clipboard', () => {
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return {
 							items: [
-								editor.viewModel.viewCells[0].model
+								editor.viewModel.cellAt(0)!.model
 							],
 							isCopy: true
 						};
@@ -173,7 +173,7 @@ suite('Notebook Clipboard', () => {
 
 				assert.strictEqual(viewModel.length, 4);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 3, end: 4 });
-				assert.strictEqual(viewModel.viewCells[3].getText(), '# header 1');
+				assert.strictEqual(viewModel.cellAt(3)?.getText(), '# header 1');
 				await viewModel.undo();
 				assert.strictEqual(viewModel.length, 3);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
@@ -190,8 +190,8 @@ suite('Notebook Clipboard', () => {
 			async (editor, accessor) => {
 				let _toCopy: NotebookCellTextModel[] = [];
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
-					getToCopy() {
+					override setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
+					override getToCopy() {
 						return {
 							items: _toCopy,
 							isCopy: true
@@ -201,12 +201,12 @@ suite('Notebook Clipboard', () => {
 
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 2 }] }, 'model');
-				assert.ok(runCopyCells(accessor, editor, viewModel.viewCells[0]));
-				assert.deepStrictEqual(_toCopy, [editor.viewModel.viewCells[0].model, editor.viewModel.viewCells[1].model]);
+				assert.ok(runCopyCells(accessor, editor, viewModel.cellAt(0)));
+				assert.deepStrictEqual(_toCopy, [editor.viewModel.cellAt(0)!.model, editor.viewModel.cellAt(1)!.model]);
 
-				assert.ok(runCopyCells(accessor, editor, viewModel.viewCells[2]));
+				assert.ok(runCopyCells(accessor, editor, viewModel.cellAt(2)));
 				assert.deepStrictEqual(_toCopy.length, 1);
-				assert.deepStrictEqual(_toCopy, [editor.viewModel.viewCells[2].model]);
+				assert.deepStrictEqual(_toCopy, [editor.viewModel.cellAt(2)!.model]);
 			});
 	});
 
@@ -220,35 +220,85 @@ suite('Notebook Clipboard', () => {
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return { items: [], isCopy: true };
 					}
 				});
 
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 2 }] }, 'model');
-				assert.ok(runCutCells(accessor, editor, viewModel.viewCells[0]));
+				assert.ok(runCutCells(accessor, editor, viewModel.cellAt(0)));
 				assert.strictEqual(viewModel.length, 2);
 				await viewModel.undo();
 				assert.strictEqual(viewModel.length, 4);
 
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 2 }]);
-				assert.ok(runCutCells(accessor, editor, viewModel.viewCells[2]));
+				assert.ok(runCutCells(accessor, editor, viewModel.cellAt(2)));
 				assert.strictEqual(viewModel.length, 3);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.strictEqual(viewModel.viewCells[0].getText(), '# header 1');
-				assert.strictEqual(viewModel.viewCells[1].getText(), 'paragraph 1');
-				assert.strictEqual(viewModel.viewCells[2].getText(), 'paragraph 3');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header 1');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'paragraph 1');
+				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'paragraph 3');
 
 				await viewModel.undo();
 				assert.strictEqual(viewModel.length, 4);
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 4 }] }, 'model');
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
-				assert.ok(runCutCells(accessor, editor, viewModel.viewCells[0]));
+				assert.ok(runCutCells(accessor, editor, viewModel.cellAt(0)));
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
+			});
+	});
+
+	test('cut focus cell still works if the focus is not part of any selection', async () => {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 3', 'markdown', CellKind.Markdown, [], {}],
+			],
+			async (editor, accessor) => {
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					override setToCopy() { }
+					override getToCopy() {
+						return { items: [], isCopy: true };
+					}
+				});
+
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 2, end: 4 }] }, 'model');
+				assert.ok(runCutCells(accessor, editor, undefined));
+				assert.strictEqual(viewModel.length, 3);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
+			});
+	});
+
+	test('cut focus cell still works if the focus is not part of any selection 2', async () => {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 3', 'markdown', CellKind.Markdown, [], {}],
+			],
+			async (editor, accessor) => {
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					override setToCopy() { }
+					override getToCopy() {
+						return { items: [], isCopy: true };
+					}
+				});
+
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 0, end: 2 }] }, 'model');
+				assert.ok(runCutCells(accessor, editor, undefined));
+				assert.strictEqual(viewModel.length, 3);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 2 }]);
 			});
 	});
 });

@@ -22,7 +22,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
@@ -43,6 +43,8 @@ function isInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICode
 
 	return false;
 }
+
+const FONT_FAMILY_VAR = `--testMessageDecorationFontFamily`;
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
 	private collection = this._register(new MutableDisposable<IReference<IMainThreadTestCollection>>());
@@ -99,6 +101,16 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				this.setDecorations(this.currentUri);
 			}
 		}));
+
+		const updateFontFamilyVar = () => {
+			this.editor.getContainerDomNode().style.setProperty(FONT_FAMILY_VAR, editor.getOption(EditorOption.fontFamily));
+		};
+		this._register(this.editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.fontFamily)) {
+				updateFontFamilyVar();
+			}
+		}));
+		updateFontFamilyVar();
 
 		this._register(this.results.onTestChanged(({ item: result }) => {
 			if (this.currentUri && result.item.uri.toString() === this.currentUri.toString()) {
@@ -173,17 +185,21 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 					continue; // do not show decorations for outdated tests
 				}
 
-				for (let i = 0; i < stateItem.state.messages.length; i++) {
-					const m = stateItem.state.messages[i];
-					if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-						const uri = buildTestUri({
-							type: TestUriType.ResultActualOutput,
-							messageIndex: i,
-							resultId: result.id,
-							testExtId: stateItem.item.extId,
-						});
+				for (let taskId = 0; taskId < stateItem.tasks.length; taskId++) {
+					const state = stateItem.tasks[taskId];
+					for (let i = 0; i < state.messages.length; i++) {
+						const m = state.messages[i];
+						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
+							const uri = buildTestUri({
+								type: TestUriType.ResultActualOutput,
+								messageIndex: i,
+								taskIndex: taskId,
+								resultId: result.id,
+								testExtId: stateItem.item.extId,
+							});
 
-						newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+						}
 					}
 				}
 			}
@@ -258,12 +274,12 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		super();
 		this.line = range.startLineNumber;
 
-		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestResult.Unset
+		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestResultState.Unset
 			? testingStatesToIcons.get(stateItem.computedState)!
 			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
 
 		const hoverMessage = new MarkdownString('', true).appendText(localize('failedHoverMessage', '{0} has failed. ', test.item.label));
-		if (stateItem?.state.messages.length) {
+		if (stateItem?.tasks.some(s => s.messages.length > 0)) {
 			const args = encodeURIComponent(JSON.stringify([test.item.extId]));
 			hoverMessage.appendMarkdown(`[${localize('failedPeekAction', 'Peek Error')}](command:vscode.peekTestError?${args})`);
 		}
@@ -311,7 +327,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		return true;
 	}
 
-	public dispose() {
+	public override dispose() {
 		// no-op
 	}
 
@@ -380,7 +396,7 @@ class TestMessageDecoration implements ITestDecoration {
 				contentText: message.toString(),
 				color: `${colorTheme.getColor(testMessageSeverityColors[severity].decorationForeground)}`,
 				fontSize: `${editor.getOption(EditorOption.fontSize)}px`,
-				fontFamily: editor.getOption(EditorOption.fontFamily),
+				fontFamily: `var(${FONT_FAMILY_VAR})`,
 				padding: `0px 12px 0px 24px`,
 			},
 		}, undefined, editor);

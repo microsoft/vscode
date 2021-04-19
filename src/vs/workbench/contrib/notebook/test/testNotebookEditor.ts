@@ -34,6 +34,8 @@ import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/note
 import { mock } from 'vs/base/test/common/mock';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -43,9 +45,9 @@ export class TestCell extends NotebookCellTextModel {
 		language: string,
 		cellKind: CellKind,
 		outputs: IOutputDto[],
-		modelService: ITextModelService
+		modeService: IModeService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, { transientMetadata: {}, transientOutputs: false }, modelService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, modeService);
 	}
 }
 
@@ -87,6 +89,9 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
+	isReadonly(): boolean {
+		return false;
+	}
 
 	isDirty() {
 		return this._dirty;
@@ -123,6 +128,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 export function setupInstantiationService() {
 	const instantiationService = new TestInstantiationService();
+	instantiationService.stub(IModeService, new ModeServiceImpl());
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IThemeService, new TestThemeService());
@@ -135,8 +141,8 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
-	const instantiationService = setupInstantiationService();
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
+
 	const viewType = 'notebook';
 	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
 		return {
@@ -146,7 +152,7 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 			outputs: cell[3] ?? [],
 			metadata: cell[4]
 		};
-	}), notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false });
+	}), notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false });
 
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
@@ -157,20 +163,23 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 	const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
 
 	const notebookEditor: IActiveNotebookEditor = new class extends mock<IActiveNotebookEditor>() {
-		onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
-		get viewModel() { return viewModel; }
-		hasModel(): this is IActiveNotebookEditor {
+		override dispose() {
+			viewModel.dispose();
+		}
+		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
+		override get viewModel() { return viewModel; }
+		override hasModel(): this is IActiveNotebookEditor {
 			return !!this.viewModel;
 		}
-		getFocus() { return viewModel.getFocus(); }
-		getSelections() { return viewModel.getSelections(); }
-		getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
-		getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
-		revealCellRangeInView() { }
-		setHiddenAreas(_ranges: ICellRange[]): boolean {
+		override getFocus() { return viewModel.getFocus(); }
+		override getSelections() { return viewModel.getSelections(); }
+		override getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
+		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
+		override revealCellRangeInView() { }
+		override setHiddenAreas(_ranges: ICellRange[]): boolean {
 			return cellList.setHiddenAreas(_ranges, true);
 		}
-		getActiveCell() {
+		override getActiveCell() {
 			const elements = cellList.getFocusedElements();
 
 			if (elements && elements.length) {
@@ -179,16 +188,27 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 
 			return undefined;
 		}
-		hasOutputTextSelection() {
+		override hasOutputTextSelection() {
 			return false;
 		}
 	};
 
+	return notebookEditor;
+}
+
+export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
+	return _createTestNotebookEditor(setupInstantiationService(), cells);
+}
+
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+	const instantiationService = setupInstantiationService();
+	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
+
 	const res = await callback(notebookEditor, instantiationService);
 	if (res instanceof Promise) {
-		res.finally(() => viewModel.dispose());
+		res.finally(() => notebookEditor.dispose());
 	} else {
-		viewModel.dispose();
+		notebookEditor.dispose();
 	}
 	return res;
 }

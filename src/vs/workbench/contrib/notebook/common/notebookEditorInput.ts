@@ -15,6 +15,7 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
+import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -48,36 +49,40 @@ export class NotebookEditorInput extends EditorInput {
 		this._name = labelService.getUriBasenameLabel(resource);
 	}
 
-	dispose() {
+	override dispose() {
 		this._editorModelReference?.dispose();
 		this._editorModelReference = null;
 		super.dispose();
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return NotebookEditorInput.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return this._name;
 	}
 
-	isDirty() {
+	override isDirty() {
 		if (!this._editorModelReference) {
 			return this._defaultDirtyState;
 		}
 		return this._editorModelReference.object.isDirty();
 	}
 
-	isUntitled(): boolean {
+	override isUntitled(): boolean {
 		return this.resource.scheme === Schemas.untitled;
 	}
 
-	isReadonly() {
-		return false;
+	override isReadonly() {
+		if (!this._editorModelReference) {
+			return super.isReadonly();
+		}
+
+		return this._editorModelReference.object.isReadonly();
 	}
 
-	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._editorModelReference) {
 
 			if (this.isUntitled()) {
@@ -92,7 +97,7 @@ export class NotebookEditorInput extends EditorInput {
 		return undefined;
 	}
 
-	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._editorModelReference) {
 			return undefined;
 		}
@@ -122,11 +127,7 @@ export class NotebookEditorInput extends EditorInput {
 
 				return `${pattern.include} (exclude: ${pattern.exclude})`;
 			}).join(', ');
-			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
-
-Please make sure the file name matches following patterns:
-${patterns}
-`);
+			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.\n\nPlease make sure the file name matches following patterns:\n${patterns}`);
 		}
 
 		return await this._editorModelReference.object.saveAs(target);
@@ -137,7 +138,7 @@ ${patterns}
 	}
 
 	// called when users rename a notebook document
-	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._editorModelReference) {
 			const contributedNotebookProviders = this._notebookService.getContributedNotebookProviders(target);
 
@@ -153,16 +154,18 @@ ${patterns}
 		return { editor: editorInput };
 	}
 
-	async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		if (this._editorModelReference && this._editorModelReference.object.isDirty()) {
 			await this._editorModelReference.object.revert(options);
 		}
 	}
 
-	async resolve(): Promise<IResolvedNotebookEditorModel | null> {
+	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}
+
+		mark(this.resource, 'extensionActivated');
 
 		if (!this._editorModelReference) {
 			this._editorModelReference = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
@@ -182,7 +185,7 @@ ${patterns}
 		return this._editorModelReference.object;
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		if (this === otherInput) {
 			return true;
 		}
@@ -191,6 +194,4 @@ ${patterns}
 		}
 		return false;
 	}
-
-
 }

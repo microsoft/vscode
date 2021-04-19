@@ -28,24 +28,22 @@ suite('NotebookEditorModel', function () {
 	const notificationService = new class extends mock<INotificationService>() { };
 	const untitledTextEditorService = new class extends mock<IUntitledTextEditorService>() { };
 	const fileService = new class extends mock<IFileService>() {
-		onDidFilesChange = Event.None;
+		override onDidFilesChange = Event.None;
 	};
 	const labelService = new class extends mock<ILabelService>() {
-		getUriBasenameLabel(uri: URI) { return uri.toString(); }
+		override getUriBasenameLabel(uri: URI) { return uri.toString(); }
 	};
 
 	const notebookDataProvider = new class extends mock<IMainNotebookController>() { };
 
 	test('working copy uri', function () {
-		if (1) {
-			this.skip();
-		}
+
 		const r1 = URI.parse('foo-files:///my.nb');
 		const r2 = URI.parse('bar-files:///my.nb');
 
 		const copies: IWorkingCopy[] = [];
 		const workingCopyService = new class extends mock<IWorkingCopyService>() {
-			registerWorkingCopy(copy: IWorkingCopy) {
+			override registerWorkingCopy(copy: IWorkingCopy) {
 				copies.push(copy);
 				return Disposable.None;
 			}

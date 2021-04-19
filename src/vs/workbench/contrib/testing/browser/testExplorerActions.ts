@@ -31,12 +31,14 @@ import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResult, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getAllTestsInHierarchy, getTestByPath, ITestService, waitForAllRoots } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -71,7 +73,7 @@ export class HideOrShowTestAction extends Action {
 	/**
 	 * @override
 	 */
-	public run() {
+	public override run() {
 		this.testService.setTestExcluded(this.testId);
 		return Promise.resolve();
 	}
@@ -94,7 +96,7 @@ export class DebugAction extends Action {
 	/**
 	 * @override
 	 */
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [...this.tests],
 			debug: true,
@@ -119,7 +121,7 @@ export class RunAction extends Action {
 	/**
 	 * @override
 	 */
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [...this.tests],
 			debug: false,
@@ -434,6 +436,30 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 	}
 }
 
+export class ShowMostRecentOutputAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.showMostRecentOutput',
+			title: localize('testing.showMostRecentOutput', "Show Output"),
+			f1: true,
+			category,
+			icon: Codicon.terminal,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.Collapse,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor) {
+		const result = accessor.get(ITestResultService).results[0];
+		accessor.get(ITestingOutputTerminalService).open(result);
+	}
+}
+
+
 export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 	constructor() {
 		super({
@@ -519,7 +545,7 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
+	public async override run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
 		if (test) {
 			await this.runForTest(accessor, test, preserveFocus);
 		} else {
@@ -853,7 +879,7 @@ abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
 			const resultSet = results[i];
 			for (const test of resultSet.tests) {
 				const path = this.getPathForTest(test, resultSet).join(sep);
-				if (isFailedState(test.state.state)) {
+				if (isFailedState(test.ownComputedState)) {
 					paths.add(path);
 				} else {
 					paths.delete(path);

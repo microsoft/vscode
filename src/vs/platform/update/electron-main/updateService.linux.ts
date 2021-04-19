@@ -17,8 +17,6 @@ import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeH
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -62,7 +60,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			});
 	}
 
-	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+	protected async override doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		// Use the download URL if available as we don't currently detect the package type that was
 		// installed and the website download page is more useful than the tarball generally.
 		if (this.productService.downloadUrl && this.productService.downloadUrl.length > 0) {

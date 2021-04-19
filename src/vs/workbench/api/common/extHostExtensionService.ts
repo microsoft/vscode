@@ -668,7 +668,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				connectionToken: result.connectionToken
 			};
 			const options: ResolvedOptions = {
-				extensionHostEnv: result.extensionHostEnv
+				extensionHostEnv: result.extensionHostEnv,
+				trust: result.trust
 			};
 
 			return {

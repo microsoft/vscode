@@ -7,7 +7,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { URI } from 'vs/base/common/uri';
 import { CellUri, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { combinedDisposable, DisposableStore, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
+import { combinedDisposable, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,6 +15,7 @@ import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/se
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { ResourceMap } from 'vs/base/common/map';
 
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
@@ -24,6 +25,11 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
 	readonly onDidSaveNotebook: Event<URI> = this._onDidSaveNotebook.event;
+
+	private readonly _onDidChangeDirty = new Emitter<IResolvedNotebookEditorModel>();
+	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel> = this._onDidChangeDirty.event;
+
+	private readonly _dirtyStates = new ResourceMap<boolean>();
 
 	constructor(
 		@IInstantiationService readonly _instantiationService: IInstantiationService,
@@ -36,6 +42,17 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			FileWorkingCopyManager,
 			new NotebookFileWorkingCopyModelFactory(_notebookService)
 		);
+	}
+
+	dispose(): void {
+		this._onDidSaveNotebook.dispose();
+		this._onDidChangeDirty.dispose();
+		dispose(this._modelListener.values());
+		this._workingCopyManager.dispose();
+	}
+
+	isDirty(resource: URI): boolean {
+		return this._dirtyStates.get(resource) ?? false;
 	}
 
 	protected async createReferencedObject(key: string, viewType: string): Promise<IResolvedNotebookEditorModel> {
@@ -56,7 +73,30 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			throw new Error(`CANNOT open ${key}, no provider found`);
 		}
 
-		this._modelListener.set(result, result.onDidSave(() => this._onDidSaveNotebook.fire(result.resource)));
+		// Whenever a notebook model is dirty we automatically reference it so that
+		// we can ensure that at least one reference exists. That guarantees that
+		// a model with unsaved changes is never disposed.
+		let onDirtyAutoReference: IReference<any> | undefined;
+
+		this._modelListener.set(result, combinedDisposable(
+			result.onDidSave(() => this._onDidSaveNotebook.fire(result.resource)),
+			result.onDidChangeDirty(() => {
+				const isDirty = result.isDirty();
+				this._dirtyStates.set(result.resource, isDirty);
+
+				// isDirty -> add reference
+				// !isDirty -> free reference
+				if (isDirty && !onDirtyAutoReference) {
+					onDirtyAutoReference = this.acquire(key, viewType);
+				} else if (onDirtyAutoReference) {
+					onDirtyAutoReference.dispose();
+					onDirtyAutoReference = undefined;
+				}
+
+				this._onDidChangeDirty.fire(result);
+			}),
+			toDisposable(() => onDirtyAutoReference?.dispose()),
+		));
 		return result;
 	}
 
@@ -78,6 +118,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	private readonly _data: NotebookModelReferenceCollection;
 
 	readonly onDidSaveNotebook: Event<URI>;
+	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -87,6 +128,15 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	) {
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
 		this.onDidSaveNotebook = this._data.onDidSaveNotebook;
+		this.onDidChangeDirty = this._data.onDidChangeDirty;
+	}
+
+	dispose() {
+		this._data.dispose();
+	}
+
+	isDirty(resource: URI): boolean {
+		return this._data.isDirty(resource);
 	}
 
 	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {
@@ -119,32 +169,11 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 
 		const reference = this._data.acquire(resource.toString(), viewType);
 		const model = await reference.object;
-		const autoRef = NotebookModelResolverServiceImpl._autoReferenceDirtyModel(model, () => this._data.acquire(resource.toString(), viewType));
 		return {
 			object: model,
 			dispose() {
 				reference.dispose();
-				autoRef.dispose();
 			}
 		};
-	}
-
-	private static _autoReferenceDirtyModel(model: IResolvedNotebookEditorModel, ref: () => IDisposable): IDisposable {
-
-		const references = new DisposableStore();
-		const listener = model.onDidChangeDirty(() => {
-			if (model.isDirty()) {
-				references.add(ref());
-			} else {
-				references.clear();
-			}
-		});
-
-		const onceListener = Event.once(model.notebook.onWillDispose)(() => {
-			listener.dispose();
-			references.dispose();
-		});
-
-		return combinedDisposable(references, listener, onceListener);
 	}
 }

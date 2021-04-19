@@ -39,6 +39,9 @@ import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { syncing } from 'vs/platform/theme/common/iconRegistry';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -208,6 +211,11 @@ class StatusbarViewModel extends Disposable {
 		this.focusEntry(-1, this.entries.length - 1);
 	}
 
+	isEntryFocused(): boolean {
+		const focused = this._entries.find(entry => isAncestor(document.activeElement, entry.container));
+		return !!focused;
+	}
+
 	private focusEntry(delta: number, restartPosition: number): void {
 		const getVisibleEntry = (start: number) => {
 			let indexToFocus = start;
@@ -352,7 +360,7 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 		this.checked = !model.isHidden(id);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		if (this.model.isHidden(this.id)) {
 			this.model.show(this.id);
 		} else {
@@ -367,7 +375,7 @@ class HideStatusbarEntryAction extends Action {
 		super(id, localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.model.hide(this.id);
 	}
 }
@@ -496,6 +504,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.viewModel.focusPreviousEntry();
 	}
 
+	isEntryFocused(): boolean {
+		return this.viewModel.isEntryFocused();
+	}
+
 	focus(preserveEntryFocus = true): void {
 		this.getContainer()?.focus();
 		const lastFocusedEntry = this.viewModel.lastFocusedEntry;
@@ -505,7 +517,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		// Track focus within container
@@ -516,7 +528,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.leftItemsContainer = document.createElement('div');
 		this.leftItemsContainer.classList.add('left-items', 'items-container');
 		this.element.appendChild(this.leftItemsContainer);
-		this.element.tabIndex = -1;
+		this.element.tabIndex = 0;
 
 		// Right items container
 		this.rightItemsContainer = document.createElement('div');
@@ -646,7 +658,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return actions;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
@@ -692,7 +704,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return itemContainer;
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		super.layout(width, height);
 		super.layoutContents(width, height);
 	}
@@ -724,7 +736,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 		}
 	}
 
-	set text(text: string) {
+	override set text(text: string) {
 
 		// Progress: insert progress codicon as first element as needed
 		// but keep it stable so that the animation does not reset
@@ -928,7 +940,7 @@ class StatusbarEntryItem extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		dispose(this.foregroundListener);
@@ -1042,6 +1054,30 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_STATUS_BAR_FOCUSED,
 	handler: (accessor: ServicesAccessor) => {
 		const statusBarService = accessor.get(IStatusbarService);
-		statusBarService.focus(false);
+		const editorService = accessor.get(IEditorService);
+		if (statusBarService.isEntryFocused()) {
+			statusBarService.focus(false);
+		} else if (editorService.activeEditorPane) {
+			editorService.activeEditorPane.focus();
+		}
 	}
 });
+
+class FocusStatusBarAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.focusStatusBar',
+			title: { value: localize('focusStatusBar', "Focus Status Bar"), original: 'Focus Status Bar' },
+			category: CATEGORIES.View,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.focusPart(Parts.STATUSBAR_PART);
+	}
+}
+
+registerAction2(FocusStatusBarAction);

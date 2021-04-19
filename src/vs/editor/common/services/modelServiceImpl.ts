@@ -78,10 +78,6 @@ class ModelData implements IDisposable {
 			this._languageSelectionListener.dispose();
 			this._languageSelectionListener = null;
 		}
-		if (this._languageSelection) {
-			this._languageSelection.dispose();
-			this._languageSelection = null;
-		}
 	}
 
 	public dispose(): void {
@@ -778,7 +774,7 @@ export class ModelSemanticColoring extends Disposable {
 		this._fetchDocumentSemanticTokens.schedule(0);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._currentDocumentResponse) {
 			this._currentDocumentResponse.dispose();
 			this._currentDocumentResponse = null;

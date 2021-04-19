@@ -33,6 +33,7 @@
 		"statusBar.noFolderBackground": "#505050",
 		"titleBar.activeBackground": "#505050",
 		"statusBarItem.remoteBackground": "#3655b5",
+		"ports.iconRunningProcessforeground": "#CCCCCC",
 		"activityBar.background": "#353535",
 		"activityBar.foreground": "#ffffff",
 		"activityBarBadge.background": "#3655b5",

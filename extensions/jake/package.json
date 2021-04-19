@@ -26,6 +26,10 @@
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask"
   ],
+  "workspaceTrust": {
+    "request": "never",
+    "description": "This extension only provides tasks. Trust is already required by the tasks system before any task providers are called."
+  },
   "contributes": {
     "configuration": {
       "id": "jake",
@@ -59,7 +63,8 @@
             "type": "string",
             "description": "%jake.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
   },

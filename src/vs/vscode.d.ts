@@ -1665,6 +1665,12 @@ declare module 'vscode' {
 	 * Options to configure the behavior of the quick pick UI.
 	 */
 	export interface QuickPickOptions {
+
+		/**
+		 * An optional string that represents the title of the quick pick.
+		 */
+		title?: string;
+
 		/**
 		 * An optional flag to include the description when filtering the picks.
 		 */
@@ -1846,6 +1852,11 @@ declare module 'vscode' {
 	 * Options to configure the behavior of the input box UI.
 	 */
 	export interface InputBoxOptions {
+
+		/**
+		 * An optional string that represents the title of the input box.
+		 */
+		title?: string;
 
 		/**
 		 * The value to prefill in the input box.
@@ -2158,10 +2169,33 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The reason why code actions were requested.
+	 */
+	export enum CodeActionTriggerKind {
+		/**
+		 * Code actions were explicitly requested by the user or by an extension.
+		 */
+		Invoke = 1,
+
+		/**
+		 * Code actions were requested automatically.
+		 *
+		 * This typically happens when current selection in a file changes, but can
+		 * also be triggered when file content changes.
+		 */
+		Automatic = 2,
+	}
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
 	export interface CodeActionContext {
+		/**
+		 * The reason why code actions were requested.
+		 */
+		readonly triggerKind: CodeActionTriggerKind;
+
 		/**
 		 * An array of diagnostics.
 		 */

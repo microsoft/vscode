@@ -22,47 +22,48 @@
 	}
 }(this, function () {
 	const bootstrapLib = bootstrap();
-	const preloadGlobals = globals();
-	const webFrame = preloadGlobals.webFrame;
+	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
-	const configuration = parseWindowConfiguration();
-	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
-
-	// Start to resolve process.env before anything gets load
-	// so that we can run loading and resolving in parallel
-	const whenEnvResolved = safeProcess.resolveEnv(configuration.userEnv);
+	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	/**
+	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
 	 * @param {string[]} modulePaths
-	 * @param {(result: unknown, configuration: object) => Promise<unknown> | undefined} resultCallback
-	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
+	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
+	 * @param {{
+	 * 	configureDeveloperKeybindings?: (config: ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
+	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *  beforeRequire?: () => void
+	 * }} [options]
 	 */
-	function load(modulePaths, resultCallback, options) {
+	async function load(modulePaths, resultCallback, options) {
 
-		// Apply zoom level early before even building the
-		// window DOM elements to avoid UI flicker. We always
-		// have to set the zoom level from within the window
-		// because Chrome has it's own way of remembering zoom
-		// settings per origin (if vscode-file:// is used) and
-		// we want to ensure that the user configuration wins.
-		webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
-
-		// Error handler
+		// Error handler (TODO@sandbox non-sandboxed only)
 		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
-			onUnexpectedError(error, enableDeveloperTools);
+			onUnexpectedError(error, enableDeveloperKeybindings);
 		});
 
-		// Developer tools
-		const enableDeveloperTools = (safeProcess.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
-		let developerToolsUnbind;
-		if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
+		// Await window configuration from preload
+		performance.mark('code/willWaitForWindowConfig');
+		/** @type {ISandboxConfiguration} */
+		const configuration = await preloadGlobals.context.resolveConfiguration();
+		performance.mark('code/didWaitForWindowConfig');
+
+		// Developer keybindings
+		const { forceEnableDeveloperKeybindings, disallowReloadKeybinding, removeDeveloperKeybindingsAfterLoad } = typeof options?.configureDeveloperKeybindings === 'function' ? options.configureDeveloperKeybindings(configuration) : { forceEnableDeveloperKeybindings: false, disallowReloadKeybinding: false, removeDeveloperKeybindingsAfterLoad: false };
+		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || forceEnableDeveloperKeybindings;
+		let developerDeveloperKeybindingsDisposable;
+		if (enableDeveloperKeybindings) {
+			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
 		// Enable ASAR support
 		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 
-		if (options && typeof options.canModifyDOM === 'function') {
+		// Signal DOM modifications are now OK
+		if (typeof options?.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
 
@@ -78,24 +79,22 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
+		// Do not advertise AMD to avoid confusing UMD modules loaded with nodejs
 		if (!useCustomProtocol) {
 			window['define'] = undefined;
 		}
 
-		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
+		// Replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
 		if (!safeProcess.sandboxed) {
 			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 		}
 
 		window['MonacoEnvironment'] = {};
 
-		const baseUrl = useCustomProtocol ?
-			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
-			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`;
-
 		const loaderConfig = {
-			baseUrl,
+			baseUrl: useCustomProtocol ?
+				`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
+				`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
 			'vs/nls': nlsConfig,
 			preferScriptTags: useCustomProtocol
 		};
@@ -131,7 +130,7 @@
 			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		// cached data config
+		// Cached data config
 		if (configuration.nodeCachedDataDir) {
 			loaderConfig.nodeCachedData = {
 				path: configuration.nodeCachedDataDir,
@@ -139,29 +138,34 @@
 			};
 		}
 
-		if (options && typeof options.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(configuration, loaderConfig);
+		// Signal before require.config()
+		if (typeof options?.beforeLoaderConfig === 'function') {
+			options.beforeLoaderConfig(loaderConfig);
 		}
 
+		// Configure loader
 		require.config(loaderConfig);
 
+		// Handle pseudo NLS
 		if (nlsConfig.pseudo) {
 			require(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 			});
 		}
 
-		if (options && typeof options.beforeRequire === 'function') {
+		// Signal before require()
+		if (typeof options?.beforeRequire === 'function') {
 			options.beforeRequire();
 		}
 
+		// Actually require the main module as specified
 		require(modulePaths, async result => {
 			try {
 
 				// Wait for process environment being fully resolved
 				performance.mark('code/willWaitForShellEnv');
 				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-					await whenEnvResolved;
+					await safeProcess.shellEnv();
 				}
 				performance.mark('code/didWaitForShellEnv');
 
@@ -170,38 +174,14 @@
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 
-					if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
-						developerToolsUnbind();
+					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
+						developerDeveloperKeybindingsDisposable();
 					}
 				}
 			} catch (error) {
-				onUnexpectedError(error, enableDeveloperTools);
+				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
 		}, onUnexpectedError);
-	}
-
-	/**
-	 * Parses the contents of the window condiguration that
-	 * is passed into the URL from the `electron-main` side.
-	 *
-	 * @returns {{
-	 * isInitialStartup?: boolean,
-	 * zoomLevel?: number,
-	 * extensionDevelopmentPath?: string[],
-	 * extensionTestsPath?: string,
-	 * userEnv?: { [key: string]: string | undefined },
-	 * appRoot: string,
-	 * nodeCachedDataDir?: string
-	 * }}
-	 */
-	function parseWindowConfiguration() {
-		const rawConfiguration = (window.location.search || '').split(/[?&]/)
-			.filter(function (param) { return !!param; })
-			.map(function (param) { return param.split('='); })
-			.filter(function (param) { return param.length === 2; })
-			.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-
-		return JSON.parse(rawConfiguration['config'] || '{}') || {};
 	}
 
 	/**
@@ -278,13 +258,12 @@
 	/**
 	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
 	 */
-	function globals() {
+	function sandboxGlobals() {
 		// @ts-ignore (defined in globals.js)
 		return window.vscode;
 	}
 
 	return {
-		load,
-		globals
+		load
 	};
 }));

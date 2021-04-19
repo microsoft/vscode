@@ -18,6 +18,7 @@
 		"settings.numberInputBorder": "#CECECE",
 		"statusBarItem.remoteForeground": "#FFF",
 		"statusBarItem.remoteBackground": "#16825D",
+		"ports.iconRunningProcessforeground": "#369432",
 		"sideBarSectionHeader.background": "#0000",
 		"sideBarSectionHeader.border": "#61616130",
 		"tab.lastPinnedBorder": "#61616130",

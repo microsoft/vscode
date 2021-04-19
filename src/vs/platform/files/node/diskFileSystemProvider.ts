@@ -730,7 +730,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	//#endregion
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		dispose(this.recursiveWatcher);

@@ -31,6 +31,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getExecPath: () => string | undefined
 		},
 		envVariables: IProcessEnvironment,
+		envVariablesPromise: Promise<IProcessEnvironment>,
 		editorService: IEditorService,
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
@@ -101,10 +102,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			}
-		}, labelService, envVariables);
+		}, labelService, envVariables, envVariablesPromise);
 	}
 
-	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
+	public async override resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
 		// resolve any non-interactive variables and any contributed variables
 		config = this.resolveAny(folder, config);
 
@@ -121,7 +122,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		});
 	}
 
-	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+	public async override resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
 		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
@@ -367,8 +368,10 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
 	) {
-		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
+		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null),
+			Promise.resolve(Object.create(null)), editorService, configurationService,
+			commandService, workspaceContextService, quickInputService, labelService);
 	}
 }

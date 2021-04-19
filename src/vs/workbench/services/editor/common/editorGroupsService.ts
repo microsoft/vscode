@@ -194,14 +194,38 @@ export interface IEditorGroupsService {
 	readonly orientation: GroupOrientation;
 
 	/**
+	 * A promise that resolves when groups have been created
+	 * and are ready to be used.
+	 *
+	 * Await this promise to safely work on the editor groups model
+	 * (for example, install editor group listeners).
+	 *
+	 * Use the `whenRestored` property to await visible editors
+	 * having fully resolved.
+	 */
+	readonly whenReady: Promise<void>;
+
+	/**
 	 * A promise that resolves when groups have been restored.
+	 *
+	 * For groups with active editor, the promise will resolve
+	 * when the visible editor has finished to resolve.
+	 *
+	 * Use the `whenReady` property to not await editors to
+	 * resolve.
 	 */
 	readonly whenRestored: Promise<void>;
 
 	/**
-	 * Find out if the editor group service has editors to restore from a previous session.
+	 * Will return `true` as soon as `whenRestored` is resolved.
 	 */
-	readonly willRestoreEditors: boolean;
+	isRestored(): boolean;
+
+	/**
+	 * Find out if the editor group service has UI state to restore
+	 * from a previous session.
+	 */
+	readonly hasRestorableState: boolean;
 
 	/**
 	 * Get all groups that are currently visible in the editor area.
@@ -441,6 +465,11 @@ export interface IEditorGroup {
 	readonly count: number;
 
 	/**
+	 * Whether the group has editors or not.
+	 */
+	readonly isEmpty: boolean;
+
+	/**
 	 * The number of sticky editors in this group.
 	 */
 	readonly stickyCount: number;
@@ -512,6 +541,11 @@ export interface IEditorGroup {
 	 * Find out if the provided editor is active in the group.
 	 */
 	isActive(editor: IEditorInput): boolean;
+
+	/**
+	 * Find out if a certain editor is included in the group.
+	 */
+	contains(candidate: IEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.

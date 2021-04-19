@@ -11,10 +11,10 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Range } from 'vs/editor/common/core/range';
 import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CellEditState, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditType, CellKind, cellRangeContains, cellRangesToIndexes, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, cellRangeContains, cellRangesToIndexes, ICellRange, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -74,7 +74,7 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 		return;
 	}
 
-	if (!viewModel.metadata.editable) {
+	if (viewModel.options.isReadOnly) {
 		return;
 	}
 
@@ -194,7 +194,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		return;
 	}
 
-	if (!viewModel.metadata.editable) {
+	if (viewModel.options.isReadOnly) {
 		return;
 	}
 
@@ -223,7 +223,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 				editType: CellEditType.Replace,
 				index: range.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model))
+				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -238,7 +238,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		// insert down, move selections
 		const focus = viewModel.getFocus();
 		const selections = viewModel.getSelections();
-		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model));
+		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model));
 		const countDelta = newCells.length;
 		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
 		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
@@ -247,7 +247,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 				editType: CellEditType.Replace,
 				index: range.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model))
+				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -279,17 +279,13 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.splitCell', "Split Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					order: CellToolbarOrder.SplitCell,
-					group: CELL_TITLE_CELL_GROUP_ID,
-					// alt: {
-					// 	id: JOIN_CELL_BELOW_COMMAND_ID,
-					// 	title: localize('notebookActions.joinCellBelow', "Join with Next Cell")
-					// }
+					group: CELL_TITLE_CELL_GROUP_ID
 				},
 				icon: icons.splitCellIcon,
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -302,11 +298,11 @@ registerAction2(class extends NotebookCellAction {
 });
 
 export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[] } | null> {
-	if (!viewModel || !viewModel.metadata.editable) {
+	if (!viewModel || viewModel.options.isReadOnly) {
 		return null;
 	}
 
-	const cells = viewModel.viewCells.slice(range.start, range.end);
+	const cells = viewModel.getCells(range);
 
 	if (!cells.length) {
 		return null;
@@ -332,7 +328,7 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 	}
 
 	if (direction === 'above') {
-		const above = viewModel.viewCells[range.start - 1] as CellViewModel;
+		const above = viewModel.cellAt(range.start - 1) as CellViewModel;
 		if (constraint && above.cellKind !== constraint) {
 			return null;
 		}
@@ -362,7 +358,7 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 			endSelections: [{ start: range.start - 1, end: range.start }]
 		};
 	} else {
-		const below = viewModel.viewCells[range.end] as CellViewModel;
+		const below = viewModel.cellAt(range.end) as CellViewModel;
 		if (constraint && below.cellKind !== constraint) {
 			return null;
 		}
@@ -440,10 +436,10 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 				|| selection.start === 0 && direction === 'above'
 			) {
 				if (containFocus) {
-					cell = viewModel.getCellByIndex(focus.start);
+					cell = viewModel.cellAt(focus.start)!;
 				}
 
-				cells.push(...viewModel.viewCells.slice(selection.start, selection.end));
+				cells.push(...viewModel.getCells(selection));
 				continue;
 			}
 

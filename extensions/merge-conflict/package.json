@@ -13,6 +13,9 @@
   "categories": [
     "Other"
   ],
+  "workspaceTrust": {
+    "request": "never"
+  },
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -70,13 +73,15 @@
         "category": "%command.category%",
         "title": "%command.next%",
         "original": "Next Conflict",
-        "command": "merge-conflict.next"
+        "command": "merge-conflict.next",
+        "icon": "$(arrow-down)"
       },
       {
         "category": "%command.category%",
         "title": "%command.previous%",
         "original": "Previous Conflict",
-        "command": "merge-conflict.previous"
+        "command": "merge-conflict.previous",
+        "icon": "$(arrow-up)"
       },
       {
         "category": "%command.category%",
@@ -96,6 +101,18 @@
           "command": "merge-conflict.accept.all-incoming",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "merge-conflict.previous",
+          "group": "navigation@1",
+          "when": "mergeConflictsCount && mergeConflictsCount != 0"
+        },
+        {
+          "command": "merge-conflict.next",
+          "group": "navigation@2",
+          "when": "mergeConflictsCount && mergeConflictsCount != 0"
         }
       ]
     },

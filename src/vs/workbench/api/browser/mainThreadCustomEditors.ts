@@ -92,7 +92,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}));
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		dispose(this._editorProviders.values());
@@ -345,7 +345,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		return this._editorResource;
 	}
 
-	dispose() {
+	override dispose() {
 		this.#isDisposed = true;
 
 		if (this._editable) {

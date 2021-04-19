@@ -31,10 +31,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/backup",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/bulkEdit",
 			"project": "vscode-workbench"
 		},
@@ -256,6 +252,10 @@
 		},
 		{
 			"name": "vs/workbench/services/authToken",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/backup",
 			"project": "vscode-workbench"
 		},
 		{

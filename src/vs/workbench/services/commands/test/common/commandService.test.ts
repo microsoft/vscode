@@ -27,7 +27,7 @@ suite('CommandService', function () {
 		let lastEvent: string;
 
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			activateByEvent(activationEvent: string): Promise<void> {
+			override activateByEvent(activationEvent: string): Promise<void> {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
@@ -46,7 +46,7 @@ suite('CommandService', function () {
 	test('fwd activation error', async function () {
 
 		const extensionService = new class extends NullExtensionService {
-			activateByEvent(activationEvent: string): Promise<void> {
+			override activateByEvent(activationEvent: string): Promise<void> {
 				return Promise.reject(new Error('bad_activate'));
 			}
 		};
@@ -66,7 +66,7 @@ suite('CommandService', function () {
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			whenInstalledExtensionsRegistered() {
+			override whenInstalledExtensionsRegistered() {
 				return new Promise<boolean>(_resolve => { /*ignore*/ });
 			}
 		}, new NullLogService());
@@ -83,7 +83,7 @@ suite('CommandService', function () {
 		const whenInstalledExtensionsRegistered = new Promise<boolean>(_resolve => { resolveFunc = _resolve; });
 
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			whenInstalledExtensionsRegistered() {
+			override whenInstalledExtensionsRegistered() {
 				return whenInstalledExtensionsRegistered;
 			}
 		}, new NullLogService());
@@ -107,7 +107,7 @@ suite('CommandService', function () {
 		let events: string[] = [];
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
-			activateByEvent(event: string): Promise<void> {
+			override activateByEvent(event: string): Promise<void> {
 				events.push(event);
 				if (event === '*') {
 					return new Promise(() => { }); //forever promise...
@@ -142,7 +142,7 @@ suite('CommandService', function () {
 		const disposables = new DisposableStore();
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
-			activateByEvent(event: string): Promise<void> {
+			override activateByEvent(event: string): Promise<void> {
 				if (event === '*') {
 					return new Promise(() => { }); //forever promise...
 				}

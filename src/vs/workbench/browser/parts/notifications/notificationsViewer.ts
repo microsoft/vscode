@@ -371,7 +371,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderMessage(notification: INotificationViewItem): boolean {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
-			callback: link => this.openerService.open(URI.parse(link)),
+			callback: link => this.openerService.open(URI.parse(link), { allowCommands: true }),
 			toDispose: this.inputDisposables
 		}));
 
@@ -444,7 +444,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		if (notification.expanded && isNonEmptyArray(primaryActions)) {
 			const that = this;
 			const actionRunner: IActionRunner = new class extends ActionRunner {
-				protected async runAction(action: IAction): Promise<void> {
+				protected async override runAction(action: IAction): Promise<void> {
 					// Run action
 					that.actionRunner.run(action, notification);
 

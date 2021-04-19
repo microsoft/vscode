@@ -53,7 +53,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 
 
 export const DEFAULT_STARTUP_EDITOR_CONFIG: IConfigurationNode = {
@@ -118,7 +117,6 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IGettingStartedService _gettingStartedService: IGettingStartedService, // initializes event listeners
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		this.tasExperimentService = tasExperimentService;
@@ -230,7 +228,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		const editor = this.editorService.activeEditor;
 
 		// Ensure that the welcome editor won't get opened more than once
-		if (editor?.getTypeId() === startupEditorTypeID || this.editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
+		if (editor?.typeId === startupEditorTypeID || this.editorService.editors.some(e => e.typeId === startupEditorTypeID)) {
 			return;
 		}
 		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
@@ -269,7 +267,7 @@ export class WelcomePageAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<void> {
+	public override run(): Promise<void> {
 		return this.instantiationService.createInstance(WelcomePage)
 			.openEditor()
 			.then(() => undefined);
@@ -418,7 +416,7 @@ class WelcomePage extends Disposable {
 
 	) {
 		super();
-		this._register(lifecycleService.onShutdown(() => this.dispose()));
+		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
 
 		const recentlyOpened = this.workspacesService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);

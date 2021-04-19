@@ -26,6 +26,7 @@ import { foreground, listActiveSelectionForeground, listActiveSelectionBackgroun
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { localize } from 'vs/nls';
+import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
@@ -66,6 +67,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
@@ -203,14 +205,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
 
-		if (extension.local?.manifest.workspaceTrust?.required) {
+		if (extension.local?.manifest.workspaceTrust?.request) {
 			const trustRequirement = extension.local.manifest.workspaceTrust;
-			if (trustRequirement.description) {
+			const requestType = this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.local.manifest);
+			if (requestType !== 'never' && trustRequirement.request !== 'never') {
 				data.workspaceTrustDescription.textContent = trustRequirement.description;
-			} else if (trustRequirement.required === 'onDemand') {
-				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
-			} else if (trustRequirement.required === 'onStart') {
+			} else if (requestType === 'onStart') {
 				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
+			} else if (requestType === 'onDemand') {
+				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
 			}
 		}
 

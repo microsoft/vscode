@@ -28,7 +28,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		dispose(this._webviewViewProviders.values());

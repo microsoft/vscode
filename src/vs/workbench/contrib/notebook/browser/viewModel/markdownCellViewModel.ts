@@ -6,7 +6,6 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as model from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, MARKDOWN_CELL_BOTTOM_MARGIN, MARKDOWN_CELL_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
@@ -17,13 +16,12 @@ import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookCellStateChangedEvent, NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Markdown;
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
-
-	private _version = 0;
 
 	get layoutInfo() {
 		return this._layoutInfo;
@@ -73,6 +71,15 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._hoveringOutput = v;
 	}
 
+	private _focusOnOutput: boolean = false;
+	public get outputIsFocused(): boolean {
+		return this._focusOnOutput;
+	}
+
+	public set outputIsFocused(v: boolean) {
+		this._focusOnOutput = v;
+	}
+
 	private _hoveringCell = false;
 	public get cellIsHovered(): boolean {
 		return this._hoveringCell;
@@ -83,20 +90,21 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
 	}
 
-	public get version(): number {
-		return this._version;
+	public get contentHash(): number {
+		return this.model.getHashValue();
 	}
 
 	constructor(
-		readonly viewType: string,
-		readonly model: NotebookCellTextModel,
+		viewType: string,
+		model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly foldingDelegate: EditorFoldingStateDelegate,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		private readonly _mdRenderer: MarkdownRenderer,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITextModelService textModelService: ITextModelService,
 	) {
-		super(viewType, model, UUID.generateUuid(), configurationService);
+		super(viewType, model, UUID.generateUuid(), configurationService, textModelService);
 
 		this._layoutInfo = {
 			editorHeight: 0,
@@ -162,7 +170,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._onDidChangeLayout.fire(state);
 	}
 
-	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
+	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
 		// we might already warmup the viewport so the cell has a total height computed
 		if (totalHeight !== undefined && this._layoutInfo.totalHeight === 0) {
@@ -215,22 +223,9 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		return null;
 	}
 
-	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this.textModel) {
-			const ref = await this.model.resolveTextModelRef();
-			this.textModel = ref.object.textEditorModel;
-			this._version = this.textModel.getVersionId();
-
-			this._register(ref);
-			this._register(this.textModel.onDidChangeContent(() => {
-				this._html = null;
-				if (this.textModel) {
-					this._version = this.textModel.getVersionId();
-				}
-				this._onDidChangeState.fire({ contentChanged: true });
-			}));
-		}
-		return this.textModel;
+	protected onDidChangeTextModelContent(): void {
+		this._html = null;
+		this._onDidChangeState.fire({ contentChanged: true });
 	}
 
 	onDeselect() {

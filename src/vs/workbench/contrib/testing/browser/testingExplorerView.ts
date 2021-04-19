@@ -41,7 +41,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -94,14 +94,14 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	public shouldShowWelcome() {
+	public override shouldShowWelcome() {
 		return this.testService.providers === 0;
 	}
 
 	/**
 	 * @override
 	 */
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.container = dom.append(container, dom.$('.test-explorer'));
@@ -145,7 +145,7 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	public getActionViewItem(action: IAction): IActionViewItem | undefined {
+	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === Testing.FilterActionId) {
 			return this.instantiationService.createInstance(TestingExplorerFilter, action);
 		}
@@ -156,7 +156,7 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	public saveState() {
+	public override saveState() {
 		super.saveState();
 	}
 
@@ -181,7 +181,7 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.container.style.height = `${height}px`;
 		this.viewModel.layout(height, width);
@@ -475,7 +475,7 @@ export class TestingExplorerViewModel extends Disposable {
 	 */
 	private async tryPeekError(item: ITestTreeElement) {
 		const lookup = item.test && this.testResults.getStateById(item.test.item.extId);
-		return lookup && isFailedState(lookup[1].state.state)
+		return lookup && lookup[1].tasks.some(s => isFailedState(s.state))
 			? this.peekOpener.tryPeekFirstError(lookup[0], lookup[1], { preserveFocus: true })
 			: false;
 	}
@@ -521,6 +521,7 @@ export class TestingExplorerViewModel extends Disposable {
 	private shouldShowEmptyPlaceholder() {
 		return !!this.listener
 			&& this.listener.subscription.busyProviders === 0
+			&& this.listener.subscription.pendingRootProviders === 0
 			&& this.listener.subscription.isEmpty;
 	}
 
@@ -637,9 +638,9 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 			case TestExplorerStateFilter.All:
 				return FilterResult.Include;
 			case TestExplorerStateFilter.OnlyExecuted:
-				return element.ownState !== TestResult.Unset ? FilterResult.Include : FilterResult.Inherit;
+				return element.state !== TestResultState.Unset ? FilterResult.Include : FilterResult.Inherit;
 			case TestExplorerStateFilter.OnlyFailed:
-				return isFailedState(element.ownState) ? FilterResult.Include : FilterResult.Inherit;
+				return isFailedState(element.state) ? FilterResult.Include : FilterResult.Inherit;
 		}
 	}
 
@@ -811,7 +812,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		const testHidden = !!element.test && this.testService.excludeTests.value.has(element.test.item.extId);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
-		const icon = testingStatesToIcons.get(element.expandable === TestItemExpandState.BusyExpanding ? TestResult.Running : element.state);
+		const icon = testingStatesToIcons.get(element.expandable === TestItemExpandState.BusyExpanding ? TestResultState.Running : element.state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
 		if (element.retired) {
 			data.icon.className += ' retired';
@@ -870,7 +871,7 @@ const getTestItemActions = (
 	try {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const running = element.state === TestResult.Running;
+		const running = element.state === TestResultState.Running;
 		if (!Iterable.isEmpty(element.runnable)) {
 			const run = instantionService.createInstance(RunAction, element.runnable, running);
 			primary.push(run);

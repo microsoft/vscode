@@ -610,7 +610,7 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._hideMessage();
 
 		this.message = null;

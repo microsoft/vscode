@@ -25,7 +25,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { NativeBackupFileService } from 'vs/workbench/services/backup/electron-sandbox/backupFileService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TestWorkbenchConfiguration, TestEnvironmentPaths } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { insert } from 'vs/base/common/arrays';
@@ -35,13 +35,13 @@ import { isEqual } from 'vs/base/common/resources';
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(testDir: string, backupPath: string) {
-		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': testDir }, TestEnvironmentPaths, TestProductService);
+		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': testDir }, TestProductService);
 	}
 }
 
 export class NodeTestBackupFileService extends NativeBackupFileService {
 
-	readonly fileService: IFileService;
+	override readonly fileService: IFileService;
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
@@ -73,7 +73,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
 
-	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	async override backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		const p = super.backup(resource, content, versionId, meta, token);
 		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
 
@@ -92,7 +92,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async discardBackup(resource: URI): Promise<void> {
+	async override discardBackup(resource: URI): Promise<void> {
 		await super.discardBackup(resource);
 		this.discardedBackups.push(resource);
 

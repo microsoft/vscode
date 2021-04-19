@@ -205,7 +205,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	let inPreviewMode = false;
 	async function makeChanges(inputAbbreviation: string | undefined, previewChanges: boolean): Promise<boolean> {
 		const isAbbreviationValid = !!inputAbbreviation && !!inputAbbreviation.trim() && helper.isAbbreviationValid(syntax, inputAbbreviation);
-		const extractedResults = isAbbreviationValid ? helper.extractAbbreviationFromText(inputAbbreviation!) : undefined;
+		const extractedResults = isAbbreviationValid ? helper.extractAbbreviationFromText(inputAbbreviation!, syntax) : undefined;
 		if (!extractedResults) {
 			if (inPreviewMode) {
 				inPreviewMode = false;
@@ -311,12 +311,12 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	let allAbbreviationsSame: boolean = true;
 	const helper = getEmmetHelper();
 
-	const getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string] => {
+	const getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string | undefined] => {
 		position = document.validatePosition(position);
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
-			const extractedResults = helper.extractAbbreviationFromText(abbr);
+			const extractedResults = helper.extractAbbreviationFromText(abbr, syntax);
 			if (extractedResults) {
 				return [rangeToReplace, extractedResults.abbreviation, extractedResults.filter];
 			}

@@ -58,7 +58,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 	private smallStatSize: boolean = false;
 
 	private _testCapabilities!: FileSystemProviderCapabilities;
-	get capabilities(): FileSystemProviderCapabilities {
+	override get capabilities(): FileSystemProviderCapabilities {
 		if (!this._testCapabilities) {
 			this._testCapabilities =
 				FileSystemProviderCapabilities.FileReadWrite |
@@ -76,7 +76,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return this._testCapabilities;
 	}
 
-	set capabilities(capabilities: FileSystemProviderCapabilities) {
+	override set capabilities(capabilities: FileSystemProviderCapabilities) {
 		this._testCapabilities = capabilities;
 	}
 
@@ -88,7 +88,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		this.smallStatSize = enabled;
 	}
 
-	async stat(resource: URI): Promise<IStat> {
+	async override stat(resource: URI): Promise<IStat> {
 		const res = await super.stat(resource);
 
 		if (this.invalidStatSize) {
@@ -100,7 +100,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return res;
 	}
 
-	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+	async override read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		const bytesRead = await super.read(fd, pos, data, offset, length);
 
 		this.totalBytesRead += bytesRead;
@@ -108,7 +108,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return bytesRead;
 	}
 
-	async readFile(resource: URI): Promise<Uint8Array> {
+	async override readFile(resource: URI): Promise<Uint8Array> {
 		const res = await super.readFile(resource);
 
 		this.totalBytesRead += res.byteLength;
