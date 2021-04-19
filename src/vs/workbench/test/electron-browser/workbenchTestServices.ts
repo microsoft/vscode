@@ -39,7 +39,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { homedir, release, tmpdir } from 'os';
+import { homedir, release, tmpdir, hostname } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
@@ -50,7 +50,6 @@ const args = parseArgs(process.argv, OPTIONS);
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
-	sessionId: 'testSessionId',
 	logLevel: LogLevel.Error,
 	mainPid: 0,
 	partsSplashPath: '',
@@ -59,7 +58,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	execPath: process.execPath,
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
-	os: { release: release() },
+	os: { release: release(), hostname: hostname() },
 	product,
 	homeDir: homedir(),
 	tmpDir: tmpdir(),

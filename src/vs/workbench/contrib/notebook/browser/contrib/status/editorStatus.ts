@@ -9,7 +9,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -21,7 +21,7 @@ import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -234,3 +234,69 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Ready);
+
+export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
+
+	private readonly _itemDisposables = this._register(new DisposableStore());
+	private readonly _accessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
+	constructor(
+		@IEditorService private readonly _editorService: IEditorService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+	) {
+		super();
+		this._register(this._editorService.onDidActiveEditorChange(() => this._update()));
+	}
+
+	private _update() {
+		this._itemDisposables.clear();
+		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+		if (activeEditor) {
+			this._itemDisposables.add(activeEditor.onDidChangeSelection(() => this._show(activeEditor)));
+			this._show(activeEditor);
+		} else {
+			this._accessor.clear();
+		}
+	}
+
+	private _show(editor: INotebookEditor) {
+		const vm = editor.viewModel;
+		if (!vm) {
+			this._accessor.clear();
+			return;
+		}
+
+		const newText = this._getSelectionsText(editor, vm);
+		if (!newText) {
+			this._accessor.clear();
+			return;
+		}
+
+		const entry = { text: newText, ariaLabel: newText };
+		if (!this._accessor.value) {
+			this._accessor.value = this._statusbarService.addEntry(
+				entry,
+				'notebook.activeCellStatus',
+				nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"),
+				StatusbarAlignment.RIGHT,
+				100);
+		} else {
+			this._accessor.value.update(entry);
+		}
+	}
+
+	private _getSelectionsText(editor: INotebookEditor, vm: NotebookViewModel): string | undefined {
+		const activeCell = editor.getActiveCell();
+		if (!activeCell) {
+			return undefined;
+		}
+
+		const idxFocused = vm.getCellIndex(activeCell) + 1;
+		const numSelected = vm.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
+		return numSelected > 1 ?
+			nls.localize('notebook.multiActiveCellIndicator', "Cell {0} ({1} selected)", idxFocused, numSelected) :
+			nls.localize('notebook.singleActiveCellIndicator', "Cell {0}", idxFocused);
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Ready);

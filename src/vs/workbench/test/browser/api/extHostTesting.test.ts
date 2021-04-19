@@ -10,7 +10,7 @@ import { stubTest, testStubs } from 'vs/workbench/contrib/testing/common/testStu
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import { TestItem } from 'vscode';
 
-const simplify = (item: TestItem) => ({
+const simplify = (item: TestItem<unknown>) => ({
 	id: item.id,
 	label: item.label,
 	uri: item.uri,
@@ -19,13 +19,21 @@ const simplify = (item: TestItem) => ({
 	debuggable: item.debuggable,
 });
 
-const assertTreesEqual = (a: TestItem, b: TestItem) => {
+const assertTreesEqual = (a: TestItem<unknown> | undefined, b: TestItem<unknown> | undefined) => {
+	if (!a) {
+		throw new assert.AssertionError({ message: 'Expected a to be defined', actual: a });
+	}
+
+	if (!b) {
+		throw new assert.AssertionError({ message: 'Expected b to be defined', actual: b });
+	}
+
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = [...a.children].slice().sort();
-	const bChildren = [...b.children].slice().sort();
+	const aChildren = [...a.children.keys()].slice().sort();
+	const bChildren = [...b.children.keys()].slice().sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
-	aChildren.forEach((_, i) => assertTreesEqual(aChildren[i], bChildren[i]));
+	aChildren.forEach(key => assertTreesEqual(a.children.get(key), b.children.get(key)));
 };
 
 // const assertTreeListEqual = (a: ReadonlyArray<TestItem>, b: ReadonlyArray<TestItem>) => {
@@ -67,35 +75,31 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('root')), expandable: true } }
+					{ src: { tree: 0, controller: 'pid' }, parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('root')) } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: 'id-root', expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(stubTest('a')), expandable: true } }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('a')) } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
-				],
-				[
-					TestDiffOpType.Update,
-					{ extId: 'id-root', expand: TestItemExpandState.Expanded }
-				],
-				[
-					TestDiffOpType.Update,
-					{ extId: 'id-a', expand: TestItemExpandState.BusyExpanding }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('aa')) }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('aa')) }
-				],
-				[
-					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('ab')) }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('ab')) }
 				],
 				[
 					TestDiffOpType.Update,
 					{ extId: 'id-a', expand: TestItemExpandState.Expanded }
+				],
+				[
+					TestDiffOpType.Add,
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-root', expand: TestItemExpandState.Expanded }
 				],
 			]);
 		});
@@ -126,7 +130,7 @@ suite('ExtHost Testing', () => {
 			single.addRoot(tests, 'pid');
 			single.expand('id-root', Infinity);
 			single.collectDiff();
-			tests.children.delete('id-a');
+			tests.children.get('id-a')!.dispose();
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Remove, 'id-a'],
@@ -141,11 +145,11 @@ suite('ExtHost Testing', () => {
 			single.expand('id-root', Infinity);
 			single.collectDiff();
 			const child = stubTest('ac');
-			tests.children.get('id-a')!.children!.add(child);
+			tests.children.get('id-a')!.addChild(child);
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, {
-					src: { tree: 0, provider: 'pid' },
+					src: { tree: 0, controller: 'pid' },
 					parent: 'id-a',
 					expand: TestItemExpandState.NotExpandable,
 					item: convert.TestItem.from(child),

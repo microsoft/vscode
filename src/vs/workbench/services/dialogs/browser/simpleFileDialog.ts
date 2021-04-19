@@ -800,13 +800,25 @@ export class SimpleFileDialog {
 
 	private async updateItems(newFolder: URI, force: boolean = false, trailing?: string) {
 		this.busy = true;
-		this.userEnteredPathSegment = trailing ? trailing : '';
 		this.autoCompletePathSegment = '';
-		const newValue = trailing ? this.pathAppend(newFolder, trailing) : this.pathFromUri(newFolder, true);
-		this.currentFolder = resources.addTrailingPathSeparator(newFolder, this.separator);
 
 		const updatingPromise = createCancelablePromise(async token => {
-			return this.createItems(this.currentFolder, token).then(items => {
+			let folderStat: IFileStat | undefined;
+			try {
+				folderStat = await this.fileService.resolve(newFolder);
+				if (!folderStat.isDirectory) {
+					trailing = resources.basename(newFolder);
+					newFolder = resources.dirname(newFolder);
+					folderStat = undefined;
+				}
+			} catch (e) {
+				// The file/directory doesn't exist
+			}
+			const newValue = trailing ? this.pathAppend(newFolder, trailing) : this.pathFromUri(newFolder, true);
+			this.currentFolder = resources.addTrailingPathSeparator(newFolder, this.separator);
+			this.userEnteredPathSegment = trailing ? trailing : '';
+
+			return this.createItems(folderStat, this.currentFolder, token).then(items => {
 				if (token.isCancellationRequested) {
 					this.busy = false;
 					return;
@@ -814,10 +826,9 @@ export class SimpleFileDialog {
 
 				this.filePickBox.items = items;
 				this.filePickBox.activeItems = [<FileQuickPickItem>this.filePickBox.items[0]];
-				if (this.allowFolderSelection) {
-					this.filePickBox.activeItems = [];
-				}
-				// the user might have continued typing while we were updating. Only update the input box if it doesn't matche directory.
+				this.filePickBox.activeItems = [];
+
+				// the user might have continued typing while we were updating. Only update the input box if it doesn't match the directory.
 				if (!equalsIgnoreCase(this.filePickBox.value, newValue) && force) {
 					this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
 					this.insertText(newValue, newValue);
@@ -893,12 +904,14 @@ export class SimpleFileDialog {
 		return null;
 	}
 
-	private async createItems(currentFolder: URI, token: CancellationToken): Promise<FileQuickPickItem[]> {
+	private async createItems(folder: IFileStat | undefined, currentFolder: URI, token: CancellationToken): Promise<FileQuickPickItem[]> {
 		const result: FileQuickPickItem[] = [];
 
 		const backDir = this.createBackItem(currentFolder);
 		try {
-			const folder = await this.fileService.resolve(currentFolder);
+			if (!folder) {
+				folder = await this.fileService.resolve(currentFolder);
+			}
 			const items = folder.children ? await Promise.all(folder.children.map(child => this.createItem(child, currentFolder, token))) : [];
 			for (let item of items) {
 				if (item) {

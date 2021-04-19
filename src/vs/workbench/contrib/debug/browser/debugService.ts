@@ -465,7 +465,7 @@ export class DebugService implements IDebugService {
 						nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
 						undefined,
 						true,
-						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers')
+						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers', resolvedConfig?.type)
 					));
 
 					await this.showError(message, actionList);
@@ -675,6 +675,39 @@ export class DebugService implements IDebugService {
 			return;
 		}
 
+		// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+		let needsToSubstitute = false;
+		let unresolved: IConfig | undefined;
+		const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
+		if (launch) {
+			unresolved = launch.getConfiguration(session.configuration.name);
+			if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
+				// Take the type from the session since the debug extension might overwrite it #21316
+				unresolved.type = session.configuration.type;
+				unresolved.noDebug = session.configuration.noDebug;
+				needsToSubstitute = true;
+			}
+		}
+
+		let resolved: IConfig | undefined | null = session.configuration;
+		if (launch && needsToSubstitute && unresolved) {
+			const initCancellationToken = new CancellationTokenSource();
+			this.sessionCancellationTokens.set(session.getId(), initCancellationToken);
+			const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, initCancellationToken.token);
+			if (resolvedByProviders) {
+				resolved = await this.substituteVariables(launch, resolvedByProviders);
+				if (resolved && !initCancellationToken.token.isCancellationRequested) {
+					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
+				}
+			} else {
+				resolved = resolvedByProviders;
+			}
+		}
+		if (resolved) {
+			session.setConfiguration({ resolved, unresolved });
+		}
+		session.configuration.__restart = restartData;
+
 		if (session.capabilities.supportsRestartRequest) {
 			const taskResult = await runTasks();
 			if (taskResult === TaskRunResult.Success) {
@@ -699,41 +732,9 @@ export class DebugService implements IDebugService {
 					return;
 				}
 
-				// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
-				let needsToSubstitute = false;
-				let unresolved: IConfig | undefined;
-				const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
-				if (launch) {
-					unresolved = launch.getConfiguration(session.configuration.name);
-					if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
-						// Take the type from the session since the debug extension might overwrite it #21316
-						unresolved.type = session.configuration.type;
-						unresolved.noDebug = session.configuration.noDebug;
-						needsToSubstitute = true;
-					}
-				}
-
-				let resolved: IConfig | undefined | null = session.configuration;
-				if (launch && needsToSubstitute && unresolved) {
-					const initCancellationToken = new CancellationTokenSource();
-					this.sessionCancellationTokens.set(session.getId(), initCancellationToken);
-					const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, initCancellationToken.token);
-					if (resolvedByProviders) {
-						resolved = await this.substituteVariables(launch, resolvedByProviders);
-						if (resolved && !initCancellationToken.token.isCancellationRequested) {
-							resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
-						}
-					} else {
-						resolved = resolvedByProviders;
-					}
-				}
-
 				if (!resolved) {
 					return c(undefined);
 				}
-
-				session.setConfiguration({ resolved, unresolved });
-				session.configuration.__restart = restartData;
 
 				try {
 					await this.launchOrAttachToSession(session, shouldFocus);

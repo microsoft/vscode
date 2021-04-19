@@ -14,9 +14,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ICellRange, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookDataDto, TransientMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange, INotebookCellStatusBarItemProvider, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookDataDto, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -27,7 +27,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
 	private readonly _notebookSerializer = new Map<number, IDisposable>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
-	private readonly _cellStatusBarEntries = new Map<number, IDisposable>();
+	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -54,7 +54,6 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			item.provider.dispose();
 		}
 		dispose(this._notebookSerializer.values());
-		dispose(this._cellStatusBarEntries.values());
 	}
 
 
@@ -66,17 +65,19 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 
 	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: {
 		transientOutputs: boolean;
-		transientMetadata: TransientMetadata;
+		transientCellMetadata: TransientCellMetadata;
+		transientDocumentMetadata: TransientDocumentMetadata;
 		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	}): Promise<void> {
-		let contentOptions = { transientOutputs: options.transientOutputs, transientMetadata: options.transientMetadata };
+		let contentOptions = { transientOutputs: options.transientOutputs, transientCellMetadata: options.transientCellMetadata, transientDocumentMetadata: options.transientDocumentMetadata };
 
 		const controller: IMainNotebookController = {
 			get options() {
 				return contentOptions;
 			},
 			set options(newOptions) {
-				contentOptions.transientMetadata = newOptions.transientMetadata;
+				contentOptions.transientCellMetadata = newOptions.transientCellMetadata;
+				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
 			viewOptions: options.viewOptions,
@@ -108,7 +109,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		this._notebookProviders.set(viewType, { controller, disposable });
 	}
 
-	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientMetadata: TransientMetadata; }): Promise<void> {
+	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; }): Promise<void> {
 		const provider = this._notebookProviders.get(viewType);
 
 		if (provider && options) {
@@ -133,10 +134,10 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: (data: VSBuffer): Promise<NotebookDataDto> => {
-				return this._proxy.$dataToNotebook(handle, data);
+				return this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
 			},
 			notebookToData: (data: NotebookDataDto): Promise<VSBuffer> => {
-				return this._proxy.$notebookToData(handle, data);
+				return this._proxy.$notebookToData(handle, data, CancellationToken.None);
 			}
 		});
 		this._notebookSerializer.set(handle, registration);
@@ -196,6 +197,54 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		return;
 	}
 
+	$emitCellStatusBarEvent(eventHandle: number): void {
+		const emitter = this._notebookCellStatusBarRegistrations.get(eventHandle);
+		if (emitter instanceof Emitter) {
+			emitter.fire(undefined);
+		}
+	}
+
+	async $registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, documentFilter: INotebookDocumentFilter): Promise<void> {
+		const that = this;
+		const provider: INotebookCellStatusBarItemProvider = {
+			async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken) {
+				const result = await that._proxy.$provideNotebookCellStatusBarItems(handle, uri, index, token);
+				return {
+					items: result?.items ?? [],
+					dispose() {
+						if (result) {
+							that._proxy.$releaseNotebookCellStatusBarItems(result.cacheId);
+						}
+					}
+				};
+			},
+			selector: documentFilter
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._notebookCellStatusBarRegistrations.set(eventHandle, emitter);
+			provider.onDidChangeStatusBarItems = emitter.event;
+		}
+
+		const disposable = this._cellStatusBarService.registerCellStatusBarItemProvider(provider);
+		this._notebookCellStatusBarRegistrations.set(handle, disposable);
+	}
+
+	async $unregisterNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void> {
+		const unregisterThing = (handle: number) => {
+			const entry = this._notebookCellStatusBarRegistrations.get(handle);
+			if (entry) {
+				this._notebookCellStatusBarRegistrations.get(handle)?.dispose();
+				this._notebookCellStatusBarRegistrations.delete(handle);
+			}
+		};
+		unregisterThing(handle);
+		if (typeof eventHandle === 'number') {
+			unregisterThing(eventHandle);
+		}
+	}
+
 	async $unregisterNotebookKernelProvider(handle: number): Promise<void> {
 		const entry = this._notebookKernelProviders.get(handle);
 
@@ -219,21 +268,5 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		}
 		editor.postMessage(forRendererId, value);
 		return true;
-	}
-
-	async $setStatusBarEntry(id: number, rawStatusBarEntry: INotebookCellStatusBarEntryDto): Promise<void> {
-		const statusBarEntry = {
-			...rawStatusBarEntry,
-			...{ cellResource: URI.revive(rawStatusBarEntry.cellResource) }
-		};
-
-		const existingEntry = this._cellStatusBarEntries.get(id);
-		if (existingEntry) {
-			existingEntry.dispose();
-		}
-
-		if (statusBarEntry.visible) {
-			this._cellStatusBarEntries.set(id, this._cellStatusBarService.addEntry(statusBarEntry));
-		}
 	}
 }

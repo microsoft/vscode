@@ -470,8 +470,8 @@ export class WorkspaceConfiguration extends Disposable {
 	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
 	private _isWorkspaceTrusted: boolean = false;
 
-	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
+	private readonly _onDidUpdateConfiguration = this._register(new Emitter<boolean>());
+	public readonly onDidUpdateConfiguration = this._onDidUpdateConfiguration.event;
 
 	private _initialized: boolean = false;
 	get initialized(): boolean { return this._initialized; }
@@ -540,14 +540,14 @@ export class WorkspaceConfiguration extends Disposable {
 			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._fileService));
 			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier, { scopes: WORKSPACE_SCOPES, isUntrusted: this.isUntrusted() });
 			this.doInitialize(fileServiceBasedWorkspaceConfiguration);
-			this.onDidWorkspaceConfigurationChange(false);
+			this.onDidWorkspaceConfigurationChange(false, true);
 		}
 	}
 
 	private doInitialize(fileServiceBasedWorkspaceConfiguration: FileServiceBasedWorkspaceConfiguration): void {
 		this._workspaceConfigurationDisposables.clear();
 		this._workspaceConfiguration = this._workspaceConfigurationDisposables.add(fileServiceBasedWorkspaceConfiguration);
-		this._workspaceConfigurationDisposables.add(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true)));
+		this._workspaceConfigurationDisposables.add(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true, false)));
 		this._initialized = true;
 	}
 
@@ -555,12 +555,12 @@ export class WorkspaceConfiguration extends Disposable {
 		return !this._isWorkspaceTrusted;
 	}
 
-	private async onDidWorkspaceConfigurationChange(reload: boolean): Promise<void> {
+	private async onDidWorkspaceConfigurationChange(reload: boolean, fromCache: boolean): Promise<void> {
 		if (reload) {
 			await this.reload();
 		}
 		this.updateCache();
-		this._onDidUpdateConfiguration.fire();
+		this._onDidUpdateConfiguration.fire(fromCache);
 	}
 
 	private async updateCache(): Promise<void> {

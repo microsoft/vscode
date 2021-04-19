@@ -34,6 +34,8 @@ export interface IDialogOptions {
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
+	readonly renderBody?: (container: HTMLElement) => void;
+	readonly icon?: Codicon;
 }
 
 export interface IDialogResult {
@@ -97,14 +99,23 @@ export class Dialog extends Disposable {
 		this.iconElement = messageRowElement.appendChild($('.dialog-icon'));
 		const messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
-		if (this.options.detail) {
+		if (this.options.detail || this.options.renderBody) {
 			const messageElement = messageContainer.appendChild($('.dialog-message'));
 			const messageTextElement = messageElement.appendChild($('.dialog-message-text'));
 			messageTextElement.innerText = this.message;
 		}
 
 		this.messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
-		this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
+		if (this.options.detail || !this.options.renderBody) {
+			this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
+		} else {
+			this.messageDetailElement.style.display = 'none';
+		}
+
+		if (this.options.renderBody) {
+			const customBody = messageContainer.appendChild($('.dialog-message-body'));
+			this.options.renderBody(customBody);
+		}
 
 		if (this.options.inputs) {
 			this.inputs = this.options.inputs.map(input => {
@@ -313,22 +324,26 @@ export class Dialog extends Disposable {
 
 			this.iconElement.classList.remove(...dialogErrorIcon.classNamesArray, ...dialogWarningIcon.classNamesArray, ...dialogInfoIcon.classNamesArray, ...Codicon.loading.classNamesArray, spinModifierClassName);
 
-			switch (this.options.type) {
-				case 'error':
-					this.iconElement.classList.add(...dialogErrorIcon.classNamesArray);
-					break;
-				case 'warning':
-					this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
-					break;
-				case 'pending':
-					this.iconElement.classList.add(...Codicon.loading.classNamesArray, spinModifierClassName);
-					break;
-				case 'none':
-				case 'info':
-				case 'question':
-				default:
-					this.iconElement.classList.add(...dialogInfoIcon.classNamesArray);
-					break;
+			if (this.options.icon) {
+				this.iconElement.classList.add(...this.options.icon.classNamesArray);
+			} else {
+				switch (this.options.type) {
+					case 'error':
+						this.iconElement.classList.add(...dialogErrorIcon.classNamesArray);
+						break;
+					case 'warning':
+						this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
+						break;
+					case 'pending':
+						this.iconElement.classList.add(...Codicon.loading.classNamesArray, spinModifierClassName);
+						break;
+					case 'none':
+					case 'info':
+					case 'question':
+					default:
+						this.iconElement.classList.add(...dialogInfoIcon.classNamesArray);
+						break;
+				}
 			}
 
 			const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));

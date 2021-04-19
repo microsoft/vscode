@@ -20,7 +20,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionManifest } from 'vs/workbench/workbench.web.api';
 
 
@@ -88,22 +88,19 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 
 	private _location: string | undefined;
 
-	private readonly _extensionKindController: ExtensionKindController;
-
 	constructor(
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@ILabelService labelService: ILabelService,
-		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService,
+		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(extensionManagementService, extensionGalleryService);
 
 		const remoteAuthority = envService.remoteAuthority;
 		this._location = remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) : undefined;
-
-		this._extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
 	protected override get location(): string | undefined {
@@ -111,7 +108,7 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 	}
 
 	protected override validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
-		if (!this._extensionKindController.canExecuteOnWorkspace(manifest)) {
+		if (!this._extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
 			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;
 		}

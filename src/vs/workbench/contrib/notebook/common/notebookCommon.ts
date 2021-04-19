@@ -57,15 +57,11 @@ export enum NotebookRunState {
 }
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
-	editable: true,
-	cellEditable: true,
 	custom: {},
 	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
-	editable: boolean;
-	cellEditable: boolean;
 	custom?: { [key: string]: unknown };
 	trusted: boolean;
 }
@@ -86,21 +82,23 @@ export interface NotebookCellMetadata {
 	editable?: boolean;
 	breakpointMargin?: boolean;
 	executionOrder?: number;
-	statusMessage?: string;
 	lastRunSuccess?: boolean;
 	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
-	lastRunDuration?: number;
+	runStartTimeAdjustment?: number;
+	runEndTime?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
 	custom?: { [key: string]: unknown };
 }
 
-export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
-	transientMetadata: TransientMetadata;
+	transientCellMetadata: TransientCellMetadata;
+	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
 export interface INotebookMimeTypeSelector {
@@ -663,6 +661,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: NotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
+	isReadonly(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;
@@ -793,6 +792,12 @@ export interface INotebookKernelProvider {
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
 }
 
+export interface INotebookCellStatusBarItemProvider {
+	selector: INotebookDocumentFilter;
+	onDidChangeStatusBarItems?: Event<void>;
+	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
+}
+
 export class CellSequence implements ISequence {
 
 	constructor(readonly textModel: NotebookTextModel) {
@@ -813,16 +818,20 @@ export interface INotebookDiffResult {
 	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }
 
-export interface INotebookCellStatusBarEntry {
-	readonly cellResource: URI;
+export interface INotebookCellStatusBarItem {
 	readonly alignment: CellStatusbarAlignment;
 	readonly priority?: number;
 	readonly text: string;
-	readonly tooltip: string | undefined;
-	readonly command: string | Command | undefined;
+	readonly tooltip?: string;
+	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
-	readonly visible: boolean;
 	readonly opacity?: string;
+	readonly onlyShowWhenActive?: boolean;
+}
+
+export interface INotebookCellStatusBarItemList {
+	items: INotebookCellStatusBarItem[];
+	dispose?(): void;
 }
 
 export const DisplayOrderKey = 'notebook.displayOrder';
@@ -832,8 +841,8 @@ export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 
 export const enum CellStatusbarAlignment {
-	LEFT,
-	RIGHT
+	Left = 1,
+	Right = 2
 }
 
 export interface INotebookDecorationRenderOptions {

@@ -68,7 +68,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		harness.c.addRoot(tests, 'a');
 		harness.flush(folder1);
 
-		tests.children.get('id-a')!.children.add(testStubs.test('ac'));
+		tests.children.get('id-a')!.addChild(testStubs.test('ac'));
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'aa' },
@@ -83,7 +83,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		harness.c.addRoot(tests, 'a');
 		harness.flush(folder1);
 
-		tests.children.get('id-a')!.children.delete('id-ab');
+		tests.children.get('id-a')!.children.get('id-ab')!.dispose();
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'aa' },
@@ -96,7 +96,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		harness.c.addRoot(tests, 'a');
 		harness.flush(folder1);
 
-		tests.children.get('id-b')!.children.add(testStubs.test('ba'));
+		tests.children.get('id-b')!.addChild(testStubs.test('ba'));
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'aa' },
@@ -111,7 +111,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		harness.flush(folder1);
 
 		const child = testStubs.test('ba');
-		tests.children.get('id-b')!.children.add(child);
+		tests.children.get('id-b')!.addChild(child);
 		harness.flush(folder1);
 
 		child.runnable = false;

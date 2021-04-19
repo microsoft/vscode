@@ -6,6 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -145,14 +146,12 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env
 		};
-		const isWorkspaceShellAllowed = configHelper.checkIsProcessLaunchSafe(remoteEnv.os);
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
 			activeWorkspaceRootUri,
 			shouldPersist,
 			cols,
 			rows,
-			isWorkspaceShellAllowed,
 		);
 		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 		this._ptys.set(result.persistentTerminalId, pty);
@@ -188,6 +187,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				icon: termDto.icon
 			};
 		});
+	}
+
+	public async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
+	}
+
+	public async getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._remoteTerminalChannel?.getShellEnvironment() || {};
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {

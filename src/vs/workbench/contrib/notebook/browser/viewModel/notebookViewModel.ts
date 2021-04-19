@@ -18,7 +18,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, INotebookDeltaDecoration, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookDeltaCellStatusBarItems, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
@@ -135,11 +135,16 @@ function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOpt
 
 let MODEL_ID = 0;
 
+export interface NotebookViewModelOptions {
+	isReadOnly: boolean;
+}
 
 export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
-	private _viewCells: CellViewModel[] = [];
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
+	private _options: NotebookViewModelOptions;
+	get options(): NotebookViewModelOptions { return this._options; }
+	private _viewCells: CellViewModel[] = [];
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
@@ -221,6 +226,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	private _decorationIdToCellMap = new Map<string, number>();
+	private _statusBarItemIdToCellMap = new Map<string, number>();
 
 	constructor(
 		public viewType: string,
@@ -237,8 +243,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
-
-
+		this._options = { isReadOnly: false };
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {
@@ -355,6 +360,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);
 		});
+	}
+
+	updateOptions(newOptions: Partial<NotebookViewModelOptions>) {
+		this._options = { ...this._options, ...newOptions };
 	}
 
 	getFocus() {
@@ -729,6 +738,31 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return result;
 	}
 
+	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[] {
+		oldItems.forEach(id => {
+			const handle = this._statusBarItemIdToCellMap.get(id);
+
+			if (handle !== undefined) {
+				const cell = this.getCellByHandle(handle);
+				cell?.deltaCellStatusBarItems([id], []);
+			}
+		});
+
+		const result: string[] = [];
+
+		newItems.forEach(itemDelta => {
+			const cell = this.getCellByHandle(itemDelta.handle);
+			const ret = cell?.deltaCellStatusBarItems([], itemDelta.items) || [];
+			ret.forEach(id => {
+				this._statusBarItemIdToCellMap.set(id, itemDelta.handle);
+			});
+
+			result.push(...ret);
+		});
+
+		return result;
+	}
+
 	nearestCodeCellIndex(index: number /* exclusive */) {
 		const nearest = this.viewCells.slice(0, index).reverse().findIndex(cell => cell.cellKind === CellKind.Code);
 		if (nearest > -1) {
@@ -880,7 +914,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	async splitNotebookCell(index: number): Promise<CellViewModel[] | null> {
 		const cell = this.viewCells[index] as CellViewModel;
 
-		if (!this.metadata.editable) {
+		if (this._options.isReadOnly) {
 			return null;
 		}
 
@@ -1096,8 +1130,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	async undo() {
-		if (!this.metadata.editable) {
-			return;
+		if (this._options.isReadOnly) {
+			return null;
 		}
 
 		const editStack = this._undoService.getElements(this.uri);
@@ -1116,8 +1150,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	async redo() {
-		if (!this.metadata.editable) {
-			return;
+		if (this._options.isReadOnly) {
+			return null;
 		}
 
 		const editStack = this._undoService.getElements(this.uri);

@@ -24,6 +24,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IHoverService, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { domEvent } from 'vs/base/browser/event';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -129,10 +130,15 @@ export const enum ActivityHoverAlignment {
 	LEFT, RIGHT, BELOW, ABOVE
 }
 
+export interface IActivityHoverOptions {
+	alignment: () => ActivityHoverAlignment;
+	delay: () => number;
+}
+
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	colors: (theme: IColorTheme) => ICompositeBarColors;
-	getHoverAlignment: () => ActivityHoverAlignment;
+	hoverOptions?: IActivityHoverOptions;
 	hasPopup?: boolean;
 }
 
@@ -147,7 +153,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	private mouseUpTimeout: any;
 	private title: string = '';
 
-	private readonly hoverDisposable = this._register(new MutableDisposable<IDisposable>());
+	private readonly hover = this._register(new MutableDisposable<IDisposable>());
+	private readonly showHoverScheduler = new RunOnceScheduler(() => this.showHover(), 0);
 
 	constructor(
 		action: ActivityAction,
@@ -162,6 +169,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
 		this._register(action.onDidChangeActivity(this.updateActivity, this));
 		this._register(action.onDidChangeBadge(this.updateBadge, this));
+		this._register(toDisposable(() => this.showHoverScheduler.cancel()));
 	}
 
 	protected get activity(): IActivity {
@@ -213,6 +221,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		super.render(container);
 
 		this.container = container;
+		if (this.options.icon) {
+			this.container.classList.add('icon');
+		}
 
 		if (this.options.hasPopup) {
 			this.container.setAttribute('role', 'button');
@@ -254,30 +265,40 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.updateActivity();
 		this.updateStyles();
 
-		this.container.setAttribute('title', '');
-		this.container.removeAttribute('title');
+		if (this.options.hoverOptions) {
+			this.container.setAttribute('title', '');
+			this.container.removeAttribute('title');
+			this._register(domEvent(container, EventType.MOUSE_OVER, true)(() => {
+				if (!this.showHoverScheduler.isScheduled()) {
+					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay() || 150);
+				}
+			}));
+			this._register(domEvent(container, EventType.MOUSE_LEAVE, true)(() => {
+				this.hover.value = undefined;
+				this.showHoverScheduler.cancel();
+			}));
+		}
 
-		this._register(domEvent(container, EventType.MOUSE_OVER, true)(() => {
-			if (!this.hoverDisposable.value) {
-				const { left, right, bottom } = this.container.getBoundingClientRect();
-				const hoverAlignment = this.options.getHoverAlignment();
-				const anchorPosition: AnchorPosition | undefined = hoverAlignment === ActivityHoverAlignment.ABOVE ? AnchorPosition.ABOVE : hoverAlignment === ActivityHoverAlignment.BELOW ? AnchorPosition.BELOW : undefined;
-				const target: IHoverTarget | HTMLElement = anchorPosition === undefined ? {
-					targetElements: [this.container],
-					x: hoverAlignment === ActivityHoverAlignment.RIGHT ? right + 2 : left - 2,
-					y: bottom - 10,
-					dispose: () => { }
-				} : this.container;
-				this.hoverDisposable.value = this.hoverService.showHover({
-					target,
-					anchorPosition,
-					text: this.title,
-				});
-			}
-		}));
+	}
 
-		this._register(domEvent(container, EventType.MOUSE_LEAVE, true)(() => this.hoverDisposable.value = undefined));
-
+	private showHover(): void {
+		if (this.hover.value) {
+			return;
+		}
+		const { left, right, bottom } = this.container.getBoundingClientRect();
+		const hoverAlignment = this.options.hoverOptions!.alignment();
+		const anchorPosition: AnchorPosition | undefined = hoverAlignment === ActivityHoverAlignment.ABOVE ? AnchorPosition.ABOVE : hoverAlignment === ActivityHoverAlignment.BELOW ? AnchorPosition.BELOW : undefined;
+		const target: IHoverTarget | HTMLElement = anchorPosition === undefined ? {
+			targetElements: [this.container],
+			x: hoverAlignment === ActivityHoverAlignment.RIGHT ? right + 2 : left - 2,
+			y: bottom - 10,
+			dispose: () => { }
+		} : this.container;
+		this.hover.value = this.hoverService.showHover({
+			target,
+			anchorPosition,
+			text: this.title,
+		});
 	}
 
 	private onThemeChange(theme: IColorTheme): void {
@@ -387,6 +408,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		[this.label, this.badge, this.container].forEach(element => {
 			if (element) {
 				element.setAttribute('aria-label', title);
+				if (!this.options.hoverOptions) {
+					element.setAttribute('title', title);
+				}
 			}
 		});
 	}
@@ -429,12 +453,12 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => IAction,
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		getHoverAlignment: () => ActivityHoverAlignment,
+		hoverOptions: IActivityHoverOptions | undefined,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super(action, { icon: true, colors, hasPopup: true, getHoverAlignment }, themeService, hoverService);
+		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, themeService, hoverService);
 	}
 
 	showMenu(): void {

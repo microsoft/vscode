@@ -81,19 +81,13 @@
 	justify-content: space-evenly;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations {
-	border: 2px solid rgba(0, 0, 0, 0);
-	margin: 0px 4px;
-	display: flex;
-	flex-direction: column;
-	padding: 0px 40px;
-}
-
 .workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted {
+	border-width: 2px;
 	border-color: var(--workspace-trust-state-trusted-color) !important;
 }
 
 .workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted {
+	border-width: 2px;
 	border-color: var(--workspace-trust-state-untrusted-color) !important;
 }
 
@@ -156,6 +150,7 @@
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-untrusted-description {
 	font-style: italic;
+	padding-bottom: 10px;
 }
 
 /** Buttons Container */
@@ -236,4 +231,24 @@
 .workspace-trust-editor .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
 	margin-left: 4px;
 	min-width: 20%;
+}
+
+.workspace-trust-intro-dialog {
+	min-width: min(50vw, 500px);
+	padding-right: 24px;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row p {
+	display: flex;
+	align-items: center;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.badge-row img {
+	max-height: 40px;
+	padding-right: 10px;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.status-bar img {
+	max-height: 32px;
+	padding-right: 10px;
 }

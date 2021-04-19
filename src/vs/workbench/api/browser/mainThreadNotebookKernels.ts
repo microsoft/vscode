@@ -5,10 +5,12 @@
 
 import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel2, INotebookKernel2ChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
@@ -89,23 +91,93 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
 export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape {
 
+	private readonly _editors = new Map<INotebookEditor, IDisposable>();
+	private readonly _disposables = new DisposableStore();
+
 	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
+
+		notebookEditorService.listNotebookEditors().forEach(this._onEditorAdd, this);
+		notebookEditorService.onDidAddNotebookEditor(this._onEditorAdd, this, this._disposables);
+		notebookEditorService.onDidRemoveNotebookEditor(this._onEditorRemove, this, this._disposables);
 	}
 
 	dispose(): void {
+		this._disposables.dispose();
 		for (let [, registration] of this._kernels.values()) {
 			registration.dispose();
 		}
 	}
 
-	$addKernel(handle: number, data: INotebookKernelDto2): void {
+	// --- kernel ipc
+
+	private _onEditorAdd(editor: INotebookEditor) {
+
+		const ipcListener = editor.onDidReceiveMessage(e => {
+			if (e.forRenderer) {
+				return;
+			}
+			if (!editor.hasModel()) {
+				return;
+			}
+			const kernel = this._notebookKernelService.getBoundKernel(editor.viewModel.notebookDocument);
+			if (!kernel) {
+				return;
+			}
+			for (let [handle, candidate] of this._kernels) {
+				if (candidate[0] === kernel) {
+					this._proxy.$acceptRendererMessage(handle, editor.getId(), e.message);
+					break;
+				}
+			}
+		});
+		this._editors.set(editor, ipcListener);
+	}
+
+	private _onEditorRemove(editor: INotebookEditor) {
+		this._editors.get(editor)?.dispose();
+		this._editors.delete(editor);
+	}
+
+	async $postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean> {
+		const tuple = this._kernels.get(handle);
+		if (!tuple) {
+			throw new Error('kernel already disposed');
+		}
+		const [kernel] = tuple;
+		let didSend = false;
+		for (const [editor] of this._editors) {
+			if (!editor.hasModel()) {
+				continue;
+			}
+			if (this._notebookKernelService.getBoundKernel(editor.viewModel.notebookDocument) !== kernel) {
+				// different kernel
+				continue;
+			}
+			if (editorId === undefined) {
+				// all editors
+				editor.postMessage(undefined, message);
+				didSend = true;
+			} else if (editor.getId() === editorId) {
+				// selected editors
+				editor.postMessage(undefined, message);
+				didSend = true;
+				break;
+			}
+		}
+		return didSend;
+	}
+
+	// --- kernel adding/updating/removal
+
+	async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
 		const that = this;
 		const kernel = new class extends MainThreadKernel {
 			executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void {
