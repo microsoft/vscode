@@ -109,42 +109,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
-
-		// this._register(this.editorService.overrideOpenEditor({
-		// 	open: (editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
-
-		// 		// Always ensure inputs have populated resource fields
-		// 		if (editor instanceof DiffEditorInput) {
-		// 			if ((!editor.modifiedInput.resource || !editor.originalInput.resource)) {
-		// 				return;
-		// 			}
-		// 		} else if (!editor.resource) {
-		// 			return;
-		// 		}
-
-		// 		let override = typeof options?.override === 'string' ? options.override : undefined;
-
-		// 		// If the editor passed in already has a type and the user didn't explicitly override the editor choice, use the editor type.
-		// 		override = override ?? (editor as IContributedEditorInput).viewType;
-
-		// 		const selectedContribution = this.getContributionPoint(editor instanceof DiffEditorInput ? editor.modifiedInput.resource! : editor.resource!, override);
-		// 		if (!selectedContribution) {
-		// 			return;
-		// 		}
-
-		// 		const handlesDiff = typeof selectedContribution.options.canHandleDiff === 'function' ? selectedContribution.options.canHandleDiff() : selectedContribution.options.canHandleDiff;
-		// 		if (editor instanceof DiffEditorInput && handlesDiff === false) {
-		// 			return;
-		// 		}
-
-		// 		// If it's the currently active editor we shouldn't do anything
-		// 		if (selectedContribution.editorInfo.active(editor)) {
-		// 			return;
-		// 		}
-
-		// 		return { override: this.doHandleEditorOpening(editor, options, group, selectedContribution) };
-		// 	}
-		// }));
 	}
 
 	async resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptions | undefined> {
