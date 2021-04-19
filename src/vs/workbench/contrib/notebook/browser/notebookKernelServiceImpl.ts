@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICellRange, INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelBindEvent, INotebookKernel2, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { score } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -143,31 +143,11 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 			providerExtensionId: 'notAnExtension',
 			selector: { filenamePattern: '**/*' },
 			async provideKernels(uri: URI) {
-
 				const model = notebookService.getNotebookTextModel(uri);
 				if (!model) {
 					return [];
 				}
-				return notebookKernelService.getMatchingKernels(model).map((kernel: INotebookKernel2): INotebookKernel => {
-					return {
-						id: kernel.id,
-						friendlyId: kernel.id,
-						label: kernel.label,
-						description: kernel.description,
-						detail: kernel.detail,
-						isPreferred: kernel.isPreferred,
-						preloadUris: kernel.preloadUris,
-						preloadProvides: kernel.preloadProvides,
-						localResourceRoot: kernel.localResourceRoot,
-						supportedLanguages: kernel.supportedLanguages,
-						implementsInterrupt: kernel.implementsInterrupt,
-						implementsExecutionOrder: kernel.implementsExecutionOrder,
-						extension: kernel.extension,
-						async resolve() { },
-						async executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.executeNotebookCellsRequest(uri, ranges); },
-						async cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.cancelNotebookCellExecution(uri, ranges); },
-					};
-				});
+				return notebookKernelService.getMatchingKernels(model);
 			}
 		});
 
