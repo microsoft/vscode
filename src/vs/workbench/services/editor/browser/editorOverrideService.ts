@@ -364,7 +364,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	private async doHandleConflictingDefaults(currentEditor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
 		console.log('Conflicting defaults!');
 		this.notificationService.prompt(Severity.Warning,
-			localize('editorOverride.conflictingDefaults', 'Two or more editors want to be your default editor for this resource. Consider configuring a default'),
+			localize('editorOverride.conflictingDefaults', 'Two or more editors want to be your default editor for this resource. Consider configuring a default.'),
 			[{
 				label: localize('editorOverride.configureDefault', 'Configure default editor for resource'),
 				run: async () => {
