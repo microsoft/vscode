@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { session, WebContents, webContents } from 'electron';
+import { session, WebContents, webContents, WebFrameMain } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWebviewManagerService, webviewPartitionId, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
@@ -56,5 +56,32 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		if (!contents.isDestroyed()) {
 			contents.setIgnoreMenuShortcuts(enabled);
 		}
+	}
+
+	public async findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean, forward?: boolean }): Promise<void> {
+		const frame = this.getFrameByName(windowId, frameName);
+		frame.findInFrame(text, {
+			findNext: options.findNext,
+			forward: options.forward,
+		});
+	}
+
+	public async stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void> {
+		const frame = this.getFrameByName(windowId, frameName);
+		frame.stopFindInFrame(options.keepSelection ? 'keepSelection' : 'clearSelection');
+	}
+
+	private getFrameByName(windowId: WebviewWindowId, frameName: string): WebFrameMain {
+		const window = this.windowsMainService.getWindowById(windowId.windowId);
+		if (!window?.win) {
+			throw new Error(`Invalid windowId: ${windowId}`);
+		}
+		const frame = window.win.webContents.mainFrame.framesInSubtree.find(frame => {
+			return frame.name === frameName;
+		});
+		if (!frame) {
+			throw new Error(`Unknown frame: ${frameName}`);
+		}
+		return frame;
 	}
 }

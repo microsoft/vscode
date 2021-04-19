@@ -80,6 +80,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		// Do not start loading the webview yet.
 		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('iframe');
+		element.name = this.id;
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 		if (!isFirefox) {
