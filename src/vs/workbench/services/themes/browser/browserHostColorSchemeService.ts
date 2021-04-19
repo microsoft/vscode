@@ -25,12 +25,18 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 
 	private registerListeners(): void {
 
-		window.matchMedia('(prefers-color-scheme: dark)').addListener(() => {
+		const matchPrefersColorSchemeDark = window.matchMedia('(prefers-color-scheme: dark)');
+		const matchForcedColors = window.matchMedia('(forced-colors: active)');
+		const listener = () => {
 			this._onDidSchemeChangeEvent.fire();
-		});
-		window.matchMedia('(forced-colors: active)').addListener(() => {
-			this._onDidSchemeChangeEvent.fire();
-		});
+		};
+		if (typeof matchForcedColors.addEventListener === 'function') {
+			matchPrefersColorSchemeDark.addEventListener('change', listener);
+			matchForcedColors.addEventListener('change', listener);
+		} else {
+			matchPrefersColorSchemeDark.addListener(listener);
+			matchForcedColors.addListener(listener);
+		}
 	}
 
 	get onDidChangeColorScheme(): Event<void> {
