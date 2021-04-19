@@ -123,6 +123,7 @@ export class TerminalTabbedView extends Disposable {
 				this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 				if (this._showTabs) {
 					this._splitView.swapViews(0, 1);
+					this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
 				}
 			}
 		});
