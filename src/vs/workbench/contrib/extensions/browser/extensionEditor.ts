@@ -85,6 +85,11 @@ function removeEmbeddedSVGs(documentContent: string): string {
 			],
 			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height'],
 		},
+		allowedSchemes: [
+			Schemas.http,
+			Schemas.https,
+			Schemas.command, // We only allow executing the release notes command
+		],
 		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
 			return token.tag !== 'svg';
 		}
