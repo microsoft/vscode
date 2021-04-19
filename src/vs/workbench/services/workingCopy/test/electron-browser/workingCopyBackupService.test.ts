@@ -972,13 +972,12 @@ suite('WorkingCopyBackupService', () => {
 			assert.strictEqual(model.has(resource5), true);
 		});
 
-		test('resolve', async () => {
+		test('create', async () => {
 			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(toUntypedWorkingCopyId(fooFile)));
 			await promises.mkdir(dirname(fooBackupPath), { recursive: true });
 			writeFileSync(fooBackupPath, 'foo');
 			const model = await WorkingCopyBackupsModel.create(service.fileService, URI.file(workspaceBackupPath));
 
-			await model.resolve(URI.file(workspaceBackupPath));
 			assert.strictEqual(model.has(URI.file(fooBackupPath)), true);
 		});
 

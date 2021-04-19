@@ -39,7 +39,7 @@ export class WorkingCopyBackupsModel {
 
 	private constructor(private fileService: IFileService) { }
 
-	async resolve(backupRoot: URI): Promise<void> {
+	private async resolve(backupRoot: URI): Promise<void> {
 		try {
 			const backupRootStat = await this.fileService.resolve(backupRoot);
 			if (backupRootStat.children) {

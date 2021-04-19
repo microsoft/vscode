@@ -19,6 +19,11 @@ export const IWorkingCopyBackupService = createDecorator<IWorkingCopyBackupServi
  */
 export interface IWorkingCopyBackupMeta {
 	[key: string]: unknown;
+
+	/**
+	 * `typeId` is a reverved property that cannot be used
+	 * as backup metadata.
+	 */
 	typeId?: never;
 }
 

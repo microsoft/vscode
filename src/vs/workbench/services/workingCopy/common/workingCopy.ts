@@ -27,7 +27,7 @@ export const enum WorkingCopyCapabilities {
 
 /**
  * Data to be associated with working copy backups. Use
- * `IWorkingCopyBackupService.resolve(workingCopy.resource)` to
+ * `IWorkingCopyBackupService.resolve(workingCopy)` to
  * retrieve the backup when loading the working copy.
  */
 export interface IWorkingCopyBackup {
@@ -129,7 +129,7 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	 * the `onDidChangeContent` event for the working copy. The motivation
 	 * is to allow to quit VSCode with dirty working copies present.
 	 *
-	 * Providers of working copies should use `IWorkingCopyBackupService.resolve(workingCopy.resource)`
+	 * Providers of working copies should use `IWorkingCopyBackupService.resolve(workingCopy)`
 	 * to retrieve the backup metadata associated when loading the working copy.
 	 *
 	 * @param token support for cancellation
