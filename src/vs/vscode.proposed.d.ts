@@ -1229,6 +1229,12 @@ declare module 'vscode' {
 		 */
 		readonly visibleRanges: NotebookRange[];
 
+		/**
+		 * Scroll as indicated by `revealType` in order to reveal the given range.
+		 *
+		 * @param range A range.
+		 * @param revealType The scrolling strategy for revealing `range`.
+		 */
 		revealRange(range: NotebookRange, revealType?: NotebookEditorRevealType): void;
 
 		/**
@@ -1238,6 +1244,9 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookDocumentMetadataChangeEvent {
+		/**
+		 * The [notebook document](#NotebookDocument) for which the document metadata have changed.
+		 */
 		readonly document: NotebookDocument;
 	}
 
@@ -1252,39 +1261,49 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCellsChangeEvent {
-
 		/**
-		 * The affected document.
+		 * The [notebook document](#NotebookDocument) for which the cells have changed.
 		 */
 		readonly document: NotebookDocument;
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
 
 	export interface NotebookCellOutputsChangeEvent {
-
 		/**
-		 * The affected document.
+		 * The [notebook document](#NotebookDocument) for which the cell outputs have changed.
 		 */
 		readonly document: NotebookDocument;
 		readonly cells: NotebookCell[];
 	}
 
 	export interface NotebookCellMetadataChangeEvent {
+		/**
+		 * The [notebook document](#NotebookDocument) for which the cell metadata have changed.
+		 */
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
 	}
 
 	export interface NotebookEditorSelectionChangeEvent {
+		/**
+		 * The [notebook editor](#NotebookEditor) for which the selections have changed.
+		 */
 		readonly notebookEditor: NotebookEditor;
 		readonly selections: ReadonlyArray<NotebookRange>
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
+		/**
+		 * The [notebook editor](#NotebookEditor) for which the visible ranges have changed.
+		 */
 		readonly notebookEditor: NotebookEditor;
 		readonly visibleRanges: ReadonlyArray<NotebookRange>;
 	}
 
 	export interface NotebookCellExecutionStateChangeEvent {
+		/**
+		 * The [notebook document](#NotebookDocument) for which the cell execution state has changed.
+		 */
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
 		readonly executionState: NotebookCellExecutionState;
