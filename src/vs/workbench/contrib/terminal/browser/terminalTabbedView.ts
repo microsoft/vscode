@@ -28,6 +28,7 @@ import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TERMINAL_COMMAND_ID } from 'v
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Codicon } from 'vs/base/common/codicons';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const $ = dom.$;
 
@@ -73,7 +74,8 @@ export class TerminalTabbedView extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
@@ -155,9 +157,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 		widgetWidth = this._updateWidgetWidth(widgetWidth);
 		this._refreshHasTextClass();
-		for (const instance of this._terminalService.terminalInstances) {
-			this._tabsWidget.rerender(instance);
-		}
+		this._rerenderTabs();
 		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
@@ -204,8 +204,16 @@ export class TerminalTabbedView extends Disposable {
 		}, Sizing.Distribute, this._tabTreeIndex);
 		this._createButton();
 		this._refreshHasTextClass();
+		this._rerenderTabs();
+	}
+
+	private _rerenderTabs() {
 		for (const instance of this._terminalService.terminalInstances) {
-			this._tabsWidget.rerender(instance);
+			try {
+				this._tabsWidget.rerender(instance);
+			} catch (e) {
+				this._logService.warn('Exception when rerendering new tab widget', e);
+			}
 		}
 	}
 
@@ -215,9 +223,7 @@ export class TerminalTabbedView extends Disposable {
 			this._splitView.sashes[0].onDidStart(e => {
 				interval = window.setInterval(() => {
 					this._refreshHasTextClass();
-					for (const instance of this._terminalService.terminalInstances) {
-						this._tabsWidget.rerender(instance);
-					}
+					this._rerenderTabs();
 				}, 100);
 			}),
 			this._splitView.sashes[0].onDidEnd(e => {
