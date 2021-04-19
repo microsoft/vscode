@@ -698,11 +698,14 @@ abstract class ResourceNavigator<T> extends Disposable {
 
 class ListResourceNavigator<T> extends ResourceNavigator<T> {
 
+	protected override readonly widget: List<T> | PagedList<T>;
+
 	constructor(
-		protected readonly widget: List<T> | PagedList<T>,
+		widget: List<T> | PagedList<T>,
 		options: IResourceNavigatorOptions
 	) {
 		super(widget, options);
+		this.widget = widget;
 	}
 
 	getSelectedElement(): T | undefined {
@@ -712,8 +715,10 @@ class ListResourceNavigator<T> extends ResourceNavigator<T> {
 
 class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
 
+	protected override readonly widget!: Table<TRow>;
+
 	constructor(
-		protected readonly widget: Table<TRow>,
+		widget: Table<TRow>,
 		options: IResourceNavigatorOptions
 	) {
 		super(widget, options);
@@ -726,8 +731,10 @@ class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
 
 class TreeResourceNavigator<T, TFilterData> extends ResourceNavigator<T> {
 
+	protected override readonly widget!: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>;
+
 	constructor(
-		protected readonly widget: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>,
+		widget: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>,
 		options: IResourceNavigatorOptions
 	) {
 		super(widget, options);
