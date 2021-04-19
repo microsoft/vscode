@@ -12,7 +12,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -477,6 +477,45 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByEnvironment);
 	});
 
+	test('test extension does not support vitrual workspace is not enabled in virtual workspace', async () => {
+		const extension = aLocalExtension2('pub.a', { supportsVirtualWorkspace: false });
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(!testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByVirtualWorkspace);
+	});
+
+	test('test canChangeEnablement return false when extension is disabled in virtual workspace', () => {
+		const extension = aLocalExtension2('pub.a', { supportsVirtualWorkspace: false });
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(!testObject.canChangeEnablement(extension));
+	});
+
+	test('test extension does not support vitrual workspace is enabled in virtual workspace', async () => {
+		const extension = aLocalExtension2('pub.a', { supportsVirtualWorkspace: false });
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA') }] });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension supports virtual workspace is enabled in virtual workspace', async () => {
+		const extension = aLocalExtension2('pub.a', { supportsVirtualWorkspace: true });
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension without any value for virtual worksapce is enabled in virtual workspace', async () => {
+		const extension = aLocalExtension2('pub.a');
+		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(extension));
+		assert.deepStrictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+	});
+
 	test('test local workspace extension is disabled by kind', async () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
@@ -643,7 +682,7 @@ function aLocalExtension(id: string, contributes?: IExtensionContributions, type
 	return aLocalExtension2(id, contributes ? { contributes } : {}, isUndefinedOrNull(type) ? {} : { type });
 }
 
-function aLocalExtension2(id: string, manifest: any = {}, properties: any = {}): ILocalExtension {
+function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}, properties: any = {}): ILocalExtension {
 	const [publisher, name] = id.split('.');
 	manifest = { name, publisher, ...manifest };
 	properties = {
