@@ -749,7 +749,7 @@ export class GettingStartedPage extends EditorPane {
 						const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
 						if (nonGettingStartedGroup) {
 							this.groupsService.activateGroup(nonGettingStartedGroup);
-							(document.querySelector('div.editor-group-container.active') as any)?.focus?.();
+							nonGettingStartedGroup.focus();
 						}
 					}
 					this.openerService.open(command, { allowCommands: true });
