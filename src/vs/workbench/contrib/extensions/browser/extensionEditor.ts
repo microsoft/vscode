@@ -668,7 +668,7 @@ export class ExtensionEditor extends EditorPane {
 		const contents = await this.loadContents(() => cacheResult, template);
 		const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
 		const sanitizedContent = removeEmbeddedSVGs(content);
-		return await this.renderBody(sanitizedContent);
+		return this.renderBody(sanitizedContent);
 	}
 
 	private async renderBody(body: string): Promise<string> {
