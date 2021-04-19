@@ -327,6 +327,23 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._eventEmitter.beginDeferredEmit();
 		this.pushStackElement('edit', beginSelectionState, undoRedoGroup);
 
+		try {
+			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo);
+			return true;
+		} finally {
+			// Update selection and versionId after applying edits.
+			const endSelections = endSelectionsComputer();
+			this._increaseVersionId();
+
+			// Finalize undo element
+			this.pushStackElement('edit', endSelections, undefined);
+
+			// Broadcast changes
+			this._eventEmitter.endDeferredEmit(endSelections);
+		}
+	}
+
+	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean = true): void {
 		const edits = rawEdits.map((edit, index) => {
 			let cellIndex: number = -1;
 			if ('index' in edit) {
@@ -368,7 +385,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
 					break;
 				case CellEditType.Output:
-					//TODO@jrieken,@rebornix no event, no undo stop (?)
 					this._assertIndex(cellIndex);
 					const cell = this._cells[cellIndex];
 					if (edit.append) {
@@ -409,19 +425,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 			}
 		}
-
-		/**
-		 * Update selection and versionId after applying edits.
-		 */
-		const endSelections = endSelectionsComputer();
-		this._increaseVersionId();
-
-		// Finalize undo element
-		this.pushStackElement('edit', endSelections, undefined);
-
-		// Broadcast changes
-		this._eventEmitter.endDeferredEmit(endSelections);
-		return true;
 	}
 
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean): void {
