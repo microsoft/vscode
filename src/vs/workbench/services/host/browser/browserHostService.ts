@@ -62,8 +62,10 @@ export interface IWorkspaceProvider {
 	 * - `payload`: arbitrary payload that should be made available
 	 * to the opening window via the `IWorkspaceProvider.payload` property.
 	 * @param payload optional payload to send to the workspace to open.
+	 *
+	 * @returns true if successfully opened, false otherwise.
 	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void>;
+	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean>;
 }
 
 enum HostShutdownReason {
@@ -110,7 +112,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.workspaceProvider = new class implements IWorkspaceProvider {
 				readonly workspace = undefined;
 				readonly trusted = undefined;
-				async open() { }
+				async open() { return true; }
 			};
 		}
 
@@ -372,7 +374,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
 	}
 
-	private doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
 		// with `options.reuse` so we update `shutdownReason` to reflect that
@@ -380,7 +382,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.shutdownReason = HostShutdownReason.Api;
 		}
 
-		return this.workspaceProvider.open(workspace, options);
+		await this.workspaceProvider.open(workspace, options);
 	}
 
 	async toggleFullScreen(): Promise<void> {
