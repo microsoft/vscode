@@ -1469,7 +1469,7 @@ export function registerTerminalActions() {
 				menu: [{
 					id: MenuId.ViewTitle,
 					group: 'navigation',
-					order: 2,
+					order: 0,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
 					]),

@@ -45,6 +45,7 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
+	private _combinedButton: CombinedButtonActionViewItem | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -83,7 +84,11 @@ export class TerminalViewPane extends ViewPane {
 			}
 		});
 		this._terminalService.onRequestAvailableProfiles(async () => {
-			this._instantiationService.createInstance(CombinedButtonActionViewItem, await this._getToolbarActions());
+			if (!this._combinedButton) {
+				this._combinedButton = this._instantiationService.createInstance(CombinedButtonActionViewItem, await this._getToolbarActions());
+				this._register(this._combinedButton);
+			}
+			await this._updateButton();
 		});
 	}
 
@@ -169,9 +174,15 @@ export class TerminalViewPane extends ViewPane {
 		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		} else if (action.id === TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON) {
-			return this._instantiationService.createInstance(CombinedButtonActionViewItem, this._getToolbarActionsSync());
+			this._combinedButton = this._register(this._instantiationService.createInstance(CombinedButtonActionViewItem, this._getToolbarActionsSync()));
+			return this._combinedButton;
 		}
 		return super.getActionViewItem(action);
+	}
+
+	private async _updateButton(): Promise<void> {
+		const actions = await this._getToolbarActions();
+		this._combinedButton?.update(actions);
 	}
 
 	private async _getToolbarActions(): Promise<CombinedButtonArgs> {
@@ -339,12 +350,12 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 	constructor(
 		args: CombinedButtonArgs,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super(null, args.primaryAction);
 		this._args = args;
 		this._primaryAction = instantiationService.createInstance(MenuEntryActionViewItem, args.primaryAction);
-		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, contextMenuService, { menuAsChild: true, classNames: ['codicon', 'codicon-gear'] });
+		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', 'codicon-gear'] });
 	}
 	override render(container: HTMLElement): void {
 		this.container = container;
@@ -353,5 +364,13 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		this.element.className = this._args.className;
 		this._primaryAction.render(this.element);
 		this._dropdown.render(this.element);
+	}
+
+	update(args: CombinedButtonArgs): void {
+		this._dropdown.dispose();
+		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', 'codicon-gear'] });
+		if (this.container) {
+			this.render(this.container);
+		}
 	}
 }
