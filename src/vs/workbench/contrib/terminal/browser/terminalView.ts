@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Action, IAction } from 'vs/base/common/actions';
+import * as DOM from 'vs/base/browser/dom';
+import { Action, IAction, SubmenuAction } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { configureTerminalSettingsTitle, selectDefaultProfileTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { configureTerminalSettingsTitle, ContextMenuTabsGroup, selectDefaultProfileTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -20,15 +21,19 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { Codicon } from 'vs/base/common/codicons';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -44,7 +49,7 @@ export class TerminalViewPane extends ViewPane {
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService _contextMenuService: IContextMenuService,
@@ -54,9 +59,10 @@ export class TerminalViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
-		@IMenuService menuService: IMenuService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
-		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, _contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._terminalService.onDidRegisterProcessSupport(() => {
 			if (this._actions) {
 				for (const action of this._actions) {
@@ -76,6 +82,7 @@ export class TerminalViewPane extends ViewPane {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		});
+		this._terminalService.onRequestAvailableProfiles(async () => this._instantiationService.createInstance(CombinedButtonActionViewItem, await this._getToolbarActions()));
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -159,10 +166,54 @@ export class TerminalViewPane extends ViewPane {
 	public override getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+		} else if (action.id === TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON) {
+			return this._instantiationService.createInstance(CombinedButtonActionViewItem, this._getToolbarActionsSync());
 		}
-
 		return super.getActionViewItem(action);
 	}
+
+	private async _getToolbarActions(): Promise<CombinedButtonArgs> {
+		const actions: MenuItemAction[] = [];
+		const submenuActions: IAction[] = [];
+
+		const profiles = await this._terminalService.getAvailableProfiles();
+		for (const p of profiles) {
+			actions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+		}
+
+		const dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService));
+		for (const [, configureActions] of dropdownMenu.getActions()) {
+			for (const action of configureActions) {
+				if ('alt' in action) {
+					actions.push(action);
+				}
+			}
+		}
+
+		const newTerminalAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+
+		return { primaryAction: newTerminalAction, secondaryAction: new SubmenuAction('split.profile', 'Split...', submenuActions), dropdownActions: actions, className: 'terminal.profiles.actions' };
+	}
+
+	private _getToolbarActionsSync(): CombinedButtonArgs {
+		const actions: MenuItemAction[] = [];
+		const submenuActions: IAction[] = [];
+
+		const dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService));
+		for (const [, configureActions] of dropdownMenu.getActions()) {
+			for (const action of configureActions) {
+				if ('alt' in action) {
+					actions.push(action);
+				}
+			}
+		}
+
+		const newTerminalAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+
+		return { primaryAction: newTerminalAction, secondaryAction: new SubmenuAction('split.profile', 'Split...', submenuActions), dropdownActions: actions, className: 'terminal.profiles.actions' };
+	}
+
 
 	public override focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
@@ -266,4 +317,35 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 function getProfileSelectOptionItems(terminalService: ITerminalService): ISelectOptionItem[] {
 	const detectedProfiles = terminalService.getAvailableProfiles();
 	return detectedProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
+}
+interface CombinedButtonArgs {
+	primaryAction: MenuItemAction,
+	secondaryAction: SubmenuAction,
+	dropdownActions: MenuItemAction[],
+	className: string
+}
+
+export class CombinedButtonActionViewItem extends BaseActionViewItem {
+	private _primaryAction: MenuEntryActionViewItem;
+	private _dropdown: DropdownMenuActionViewItem;
+	private container: HTMLElement | null = null;
+	private _args: CombinedButtonArgs;
+	constructor(
+		args: CombinedButtonArgs,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+	) {
+		super(null, args.primaryAction);
+		this._args = args;
+		this._primaryAction = instantiationService.createInstance(MenuEntryActionViewItem, args.primaryAction);
+		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, contextMenuService, {});
+	}
+	override render(container: HTMLElement): void {
+		this.container = container;
+		super.render(container);
+		this.element = DOM.append(this.container, DOM.$(''));
+		this.element.className = this._args.className;
+		this._primaryAction.render(this.element);
+		this._dropdown.render(this.element);
+	}
 }

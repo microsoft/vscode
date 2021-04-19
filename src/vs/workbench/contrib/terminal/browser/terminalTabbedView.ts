@@ -62,7 +62,6 @@ export class TerminalTabbedView extends Disposable {
 
 	private _cancelContextMenu: boolean = false;
 	private _instanceMenu: IMenu;
-	private _dropdownMenu: IMenu;
 	private _tabsWidgetMenu: IMenu;
 
 	constructor(
@@ -73,10 +72,10 @@ export class TerminalTabbedView extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService _commandService: ICommandService
 	) {
 		super();
 
@@ -89,7 +88,6 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeContainer.appendChild(tabWidgetContainer);
 
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContainerContext, _contextKeyService));
-		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalToolbarContext, _contextKeyService));
 		this._tabsWidgetMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetContext, _contextKeyService));
 
 		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));

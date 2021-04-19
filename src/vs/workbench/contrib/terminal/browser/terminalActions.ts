@@ -1461,6 +1461,28 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON,
+				title: TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON,
+				f1: false,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: [{
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+					]),
+				}]
+			});
+		}
+		async run(accessor: ServicesAccessor, item?: string) {
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
 				title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
 				f1: true,
