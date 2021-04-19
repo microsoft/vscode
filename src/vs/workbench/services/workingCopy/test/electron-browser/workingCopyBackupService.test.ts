@@ -340,7 +340,20 @@ suite('WorkingCopyBackupService', () => {
 			let fileWithSpace = URI.file(isWindows ? 'c:\\Foo \n Bar' : '/Foo \n Bar');
 			const identifier = toTypedWorkingCopyId(fileWithSpace, ' test id \n');
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
-			const meta = { etag: '678', orphaned: true };
+			const meta = { etag: '678 \n k', orphaned: true };
+
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')), undefined, meta);
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(existsSync(backupPath), true);
+			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, 'test', meta));
+			assert.ok(service.hasBackupSync(identifier));
+		});
+
+		test('text file with unicode character in name and type (with meta)', async () => {
+			let fileWithUnicode = URI.file(isWindows ? 'c:\\so𒀅meࠄ' : '/so𒀅meࠄ');
+			const identifier = toTypedWorkingCopyId(fileWithUnicode, ' test so𒀅meࠄ id \n');
+			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+			const meta = { etag: '678so𒀅meࠄ', orphaned: true };
 
 			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')), undefined, meta);
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
