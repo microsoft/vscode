@@ -20,7 +20,7 @@ export class ExtensionMemento implements vscode.Memento {
 	private readonly _storageListener: IDisposable;
 
 	private _deferredPromises: Map<string, DeferredPromise<void>> = new Map();
-	private _scheduler: RunOnceScheduler | undefined;
+	private _scheduler: RunOnceScheduler;
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
 		this._id = id;
@@ -37,6 +37,23 @@ export class ExtensionMemento implements vscode.Memento {
 				this._value = e.value;
 			}
 		});
+
+		this._scheduler = new RunOnceScheduler(() => {
+			const records = this._deferredPromises;
+			this._deferredPromises = new Map();
+			(async () => {
+				try {
+					await this._storage.setValue(this._shared, this._id, this._value!);
+					for (const value of records.values()) {
+						value.complete();
+					}
+				} catch (e) {
+					for (const value of records.values()) {
+						value.error(e);
+					}
+				}
+			})();
+		}, 0);
 	}
 
 	get whenReady(): Promise<ExtensionMemento> {
@@ -64,27 +81,9 @@ export class ExtensionMemento implements vscode.Memento {
 		const promise = new DeferredPromise<void>();
 		this._deferredPromises.set(key, promise);
 
-		if (this._scheduler) {
-			this._scheduler.cancel();
+		if (!this._scheduler.isScheduled()) {
+			this._scheduler.schedule();
 		}
-
-		this._scheduler = new RunOnceScheduler(() => {
-			const records = this._deferredPromises;
-			this._deferredPromises = new Map();
-			(async () => {
-				try {
-					await this._storage.setValue(this._shared, this._id, this._value!);
-					for (value of records.values()) {
-						value.resolve();
-					}
-				} catch (e) {
-					for (value of records.entries()) {
-						value.reject();
-					}
-				}
-			})();
-		}, 0);
-		this._scheduler.schedule();
 
 		return promise.p;
 	}
