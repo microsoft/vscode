@@ -305,7 +305,7 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.tabsLocation': {
 			'type': 'string',
 			'enum': ['left', 'right'],
-			'default': 'left',
+			'default': 'right',
 			'description': localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either left or right of the terminal container.")
 		},
 		'terminal.integrated.macOptionIsMeta': {
