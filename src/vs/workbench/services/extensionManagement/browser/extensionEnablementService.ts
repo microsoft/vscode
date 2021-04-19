@@ -25,7 +25,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Promises } from 'vs/base/common/async';
-import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 
@@ -46,7 +45,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
@@ -288,7 +286,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
-		return this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.manifest) === 'onStart';
+		return this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.manifest) === 'onStart';
 	}
 
 	private _getEnablementState(identifier: IExtensionIdentifier): EnablementState {
@@ -441,7 +439,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private async _getExtensionsByWorkspaceTrustRequirement(): Promise<IExtension[]> {
 		const extensions = await this.extensionManagementService.getInstalled();
-		return extensions.filter(e => this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(e.manifest) === 'onStart');
+		return extensions.filter(e => this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(e.manifest) === 'onStart');
 	}
 
 	public async updateEnablementByWorkspaceTrustRequirement(): Promise<void> {
