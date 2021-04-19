@@ -259,7 +259,8 @@ export class TestServiceAccessor {
 		@IQuickInputService public quickInputService: IQuickInputService,
 		@ILabelService public labelService: ILabelService,
 		@ILogService public logService: ILogService,
-		@IUriIdentityService public uriIdentityService: IUriIdentityService
+		@IUriIdentityService public uriIdentityService: IUriIdentityService,
+		@IInstantiationService public instantitionService: IInstantiationService
 	) { }
 }
 
