@@ -9,7 +9,7 @@ import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManage
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
@@ -32,7 +32,8 @@ import { IExtensionBisectService } from 'vs/workbench/services/extensionManageme
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -41,6 +42,7 @@ function createStorageService(instantiationService: TestInstantiationService): I
 		if (!workspaceContextService) {
 			workspaceContextService = instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{
 				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => TestWorkspace as IWorkspace
 			});
 		}
 		service = instantiationService.stub(IStorageService, new InMemoryStorageService());
@@ -56,7 +58,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 		super(
 			storageService,
 			new GlobalExtensionEnablementService(storageService),
-			instantiationService.get(IWorkspaceContextService),
+			instantiationService.get(IWorkspaceContextService) || new TestContextService(),
 			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
 			extensionManagementService,
 			instantiationService.get(IConfigurationService),
@@ -69,7 +71,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			new class extends mock<IExtensionBisectService>() { override isDisabledByBisect() { return false; } },
 			instantiationService.get(IWorkspaceTrustManagementService) || instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService()),
 			instantiationService.get(IWorkspaceTrustRequestService) || instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService()),
-			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, new ExtensionManifestPropertiesService(TestProductService, instantiationService.get(IConfigurationService)))
+			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService()))
 		);
 	}
 
