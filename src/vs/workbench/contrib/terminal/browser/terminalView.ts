@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { Action, IAction, SubmenuAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -82,7 +82,9 @@ export class TerminalViewPane extends ViewPane {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		});
-		this._terminalService.onRequestAvailableProfiles(async () => this._instantiationService.createInstance(CombinedButtonActionViewItem, await this._getToolbarActions()));
+		this._terminalService.onRequestAvailableProfiles(async () => {
+			this._instantiationService.createInstance(CombinedButtonActionViewItem, await this._getToolbarActions());
+		});
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -173,45 +175,49 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private async _getToolbarActions(): Promise<CombinedButtonArgs> {
-		const actions: MenuItemAction[] = [];
+		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
 
 		const profiles = await this._terminalService.getAvailableProfiles();
 		for (const p of profiles) {
-			actions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			dropdownActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
+		if (dropdownActions.length) {
+			dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
+			dropdownActions.push(new Separator());
+		}
+
 		const dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService));
 		for (const [, configureActions] of dropdownMenu.getActions()) {
 			for (const action of configureActions) {
 				if ('alt' in action) {
-					actions.push(action);
+					dropdownActions.push(action);
 				}
 			}
 		}
 
-		const newTerminalAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-
-		return { primaryAction: newTerminalAction, secondaryAction: new SubmenuAction('split.profile', 'Split...', submenuActions), dropdownActions: actions, className: 'terminal.profiles.actions' };
+		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'more', title: 'more...', icon: Codicon.gear }, undefined, undefined);
+		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions' };
 	}
 
 	private _getToolbarActionsSync(): CombinedButtonArgs {
-		const actions: MenuItemAction[] = [];
-		const submenuActions: IAction[] = [];
+		const dropdownActions: IAction[] = [];
 
 		const dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService));
 		for (const [, configureActions] of dropdownMenu.getActions()) {
 			for (const action of configureActions) {
 				if ('alt' in action) {
-					actions.push(action);
+					dropdownActions.push(action);
 				}
 			}
 		}
 
-		const newTerminalAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-
-		return { primaryAction: newTerminalAction, secondaryAction: new SubmenuAction('split.profile', 'Split...', submenuActions), dropdownActions: actions, className: 'terminal.profiles.actions' };
+		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'split', title: 'Split', icon: Codicon.more }, undefined, undefined);
+		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions' };
 	}
 
 
@@ -320,8 +326,8 @@ function getProfileSelectOptionItems(terminalService: ITerminalService): ISelect
 }
 interface CombinedButtonArgs {
 	primaryAction: MenuItemAction,
-	secondaryAction: SubmenuAction,
-	dropdownActions: MenuItemAction[],
+	secondaryAction: MenuItemAction,
+	dropdownActions: IAction[],
 	className: string
 }
 
@@ -338,7 +344,7 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		super(null, args.primaryAction);
 		this._args = args;
 		this._primaryAction = instantiationService.createInstance(MenuEntryActionViewItem, args.primaryAction);
-		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, contextMenuService, {});
+		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, contextMenuService, { menuAsChild: true, classNames: ['codicon', 'codicon-gear'] });
 	}
 	override render(container: HTMLElement): void {
 		this.container = container;
