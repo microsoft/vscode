@@ -1831,7 +1831,7 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		export function registerNotebookCellStatusBarItemProvider(selector: NotebookDocumentFilter, provider: NotebookCellStatusBarItemProvider): Disposable;
+		export function registerNotebookCellStatusBarItemProvider(selector: NotebookSelector, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
 	//#endregion

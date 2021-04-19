@@ -1073,7 +1073,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookKernelProvider(extension, selector, provider);
 			},
-			registerNotebookCellStatusBarItemProvider: (selector: vscode.NotebookDocumentFilter, provider: vscode.NotebookCellStatusBarItemProvider) => {
+			registerNotebookCellStatusBarItemProvider: (selector: vscode.NotebookSelector, provider: vscode.NotebookCellStatusBarItemProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, selector, provider);
 			},

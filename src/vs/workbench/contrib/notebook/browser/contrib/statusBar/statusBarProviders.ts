@@ -11,16 +11,17 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider, INotebookDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CHANGE_CELL_LANGUAGE, EXECUTE_CELL_COMMAND_ID, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProvider {
-	readonly selector: INotebookDocumentFilter = {
-		filenamePattern: '**/*'
+	readonly selector: NotebookSelector = {
+		pattern: '**/*'
 	};
 
 	constructor(
@@ -66,8 +67,8 @@ class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProv
 }
 
 class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemProvider {
-	readonly selector: INotebookDocumentFilter = {
-		filenamePattern: '**/*'
+	readonly selector: NotebookSelector = {
+		pattern: '**/*'
 	};
 
 	constructor(

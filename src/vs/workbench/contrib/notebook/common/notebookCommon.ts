@@ -21,6 +21,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 export enum CellKind {
 	Markdown = 1,
@@ -797,7 +798,7 @@ export interface INotebookKernelProvider {
 }
 
 export interface INotebookCellStatusBarItemProvider {
-	selector: INotebookDocumentFilter;
+	selector: NotebookSelector;
 	onDidChangeStatusBarItems?: Event<void>;
 	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
