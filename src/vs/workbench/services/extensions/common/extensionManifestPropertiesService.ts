@@ -29,8 +29,8 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
-	canSupportVirtualWorkspace(manifest: IExtensionManifest): boolean;
 	getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType;
+	canSupportVirtualWorkspace(manifest: IExtensionManifest): boolean;
 }
 
 export class ExtensionManifestPropertiesService extends Disposable implements IExtensionManifestPropertiesService {
@@ -121,33 +121,6 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		return this.deduceExtensionKind(manifest);
 	}
 
-	canSupportVirtualWorkspace(manifest: IExtensionManifest): boolean {
-		// check user configured
-		const userConfiguredVirtualWorkspaceSupport = this.getConfiguredVirtualWorkspaceSupport(manifest);
-		if (userConfiguredVirtualWorkspaceSupport !== undefined) {
-			return userConfiguredVirtualWorkspaceSupport;
-		}
-
-		const productConfiguredWorkspaceSchemes = this.getProductWorkspaceSchemes(manifest);
-
-		// check override from product
-		if (productConfiguredWorkspaceSchemes?.override !== undefined) {
-			return productConfiguredWorkspaceSchemes.override;
-		}
-
-		// check the manifest
-		if (manifest.supportsVirtualWorkspace !== undefined) {
-			return manifest.supportsVirtualWorkspace;
-		}
-
-		// check default from product
-		if (productConfiguredWorkspaceSchemes?.default !== undefined) {
-			return productConfiguredWorkspaceSchemes.default;
-		}
-
-		// Default - supports virtual workspace
-		return true;
-	}
 	getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType {
 		// Workspace trust feature is disabled, or extension has no entry point
 		if (!isWorkspaceTrustEnabled(this.configurationService) || !manifest.main) {
@@ -181,6 +154,34 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 
 		return 'onStart';
+	}
+
+	canSupportVirtualWorkspace(manifest: IExtensionManifest): boolean {
+		// check user configured
+		const userConfiguredVirtualWorkspaceSupport = this.getConfiguredVirtualWorkspaceSupport(manifest);
+		if (userConfiguredVirtualWorkspaceSupport !== undefined) {
+			return userConfiguredVirtualWorkspaceSupport;
+		}
+
+		const productConfiguredWorkspaceSchemes = this.getProductWorkspaceSchemes(manifest);
+
+		// check override from product
+		if (productConfiguredWorkspaceSchemes?.override !== undefined) {
+			return productConfiguredWorkspaceSchemes.override;
+		}
+
+		// check the manifest
+		if (manifest.supportsVirtualWorkspace !== undefined) {
+			return manifest.supportsVirtualWorkspace;
+		}
+
+		// check default from product
+		if (productConfiguredWorkspaceSchemes?.default !== undefined) {
+			return productConfiguredWorkspaceSchemes.default;
+		}
+
+		// Default - supports virtual workspace
+		return true;
 	}
 
 	deduceExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
@@ -283,7 +284,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
 		return this._configuredVirtualWorkspaceSupportMap.get(ExtensionIdentifier.toKey(extensionId));
 	}
-	
+
 	private getConfiguredExtensionWorkspaceTrustRequest(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType | undefined {
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
 		const extensionWorkspaceTrustRequest = this._configuredExtensionWorkspaceTrustRequestMap.get(ExtensionIdentifier.toKey(extensionId));
