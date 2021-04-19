@@ -677,9 +677,32 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
 	}
 
-	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		if (start !== end || cells.length > 0) {
-			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells, metadata });
+	replaceNotebookCells(uri: URI, range: vscode.NotebookRange, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
+	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
+	replaceNotebookCells(uri: URI, startOrRange: number | vscode.NotebookRange, endOrCells: number | vscode.NotebookCellData[], cellsOrMetadata?: vscode.NotebookCellData[] | vscode.WorkspaceEditEntryMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		let start: number | undefined;
+		let end: number | undefined;
+		let cellData: vscode.NotebookCellData[] = [];
+		let workspaceEditMetadata: vscode.WorkspaceEditEntryMetadata | undefined;
+
+		if (NotebookRange.isNotebookRange(startOrRange) && NotebookCellData.isNotebookCellDataArray(endOrCells) && !NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
+			start = startOrRange.start;
+			end = startOrRange.end;
+			cellData = endOrCells;
+			workspaceEditMetadata = cellsOrMetadata;
+		} else if (typeof startOrRange === 'number' && typeof endOrCells === 'number' && NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
+			start = startOrRange;
+			end = endOrCells;
+			cellData = cellsOrMetadata;
+			workspaceEditMetadata = metadata;
+		}
+
+		if (start === undefined || end === undefined) {
+			throw new Error('Invalid arguments');
+		}
+
+		if (start !== end || cellData.length > 0) {
+			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata: workspaceEditMetadata });
 		}
 	}
 
@@ -2897,6 +2920,16 @@ export enum ColorThemeKind {
 //#region Notebook
 
 export class NotebookRange {
+	static isNotebookRange(thing: any): thing is vscode.NotebookRange {
+		if (thing instanceof NotebookRange) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<NotebookRange>thing).start === 'number'
+			&& typeof (<NotebookRange>thing).end === 'number';
+	}
 
 	private _start: number;
 	private _end: number;
@@ -3062,6 +3095,14 @@ export class NotebookDocumentMetadata {
 }
 
 export class NotebookCellData {
+
+	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
+		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
+	}
+
+	static isNotebookCellData(value: unknown): value is vscode.NotebookCellData {
+		return value instanceof NotebookCellData;
+	}
 
 	kind: NotebookCellKind;
 	source: string;
