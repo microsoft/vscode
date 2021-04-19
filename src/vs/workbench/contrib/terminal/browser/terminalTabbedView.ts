@@ -48,7 +48,7 @@ export class TerminalTabbedView extends Disposable {
 	private _findWidget: TerminalFindWidget;
 	private _sashDisposables: IDisposable[] | undefined;
 
-	private _plusButton: HTMLElement | undefined;
+	private _toolbar: ToolBar | undefined;
 
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
@@ -113,8 +113,9 @@ export class TerminalTabbedView extends Disposable {
 					this._addSashListener();
 				} else {
 					this._splitView.removeView(this._tabTreeIndex);
-					if (this._plusButton) {
-						this._tabTreeContainer.removeChild(this._plusButton);
+
+					if (this._toolbar) {
+						this._tabTreeContainer.removeChild(this._toolbar.getElement());
 					}
 					this._removeSashListener();
 				}
@@ -201,7 +202,7 @@ export class TerminalTabbedView extends Disposable {
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
-		this._createButton();
+		this._createToolbar();
 		this._refreshHasTextClass();
 		for (const instance of this._terminalService.terminalInstances) {
 			this._tabsWidget.rerender(instance);
@@ -247,9 +248,9 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth >= MIDPOINT_WIDGET_WIDTH);
 	}
 
-	private _createButton(): void {
-		const toolBar = new ToolBar(this._tabTreeContainer, this._contextMenuService);
-		toolBar.setActions([
+	private _createToolbar(): void {
+		this._toolbar = new ToolBar(this._tabTreeContainer, this._contextMenuService);
+		this._toolbar.setActions([
 			this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined),
 			// TODO: Bring back context menu: await this._openTabsContextMenu(e);
 			this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: nls.localize('terminal.newWithProfile', "New Terminal With Profile"), icon: Codicon.chevronDown }, undefined, undefined)
