@@ -27,6 +27,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { localize } from 'vs/nls';
+import Severity from 'vs/base/common/severity';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -102,7 +105,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -382,7 +386,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.shutdownReason = HostShutdownReason.Api;
 		}
 
-		await this.workspaceProvider.open(workspace, options);
+		const opened = await this.workspaceProvider.open(workspace, options);
+		if (!opened) {
+			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser prevented opening of a new tab or window. You must give permission to continue."), [localize('continue', "Continue"), localize('cancel', "Cancel")], { cancelId: 1 });
+			if (showResult.choice === 0) {
+				await this.workspaceProvider.open(workspace, options);
+			}
+		}
 	}
 
 	async toggleFullScreen(): Promise<void> {
