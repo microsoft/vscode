@@ -364,6 +364,16 @@ suite('Notebook Document', function () {
 		assert.strictEqual(opened === closed, true);
 	});
 
+	test('setTextDocumentLanguage when notebook editor is not open', async function () {
+		const uri = await utils.createRandomFile('', undefined, '.nbdtest');
+		const notebook = await vscode.notebook.openNotebookDocument(uri);
+		const firstCelUri = notebook.cellAt(0).document.uri;
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+		let cellDoc = await vscode.workspace.openTextDocument(firstCelUri);
+		cellDoc = await vscode.languages.setTextDocumentLanguage(cellDoc, 'css');
+		assert.strictEqual(cellDoc.languageId, 'css');
+	});
 
 	test('#117273, Add multiple outputs', async function () {
 
