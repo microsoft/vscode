@@ -201,23 +201,23 @@ gulp.task(compileExtensionsBuildLegacyTask);
 //#region Extension media
 
 // Additional projects to webpack. These typically build code for webviews
-const mediaCompilations = [
+const webpackMediaConfigFiles = [
 	'markdown-language-features/webpack.config.js',
 	'markdown-language-features/webpack.notebook.js',
 	'notebook-markdown-extensions/webpack.notebook.js',
 	'simple-browser/webpack.config.js',
 ];
 
-const compileExtensionMediaTask = task.define('compile-extension-media', () => buildExtensionMedia(false));
+const compileExtensionMediaTask = task.define('compile-extension-media', () => webpackExtensionMedia(false));
 gulp.task(compileExtensionMediaTask);
 exports.compileExtensionMediaTask = compileExtensionMediaTask;
 
-const watchExtensionMedia = task.define('watch-extension-media', () => buildExtensionMedia(true));
+const watchExtensionMedia = task.define('watch-extension-media', () => webpackExtensionMedia(true));
 gulp.task(watchExtensionMedia);
 exports.watchExtensionMedia = watchExtensionMedia;
 
-function buildExtensionMedia(isWatch, outputRoot) {
-	const webpackConfigLocations = mediaCompilations.map(p => {
+function webpackExtensionMedia(isWatch, outputRoot) {
+	const webpackConfigLocations = webpackMediaConfigFiles.map(p => {
 		return {
 			configPath: path.join(extensionsPath, p),
 			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
@@ -225,7 +225,7 @@ function buildExtensionMedia(isWatch, outputRoot) {
 	});
 	return webpackExtensions('packaging extension media', isWatch, webpackConfigLocations);
 }
-const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => buildExtensionMedia(false, '.build/extensions'));
+const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => webpackExtensionMedia(false, '.build/extensions'));
 gulp.task(compileExtensionMediaBuildTask);
 
 //#endregion
