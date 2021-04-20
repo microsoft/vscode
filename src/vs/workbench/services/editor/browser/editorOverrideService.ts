@@ -374,9 +374,9 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 
 		const handle = this.notificationService.prompt(Severity.Warning,
-			localize('editorOverride.conflictingDefaults', 'Two or more editors want to be your default editor for this resource. Consider configuring a default.'),
+			localize('editorOverride.conflictingDefaults', 'Multiple editors want to be your default editor for this resource.'),
 			[{
-				label: localize('editorOverride.configureDefault', 'Configure Default Editor For Resource'),
+				label: localize('editorOverride.configureDefault', 'Configure Default'),
 				run: async () => {
 					// Show the picker and tell it to update the setting to whatever the user selected
 					const picked = await this.doPickEditorOverride(currentEditor, options, group, true);
@@ -387,10 +387,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 					this.resolveEditorOverride(currentEditor, picked[0], picked[1] ?? group);
 				}
 			},
-				// {
-				// 	label: localize('editorOverride.keepDefault', 'Keep Current Editor As Default'),
-				// 	run: makeCurrentEditorDefault
-				// }
+			{
+				label: localize('editorOverride.keepDefault', 'Keep Current'),
+				run: makeCurrentEditorDefault
+			}
 			]);
 		// If the user pressed X we assume they want to keep the current editor as default
 		const onCloseListener = handle.onDidClose(() => {
