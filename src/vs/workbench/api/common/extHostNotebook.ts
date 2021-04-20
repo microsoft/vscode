@@ -376,7 +376,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
 		this._notebookProxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, {
 			transientOutputs: internalOptions.transientOutputs,
-			transientMetadata: internalOptions.transientMetadata,
+			transientCellMetadata: internalOptions.transientCellMetadata,
+			transientDocumentMetadata: internalOptions.transientDocumentMetadata,
 			viewOptions: options?.viewOptions && viewOptionsFilenamePattern ? { displayName: options.viewOptions.displayName, filenamePattern: viewOptionsFilenamePattern, exclusive: options.viewOptions.exclusive || false } : undefined
 		});
 
@@ -403,15 +404,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, selector: vscode.NotebookDocumentFilter, provider: vscode.NotebookCellStatusBarItemProvider) {
+	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, selector: vscode.NotebookSelector, provider: vscode.NotebookCellStatusBarItemProvider) {
 		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
 		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
 
 		this._notebookStatusBarItemProviders.set(handle, provider);
-		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, {
-			viewType: selector.viewType,
-			filenamePattern: selector.filenamePattern ? typeConverters.NotebookExclusiveDocumentPattern.from(selector.filenamePattern) : undefined
-		});
+		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, selector);
 
 		let subscription: vscode.Disposable | undefined;
 		if (eventHandle !== undefined) {
@@ -623,7 +621,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 	}
 
-	private cancelOneNotebookCellExecution(cell: ExtHostCell): void {
+	cancelOneNotebookCellExecution(cell: ExtHostCell): void {
 		const execution = this._activeExecutions.get(cell.uri);
 		execution?.cancel();
 	}

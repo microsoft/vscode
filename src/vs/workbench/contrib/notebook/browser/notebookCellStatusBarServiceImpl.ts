@@ -9,7 +9,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider, notebookDocumentFilterMatch } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { score } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 export class NotebookCellStatusBarService extends Disposable implements INotebookCellStatusBarService {
 
@@ -42,10 +43,10 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 	}
 
 	async getStatusBarItemsForCell(docUri: URI, cellIndex: number, viewType: string, token: CancellationToken): Promise<INotebookCellStatusBarItemList[]> {
-		const providers = this._providers.filter(p => notebookDocumentFilterMatch(p.selector, viewType, docUri));
-		return await Promise.all(providers.map(p => {
+		const providers = this._providers.filter(p => score(p.selector, docUri, viewType) > 0);
+		return await Promise.all(providers.map(async p => {
 			try {
-				return p.provideCellStatusBarItems(docUri, cellIndex, token);
+				return await p.provideCellStatusBarItems(docUri, cellIndex, token) ?? { items: [] };
 			} catch (e) {
 				onUnexpectedExternalError(e);
 				return { items: [] };

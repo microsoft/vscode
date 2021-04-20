@@ -158,7 +158,9 @@ export class GettingStartedPage extends EditorPane {
 			ourTask.title = task.title;
 			ourTask.description = task.description;
 			ourTask.media.path = task.media.path;
-			// TODO: JacksonKearl, update the actual rendering if not much time has passed
+
+			this.container.querySelectorAll<HTMLDivElement>(`[x-task-title-for="${task.id}"]`).forEach(item => (item as HTMLDivElement).innerText = task.title);
+			this.container.querySelectorAll<HTMLDivElement>(`[x-task-description-for="${task.id}"]`).forEach(item => this.buildTaskMarkdownDescription((item), task.description));
 		}));
 
 		this._register(this.gettingStartedService.onDidChangeCategory(category => {
@@ -167,7 +169,9 @@ export class GettingStartedPage extends EditorPane {
 
 			ourCategory.title = category.title;
 			ourCategory.description = category.description;
-			// TODO: JacksonKearl, update the actual rendering if not much time has passed
+
+			this.container.querySelectorAll<HTMLDivElement>(`[x-category-title-for="${category.id}"]`).forEach(item => (item as HTMLDivElement).innerText = ourCategory.title);
+			this.container.querySelectorAll<HTMLDivElement>(`[x-category-description-for="${category.id}"]`).forEach(item => (item as HTMLDivElement).innerText = ourCategory.description);
 		}));
 
 		this._register(this.gettingStartedService.onDidProgressTask(task => {
@@ -618,7 +622,7 @@ export class GettingStartedPage extends EditorPane {
 					'x-dispatch': 'hideCategory:' + category.id,
 					'title': localize('close', "Hide"),
 				}),
-				$('h3.category-title', {}, category.title),
+				$('h3.category-title', { 'x-category-title-for': category.id }, category.title),
 				$('.category-progress', { 'x-data-category-id': category.id, },
 					$('.progress-bar-outer', { 'role': 'progressbar' },
 						$('.progress-bar-inner'))));
@@ -703,84 +707,86 @@ export class GettingStartedPage extends EditorPane {
 		return category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
 	}
 
+	private buildTaskMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
+		while (container.firstChild) { container.removeChild(container.firstChild); }
+
+		for (const linkedText of text) {
+			if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+				const node = linkedText.nodes[0];
+				const buttonContainer = append(container, $('.button-container'));
+				const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
+
+				const isCommand = node.href.startsWith('command:');
+				const toSide = node.href.startsWith('command:toSide:');
+				const command = node.href.replace(/command:(toSide:)?/, 'command:');
+
+				button.label = node.label;
+				button.onDidClick(async e => {
+					e.stopPropagation();
+					e.preventDefault();
+
+					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runTaskAction', argument: node.href });
+
+					const fullSize = this.groupsService.contentDimension;
+
+					if (toSide && fullSize.width > 700) {
+						if (this.groupsService.count === 1) {
+							this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
+
+							let gettingStartedSize: number;
+							if (fullSize.width > 1600) {
+								gettingStartedSize = 800;
+							} else if (fullSize.width > 800) {
+								gettingStartedSize = 400;
+							} else {
+								gettingStartedSize = 350;
+							}
+
+							const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
+							this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+						}
+
+						const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
+						if (nonGettingStartedGroup) {
+							this.groupsService.activateGroup(nonGettingStartedGroup);
+							nonGettingStartedGroup.focus();
+						}
+					}
+					this.openerService.open(command, { allowCommands: true });
+
+				}, null, this.detailsPageDisposables);
+
+				if (isCommand) {
+					const keybindingLabel = this.getKeybindingLabel(command);
+					if (keybindingLabel) {
+						container.appendChild($('span.shortcut-message', {}, 'Tip: Use keyboard shortcut ', $('span.keybinding', {}, keybindingLabel)));
+					}
+				}
+
+				this.detailsPageDisposables.add(button);
+				this.detailsPageDisposables.add(attachButtonStyler(button, this.themeService));
+			} else {
+				const p = append(container, $('p'));
+				for (const node of linkedText.nodes) {
+					if (typeof node === 'string') {
+						append(p, renderFormattedText(node, { inline: true, renderCodeSegements: true }));
+					} else {
+						const link = this.instantiationService.createInstance(Link, node);
+
+						append(p, link.el);
+						this.detailsPageDisposables.add(link);
+						this.detailsPageDisposables.add(attachLinkStyler(link, this.themeService));
+					}
+				}
+			}
+		}
+		return container;
+	}
+
 	private buildCategorySlide(categoryID: string, selectedItem?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
 		this.detailsPageDisposables.clear();
-
-		const renderMarkdownDescription = (text: LinkedText[]): HTMLElement => {
-			const container = $('.task-description-container');
-			for (const linkedText of text) {
-				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
-					const node = linkedText.nodes[0];
-					const buttonContainer = append(container, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
-
-					const isCommand = node.href.startsWith('command:');
-					const toSide = node.href.startsWith('command:toSide:');
-					const command = node.href.replace(/command:(toSide:)?/, 'command:');
-
-					button.label = node.label;
-					button.onDidClick(async e => {
-						e.stopPropagation();
-						e.preventDefault();
-
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runTaskAction', argument: node.href });
-
-						const fullSize = this.groupsService.contentDimension;
-
-						if (toSide && fullSize.width > 700) {
-							if (this.groupsService.count === 1) {
-								this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
-
-								let gettingStartedSize: number;
-								if (fullSize.width > 1600) {
-									gettingStartedSize = 800;
-								} else if (fullSize.width > 800) {
-									gettingStartedSize = 400;
-								} else {
-									gettingStartedSize = 350;
-								}
-
-								const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-								this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
-							}
-
-							const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
-							if (nonGettingStartedGroup) {
-								this.groupsService.activateGroup(nonGettingStartedGroup);
-							}
-						}
-						this.openerService.open(command, { allowCommands: true });
-
-					}, null, this.detailsPageDisposables);
-
-					if (isCommand) {
-						const keybindingLabel = this.getKeybindingLabel(command);
-						if (keybindingLabel) {
-							container.appendChild($('span.shortcut-message', {}, 'Tip: Use keyboard shortcut ', $('span.keybinding', {}, keybindingLabel)));
-						}
-					}
-
-					this.detailsPageDisposables.add(button);
-					this.detailsPageDisposables.add(attachButtonStyler(button, this.themeService));
-				} else {
-					const p = append(container, $('p'));
-					for (const node of linkedText.nodes) {
-						if (typeof node === 'string') {
-							append(p, renderFormattedText(node, { inline: true, renderCodeSegements: true }));
-						} else {
-							const link = this.instantiationService.createInstance(Link, node);
-
-							append(p, link.el);
-							this.detailsPageDisposables.add(link);
-							this.detailsPageDisposables.add(attachLinkStyler(link, this.themeService));
-						}
-					}
-				}
-			}
-			return container;
-		};
 
 		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 
@@ -792,8 +798,8 @@ export class GettingStartedPage extends EditorPane {
 				{},
 				this.iconWidgetFor(category),
 				$('.category-description-container', {},
-					$('h2.category-title', {}, category.title),
-					$('.category-description.description', {}, category.description)));
+					$('h2.category-title', { 'x-category-title-for': category.id }, category.title),
+					$('.category-description.description', { 'x-category-description-for': category.id }, category.description)));
 
 		const categoryElements = category.content.items.map(
 			(task, i, arr) => {
@@ -803,9 +809,12 @@ export class GettingStartedPage extends EditorPane {
 						'x-dispatch': 'toggleTaskCompletion:' + task.id,
 					});
 
+				const container = $('.task-description-container', { 'x-task-description-for': task.id });
+				this.buildTaskMarkdownDescription(container, task.description);
+
 				const taskDescription = $('.task-container', {},
-					$('h3.task-title', {}, task.title),
-					renderMarkdownDescription(task.description),
+					$('h3.task-title', { 'x-task-title-for': task.id }, task.title),
+					container,
 					$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", task.media.altText) }),
 				);
 

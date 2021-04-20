@@ -407,17 +407,19 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
 	max-width: 1200px;
+	max-height: 1000px;
 	margin: 0 auto;
 	padding: 0 12px;
 	display: grid;
 
 	grid-template-columns: minmax(auto, 400px) 1fr;
-	grid-template-rows: minmax(40px, 20%) 100px 1fr;
+	grid-template-rows: minmax(40px, 20%) 100px max-content 1fr;
 	grid-column-gap: 20px;
 	grid-template-areas:
-	"back ."
-	"title ."
+	"back img"
+	"title img"
 	"tasks img"
+	". img"
 	;
 }
 
@@ -454,7 +456,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
 	grid-area: img;
 }
-.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
 	align-self: center;
 }
 

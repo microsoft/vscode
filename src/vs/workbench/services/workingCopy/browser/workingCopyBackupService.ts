@@ -6,17 +6,17 @@
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
+import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { BrowserBackupTracker } from 'vs/workbench/services/backup/browser/backupTracker';
+import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
 
-export class BrowserBackupFileService extends BackupFileService {
+export class BrowserWorkingCopyBackupService extends WorkingCopyBackupService {
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -29,7 +29,7 @@ export class BrowserBackupFileService extends BackupFileService {
 }
 
 // Register Service
-registerSingleton(IBackupFileService, BrowserBackupFileService);
+registerSingleton(IWorkingCopyBackupService, BrowserWorkingCopyBackupService);
 
 // Register Backup Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BrowserBackupTracker, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BrowserWorkingCopyBackupTracker, LifecyclePhase.Starting);

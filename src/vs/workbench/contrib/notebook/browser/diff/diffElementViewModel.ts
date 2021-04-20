@@ -493,11 +493,11 @@ export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, me
 	let filteredMetadata: { [key: string]: any } = {};
 
 	if (documentTextModel) {
-		const transientMetadata = documentTextModel.transientOptions.transientMetadata;
+		const transientCellMetadata = documentTextModel.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(metadata)]);
 		for (let key of keys) {
-			if (!(transientMetadata[key as keyof NotebookCellMetadata])
+			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
 			) {
 				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
 			}

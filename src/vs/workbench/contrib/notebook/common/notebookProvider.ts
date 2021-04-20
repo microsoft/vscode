@@ -9,7 +9,7 @@ import { basename } from 'vs/base/common/path';
 import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 
-export type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
+type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
 export interface NotebookEditorDescriptor {
 	readonly id: string;
@@ -61,7 +61,8 @@ export class NotebookProviderInfo {
 		this.dynamicContribution = descriptor.dynamicContribution;
 		this.exclusive = descriptor.exclusive;
 		this._options = {
-			transientMetadata: {},
+			transientCellMetadata: {},
+			transientDocumentMetadata: {},
 			transientOutputs: false
 		};
 	}

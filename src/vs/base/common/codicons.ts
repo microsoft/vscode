@@ -49,6 +49,16 @@ export function registerCodicon(id: string, def: Codicon): Codicon {
 	return new Codicon(id, def);
 }
 
+// Selects all codicon names encapsulated in the `$()` syntax and wraps the
+// results with spaces so that screen readers can read the text better.
+export function getCodiconAriaLabel(text: string | undefined) {
+	if (!text) {
+		return '';
+	}
+
+	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
+}
+
 export class Codicon implements CSSIcon {
 	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition, public description?: string) {
 		_registry.add(this);

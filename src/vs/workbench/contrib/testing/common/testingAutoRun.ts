@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AutoRunMode, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { InternalTestItem, TestDiffOpType, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestDiffOpType, TestIdWithMaybeSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -67,7 +67,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 	 */
 	private makeRunner() {
 		let isRunning = false;
-		const rerunIds = new Map<string, TestIdWithSrc>();
+		const rerunIds = new Map<string, TestIdWithMaybeSrc>();
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
@@ -91,8 +91,8 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 			}
 		}, delay));
 
-		const addToRerun = (test: InternalTestItem) => {
-			rerunIds.set(`${test.item.extId}/${test.src.provider}`, ({ testId: test.item.extId, src: test.src }));
+		const addToRerun = (test: TestIdWithMaybeSrc) => {
+			rerunIds.set(`${test.testId}/${test.src?.controller}`, test);
 			if (!isRunning) {
 				scheduler.schedule(delay);
 			}
@@ -100,7 +100,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 		store.add(this.results.onTestChanged(evt => {
 			if (evt.reason === TestResultItemChangeReason.Retired) {
-				addToRerun(evt.item);
+				addToRerun({ testId: evt.item.item.extId });
 			}
 		}));
 
@@ -113,7 +113,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 					for (const [, collection] of sub.workspaceFolderCollections) {
 						for (const rootId of collection.rootIds) {
 							const root = collection.getNodeById(rootId);
-							if (root) { addToRerun(root); }
+							if (root) { addToRerun({ testId: root.item.extId, src: root.src }); }
 						}
 					}
 				}
@@ -122,7 +122,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 			store.add(sub.onDiff(([, diff]) => {
 				for (const entry of diff) {
 					if (entry[0] === TestDiffOpType.Add) {
-						addToRerun(entry[1]);
+						addToRerun({ testId: entry[1].item.extId, src: entry[1].src });
 					}
 				}
 			}));

@@ -31,6 +31,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
 import { GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { hash } from 'vs/base/common/hash';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -136,7 +137,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
 			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
-			const canSaveElevated = resource.scheme === Schemas.file; // https://github.com/microsoft/vscode/issues/48659 TODO
+			const canSaveElevated = resource.scheme === Schemas.file; // currently only supported for local schemes (https://github.com/microsoft/vscode/issues/48659)
 
 			// Save Elevated
 			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {
@@ -175,7 +176,12 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
+		const handle = this.notificationService.notify({
+			id: `${hash(model.resource.toString())}`, // unique per model (https://github.com/microsoft/vscode/issues/121539)
+			severity: Severity.Error,
+			message,
+			actions
+		});
 		Event.once(handle.onDidClose)(() => { dispose(primaryActions); dispose(secondaryActions); });
 		this.messages.set(model.resource, handle);
 	}
@@ -249,6 +255,7 @@ class ResolveSaveConflictAction extends Action {
 			// Show additional help how to resolve the save conflict
 			const actions = { primary: [this.instantiationService.createInstance(ResolveConflictLearnMoreAction)] };
 			const handle = this.notificationService.notify({
+				id: `${hash(resource.toString())}`, // unique per model
 				severity: Severity.Info,
 				message: conflictEditorHelp,
 				actions,

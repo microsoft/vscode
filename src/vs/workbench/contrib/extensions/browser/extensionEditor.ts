@@ -85,6 +85,11 @@ function removeEmbeddedSVGs(documentContent: string): string {
 			],
 			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height'],
 		},
+		allowedSchemes: [
+			Schemas.http,
+			Schemas.https,
+			Schemas.command, // We only allow executing the release notes command
+		],
 		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
 			return token.tag !== 'svg';
 		}
@@ -663,7 +668,7 @@ export class ExtensionEditor extends EditorPane {
 		const contents = await this.loadContents(() => cacheResult, template);
 		const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
 		const sanitizedContent = removeEmbeddedSVGs(content);
-		return await this.renderBody(sanitizedContent);
+		return this.renderBody(sanitizedContent);
 	}
 
 	private async renderBody(body: string): Promise<string> {

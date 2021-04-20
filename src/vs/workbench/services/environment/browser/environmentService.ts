@@ -109,9 +109,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
 
 	@memoize
-	get sessionId(): string { return this.configuration.sessionId; }
-
-	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize

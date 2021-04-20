@@ -21,7 +21,6 @@ function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITe
 		strictEqual(actual.path, expected.path);
 		deepStrictEqual(actual.args, expected.args);
 		strictEqual(actual.isAutoDetected, expected.isAutoDetected);
-		strictEqual(actual.isWorkspaceProfile, expected.isWorkspaceProfile);
 		strictEqual(actual.overrideName, expected.overrideName);
 	}
 }

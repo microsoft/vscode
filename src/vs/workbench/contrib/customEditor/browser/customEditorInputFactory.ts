@@ -10,9 +10,10 @@ import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/cus
 import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { SerializedWebviewOptions, DeserializedWebview, reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputSerializer, restoreWebviewContentOptions, restoreWebviewOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
-export interface CustomDocumentBackupData {
+export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
 	readonly editorResource: UriComponents;
 	backupId: string;
@@ -107,9 +108,9 @@ export const customEditorInputFactory = new class implements ICustomEditorInputF
 	public createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput> {
 		return instantiationService.invokeFunction(async accessor => {
 			const webviewService = accessor.get<IWebviewService>(IWebviewService);
-			const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
+			const workingCopyBackupService = accessor.get<IWorkingCopyBackupService>(IWorkingCopyBackupService);
 
-			const backup = await backupFileService.resolve<CustomDocumentBackupData>(resource);
+			const backup = await workingCopyBackupService.resolve<CustomDocumentBackupData>({ resource, typeId: NO_TYPE_ID });
 			if (!backup?.meta) {
 				throw new Error(`No backup found for custom editor: ${resource}`);
 			}

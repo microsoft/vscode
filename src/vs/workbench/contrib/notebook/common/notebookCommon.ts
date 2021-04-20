@@ -21,6 +21,8 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 export enum CellKind {
 	Markdown = 1,
@@ -92,11 +94,13 @@ export interface NotebookCellMetadata {
 	custom?: { [key: string]: unknown };
 }
 
-export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
-	transientMetadata: TransientMetadata;
+	transientCellMetadata: TransientCellMetadata;
+	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
 export interface INotebookMimeTypeSelector {
@@ -679,7 +683,7 @@ export interface INotebookTextModelBackup {
 	cells: ICellDto2[]
 }
 
-export interface NotebookDocumentBackupData {
+export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
 	readonly backupId?: string;
 	readonly mtime?: number;
@@ -762,12 +766,17 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 }
 
 export interface INotebookKernel {
+
+	/** @deprecated */
+	providerHandle?: number;
+	/** @deprecated */
+	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
+
 	id?: string;
 	friendlyId: string;
 	label: string;
 	extension: ExtensionIdentifier;
 	localResourceRoot: URI;
-	providerHandle?: number;
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
@@ -777,7 +786,6 @@ export interface INotebookKernel {
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
-	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
 }
@@ -791,9 +799,9 @@ export interface INotebookKernelProvider {
 }
 
 export interface INotebookCellStatusBarItemProvider {
-	selector: INotebookDocumentFilter;
+	selector: NotebookSelector;
 	onDidChangeStatusBarItems?: Event<void>;
-	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList>;
+	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
 export class CellSequence implements ISequence {

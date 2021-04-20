@@ -213,6 +213,13 @@ export class SettingsEditor2 extends EditorPane {
 			if (this.settingsTreeModel) {
 				this.settingsTreeModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
 			}
+			this.renderTree();
+		}));
+
+		this._register(configurationService.onDidChangeUntrustdSettings(e => {
+			if (e.default.length) {
+				this.updateElementsByKey([...e.default]);
+			}
 		}));
 
 		this.modelDisposables = this._register(new DisposableStore());
@@ -283,18 +290,16 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 		this.defaultSettingsEditorModel = model;
 
+		options = options || SettingsEditorOptions.create({});
+		if (!this.viewState.settingsTarget) {
+			if (!options.target) {
+				options.target = ConfigurationTarget.USER_LOCAL;
+			}
+		}
+		this._setOptions(options);
+
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
-			options = options || SettingsEditorOptions.create({});
-
-			if (!this.viewState.settingsTarget) {
-				if (!options.target) {
-					options.target = ConfigurationTarget.USER_LOCAL;
-				}
-			}
-
-			this._setOptions(options);
-
 			this._register(input.onWillDispose(() => {
 				this.searchWidget.setValue('');
 			}));

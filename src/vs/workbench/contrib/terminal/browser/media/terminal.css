@@ -226,7 +226,12 @@
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-widget .terminal-tabs-entry {
 	padding-left: 10px;
+	padding-right: 10px;
 	text-align: left;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-widget .terminal-tabs-entry .monaco-icon-label::after {
+	padding-right: 0
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .codicon {

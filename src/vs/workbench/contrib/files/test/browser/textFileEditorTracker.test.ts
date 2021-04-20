@@ -24,6 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { whenTextEditorClosed } from 'vs/workbench/browser/editor';
 
 suite('Files - TextFileEditorTracker', () => {
 
@@ -179,5 +180,27 @@ suite('Files - TextFileEditorTracker', () => {
 				}
 			});
 		});
+	}
+
+	test('whenTextEditorClosed (single editor)', async function () {
+		return testWhenTextEditorClosed(toResource.call(this, '/path/index.txt'));
+	});
+
+	test('whenTextEditorClosed (multiple editor)', async function () {
+		return testWhenTextEditorClosed(toResource.call(this, '/path/index.txt'), toResource.call(this, '/test.html'));
+	});
+
+	async function testWhenTextEditorClosed(...resources: URI[]): Promise<void> {
+		const accessor = await createTracker(false);
+
+		for (const resource of resources) {
+			await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		}
+
+		const closedPromise = accessor.instantitionService.invokeFunction(accessor => whenTextEditorClosed(accessor, resources));
+
+		accessor.editorGroupService.activeGroup.closeAllEditors();
+
+		await closedPromise;
 	}
 });
