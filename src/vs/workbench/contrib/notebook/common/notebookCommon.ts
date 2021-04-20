@@ -21,6 +21,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 export enum CellKind {
 	Markdown = 1,
@@ -763,37 +764,36 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	return false;
 }
 
+export interface INotebookKernelChangeEvent {
+	label?: true;
+	description?: true;
+	detail?: true;
+	isPreferred?: true;
+	supportedLanguages?: true;
+	hasExecutionOrder?: true;
+}
+
 export interface INotebookKernel {
 
-	/** @deprecated */
-	providerHandle?: number;
-	/** @deprecated */
-	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
+	readonly id: string;
+	readonly selector: NotebookSelector;
+	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
+	readonly extension: ExtensionIdentifier;
 
-	id?: string;
-	friendlyId: string;
+	readonly localResourceRoot: URI;
+	readonly preloadUris: URI[];
+	readonly preloadProvides: string[];
+
 	label: string;
-	extension: ExtensionIdentifier;
-	localResourceRoot: URI;
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	preloadUris: URI[];
-	preloadProvides: string[];
 	supportedLanguages?: string[]
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
-}
-
-export interface INotebookKernelProvider {
-	providerExtensionId: string;
-	providerDescription?: string;
-	selector: INotebookDocumentFilter;
-	onDidChangeKernels: Event<URI | undefined>;
-	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
 }
 
 export interface INotebookCellStatusBarItemProvider {

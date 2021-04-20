@@ -7,22 +7,22 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -59,90 +59,61 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: { id: string, extension: string }): Promise<void> {
-		const editorService = accessor.get<IEditorService>(IEditorService);
-		const quickInputService = accessor.get<IQuickInputService>(IQuickInputService);
-		const configurationService = accessor.get<IConfigurationService>(IConfigurationService);
+		const notebookKernelService = accessor.get(INotebookKernelService);
+		const editorService = accessor.get(IEditorService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor) {
+		if (!editor || !editor.hasModel()) {
 			return;
 		}
 
-		if (!editor.hasModel()) {
+		if (context && (typeof context.id !== 'string' || typeof context.extension !== 'string')) {
+			// validate context: id & extension MUST be strings
+			context = undefined;
+		}
+
+		const notebook = editor.viewModel.notebookDocument;
+		const currentKernel = notebookKernelService.getBoundKernel(notebook);
+
+		if (currentKernel && context && currentKernel.id === context.id && ExtensionIdentifier.equals(currentKernel.extension, context.extension)) {
+			// current kernel is wanted kernel -> done
 			return;
 		}
 
-		const activeKernel = editor.activeKernel;
-
-		const picker = quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
-		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
-		picker.matchOnDetail = true;
-
-
-		if (context && context.id) {
-		} else {
-			picker.show();
+		const availableKernels = notebookKernelService.getMatchingKernels(notebook);
+		let newKernel: INotebookKernel | undefined;
+		if (context) {
+			for (let candidate of availableKernels) {
+				if (candidate.id === context.id && ExtensionIdentifier.equals(candidate.extension, context.extension)) {
+					newKernel = candidate;
+					break;
+				}
+			}
 		}
 
-		picker.busy = true;
-
-		const tokenSource = new CancellationTokenSource();
-		const availableKernels = await editor.beginComputeContributedKernels();
-
-		const selectedKernel = availableKernels.length ? availableKernels.find(
-			kernel => kernel.id && context?.id && kernel.id === context?.id && ExtensionIdentifier.equals(kernel.extension, context?.extension)
-		) : undefined;
-
-		if (selectedKernel) {
-			editor.activeKernel = selectedKernel;
-			return selectedKernel.resolve(editor.viewModel.uri, editor.getId(), tokenSource.token);
-		} else {
-			picker.show();
-		}
-
-		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = [...availableKernels].map((a) => {
-			return {
-				id: a.friendlyId,
-				label: a.label,
-				picked: a.friendlyId === activeKernel?.friendlyId,
-				description:
-					a.description
-						? a.description
-						: a.extension.value + (a.friendlyId === activeKernel?.friendlyId
-							? nls.localize('currentActiveKernel', " (Currently Active)")
-							: ''),
-				detail: a.detail,
-				kernelProviderId: a.extension.value,
-				run: async () => {
-					editor.activeKernel = a;
-					a.resolve(editor.viewModel.uri, editor.getId(), tokenSource.token);
-				},
-				buttons: [{
-					iconClass: ThemeIcon.asClassName(configureKernelIcon),
-					tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel.viewType)
-				}]
+		if (!newKernel) {
+			type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
+			const configButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(configureKernelIcon),
+				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel.viewType)
 			};
-		});
-
-		picker.items = picks;
-		picker.busy = false;
-		picker.activeItems = picks.filter(pick => (pick as IQuickPickItem).picked) as (IQuickPickItem & { run(): void; kernelProviderId?: string; })[];
-
-		const pickedItem = await new Promise<(IQuickPickItem & { run(): void; kernelProviderId?: string; }) | undefined>(resolve => {
-			picker.onDidAccept(() => {
-				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0] : undefined);
-				picker.dispose();
+			const picks = availableKernels.map(kernel => {
+				return <KernelPick>{
+					kernel,
+					picked: kernel.id === currentKernel?.id,
+					label: kernel.label,
+					description: kernel.description,
+					detail: kernel.detail,
+					buttons: [configButton]
+				};
 			});
+			const pick = await quickInputService.pick(picks, {
+				onDidTriggerItemButton: (context) => {
+					newKernel = context.item.kernel;
 
-			picker.onDidTriggerItemButton(e => {
-				const pick = e.item;
-				const id = pick.id;
-				resolve(pick); // open the view
-				picker.dispose();
-
-				// And persist the setting
-				if (pick && id && pick.kernelProviderId) {
-					const newAssociation: NotebookKernelProviderAssociation = { viewType: editor.viewModel.viewType, kernelProvider: pick.kernelProviderId };
+					const newAssociation: NotebookKernelProviderAssociation = { viewType: notebook.viewType, kernelProvider: context.item.kernel.extension.value };
 					const currentAssociations = [...configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId)];
 
 					// First try updating existing association
@@ -161,71 +132,76 @@ registerAction2(class extends Action2 {
 				}
 			});
 
-		});
+			if (pick) {
+				newKernel = pick.kernel;
+			}
+		}
 
-		tokenSource.dispose();
-		return pickedItem?.run();
+		if (newKernel) {
+			notebookKernelService.updateNotebookKernelBinding(notebook, newKernel);
+		}
 	}
 });
 
 export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
-	private readonly _editorDisposable = this._register(new DisposableStore());
+	private readonly _editorDisposables = this._register(new DisposableStore());
 	private readonly _kernelInfoElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 	) {
 		super();
 		this._register(this._editorService.onDidActiveEditorChange(() => this._updateStatusbar()));
 	}
 
 	private _updateStatusbar() {
-		this._editorDisposable.clear();
+		this._editorDisposables.clear();
+
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-		if (activeEditor) {
-			this._editorDisposable.add(activeEditor.onDidChangeKernel(() => {
-				this._showKernelStatus(activeEditor.activeKernel, activeEditor.availableKernelCount);
-			}));
-			this._editorDisposable.add(activeEditor.onDidChangeAvailableKernels(() => {
-				this._showKernelStatus(activeEditor.activeKernel, activeEditor.availableKernelCount);
-			}));
-			this._showKernelStatus(activeEditor.activeKernel, activeEditor.availableKernelCount);
-		} else {
-			this._kernelInfoElement.clear();
-		}
-	}
-
-	private static readonly _chooseKernelEntry: IStatusbarEntry = {
-		text: nls.localize('choose', "Choose Kernel"),
-		ariaLabel: nls.localize('choose', "Choose Kernel"),
-		tooltip: nls.localize('tooltop', "Choose kernel for current notebook"),
-		command: 'notebook.selectKernel'
-	};
-
-	private _showKernelStatus(kernel: INotebookKernel | undefined, availableKernelCount: number) {
-
-		if (availableKernelCount === 0) {
+		if (!activeEditor) {
+			// not a notebook -> clean-up, done
 			this._kernelInfoElement.clear();
 			return;
 		}
 
-		let entry: IStatusbarEntry;
+		const updateStatus = () => {
+			const notebook = activeEditor.viewModel?.notebookDocument;
+			if (notebook) {
+				const boundKernel = this._notebookKernelService.getBoundKernel(notebook);
+				const allKernels = this._notebookKernelService.getMatchingKernels(notebook);
+				this._showKernelStatus(boundKernel, allKernels);
+			} else {
+				this._kernelInfoElement.clear();
+			}
+		};
 
-		if (kernel) {
-			entry = {
-				text: `$(notebook-kernel-select) ${kernel.label}`,
-				ariaLabel: kernel.label,
-				tooltip: kernel.description ?? kernel.detail ?? kernel.label,
-				command: availableKernelCount > 1 ? 'notebook.selectKernel' : undefined,
-			};
-		} else {
-			entry = KernelStatus._chooseKernelEntry;
+		this._editorDisposables.add(this._notebookKernelService.onDidAddKernel(updateStatus));
+		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookKernelBinding(updateStatus));
+		this._editorDisposables.add(activeEditor.onDidChangeModel(updateStatus));
+		updateStatus();
+	}
+
+	private _showKernelStatus(boundKernel: INotebookKernel | undefined, availableKernels: INotebookKernel[]) {
+
+		if (availableKernels.length === 0) {
+			this._kernelInfoElement.clear();
+			return;
+		}
+
+		if (!boundKernel) {
+			boundKernel = availableKernels[0];
 		}
 
 		this._kernelInfoElement.value = this._statusbarService.addEntry(
-			entry,
+			{
+				text: `$(notebook-kernel-select) ${boundKernel.label}`,
+				ariaLabel: boundKernel.label,
+				tooltip: boundKernel.description ?? boundKernel.detail ?? boundKernel.label,
+				command: availableKernels.length > 1 ? 'notebook.selectKernel' : undefined,
+			},
 			'notebook.selectKernel',
 			nls.localize('notebook.info', "Notebook Kernel Info"),
 			StatusbarAlignment.RIGHT,

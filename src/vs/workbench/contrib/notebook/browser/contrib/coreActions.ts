@@ -19,18 +19,18 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, ICellRange, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -1730,20 +1730,6 @@ CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, a
 	});
 });
 
-CommandsRegistry.registerCommand('_resolveNotebookKernelProviders', async (accessor, args): Promise<{
-	extensionId: string;
-	description?: string;
-	selector: INotebookDocumentFilter;
-}[]> => {
-	const notebookService = accessor.get<INotebookService>(INotebookService);
-	const providers = await notebookService.getContributedNotebookKernelProviders();
-	return providers.map(provider => ({
-		extensionId: provider.providerExtensionId,
-		description: provider.providerDescription,
-		selector: provider.selector
-	}));
-});
-
 CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, args: {
 	viewType: string;
 	uri: UriComponents;
@@ -1755,14 +1741,12 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 	isPreferred?: boolean;
 	preloads?: URI[];
 }[]> => {
-	const notebookService = accessor.get<INotebookService>(INotebookService);
+	const notebookKernelService = accessor.get(INotebookKernelService);
 	const uri = URI.revive(args.uri as UriComponents);
-	const source = new CancellationTokenSource();
-	const kernels = await notebookService.getNotebookKernels(args.viewType, uri, source.token);
-	source.dispose();
+	const kernels = notebookKernelService.getMatchingKernels({ uri, viewType: args.viewType });
 
 	return kernels.map(provider => ({
-		id: provider.friendlyId,
+		id: provider.id,
 		label: provider.label,
 		description: provider.description,
 		detail: provider.detail,

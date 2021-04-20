@@ -63,7 +63,6 @@ export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCel
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 // Kernels
-export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 
@@ -374,11 +373,8 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
-	activeKernel: INotebookKernel | undefined;
-	readonly availableKernelCount: number;
 	readonly onDidScroll: Event<void>;
-	readonly onDidChangeAvailableKernels: Event<void>;
-	readonly onDidChangeKernel: Event<void>;
+
 	readonly onDidChangeActiveCell: Event<void>;
 	isDisposed: boolean;
 	dispose(): void;
@@ -418,11 +414,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	getOutputRenderer(): OutputRenderer;
 
 	/**
-	 * Fetch the contributed kernels for this notebook
-	 */
-	beginComputeContributedKernels(): Promise<INotebookKernel[]>;
-
-	/**
 	 * Insert a new cell around `cell`
 	 */
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string, ui?: boolean): CellViewModel | null;
@@ -458,6 +449,8 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
 	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
+
+	readonly activeKernel: INotebookKernel | undefined;
 
 	/**
 	 * Execute the given notebook cell
