@@ -874,7 +874,7 @@ var requirejs = (function() {
 								if (resolvedResult) {
 									const { cellInfo, output } = resolvedResult;
 									this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
-									this.notebookEditor.scheduleOutputHeightAck(cellInfo.cellId, update.id, height);
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
 								}
 							} else {
 								this.notebookEditor.updateMarkdownCellHeight(update.id, height, !!update.init);
