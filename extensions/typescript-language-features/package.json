@@ -11,7 +11,7 @@
   "enableProposedApi": true,
   "workspaceTrust": {
     "request": "onDemand",
-    "description": "The extension requires workspace trust when the workspace version is used because it executes code specified by the workspace."
+    "description": "%workspaceTrust%"
   },
   "engines": {
     "vscode": "^1.30.0"
