@@ -800,17 +800,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (group === SIDE_GROUP) {
 			mapGroupToEditors.set(this.findSideBySideGroup(), typedEditors);
 		} else {
-			typedEditors.forEach(typedEditor => {
-				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
+			for (const typedEditor of typedEditors) {
+				let targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
 
+				const overridenEditor = await this.editorOverrideService.resolveEditorOverride(typedEditor.editor, typedEditor.options, targetGroup);
+				if (overridenEditor) {
+					targetGroup = overridenEditor.group ?? targetGroup;
+				}
 				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
 				if (!targetGroupEditors) {
 					targetGroupEditors = [];
 					mapGroupToEditors.set(targetGroup, targetGroupEditors);
 				}
-
-				targetGroupEditors.push(typedEditor);
-			});
+				targetGroupEditors.push(overridenEditor ?? typedEditor);
+			}
 		}
 
 		// Open in target groups
