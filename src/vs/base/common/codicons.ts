@@ -566,6 +566,7 @@ export namespace Codicon {
 	export const terminalLinux = new Codicon('terminal-linux', { fontCharacter: '\\ebc6' });
 	export const terminalPowershell = new Codicon('terminal-powershell', { fontCharacter: '\\ebc7' });
 	export const terminalTmux = new Codicon('terminal-tmux', { fontCharacter: '\\ebc8' });
+	export const terminalUbuntu = new Codicon('terminal-ubuntu', { fontCharacter: '\\ebc9' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }
