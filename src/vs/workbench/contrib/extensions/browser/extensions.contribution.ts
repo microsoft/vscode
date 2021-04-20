@@ -60,6 +60,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { Schemas } from 'vs/base/common/network';
 import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
+import { ExtensionEnablementByWorkspaceTrustRequirement } from 'vs/workbench/contrib/extensions/browser/extensionEnablementByWorkspaceTrustRequirement';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -173,6 +174,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsWebWorker', "Enable web worker extension host."),
 				default: false
+			},
+			'extensions.supportsVirtualWorkspace': {
+				type: 'object',
+				markdownDescription: localize('extensions.supportsVirtualWorkspace', "Override the virtual workspace support of an extension"),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						type: 'boolean',
+						default: false
+					}
+				},
+				default: {
+					'pub.name': false
+				}
 			}
 		}
 	});
@@ -1283,6 +1297,7 @@ workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementByWorkspaceTrustRequirement, LifecyclePhase.Restored);
 
 // Running Extensions
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);

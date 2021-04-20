@@ -167,7 +167,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this.editorGroupService.whenCreated.then(() => this.updateEditorContextKeys());
+		this.editorGroupService.whenReady.then(() => this.updateEditorContextKeys());
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateEditorContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.updateEditorContextKeys()));

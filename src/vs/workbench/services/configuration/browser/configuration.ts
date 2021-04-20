@@ -23,11 +23,6 @@ import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
-
-function isUntrusted(workspaceTrustState: WorkspaceTrustState): boolean {
-	return workspaceTrustState !== WorkspaceTrustState.Trusted;
-}
 
 export class UserConfiguration extends Disposable {
 
@@ -473,10 +468,10 @@ export class WorkspaceConfiguration extends Disposable {
 	private _workspaceConfiguration: CachedWorkspaceConfiguration | FileServiceBasedWorkspaceConfiguration;
 	private _workspaceConfigurationDisposables = this._register(new DisposableStore());
 	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
-	private _workspaceTrustState: WorkspaceTrustState | null = null;
+	private _isWorkspaceTrusted: boolean = false;
 
-	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
+	private readonly _onDidUpdateConfiguration = this._register(new Emitter<boolean>());
+	public readonly onDidUpdateConfiguration = this._onDidUpdateConfiguration.event;
 
 	private _initialized: boolean = false;
 	get initialized(): boolean { return this._initialized; }
@@ -489,9 +484,9 @@ export class WorkspaceConfiguration extends Disposable {
 		this._workspaceConfiguration = this._cachedConfiguration = new CachedWorkspaceConfiguration(configurationCache);
 	}
 
-	async initialize(workspaceIdentifier: IWorkspaceIdentifier, workspaceTrustState: WorkspaceTrustState): Promise<void> {
+	async initialize(workspaceIdentifier: IWorkspaceIdentifier, workspaceTrusted: boolean): Promise<void> {
 		this._workspaceIdentifier = workspaceIdentifier;
-		this._workspaceTrustState = workspaceTrustState;
+		this._isWorkspaceTrusted = workspaceTrusted;
 		if (!this._initialized) {
 			if (this.configurationCache.needsCaching(this._workspaceIdentifier.configPath)) {
 				this._workspaceConfiguration = this._cachedConfiguration;
@@ -525,8 +520,8 @@ export class WorkspaceConfiguration extends Disposable {
 		return this._workspaceConfiguration.getWorkspaceSettings();
 	}
 
-	updateWorkspaceTrustState(workspaceTrustState: WorkspaceTrustState): ConfigurationModel {
-		this._workspaceTrustState = workspaceTrustState;
+	updateWorkspaceTrust(trusted: boolean): ConfigurationModel {
+		this._isWorkspaceTrusted = trusted;
 		return this.reparseWorkspaceSettings();
 	}
 
@@ -545,27 +540,27 @@ export class WorkspaceConfiguration extends Disposable {
 			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._fileService));
 			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier, { scopes: WORKSPACE_SCOPES, isUntrusted: this.isUntrusted() });
 			this.doInitialize(fileServiceBasedWorkspaceConfiguration);
-			this.onDidWorkspaceConfigurationChange(false);
+			this.onDidWorkspaceConfigurationChange(false, true);
 		}
 	}
 
 	private doInitialize(fileServiceBasedWorkspaceConfiguration: FileServiceBasedWorkspaceConfiguration): void {
 		this._workspaceConfigurationDisposables.clear();
 		this._workspaceConfiguration = this._workspaceConfigurationDisposables.add(fileServiceBasedWorkspaceConfiguration);
-		this._workspaceConfigurationDisposables.add(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true)));
+		this._workspaceConfigurationDisposables.add(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true, false)));
 		this._initialized = true;
 	}
 
-	private isUntrusted(): boolean | undefined {
-		return this._workspaceTrustState !== null ? isUntrusted(this._workspaceTrustState) : undefined;
+	private isUntrusted(): boolean {
+		return !this._isWorkspaceTrusted;
 	}
 
-	private async onDidWorkspaceConfigurationChange(reload: boolean): Promise<void> {
+	private async onDidWorkspaceConfigurationChange(reload: boolean, fromCache: boolean): Promise<void> {
 		if (reload) {
 			await this.reload();
 		}
 		this.updateCache();
-		this._onDidUpdateConfiguration.fire();
+		this._onDidUpdateConfiguration.fire(fromCache);
 	}
 
 	private async updateCache(): Promise<void> {
@@ -839,7 +834,7 @@ export class FolderConfiguration extends Disposable {
 		readonly workspaceFolder: IWorkspaceFolder,
 		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
-		private workspaceTrustState: WorkspaceTrustState,
+		private workspaceTrusted: boolean,
 		fileService: IFileService,
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
@@ -868,8 +863,8 @@ export class FolderConfiguration extends Disposable {
 		return this.folderConfiguration.loadConfiguration();
 	}
 
-	updateWorkspaceTrustState(workspaceTrustState: WorkspaceTrustState): ConfigurationModel {
-		this.workspaceTrustState = workspaceTrustState;
+	updateWorkspaceTrust(trusted: boolean): ConfigurationModel {
+		this.workspaceTrusted = trusted;
 		return this.reparse();
 	}
 
@@ -884,7 +879,7 @@ export class FolderConfiguration extends Disposable {
 	}
 
 	private isUntrusted(): boolean {
-		return isUntrusted(this.workspaceTrustState);
+		return !this.workspaceTrusted;
 	}
 
 	private onDidFolderConfigurationChange(): void {

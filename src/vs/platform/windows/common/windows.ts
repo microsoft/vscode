@@ -219,8 +219,6 @@ export interface IColorScheme {
 }
 
 export interface IWindowConfiguration {
-	sessionId: string;
-
 	remoteAuthority?: string;
 
 	colorScheme: IColorScheme;
@@ -232,6 +230,7 @@ export interface IWindowConfiguration {
 
 export interface IOSConfiguration {
 	readonly release: string;
+	readonly hostname: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {

@@ -112,7 +112,6 @@ export interface ITestTreeElement {
 	 */
 	readonly retired: boolean;
 
-	readonly ownState: TestResultState;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
 }

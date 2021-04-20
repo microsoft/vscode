@@ -131,6 +131,11 @@
 	overflow: hidden;
 }
 
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-icon-label-container::after {
+	content: '';
+	display: block;
+}
+
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;

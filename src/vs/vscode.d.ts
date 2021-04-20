@@ -1667,7 +1667,7 @@ declare module 'vscode' {
 	export interface QuickPickOptions {
 
 		/**
-		 * An optional string that represents the tile of the quick pick.
+		 * An optional string that represents the title of the quick pick.
 		 */
 		title?: string;
 
@@ -1854,7 +1854,7 @@ declare module 'vscode' {
 	export interface InputBoxOptions {
 
 		/**
-		 * An optional string that represents the tile of the input box.
+		 * An optional string that represents the title of the input box.
 		 */
 		title?: string;
 

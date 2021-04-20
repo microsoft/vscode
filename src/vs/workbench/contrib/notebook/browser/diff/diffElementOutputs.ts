@@ -49,7 +49,7 @@ export class OutputElement extends Disposable {
 		const outputItemDiv = document.createElement('div');
 		let result: IRenderOutput | undefined = undefined;
 
-		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel);
+		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel, undefined);
 		const pickedMimeTypeRenderer = mimeTypes[pick];
 		if (mimeTypes.length > 1) {
 			outputItemDiv.style.position = 'relative';
@@ -156,7 +156,7 @@ export class OutputElement extends Disposable {
 	}
 
 	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {
-		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel);
+		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, undefined);
 
 		const items = mimeTypes.filter(mimeType => mimeType.isTrusted).map((mimeType, index): IMimeTypeRenderer => ({
 			label: mimeType.mimeType,

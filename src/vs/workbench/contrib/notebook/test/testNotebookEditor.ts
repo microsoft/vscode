@@ -47,7 +47,7 @@ export class TestCell extends NotebookCellTextModel {
 		outputs: IOutputDto[],
 		modeService: IModeService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, { transientMetadata: {}, transientOutputs: false }, modeService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, modeService);
 	}
 }
 
@@ -88,6 +88,9 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 				this._onDidChangeContent.fire();
 			}));
 		}
+	}
+	isReadonly(): boolean {
+		return false;
 	}
 
 	isDirty() {
@@ -149,7 +152,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 			outputs: cell[3] ?? [],
 			metadata: cell[4]
 		};
-	}), notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false });
+	}), notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false });
 
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();

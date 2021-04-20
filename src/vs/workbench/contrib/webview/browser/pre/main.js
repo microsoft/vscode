@@ -190,10 +190,45 @@ function getVsCodeApiScript(allowMultipleAPIAcquire, useParentPostMessage, state
 		`;
 }
 
+/** @type {Promise<void>} */
+const workerReady = new Promise(async (resolve, reject) => {
+	if (!areServiceWorkersEnabled()) {
+		return reject(new Error('Service Workers are not enabled in browser. Webviews will not work.'));
+	}
+
+	const expectedWorkerVersion = 1;
+
+	navigator.serviceWorker.register(`service-worker.js${self.location.search}`).then(
+		async registration => {
+			await navigator.serviceWorker.ready;
+
+			const versionHandler = (event) => {
+				if (event.data.channel !== 'version') {
+					return;
+				}
+
+				navigator.serviceWorker.removeEventListener('message', versionHandler);
+				if (event.data.version === expectedWorkerVersion) {
+					return resolve();
+				} else {
+					// If we have the wrong version, try once to unregister and re-register
+					return registration.update()
+						.then(() => navigator.serviceWorker.ready)
+						.finally(resolve);
+				}
+			};
+			navigator.serviceWorker.addEventListener('message', versionHandler);
+			registration.active.postMessage({ channel: 'version' });
+		},
+		error => {
+			reject(new Error(`Could not register service workers: ${error}.`));
+		});
+});
+
 /**
  * @param {WebviewHost} host
  */
-export function createWebviewManager(host) {
+export async function createWebviewManager(host) {
 	// state
 	let firstLoad = true;
 	let loadTimeout;
@@ -216,69 +251,26 @@ export function createWebviewManager(host) {
 		themeName: undefined,
 	};
 
-	function fatalError(/** @type {string} */ message) {
-		console.error(`Webview fatal error: ${message}`);
-		host.postMessage('fatal-error', { message });
-	}
-
-	/** @type {Promise<void>} */
-	const workerReady = new Promise(async (resolveWorkerReady) => {
-		if (!areServiceWorkersEnabled()) {
-			fatalError('Service Workers are not enabled in browser. Webviews will not work.');
-			return resolveWorkerReady();
-		}
-
-		const expectedWorkerVersion = 1;
-
-		navigator.serviceWorker.register(`service-worker.js${self.location.search}`).then(
-			async registration => {
-				await navigator.serviceWorker.ready;
-
-				const versionHandler = (event) => {
-					if (event.data.channel !== 'version') {
-						return;
-					}
-
-					navigator.serviceWorker.removeEventListener('message', versionHandler);
-					if (event.data.version === expectedWorkerVersion) {
-						return resolveWorkerReady();
-					} else {
-						// If we have the wrong version, try once to unregister and re-register
-						return registration.update()
-							.then(() => navigator.serviceWorker.ready)
-							.finally(resolveWorkerReady);
-					}
-				};
-				navigator.serviceWorker.addEventListener('message', versionHandler);
-				registration.active.postMessage({ channel: 'version' });
-			},
-			error => {
-				fatalError(`Could not register service workers: ${error}.`);
-				resolveWorkerReady();
-			});
-
-		host.onMessage('did-load-resource', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
-				registration.active.postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
-			});
-		});
-
-		host.onMessage('did-load-localhost', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
-				registration.active.postMessage({ channel: 'did-load-localhost', data });
-			});
-		});
-
-		navigator.serviceWorker.addEventListener('message', event => {
-			switch (event.data.channel) {
-				case 'load-resource':
-				case 'load-localhost':
-					host.postMessage(event.data.channel, event.data);
-					return;
-			}
+	host.onMessage('did-load-resource', (_event, data) => {
+		navigator.serviceWorker.ready.then(registration => {
+			registration.active.postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 		});
 	});
 
+	host.onMessage('did-load-localhost', (_event, data) => {
+		navigator.serviceWorker.ready.then(registration => {
+			registration.active.postMessage({ channel: 'did-load-localhost', data });
+		});
+	});
+
+	navigator.serviceWorker.addEventListener('message', event => {
+		switch (event.data.channel) {
+			case 'load-resource':
+			case 'load-localhost':
+				host.postMessage(event.data.channel, event.data);
+				return;
+		}
+	});
 	/**
 	 * @param {HTMLDocument?} document
 	 * @param {HTMLElement?} body
@@ -332,8 +324,8 @@ export function createWebviewManager(host) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 				if (node.getAttribute('href') === '#') {
 					event.view.scrollTo(0, 0);
-				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
-					let scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
+				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
+					const scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
 					if (scrollTarget) {
 						scrollTarget.scrollIntoView();
 					}
@@ -564,7 +556,15 @@ export function createWebviewManager(host) {
 		let updateId = 0;
 		host.onMessage('content', async (_event, data) => {
 			const currentUpdateId = ++updateId;
-			await workerReady;
+
+			try {
+				await workerReady;
+			} catch (e) {
+				console.error(`Webview fatal error: ${e}`);
+				host.postMessage('fatal-error', { message: e + '' });
+				return;
+			}
+
 			if (currentUpdateId !== updateId) {
 				return;
 			}

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
 import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/widgets';
@@ -37,6 +36,7 @@ import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminal
 import { RemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
 import { isIPad } from 'vs/base/browser/browser';
 import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { isWindows } from 'vs/base/common/platform';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -114,7 +114,7 @@ const CTRL_LETTER_OFFSET = 64;
 // shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is
 // disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
 // reader. This works even when clipboard.readText is not supported.
-if (platform.isWindows) {
+if (isWindows) {
 	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+v
 		when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V
@@ -134,7 +134,7 @@ registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - CTRL_LETT
 	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
 });
-if (platform.isWindows) {
+if (isWindows) {
 	// Delete word left: ctrl+h
 	// Windows cmd.exe requires ^H to delete full word left
 	registerSendSequenceKeybinding(String.fromCharCode('H'.charCodeAt(0) - CTRL_LETTER_OFFSET), {

@@ -313,10 +313,13 @@ export class WalkThroughPart extends EditorPane {
 
 				model.snippets.forEach((snippet, i) => {
 					const model = snippet.textEditorModel;
+					if (!model) {
+						return;
+					}
 					const id = `snippet-${model.uri.fragment}`;
 					const div = innerContent.querySelector(`#${id.replace(/[\\.]/g, '\\$&')}`) as HTMLElement;
 
-					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
+					const options = this.getEditorOptions(model.getModeId());
 					const telemetryData = {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i

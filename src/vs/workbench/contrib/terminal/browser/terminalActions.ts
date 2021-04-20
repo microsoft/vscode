@@ -17,7 +17,7 @@ import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, ICommandActionTitle, ILocalizedString, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -30,7 +30,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfile, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -46,6 +46,12 @@ const enum ContextMenuGroup {
 	Edit = '2_edit',
 	Clear = '3_clear',
 	Kill = '4_kill'
+}
+
+export const enum ContextMenuTabsGroup {
+	Default = '1_create_default',
+	Profile = '2_create_profile',
+	Configure = '3_configure'
 }
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
@@ -135,13 +141,30 @@ export function registerTerminalActions() {
 				id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
 				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
 				f1: true,
-				category
+				category,
+				description: {
+					description: 'workbench.action.terminal.newWithProfile',
+					args: [{
+						name: 'profile',
+						schema: {
+							type: 'object'
+						}
+					}]
+				},
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).showProfileQuickPick('createInstance');
+		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
+			const terminalService = accessor.get(ITerminalService);
+			if (profile) {
+				const instance = await terminalService.createTerminal(profile);
+				terminalService.setActiveInstance(instance);
+				return terminalService.showPanel(true);
+			} else {
+				await terminalService.showProfileQuickPick('createInstance');
+			}
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -299,7 +322,15 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.focusNext', "Focus Next Terminal"), original: 'Focus Next Terminal' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+					},
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -315,7 +346,15 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal"), original: 'Focus Previous Terminal' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
+					},
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -596,15 +635,29 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.MANAGE_WORKSPACE_SHELL_PERMISSIONS,
-				title: { value: localize('workbench.action.terminal.manageWorkspaceShellPermissions', "Manage Workspace Shell Permissions"), original: 'Manage Workspace Shell Permissions' },
+				id: TERMINAL_COMMAND_ID.CONFIGURE_ACTIVE,
+				title: { value: localize('workbench.action.terminal.configureActive', "Configure Active Terminal"), original: 'Configure Active Terminal' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).manageWorkspaceShellPermissions();
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalService).getActiveInstance()?.configure();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.CHANGE_ICON,
+				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalService).getActiveInstance()?.changeIcon();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -618,16 +671,15 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).doWithActiveInstance(async t => {
-				const name = await accessor.get(IQuickInputService).input({
-					value: t.title,
-					prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
-				});
-				if (name) {
-					t.setTitle(name, TitleEventSource.Api);
-				}
-			});
+			return accessor.get(ITerminalService).getActiveInstance()?.rename();
 		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.RENAME,
+			title: localize('workbench.action.terminal.rename', "Rename")
+		},
+		group: ContextMenuGroup.Edit
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1151,7 +1203,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}]
 			});
 		}
@@ -1241,7 +1296,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}
 			});
 		}
@@ -1288,6 +1346,13 @@ export function registerTerminalActions() {
 		},
 		group: ContextMenuGroup.Create
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.NEW,
+			title: localize('workbench.action.terminal.new.short', "New Terminal")
+		},
+		group: ContextMenuTabsGroup.Default
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1301,7 +1366,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}
 			});
 		}
@@ -1365,11 +1433,18 @@ export function registerTerminalActions() {
 			await accessor.get(ITerminalService).showProfileQuickPick('setDefault');
 		}
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_PROFILE,
+			title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' }
+		},
+		group: ContextMenuTabsGroup.Configure
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
-				title: { value: configureTerminalSettingsTitle, original: 'Configure Terminal Settings' },
+				title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
@@ -1379,7 +1454,13 @@ export function registerTerminalActions() {
 			await accessor.get(IPreferencesService).openSettings(false, '@feature:terminal');
 		}
 	});
-
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
+			title: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings")
+		},
+		group: ContextMenuTabsGroup.Configure
+	});
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerAction2(class extends Action2 {
@@ -1515,11 +1596,8 @@ export function registerTerminalActions() {
 			if (quickSelectProfiles) {
 				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
 				if (profile) {
-					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, profile);
-					if (workspaceShellAllowed) {
-						const instance = terminalService.createTerminal(profile);
-						terminalService.setActiveInstance(instance);
-					}
+					const instance = terminalService.createTerminal(profile);
+					terminalService.setActiveInstance(instance);
 				} else {
 					console.warn(`No profile with name "${profileSelection}"`);
 				}
@@ -1536,7 +1614,10 @@ export function registerTerminalActions() {
 		},
 		group: 'navigation',
 		order: 0,
-		when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+		when: ContextKeyAndExpr.create([
+			ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+			ContextKeyExpr.not('config.terminal.integrated.showTabs')
+		]),
 	});
 }
 

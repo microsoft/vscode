@@ -310,6 +310,7 @@ suite('Snippet Variables Resolver', function () {
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkspaceName = this._throw;
+			onWillChangeWorkspaceFolders = this._throw;
 			onDidChangeWorkspaceFolders = this._throw;
 			getCompleteWorkspace = this._throw;
 			getWorkspace(): IWorkspace { return workspace; }

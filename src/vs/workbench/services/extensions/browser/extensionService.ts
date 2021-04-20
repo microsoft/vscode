@@ -26,6 +26,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -47,6 +48,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
@@ -63,6 +65,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManagementService,
 			contextService,
 			configurationService,
+			extensionManifestPropertiesService
 		);
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();

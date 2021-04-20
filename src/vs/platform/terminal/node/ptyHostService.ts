@@ -9,7 +9,7 @@ import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
@@ -51,8 +51,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessBinary = this._register(new Emitter<{ id: number, event: string }>());
-	readonly onProcessBinary = this._onProcessBinary.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string } }>());
@@ -124,7 +122,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
-		this._register(proxy.onProcessBinary(e => this._onProcessBinary.fire(e)));
 		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
 		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
@@ -170,6 +167,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	input(id: number, data: string): Promise<void> {
 		return this._proxy.input(id, data);
 	}
+	processBinary(id: number, data: string): Promise<void> {
+		return this._proxy.processBinary(id, data);
+	}
 	resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._proxy.resize(id, cols, rows);
 	}
@@ -188,11 +188,16 @@ export class PtyHostService extends Disposable implements IPtyService {
 	orphanQuestionReply(id: number): Promise<void> {
 		return this._proxy.orphanQuestionReply(id);
 	}
+
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+		return this._proxy.getDefaultSystemShell(osOverride);
+	}
+	getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._proxy.getShellEnvironment();
+	}
+
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		return this._proxy.setTerminalLayoutInfo(args);
-	}
-	processBinary(id: number, data: string): Promise<void> {
-		return this._proxy.processBinary(id, data);
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		return await this._proxy.getTerminalLayoutInfo(args);

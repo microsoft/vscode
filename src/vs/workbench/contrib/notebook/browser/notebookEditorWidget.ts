@@ -52,7 +52,7 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/no
 import { errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { BackLayerWebView, INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
 import { CodeCellRenderer, ListTopCellToolbar, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
@@ -278,18 +278,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._kernelManger.activeKernel;
 	}
 
-	set activeKernel(kernel: INotebookKernel | undefined) {
-		this._kernelManger.activeKernel = kernel;
+	set activeKernel(value) {
+		this._kernelManger.activeKernel = value;
 	}
 
 	private _currentKernelTokenSource: CancellationTokenSource | undefined = undefined;
 
-	get multipleKernelsAvailable() {
-		return this._kernelManger.multipleKernelsAvailable;
-	}
-
-	set multipleKernelsAvailable(state: boolean) {
-		this._kernelManger.multipleKernelsAvailable = state;
+	get availableKernelCount() {
+		return this._kernelManger.availableKernelCount;
 	}
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
@@ -440,7 +436,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._frameId++;
 
 			this._domFrameLog();
-		});
+		}, 1000000);
 	}
 
 	private _debug(...args: any[]) {
@@ -933,8 +929,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async setOptions(options: NotebookEditorOptions | undefined) {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		if (options?.isReadOnly !== undefined) {
+			this.viewModel.updateOptions({ isReadOnly: options.isReadOnly });
+		}
+
 		// reveal cell if editor options tell to do so
-		if (options?.cellOptions && this.viewModel) {
+		if (options?.cellOptions) {
 			const cellOptions = options.cellOptions;
 			const cell = this.viewModel.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
@@ -965,7 +969,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// select cells if options tell to do so
 		// todo@rebornix https://github.com/microsoft/vscode/issues/118108 support selections not just focus
 		// todo@rebornix support multipe selections
-		if (options?.cellSelections && this.viewModel) {
+		if (options?.cellSelections) {
 			const focusCellIndex = options.cellSelections[0].start;
 			const focusedCell = this.viewModel.cellAt(focusCellIndex);
 			if (focusedCell) {
@@ -977,6 +981,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.revealInCenterIfOutsideViewport(focusedCell);
 			}
 		}
+
+		this._updateForOptions();
 	}
 
 	private _detachModel() {
@@ -1003,24 +1009,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernel) {
-		if (kernel.preloads && kernel.preloads.length) {
-			if (!this._webview?.isResolved()) {
-				await this._resolveWebview();
-			}
-
-			this._webview?.updateKernelPreloads([extensionLocation], kernel.preloads.map(preload => URI.revive(preload)));
-		}
-	}
-
-	private _updateForMetadata(): void {
-		if (!this.viewModel) {
+		const preloadUris = kernel.preloadUris;
+		if (!preloadUris.length) {
 			return;
 		}
 
-		const notebookMetadata = this.viewModel.metadata;
-		this._editorEditable.set(!!notebookMetadata?.editable);
-		this._overflowContainer.classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
-		this.getDomNode().classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
+		if (!this._webview?.isResolved()) {
+			await this._resolveWebview();
+		}
+
+		this._webview?.updateKernelPreloads([extensionLocation], kernel.preloadUris);
+	}
+
+	private _updateForOptions(): void {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		this._editorEditable.set(!this.viewModel.options.isReadOnly);
+		this._overflowContainer.classList.toggle('notebook-editor-editable', !this.viewModel.options.isReadOnly);
+		this.getDomNode().classList.toggle('notebook-editor-editable', !this.viewModel.options.isReadOnly);
 	}
 
 	private async _resolveWebview(): Promise<BackLayerWebView<ICommonCellInfo> | null> {
@@ -1064,9 +1072,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			});
 
-			this._localStore.add(this._webview.onMessage(({ message, forRenderer }) => {
+			this._localStore.add(this._webview.onMessage(e => {
 				if (this.viewModel) {
-					this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), forRenderer, message);
+					this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), e.forRenderer, e.message);
+					this._onDidReceiveMessage.fire(e);
 				}
 			}));
 
@@ -1098,11 +1107,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._eventDispatcher, this.getLayoutInfo());
 		this._eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
-		this._updateForMetadata();
-		this._localStore.add(this._eventDispatcher.onDidChangeMetadata(() => {
-			this._updateForMetadata();
-		}));
-
+		this._updateForOptions();
 		// restore view states, including contributions
 
 		{
@@ -1139,61 +1144,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			DOM.scheduleAtNextAnimationFrame(() => {
 				hasPendingChangeContentHeight = false;
-				if (this._isDisposed || !this._webview?.isResolved()) {
-					return;
-				}
-
-				const scrollHeight = this._list.scrollHeight;
-				this._webview!.element.style.height = `${scrollHeight}px`;
-
-				const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-				const removedItems: ICellOutputViewModel[] = [];
-				this._webview?.insetMapping.forEach((value, key) => {
-					const cell = this.viewModel?.getCellByHandle(value.cellInfo.cellHandle);
-					if (!cell || !(cell instanceof CodeCellViewModel)) {
-						return;
-					}
-
-					this.viewModel?.viewCells.find(cell => cell.handle === value.cellInfo.cellHandle);
-					const viewIndex = this._list.getViewIndex(cell);
-
-					if (viewIndex === undefined) {
-						return;
-					}
-
-					if (cell.outputsViewModels.indexOf(key) < 0) {
-						// output is already gone
-						removedItems.push(key);
-					}
-
-					const cellTop = this._list.getAbsoluteTopOfElement(cell);
-					const outputIndex = cell.outputsViewModels.indexOf(key);
-					const outputOffset = cell.getOutputOffset(outputIndex);
-					updateItems.push({
-						cell,
-						output: key,
-						cellTop,
-						outputOffset,
-						forceDisplay: false,
-					});
-				});
-
-				this._webview.removeInsets(removedItems);
-
-				const markdownUpdateItems: { id: string, top: number }[] = [];
-				for (const cellId of this._webview.markdownPreviewMapping.keys()) {
-					const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
-					if (cell) {
-						const cellTop = this._list.getAbsoluteTopOfElement(cell);
-						markdownUpdateItems.push({ id: cellId, top: cellTop });
-					}
-				}
-
-				if (markdownUpdateItems.length || updateItems.length) {
-					this._debug('_list.onDidChangeContentHeight/markdown', markdownUpdateItems);
-					this._webview?.updateScrollTops(updateItems, markdownUpdateItems);
-				}
-			});
+				this.updateScrollHeight();
+			}, 100);
 		}));
 
 		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {
@@ -1740,7 +1692,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.deltaCellDecorations(cellDecorations || [], []);
 	}
 
-
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
 		return this.viewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
 	}
@@ -1796,6 +1747,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#region Cell operations/layout API
 	private _pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
 	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
+		this._debug('layout cell', cell.handle, height);
 		const viewIndex = this._list.getViewIndex(cell);
 		if (viewIndex === undefined) {
 			// the cell is hidden
@@ -1851,7 +1803,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -1900,7 +1852,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -1914,7 +1866,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return false;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return false;
 		}
 
@@ -1932,7 +1884,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -1950,7 +1902,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -1968,7 +1920,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -2298,6 +2250,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._outputRenderer;
 	}
 
+	//#region --- webview IPC ----
+
+	private readonly _onDidReceiveMessage = new Emitter<INotebookWebviewMessage>();
+
+	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
+
 	postMessage(forRendererId: string | undefined, message: any) {
 		if (this._webview?.isResolved()) {
 			if (forRendererId === undefined) {
@@ -2307,6 +2265,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}
 	}
+
+	//#endregion
 
 	addClassName(className: string) {
 		this._overlayContainer.classList.add(className);
@@ -2332,9 +2292,76 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			if (isInit && outputHeight !== 0) {
 				cell.updateOutputMinHeight(0);
 			}
+			this._debug('update cell output', cell.handle, outputHeight);
 			cell.updateOutputHeight(outputIndex, outputHeight, source);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 		}
+	}
+
+	updateScrollHeight() {
+		if (this._isDisposed || !this._webview?.isResolved()) {
+			return;
+		}
+
+		const scrollHeight = this._list.scrollHeight;
+		this._webview!.element.style.height = `${scrollHeight}px`;
+
+		const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
+		const removedItems: ICellOutputViewModel[] = [];
+		this._webview?.insetMapping.forEach((value, key) => {
+			const cell = this.viewModel?.getCellByHandle(value.cellInfo.cellHandle);
+			if (!cell || !(cell instanceof CodeCellViewModel)) {
+				return;
+			}
+
+			this.viewModel?.viewCells.find(cell => cell.handle === value.cellInfo.cellHandle);
+			const viewIndex = this._list.getViewIndex(cell);
+
+			if (viewIndex === undefined) {
+				return;
+			}
+
+			if (cell.outputsViewModels.indexOf(key) < 0) {
+				// output is already gone
+				removedItems.push(key);
+			}
+
+			const cellTop = this._list.getAbsoluteTopOfElement(cell);
+			const outputIndex = cell.outputsViewModels.indexOf(key);
+			const outputOffset = cell.getOutputOffset(outputIndex);
+			updateItems.push({
+				cell,
+				output: key,
+				cellTop,
+				outputOffset,
+				forceDisplay: false,
+			});
+		});
+
+		this._webview.removeInsets(removedItems);
+
+		const markdownUpdateItems: { id: string, top: number }[] = [];
+		for (const cellId of this._webview.markdownPreviewMapping.keys()) {
+			const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
+			if (cell) {
+				const cellTop = this._list.getAbsoluteTopOfElement(cell);
+				markdownUpdateItems.push({ id: cellId, top: cellTop });
+			}
+		}
+
+		if (markdownUpdateItems.length || updateItems.length) {
+			this._debug('_list.onDidChangeContentHeight/markdown', markdownUpdateItems);
+			this._webview?.updateScrollTops(updateItems, markdownUpdateItems);
+		}
+	}
+
+	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number) {
+		DOM.scheduleAtNextAnimationFrame(() => {
+			this.updateScrollHeight();
+
+			this._debug('ack height', height);
+			this._webview?.ackHeight(cellInfo.cellId, outputId, height);
+		}, 10);
 	}
 
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
@@ -2391,7 +2418,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	//#endregion
 
-	dispose() {
+	override dispose() {
 		this._isDisposed = true;
 		// dispose webview first
 		this._webview?.dispose();

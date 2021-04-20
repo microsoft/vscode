@@ -45,7 +45,8 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace,
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
 
-import { ITerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
@@ -80,7 +81,8 @@ import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQui
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustRequestService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -251,7 +253,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
+		@ITerminalProfileResolverService private readonly terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly pathService: IPathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -343,13 +345,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const customContext = CustomExecutionSupportedContext.bindTo(this.contextKeyService);
 			customContext.set(custom);
 		}
+		const isVirtual = !!VirtualWorkspaceContext.getValue(this.contextKeyService);
 		if (shell !== undefined) {
 			const shellContext = ShellExecutionSupportedContext.bindTo(this.contextKeyService);
-			shellContext.set(shell);
+			shellContext.set(shell && !isVirtual);
 		}
 		if (process !== undefined) {
 			const processContext = ProcessExecutionSupportedContext.bindTo(this.contextKeyService);
-			processContext.set(process);
+			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
 	}
@@ -1637,7 +1640,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.terminalService, this.outputService, this.panelService, this.viewsService, this.markerService,
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
-			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
+			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
 			this.pathService, this.viewDescriptorService, this.logService, this.configurationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
@@ -2457,7 +2460,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			{
 				modal: true,
 				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
-			})) === WorkspaceTrustState.Trusted;
+			})) === true;
 	}
 
 	private runTaskCommand(arg?: any): void {

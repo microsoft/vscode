@@ -117,9 +117,6 @@ export interface IWalkthroughTask {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
-	readonly button:
-	| { title: string, link: string, command?: never }
-	| { title: string, command: string, link?: never },
 	readonly media: { path: string, altText: string },
 	readonly doneOn?: { command: string };
 	readonly when?: string;
@@ -131,6 +128,14 @@ export interface IWalkthrough {
 	readonly description: string;
 	readonly tasks: IWalkthroughTask[];
 	readonly primary?: boolean;
+	readonly when?: string;
+}
+
+export interface IStartEntry {
+	readonly title: string;
+	readonly description: string;
+	readonly command: string;
+	readonly type?: 'sample-folder' | 'sample-notebook' | string;
 	readonly when?: string;
 }
 
@@ -155,6 +160,7 @@ export interface IExtensionContributions {
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
+	startEntries?: IStartEntry[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
@@ -217,6 +223,7 @@ export interface IExtensionManifest {
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
 	readonly workspaceTrust?: ExtensionWorkspaceTrust;
+	readonly supportsVirtualWorkspace?: boolean;
 }
 
 export const enum ExtensionType {

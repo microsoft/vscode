@@ -60,6 +60,9 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 
 class BrowserMain extends Disposable {
 
@@ -199,6 +202,13 @@ class BrowserMain extends Disposable {
 			})
 		]);
 
+		// Workspace Trust Service
+		// TODO @lszomoru: Following two services shall be merged into single service
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, configurationService, environmentService);
+		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
+
 		// Request Service
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
 		serviceCollection.set(IRequestService, requestService);
@@ -298,6 +308,8 @@ class BrowserMain extends Disposable {
 				}
 			});
 		}
+
+		fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

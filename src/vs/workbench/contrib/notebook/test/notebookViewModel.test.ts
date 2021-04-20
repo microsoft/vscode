@@ -19,7 +19,7 @@ import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebook
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, diff, ICellRange, NotebookCellMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, diff, ICellRange, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookViewModel', () => {
@@ -34,7 +34,7 @@ suite('NotebookViewModel', () => {
 	instantiationService.stub(IThemeService, new TestThemeService());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService, textModelService);
@@ -140,72 +140,6 @@ suite('NotebookViewModel', () => {
 				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell2), 2);
-			}
-		);
-	});
-
-	test('metadata', async function () {
-		await withTestNotebook(
-			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
-			],
-			(editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, trusted: true };
-
-
-
-				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-				});
-
-				assert.deepStrictEqual(viewModel.cellAt(1)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-				});
-
-				assert.deepStrictEqual(viewModel.cellAt(2)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-				});
-
-				assert.deepStrictEqual(viewModel.cellAt(3)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-				});
-
-				assert.deepStrictEqual(viewModel.cellAt(4)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-				});
-
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, trusted: true };
-
-				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-				});
-
-				assert.deepStrictEqual(viewModel.cellAt(1)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-				});
-
-				assert.deepStrictEqual(viewModel.cellAt(2)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-				});
-
-				assert.deepStrictEqual(viewModel.cellAt(3)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-				});
-
-				assert.deepStrictEqual(viewModel.cellAt(4)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-				});
-
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, trusted: true };
-
-				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-				});
 			}
 		);
 	});

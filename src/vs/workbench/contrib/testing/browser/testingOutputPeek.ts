@@ -31,7 +31,7 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { ITestItem, ITestMessage, ITestState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestItem, ITestMessage, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
@@ -42,7 +42,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 interface ITestDto {
 	test: ITestItem,
 	messageIndex: number;
-	state: ITestState;
+	messages: ITestMessage[];
 	expectedUri: URI;
 	actualUri: URI;
 	messageUri: URI;
@@ -78,12 +78,12 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * @returns a boolean if a peek was opened
 	 */
 	public async tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
-		const index = test.state.messages.findIndex(m => !!m.location);
-		if (index === -1) {
+		const candidate = this.getCandidateMessage(test);
+		if (!candidate) {
 			return false;
 		}
 
-		const message = test.state.messages[index];
+		const message = candidate.message;
 		const pane = await this.editorService.openEditor({
 			resource: message.location!.uri,
 			options: { selection: message.location!.range, revealIfOpened: true, ...options }
@@ -96,7 +96,8 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 
 		TestingOutputPeekController.get(control).show(buildTestUri({
 			type: TestUriType.ResultMessage,
-			messageIndex: index,
+			taskIndex: candidate.taskId,
+			messageIndex: candidate.index,
 			resultId: result.id,
 			testExtId: test.item.extId,
 		}));
@@ -112,7 +113,8 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return;
 		}
 
-		if (!isFailedState(evt.item.state.state) || !evt.item.state.messages.length) {
+		const candidate = this.getCandidateMessage(evt.item);
+		if (!candidate) {
 			return;
 		}
 
@@ -136,6 +138,24 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		}
 
 		this.tryPeekFirstError(evt.result, evt.item);
+	}
+
+	private getCandidateMessage(test: TestResultItem) {
+		for (let taskId = 0; taskId < test.tasks.length; taskId++) {
+			const { messages, state } = test.tasks[taskId];
+			if (!isFailedState(state)) {
+				continue;
+			}
+
+			const index = messages.findIndex(m => !!m.location);
+			if (index === -1) {
+				continue;
+			}
+
+			return { taskId, index, message: messages[index] };
+		}
+
+		return undefined;
 	}
 }
 
@@ -205,7 +225,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return;
 		}
 
-		const message = dto.state.messages[dto.messageIndex];
+		const message = dto.messages[dto.messageIndex];
 		if (!message?.location) {
 			return;
 		}
@@ -253,7 +273,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * else, then clear the peek.
 	 */
 	private closePeekOnTestChange(evt: TestResultItemChange) {
-		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous === evt.item.state.state) {
+		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous === evt.item.ownComputedState) {
 			return;
 		}
 
@@ -273,9 +293,13 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 
 		const test = this.testResults.getResult(parts.resultId)?.getStateById(parts.testExtId);
+		if (!test || !test.tasks[parts.taskIndex]) {
+			return;
+		}
+
 		return test && {
 			test: test.item,
-			state: test.state,
+			messages: test.tasks[parts.taskIndex].messages,
 			messageIndex: parts.messageIndex,
 			expectedUri: buildTestUri({ ...parts, type: TestUriType.ResultExpectedOutput }),
 			actualUri: buildTestUri({ ...parts, type: TestUriType.ResultActualOutput }),
@@ -382,8 +406,8 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 	/**
 	 * @override
 	 */
-	public async setModel({ test, state, messageIndex, expectedUri, actualUri }: ITestDto) {
-		const message = state.messages[messageIndex];
+	public async setModel({ test, messages, messageIndex, expectedUri, actualUri }: ITestDto) {
+		const message = messages[messageIndex];
 		if (!message?.location) {
 			return;
 		}
@@ -440,8 +464,8 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 	/**
 	 * @override
 	 */
-	public async setModel({ state, test, messageIndex, messageUri }: ITestDto) {
-		const message = state.messages[messageIndex];
+	public async setModel({ messages, test, messageIndex, messageUri }: ITestDto) {
+		const message = messages[messageIndex];
 		if (!message?.location) {
 			return;
 		}

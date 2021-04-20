@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { deepFreeze, equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
@@ -46,9 +44,6 @@ export class ExtHostCell {
 		};
 	}
 
-	private _onDidDispose = new Emitter<void>();
-	readonly onDidDispose: Event<void> = this._onDidDispose.event;
-
 	private _outputs: extHostTypes.NotebookCellOutput[];
 	private _metadata: extHostTypes.NotebookCellMetadata;
 	private _previousResult: vscode.NotebookCellExecutionSummary | undefined;
@@ -72,11 +67,6 @@ export class ExtHostCell {
 		this._internalMetadata = _cellData.metadata ?? {};
 		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(this._internalMetadata);
 		this._previousResult = extHostTypeConverters.NotebookCellPreviousExecutionResult.to(this._internalMetadata);
-	}
-
-	dispose() {
-		this._onDidDispose.fire();
-		this._onDidDispose.dispose();
 	}
 
 	get internalMetadata(): NotebookCellMetadata {
@@ -133,14 +123,12 @@ export interface INotebookEventEmitter {
 }
 
 
-export class ExtHostNotebookDocument extends Disposable {
+export class ExtHostNotebookDocument {
 
 	private static _handlePool: number = 0;
 	readonly handle = ExtHostNotebookDocument._handlePool++;
 
 	private _cells: ExtHostCell[] = [];
-
-	private _cellDisposableMapping = new Map<number, DisposableStore>();
 
 	private _notebook: vscode.NotebookDocument | undefined;
 	private _versionId: number = 0;
@@ -156,24 +144,18 @@ export class ExtHostNotebookDocument extends Disposable {
 		private readonly _viewType: string,
 		private _metadata: extHostTypes.NotebookDocumentMetadata,
 		readonly uri: URI,
-	) {
-		super();
-	}
+	) { }
 
-	override dispose() {
+	dispose() {
 		this._disposed = true;
-		super.dispose();
-		dispose(this._cellDisposableMapping.values());
 	}
-
 
 	get notebookDocument(): vscode.NotebookDocument {
 		if (!this._notebook) {
 			const that = this;
-			this._notebook = Object.freeze({
+			this._notebook = {
 				get uri() { return that.uri; },
 				get version() { return that._versionId; },
-				get fileName() { return that.uri.fsPath; },
 				get viewType() { return that._viewType; },
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
@@ -191,7 +173,7 @@ export class ExtHostNotebookDocument extends Disposable {
 				save() {
 					return that._save();
 				}
-			});
+			};
 		}
 		return this._notebook;
 	}
@@ -245,7 +227,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		}
 	}
 
-	private _validateRange(range: vscode.NotebookCellRange): vscode.NotebookCellRange {
+	private _validateRange(range: vscode.NotebookRange): vscode.NotebookRange {
 		if (range.start < 0) {
 			range = range.with({ start: 0 });
 		}
@@ -255,7 +237,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		return range;
 	}
 
-	private _getCells(range: vscode.NotebookCellRange): ExtHostCell[] {
+	private _getCells(range: vscode.NotebookRange): ExtHostCell[] {
 		range = this._validateRange(range);
 		const result: ExtHostCell[] = [];
 		for (let i = range.start; i < range.end; i++) {
@@ -285,24 +267,11 @@ export class ExtHostNotebookDocument extends Disposable {
 			const newCells = cellDtos.map(cell => {
 
 				const extCell = new ExtHostCell(this, this._textDocumentsAndEditors, cell);
-
 				if (!initialization) {
 					addedCellDocuments.push(ExtHostCell.asModelAddData(this.notebookDocument, cell));
 				}
-
-				if (!this._cellDisposableMapping.has(extCell.handle)) {
-					const store = new DisposableStore();
-					store.add(extCell);
-					this._cellDisposableMapping.set(extCell.handle, store);
-				}
-
 				return extCell;
 			});
-
-			for (let j = splice[0]; j < splice[0] + splice[1]; j++) {
-				this._cellDisposableMapping.get(this._cells[j].handle)?.dispose();
-				this._cellDisposableMapping.delete(this._cells[j].handle);
-			}
 
 			const changeEvent = new RawContentChangeEvent(splice[0], splice[1], [], newCells);
 			const deletedItems = this._cells.splice(splice[0], splice[1], ...newCells);

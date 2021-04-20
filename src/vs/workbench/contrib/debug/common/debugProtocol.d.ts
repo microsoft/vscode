@@ -557,6 +557,8 @@ declare module DebugProtocol {
 
 	/** Arguments for 'restart' request. */
 	export interface RestartArguments {
+		/** The latest version of the 'launch' or 'attach' configuration. */
+		arguments?: LaunchRequestArguments | AttachRequestArguments;
 	}
 
 	/** Response to 'restart' request. This is just an acknowledgement, so no body field is required. */
@@ -584,6 +586,11 @@ declare module DebugProtocol {
 			The attribute is only honored by a debug adapter if the capability 'supportTerminateDebuggee' is true.
 		*/
 		terminateDebuggee?: boolean;
+		/** Indicates whether the debuggee should stay suspended when the debugger is disconnected.
+			If unspecified, the debuggee should resume execution.
+			The attribute is only honored by a debug adapter if the capability 'supportSuspendDebuggee' is true.
+		*/
+		suspendDebuggee?: boolean;
 	}
 
 	/** Response to 'disconnect' request. This is just an acknowledgement, so no body field is required. */
@@ -735,8 +742,8 @@ declare module DebugProtocol {
 	*/
 	export interface SetExceptionBreakpointsResponse extends Response {
 		body?: {
-			/** Information about the breakpoints.
-				The breakpoints returned are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' array in the arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.
+			/** Information about the exception breakpoints or filters.
+				The breakpoints returned are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' arrays in the arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.
 			*/
 			breakpoints?: Breakpoint[];
 		};
@@ -1607,6 +1614,8 @@ declare module DebugProtocol {
 		supportsExceptionInfoRequest?: boolean;
 		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
 		supportTerminateDebuggee?: boolean;
+		/** The debug adapter supports the 'suspendDebuggee' attribute on the 'disconnect' request. */
+		supportSuspendDebuggee?: boolean;
 		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and an optional 'totalFrames' result of the 'StackTrace' request are supported. */
 		supportsDelayedStackTraceLoading?: boolean;
 		/** The debug adapter supports the 'loadedSources' request. */

@@ -16,6 +16,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceMap } from 'vs/base/common/map';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
@@ -40,6 +41,17 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 		this._workingCopyManager = <any>_instantiationService.createInstance(
 			FileWorkingCopyManager,
+			// TODO@jrieken TODO@rebornix consider to enable a `typeId` that is
+			// specific for custom editors. Using a distinct `typeId` allows the
+			// working copy to have any resource (including file based resources)
+			// even if other working copies exist with the same resource.
+			//
+			// IMPORTANT: changing the `typeId` has an impact on backups for this
+			// working copy. Any value that is not the empty string will be used
+			// as seed to the backup. Only change the `typeId` if you have implemented
+			// a fallback solution to resolve any existing backups that do not have
+			// this seed.
+			NO_TYPE_ID,
 			new NotebookFileWorkingCopyModelFactory(_notebookService)
 		);
 	}

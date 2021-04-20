@@ -51,9 +51,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get machineId() { return this.configuration.machineId; }
 
 	@memoize
-	get sessionId() { return this.configuration.sessionId; }
-
-	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize

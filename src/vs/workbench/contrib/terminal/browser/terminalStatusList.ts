@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -25,6 +26,11 @@ export interface ITerminalStatus {
 	 * the "primary status".
 	 */
 	severity: Severity;
+	/**
+	 * An icon representing the status, if this is not specified it will not show up on the terminal
+	 * tab and will use the generic `info` icon when hovering.
+	 */
+	icon?: Codicon;
 }
 
 export interface ITerminalStatusList {

@@ -26,6 +26,7 @@ import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -34,7 +35,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
 
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
-	private static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
@@ -261,7 +261,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
 		}
 
-		const ariaLabel = text.replace(RemoteStatusIndicator.CODICON_REGEXP, (_match, codiconName) => codiconName);
+		const ariaLabel = getCodiconAriaLabel(text);
 		const properties: IStatusbarEntry = {
 			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
 			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
@@ -291,30 +291,20 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			const actions = menu.getActions();
 			const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 
-			for (let actionGroup of actions) {
+			let lastCategoryName: string | undefined = undefined;
 
-				// group by category
-				const actionsByCategory: { [category: string]: MenuItemAction[] } = {};
-				const categories: string[] = [];
+			for (let actionGroup of actions) {
+				let hasGroupCategory = false;
 				for (let action of actionGroup[1]) {
 					if (action instanceof MenuItemAction) {
-						const category = getCategoryLabel(action) || '';
-						let list = actionsByCategory[category];
-						if (!list) {
-							actionsByCategory[category] = list = [];
-							categories.push(category);
+						if (!hasGroupCategory) {
+							const category = getCategoryLabel(action);
+							if (category !== lastCategoryName) {
+								items.push({ type: 'separator', label: category });
+								lastCategoryName = category;
+							}
+							hasGroupCategory = true;
 						}
-						list.push(action);
-					}
-				}
-				for (let category of categories) {
-					if (category) {
-						items.push({ type: 'separator', label: category });
-					} else {
-						items.push({ type: 'separator' });
-					}
-					items.push({ type: 'separator', label: category });
-					for (let action of actionsByCategory[category]) {
 						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
 						items.push({
 							type: 'item',

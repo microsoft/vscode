@@ -21,6 +21,8 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 export enum CellKind {
 	Markdown = 1,
@@ -57,15 +59,11 @@ export enum NotebookRunState {
 }
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
-	editable: true,
-	cellEditable: true,
 	custom: {},
 	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
-	editable: boolean;
-	cellEditable: boolean;
 	custom?: { [key: string]: unknown };
 	trusted: boolean;
 }
@@ -86,25 +84,45 @@ export interface NotebookCellMetadata {
 	editable?: boolean;
 	breakpointMargin?: boolean;
 	executionOrder?: number;
-	statusMessage?: string;
 	lastRunSuccess?: boolean;
 	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
-	lastRunDuration?: number;
+	runStartTimeAdjustment?: number;
+	runEndTime?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
 	custom?: { [key: string]: unknown };
 }
 
-export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
-	transientMetadata: TransientMetadata;
+	transientCellMetadata: TransientCellMetadata;
+	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
 export interface INotebookMimeTypeSelector {
 	mimeTypes?: string[];
+}
+
+/**
+ * Passed to INotebookRendererInfo.matches when the notebook is initially
+ * loaded before the kernel is known.
+ */
+export const AnyRendererApi = Symbol('AnyRendererApi');
+
+/** Note: enum values are used for sorting */
+export const enum NotebookRendererMatch {
+	/** Renderer has a hard dependency on an available kernel */
+	WithHardKernelDependency = 0,
+	/** Renderer works better with an available kernel */
+	WithOptionalKernelDependency = 1,
+	/** Renderer is kernel-agnostic */
+	Pure = 2,
+	/** Renderer is for a different mimeType or has a hard dependency which is unsatisfied */
+	Never = 3,
 }
 
 export interface INotebookRendererInfo {
@@ -115,7 +133,8 @@ export interface INotebookRendererInfo {
 	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
 
-	matches(mimeType: string): boolean;
+	matchesWithoutKernel(mimeType: string): NotebookRendererMatch;
+	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
 export interface INotebookMarkdownRendererInfo {
@@ -644,6 +663,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: NotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
+	isReadonly(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;
@@ -663,7 +683,7 @@ export interface INotebookTextModelBackup {
 	cells: ICellDto2[]
 }
 
-export interface NotebookDocumentBackupData {
+export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
 	readonly backupId?: string;
 	readonly mtime?: number;
@@ -746,21 +766,26 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 }
 
 export interface INotebookKernel {
+
+	/** @deprecated */
+	providerHandle?: number;
+	/** @deprecated */
+	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
+
 	id?: string;
 	friendlyId: string;
 	label: string;
 	extension: ExtensionIdentifier;
-	extensionLocation: URI;
-	providerHandle?: number;
+	localResourceRoot: URI;
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	preloads?: URI[];
+	preloadUris: URI[];
+	preloadProvides: string[];
 	supportedLanguages?: string[]
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
-	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
 }
@@ -771,6 +796,12 @@ export interface INotebookKernelProvider {
 	selector: INotebookDocumentFilter;
 	onDidChangeKernels: Event<URI | undefined>;
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
+}
+
+export interface INotebookCellStatusBarItemProvider {
+	selector: NotebookSelector;
+	onDidChangeStatusBarItems?: Event<void>;
+	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
 export class CellSequence implements ISequence {
@@ -793,16 +824,20 @@ export interface INotebookDiffResult {
 	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }
 
-export interface INotebookCellStatusBarEntry {
-	readonly cellResource: URI;
+export interface INotebookCellStatusBarItem {
 	readonly alignment: CellStatusbarAlignment;
 	readonly priority?: number;
 	readonly text: string;
-	readonly tooltip: string | undefined;
-	readonly command: string | Command | undefined;
+	readonly tooltip?: string;
+	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
-	readonly visible: boolean;
 	readonly opacity?: string;
+	readonly onlyShowWhenActive?: boolean;
+}
+
+export interface INotebookCellStatusBarItemList {
+	items: INotebookCellStatusBarItem[];
+	dispose?(): void;
 }
 
 export const DisplayOrderKey = 'notebook.displayOrder';
@@ -812,8 +847,8 @@ export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 
 export const enum CellStatusbarAlignment {
-	LEFT,
-	RIGHT
+	Left = 1,
+	Right = 2
 }
 
 export interface INotebookDecorationRenderOptions {

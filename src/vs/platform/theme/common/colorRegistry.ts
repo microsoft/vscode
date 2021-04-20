@@ -417,6 +417,7 @@ export const menuSeparatorBackground = registerColor('menu.separatorBackground',
  * Toolbar colors
  */
 export const toolbarHoverBackground = registerColor('toolbar.hoverBackground', { dark: '#5a5d5e50', light: '#b8b8b850', hc: null }, nls.localize('toolbarHoverBackground', "Toolbar background when hovering over actions using the mouse"));
+export const toolbarHoverOutline = registerColor('toolbar.hoverOutline', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('toolbarHoverOutline', "Toolbar outline when hovering over actions using the mouse"));
 export const toolbarActiveBackground = registerColor('toolbar.activeBackground', { dark: lighten(toolbarHoverBackground, 0.1), light: darken(toolbarHoverBackground, 0.1), hc: null }, nls.localize('toolbarActiveBackground', "Toolbar background when holding the mouse over actions"));
 
 /**

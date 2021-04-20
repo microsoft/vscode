@@ -30,8 +30,8 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 	let testDir: string;
 
 	function readFile(path: string): Promise<Buffer>;
-	function readFile(path: string, encoding: string): Promise<string>;
-	function readFile(path: string, encoding?: string): Promise<Buffer | string> {
+	function readFile(path: string, encoding: BufferEncoding): Promise<string>;
+	function readFile(path: string, encoding?: BufferEncoding): Promise<Buffer | string> {
 		return promises.readFile(path, encoding);
 	}
 

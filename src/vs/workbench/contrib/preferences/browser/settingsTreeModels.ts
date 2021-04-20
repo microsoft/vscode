@@ -8,17 +8,16 @@ import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/stri
 import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -141,12 +140,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	description!: string;
 	valueType!: SettingValueType;
 
-	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult, workspaceTrustState: WorkspaceTrustState) {
+	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult, isWorkspaceTrusted: boolean) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
 		this.parent = parent;
 
-		this.update(inspectResult, workspaceTrustState);
+		this.update(inspectResult, isWorkspaceTrusted);
 	}
 
 	get displayCategory(): string {
@@ -171,13 +170,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this._displayCategory = displayKeyFormat.category;
 	}
 
-	update(inspectResult: IInspectResult, workspaceTrustState: WorkspaceTrustState): void {
+	update(inspectResult: IInspectResult, isWorkspaceTrusted: boolean): void {
 		const { isConfigured, inspected, targetSelector } = inspectResult;
 
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
 			case 'workspaceValue':
-				this.isUntrusted = !!this.setting.requireTrust && workspaceTrustState !== WorkspaceTrustState.Trusted;
+				this.isUntrusted = !!this.setting.requireTrust && !isWorkspaceTrusted;
 				break;
 		}
 
@@ -353,8 +352,8 @@ export class SettingsTreeModel {
 
 	constructor(
 		protected _viewState: ISettingsEditorViewState,
-		private _workspaceTrustState: WorkspaceTrustState,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		private _isWorkspaceTrusted: boolean,
+		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 	) {
 	}
 
@@ -378,8 +377,8 @@ export class SettingsTreeModel {
 		}
 	}
 
-	updateWorkspaceTrustState(workspaceTrustState: WorkspaceTrustState): void {
-		this._workspaceTrustState = workspaceTrustState;
+	updateWorkspaceTrust(workspaceTrusted: boolean): void {
+		this._isWorkspaceTrusted = workspaceTrusted;
 		this.updateRequireTrustedTargetElements();
 	}
 
@@ -416,7 +415,7 @@ export class SettingsTreeModel {
 	private updateSettings(settings: SettingsTreeSettingElement[]): void {
 		settings.forEach(element => {
 			const inspectResult = inspectSetting(element.setting.key, this._viewState.settingsTarget, this._configurationService);
-			element.update(inspectResult, this._workspaceTrustState);
+			element.update(inspectResult, this._isWorkspaceTrusted);
 		});
 	}
 
@@ -452,7 +451,7 @@ export class SettingsTreeModel {
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
 		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._workspaceTrustState);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
@@ -467,14 +466,25 @@ interface IInspectResult {
 	targetSelector: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
 }
 
-function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
+export function inspectSetting(key: string, target: SettingsTarget, configurationService: IWorkbenchConfigurationService): IInspectResult {
 	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
 	const inspected = configurationService.inspect(key, inspectOverrides);
 	const targetSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
 		target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
 			target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
 				'workspaceFolderValue';
-	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
+	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
+	if (!isConfigured) {
+		if (target === ConfigurationTarget.USER_LOCAL) {
+			isConfigured = !!configurationService.unTrustedSettings.userLocal?.includes(key);
+		} else if (target === ConfigurationTarget.USER_REMOTE) {
+			isConfigured = !!configurationService.unTrustedSettings.userRemote?.includes(key);
+		} else if (target === ConfigurationTarget.WORKSPACE) {
+			isConfigured = !!configurationService.unTrustedSettings.workspace?.includes(key);
+		} else if (target instanceof URI) {
+			isConfigured = !!configurationService.unTrustedSettings.workspaceFolder?.get(target)?.includes(key);
+		}
+	}
 
 	return { isConfigured, inspected, targetSelector };
 }
@@ -622,11 +632,11 @@ export class SearchResultModel extends SettingsTreeModel {
 
 	constructor(
 		viewState: ISettingsEditorViewState,
-		workspaceTrustState: WorkspaceTrustState,
-		@IConfigurationService configurationService: IConfigurationService,
+		isWorkspaceTrusted: boolean,
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(viewState, workspaceTrustState, configurationService);
+		super(viewState, isWorkspaceTrusted, configurationService);
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 

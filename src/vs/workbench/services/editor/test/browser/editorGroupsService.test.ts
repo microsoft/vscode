@@ -342,13 +342,13 @@ suite('EditorGroupsService', () => {
 		part.dispose();
 	});
 
-	test('whenCreated / whenRestored', async () => {
+	test('whenReady / whenRestored', async () => {
 		const [part] = await createPart();
 
-		await part.whenCreated;
+		await part.whenReady;
 		await part.whenRestored;
 
-		assert.ok(true);
+		assert.strictEqual(part.isRestored(), true);
 	});
 
 	test('options', async () => {

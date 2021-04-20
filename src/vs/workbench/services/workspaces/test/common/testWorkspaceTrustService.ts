@@ -3,20 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, WorkspaceTrustChangeEvent, WorkspaceTrustState, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 
-export class TestWorkspaceTrustStorageService implements IWorkspaceTrustStorageService {
+
+export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
 
-	onDidStorageChange: Event<void> = Event.None;
+	private _onDidChangeTrust = new Emitter<boolean>();
+	onDidChangeTrust = this._onDidChangeTrust.event;
 
-	setFoldersTrustState(folder: URI[], trustState: WorkspaceTrustState): void {
+	private _onDidChangeTrustedFolders = new Emitter<void>();
+	onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
+
+	private trusted: boolean;
+
+	constructor(trusted: boolean = true) {
+		this.trusted = trusted;
+	}
+
+	getTrustedFolders(): URI[] {
 		throw new Error('Method not implemented.');
 	}
 
-	getFoldersTrustState(folder: URI[]): WorkspaceTrustState {
+	setParentFolderTrust(trusted: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+
+	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
 		throw new Error('Method not implemented.');
 	}
 
@@ -24,38 +39,27 @@ export class TestWorkspaceTrustStorageService implements IWorkspaceTrustStorageS
 		throw new Error('Method not implemented.');
 	}
 
-	setUntrustedFolders(folders: URI[]): void {
+	setFoldersTrust(folders: URI[], trusted: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 
-	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo {
+	canSetParentFolderTrust(): boolean {
 		throw new Error('Method not implemented.');
 	}
 
-	getTrustStateInfo(): IWorkspaceTrustStateInfo {
-		throw new Error('Method not implemented.');
-	}
-}
-
-export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
-	_serviceBrand: undefined;
-
-	onDidChangeTrustState: WorkspaceTrustChangeEvent = Event.None;
-
-	getWorkspaceTrustState(): WorkspaceTrustState {
-		return WorkspaceTrustState.Trusted;
-	}
-
-	setWorkspaceTrustState(trustState: WorkspaceTrustState): void {
+	canSetWorkspaceTrust(): boolean {
 		throw new Error('Method not implemented.');
 	}
 
-	isWorkspaceTrustEnabled(): boolean {
-		return true;
+	isWorkpaceTrusted(): boolean {
+		return this.trusted;
 	}
 
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
-		return Promise.resolve(WorkspaceTrustState.Trusted);
+	setWorkspaceTrust(trusted: boolean): void {
+		if (this.trusted !== trusted) {
+			this.trusted = trusted;
+			this._onDidChangeTrust.fire(this.trusted);
+		}
 	}
 }
 
@@ -63,18 +67,18 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 	_serviceBrand: undefined;
 
 	onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions> = Event.None;
-	onDidCompleteWorkspaceTrustRequest: Event<WorkspaceTrustState> = Event.None;
+	onDidCompleteWorkspaceTrustRequest: Event<boolean> = Event.None;
 
 
 	cancelRequest(): void {
 		throw new Error('Method not implemented.');
 	}
 
-	completeRequest(trustState?: WorkspaceTrustState): void {
+	completeRequest(trusted?: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
-		return Promise.resolve(WorkspaceTrustState.Trusted);
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
+		return Promise.resolve(true);
 	}
 }

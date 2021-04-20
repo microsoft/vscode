@@ -194,26 +194,32 @@ export interface IEditorGroupsService {
 	readonly orientation: GroupOrientation;
 
 	/**
-	 * A promise that resolves when groups have been created.
+	 * A promise that resolves when groups have been created
+	 * and are ready to be used.
 	 *
 	 * Await this promise to safely work on the editor groups model
 	 * (for example, install editor group listeners).
 	 *
-	 * Use the `whenRestored` property to await active editors
-	 * having resolved.
+	 * Use the `whenRestored` property to await visible editors
+	 * having fully resolved.
 	 */
-	readonly whenCreated: Promise<void>;
+	readonly whenReady: Promise<void>;
 
 	/**
 	 * A promise that resolves when groups have been restored.
 	 *
 	 * For groups with active editor, the promise will resolve
-	 * when all active editors have finished to resolve.
+	 * when the visible editor has finished to resolve.
 	 *
-	 * Use the `whenCreated` property to not await editors to
+	 * Use the `whenReady` property to not await editors to
 	 * resolve.
 	 */
 	readonly whenRestored: Promise<void>;
+
+	/**
+	 * Will return `true` as soon as `whenRestored` is resolved.
+	 */
+	isRestored(): boolean;
 
 	/**
 	 * Find out if the editor group service has UI state to restore
@@ -457,6 +463,11 @@ export interface IEditorGroup {
 	 * The number of opened editors in this group.
 	 */
 	readonly count: number;
+
+	/**
+	 * Whether the group has editors or not.
+	 */
+	readonly isEmpty: boolean;
 
 	/**
 	 * The number of sticky editors in this group.

@@ -39,7 +39,6 @@ const compilations = [
 	'debug-server-ready/tsconfig.json',
 	'emmet/tsconfig.json',
 	'extension-editing/tsconfig.json',
-	'git-ui/tsconfig.json',
 	'git/tsconfig.json',
 	'github-authentication/tsconfig.json',
 	'github/tsconfig.json',

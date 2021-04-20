@@ -18,7 +18,7 @@ import { ICommandsExecutor, RemoveFromRecentlyOpenedAPICommand, OpenIssueReporte
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
-import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
@@ -30,13 +30,13 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeDocumentHighlights', '_executeDocumentHighlights', 'Execute document highlight provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.DocumentHighlight[], types.DocumentHighlight[] | undefined>('A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.', tryMapWith(typeConverters.DocumentHighlight.to))
+		new ApiCommandResult<modes.DocumentHighlight[], types.DocumentHighlight[] | undefined>('A promise that resolves to an array of DocumentHighlight-instances.', tryMapWith(typeConverters.DocumentHighlight.to))
 	),
 	// -- document symbols
 	new ApiCommand(
 		'vscode.executeDocumentSymbolProvider', '_executeDocumentSymbolProvider', 'Execute document symbol provider.',
 		[ApiCommandArgument.Uri],
-		new ApiCommandResult<modes.DocumentSymbol[], vscode.SymbolInformation[] | undefined>('A promise that resolves to an array of DocumentHighlight-instances.', (value, apiArgs) => {
+		new ApiCommandResult<modes.DocumentSymbol[], vscode.SymbolInformation[] | undefined>('A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.', (value, apiArgs) => {
 
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
@@ -343,7 +343,7 @@ const newCommands: ApiCommand[] = [
 		new ApiCommandResult<{
 			viewType: string;
 			displayName: string;
-			options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
+			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
 			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
 		}[], {
 			viewType: string;
@@ -354,7 +354,12 @@ const newCommands: ApiCommand[] = [
 			return {
 				viewType: item.viewType,
 				displayName: item.displayName,
-				options: { transientOutputs: item.options.transientOutputs, transientMetadata: item.options.transientMetadata },
+				options: {
+					transientOutputs: item.options.transientOutputs,
+					transientMetadata: item.options.transientCellMetadata,
+					transientCellMetadata: item.options.transientCellMetadata,
+					transientDocumentMetadata: item.options.transientDocumentMetadata
+				},
 				filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
 			};
 		}))
