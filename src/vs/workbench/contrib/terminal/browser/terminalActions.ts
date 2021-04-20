@@ -1212,25 +1212,15 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
-			if (profile) {
-				await terminalService.doWithActiveInstance(async t => {
-					const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
-					if (cwd === undefined) {
-						return undefined;
-					}
-					terminalService.splitInstance(t, profile);
-					return terminalService.showPanel(true);
-				});
-			} else {
-				await terminalService.doWithActiveInstance(async t => {
-					const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
-					if (cwd === undefined) {
-						return undefined;
-					}
-					terminalService.splitInstance(t, { cwd });
-					return terminalService.showPanel(true);
-				});
-			}
+			await terminalService.doWithActiveInstance(async t => {
+				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
+				if (cwd === undefined) {
+					return undefined;
+				}
+				const shellLaunchConfig = profile ? terminalService.convertProfileToShellLaunchConfig(profile) : { cwd };
+				terminalService.splitInstance(t, shellLaunchConfig);
+				return terminalService.showPanel(true);
+			});
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
@@ -1461,8 +1451,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON,
-				title: TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON,
+				id: TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON,
+				title: TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON,
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,

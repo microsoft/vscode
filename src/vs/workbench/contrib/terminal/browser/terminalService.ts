@@ -617,7 +617,7 @@ export class TerminalService implements ITerminalService {
 			return null;
 		}
 
-		const instance = tab.split(this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile));
+		const instance = tab.split(this.convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile));
 
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
@@ -930,7 +930,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
+	public convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
 		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
@@ -955,7 +955,7 @@ export class TerminalService implements ITerminalService {
 	public createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	public createTerminal(profile: ITerminalProfile): ITerminalInstance;
 	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile): ITerminalInstance {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');

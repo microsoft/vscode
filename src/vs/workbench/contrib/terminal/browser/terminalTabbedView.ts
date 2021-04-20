@@ -25,7 +25,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 
 const $ = dom.$;
@@ -73,7 +72,6 @@ export class TerminalTabbedView extends Disposable {
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ICommandService _commandService: ICommandService,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();

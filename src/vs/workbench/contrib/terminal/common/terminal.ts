@@ -435,7 +435,7 @@ export const enum TERMINAL_COMMAND_ID {
 	RESIZE_PANE_LEFT = 'workbench.action.terminal.resizePaneLeft',
 	RESIZE_PANE_RIGHT = 'workbench.action.terminal.resizePaneRight',
 	RESIZE_PANE_UP = 'workbench.action.terminal.resizePaneUp',
-	CREATE_PROFILE_BUTTON = 'workbench.action.terminal.createProfileButton',
+	CREATE_WITH_PROFILE_BUTTON = 'workbench.action.terminal.createProfileButton',
 	RESIZE_PANE_DOWN = 'workbench.action.terminal.resizePaneDown',
 	FOCUS = 'workbench.action.terminal.focus',
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',

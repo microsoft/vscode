@@ -176,7 +176,7 @@ export class TerminalViewPane extends ViewPane {
 	public override getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
-		} else if (action.id === TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON) {
+		} else if (action.id === TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON) {
 			if (this._tabButtons) {
 				this._tabButtons.dispose();
 			}
