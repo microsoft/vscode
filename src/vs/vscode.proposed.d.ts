@@ -1328,18 +1328,6 @@ declare module 'vscode' {
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
-	/** @deprecated used NotebookController */
-	export interface NotebookCommunication {
-		/** @deprecated used NotebookController */
-		readonly editorId: string;
-		/** @deprecated used NotebookController */
-		readonly onDidReceiveMessage: Event<any>;
-		/** @deprecated used NotebookController */
-		postMessage(message: any): Thenable<boolean>;
-		/** @deprecated used NotebookController */
-		asWebviewUri(localResource: Uri): Uri;
-	}
-
 	export interface NotebookDocumentShowOptions {
 		viewColumn?: ViewColumn;
 		preserveFocus?: boolean;
