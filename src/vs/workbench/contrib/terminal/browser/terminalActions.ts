@@ -322,7 +322,15 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.focusNext', "Focus Next Terminal"), original: 'Focus Next Terminal' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+					},
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -338,7 +346,15 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal"), original: 'Focus Previous Terminal' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
+					},
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
