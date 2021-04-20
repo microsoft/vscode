@@ -44,6 +44,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { hash } from 'vs/base/common/hash';
 
 // Commands
 
@@ -445,6 +446,7 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 	} catch (error) {
 		if (!isPromiseCanceledError(error)) {
 			notificationService.notify({
+				id: editors.map(({ editor }) => hash(editor.resource)).join(), // ensure unique notification ID per set of editor
 				severity: Severity.Error,
 				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
 				actions: {
