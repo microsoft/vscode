@@ -82,7 +82,7 @@ export class GitHubServer {
 			this._pendingStates.set(scopes, [...existingStates, state]);
 
 			// TODO@joaomoreno TODO@RMacfarlane
-			const staging = /^vscode\./.test(callbackUri.authority);
+			const staging = callbackUri.scheme === 'https' && /^vscode\./.test(callbackUri.authority);
 			const uri = vscode.Uri.parse(`https://${staging ? AUTH_RELAY_STAGING_SERVER : AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com${staging ? '&staging=true' : ''}`);
 			await vscode.env.openExternal(uri);
 		}
