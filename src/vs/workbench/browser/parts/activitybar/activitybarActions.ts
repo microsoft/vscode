@@ -112,16 +112,16 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		action: ActivityAction,
 		private contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		hoverOptions: IActivityHoverOptions | undefined,
+		hoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService protected readonly menuService: IMenuService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(action, { draggable: false, colors, icon: true, hasPopup: true, hoverOptions }, themeService, hoverService);
+		super(action, { draggable: false, colors, icon: true, hasPopup: true, hoverOptions }, themeService, hoverService, configurationService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -193,7 +193,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		action: ActivityAction,
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		activityHoverOptions: IActivityHoverOptions | undefined,
+		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -302,7 +302,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		action: ActivityAction,
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		activityHoverOptions: IActivityHoverOptions | undefined,
+		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
