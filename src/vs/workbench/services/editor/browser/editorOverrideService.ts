@@ -46,7 +46,7 @@ export type ContributedEditorInfo = {
 	id: string;
 	active: (currentEditor: IEditorInput) => boolean;
 	label: string;
-	detail: string;
+	detail?: string;
 	priority: ContributedEditorPriority;
 };
 
@@ -425,7 +425,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				id: contribPoint.editorInfo.id,
 				label: contribPoint.editorInfo.label,
 				description: isActive ? localize('promptOpenWith.currentlyActive', "Currently Active") : undefined,
-				detail: contribPoint.editorInfo.detail,
+				detail: contribPoint.editorInfo.detail ?? contribPoint.editorInfo.priority,
 				buttons: [{
 					iconClass: Codicon.gear.classNames,
 					tooltip: localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", extname(resource))
