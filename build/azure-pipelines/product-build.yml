@@ -122,7 +122,7 @@ stages:
   - stage: Compile
     jobs:
       - job: Compile
-        pool: compile
+        pool: compile2
         variables:
           VSCODE_ARCH: x64
         steps:
