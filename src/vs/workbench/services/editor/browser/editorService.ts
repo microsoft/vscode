@@ -602,7 +602,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Override handling: pick editor or open specific
 			if (resolvedOptions?.override === EditorOverride.PICK || typeof resolvedOptions?.override === 'string') {
-				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(editor as IEditorInput, resolvedOptions, resolvedGroup);
+				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
 				if (!resolvedInputWithOptionsAndGroup) {
 					return undefined; // no editor was picked or registered for the identifier
 				}
@@ -612,7 +612,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Override handling: ask providers to override
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
 				// This will get cleaned up soon, but since the override service no longer uses the override flow we must check that
-				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(editor as IEditorInput, resolvedOptions, resolvedGroup);
+				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
 				if (!resolvedInputWithOptionsAndGroup) {
 					const override = this.doOverrideOpenEditor(resolvedEditor, resolvedOptions, resolvedGroup);
 					if (override) {
