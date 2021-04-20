@@ -767,11 +767,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: any): void {
-		this.executeImpl(command, args, {
+		const promise = this.executeImpl(command, args, {
 			isAsync: false,
 			token: undefined,
-			expectsResult: false
+			expectsResult: command === 'updateOpen'
 		});
+
+		if (command === 'updateOpen') {
+			// If update open has completed, consider that the project has loaded
+			promise.then(() => {
+				this.loadingIndicator.reset();
+			});
+		}
 	}
 
 	public executeAsync(command: keyof TypeScriptRequests, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>> {
