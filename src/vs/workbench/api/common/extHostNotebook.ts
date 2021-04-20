@@ -635,17 +635,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	createNotebookCellExecution(docUri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
 		const document = this.lookupNotebookDocument(docUri);
 		if (!document) {
-			throw new Error(`Invalid cell uri / index: ${docUri}, ${index} `);
+			throw new Error(`Invalid uri: ${docUri} `);
 		}
 
 		const cell = document.getCellFromIndex(index);
 		if (!cell) {
-			throw new Error(`Invalid cell uri / index: ${docUri}, ${index} `);
+			throw new Error(`Invalid cell index: ${docUri}, ${index} `);
 		}
 
 		// TODO@roblou also validate kernelId, once kernel has moved from editor to document
 		if (this._activeExecutions.has(cell.uri)) {
-			return;
+			throw new Error(`duplicate execution for ${cell.uri}`);
 		}
 
 		const execution = new NotebookCellExecutionTask(docUri, document, cell, this._notebookDocumentsProxy);

@@ -4,114 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellViewModel, getRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { cellIndexesToRanges, CellKind, INotebookKernel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-
-
-export interface IKernelManagerDelegate {
-	activeKernel: INotebookKernel | undefined;
-	viewModel: NotebookViewModel | undefined;
-}
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookEditorKernelManager extends Disposable {
 
 	constructor(
-		private readonly _delegate: IKernelManagerDelegate,
 		@ICommandService private readonly _commandService: ICommandService,
+		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 	) {
 		super();
 	}
 
-	private async _ensureActiveKernel(): Promise<void> {
-		if (!this._delegate.activeKernel) {
+	getActiveKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
+		return this._notebookKernelService.getBoundKernel(notebook) ?? this._notebookKernelService.getMatchingKernels(notebook)[0];
+	}
+
+	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
+		if (!notebook.metadata.trusted) {
+			return;
+		}
+
+		let kernel = this.getActiveKernel(notebook);
+		if (!kernel) {
 			await this._commandService.executeCommand('notebook.selectKernel');
+			kernel = this.getActiveKernel(notebook);
+		}
+
+		if (!kernel) {
+			return;
+		}
+
+		const cellHandles: number[] = [];
+		for (const cell of cells) {
+			if (cell.cellKind !== CellKind.Code) {
+				continue;
+			}
+			if (!kernel.supportedLanguages.includes(cell.language)) {
+				continue;
+			}
+			cellHandles.push(cell.handle);
+		}
+
+		if (cellHandles.length > 0) {
+			this._notebookKernelService.updateNotebookKernelBinding(notebook, kernel);
+			await kernel.executeNotebookCellsRequest(notebook.uri, cellHandles);
 		}
 	}
 
-	async cancelNotebookExecution(): Promise<void> {
-		if (!this._delegate.viewModel) {
-			return;
+	async cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
+		let kernel = this._notebookKernelService.getBoundKernel(notebook);
+		if (kernel) {
+			await kernel.cancelNotebookCellExecution(notebook.uri, Array.from(cells, cell => cell.handle));
 		}
-		await this._ensureActiveKernel();
-		await this._delegate.activeKernel?.cancelNotebookCellExecution!(this._delegate.viewModel.uri, [{ start: 0, end: this._delegate.viewModel.length }]);
-	}
-
-	async executeNotebook(): Promise<void> {
-		if (!this._delegate.viewModel) {
-			return;
-		}
-		await this._ensureActiveKernel();
-		if (!this.canExecuteNotebook()) {
-			return;
-		}
-		const codeCellRanges = getRanges(this._delegate.viewModel.viewCells, cell => this.canExecuteCell(cell));
-		if (codeCellRanges.length > 0) {
-			await this._delegate.activeKernel?.executeNotebookCellsRequest(this._delegate.viewModel.uri, codeCellRanges);
-		}
-	}
-
-	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
-		if (!this._delegate.viewModel) {
-			return;
-		}
-
-		if (cell.cellKind !== CellKind.Code) {
-			return;
-		}
-
-		const metadata = cell.getEvaluatedMetadata(this._delegate.viewModel.metadata);
-		if (metadata.runState === NotebookCellExecutionState.Idle) {
-			return;
-		}
-
-		await this._ensureActiveKernel();
-
-		const idx = this._delegate.viewModel.getCellIndex(cell);
-		const ranges = cellIndexesToRanges([idx]);
-		await this._delegate.activeKernel?.cancelNotebookCellExecution!(this._delegate.viewModel.uri, ranges);
-	}
-
-	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
-		if (!this._delegate.viewModel) {
-			return;
-		}
-		await this._ensureActiveKernel();
-		if (!this.canExecuteCell(cell)) {
-			throw new Error('Cell is not executable: ' + cell.uri);
-		}
-		const idx = this._delegate.viewModel.getCellIndex(cell);
-		const range = cellIndexesToRanges([idx]);
-		await this._delegate.activeKernel?.executeNotebookCellsRequest(this._delegate.viewModel.uri, range);
-	}
-
-	private canExecuteNotebook(): boolean {
-		if (!this._delegate.activeKernel) {
-			return false;
-		}
-		if (!this._delegate.viewModel?.trusted) {
-			return false;
-		}
-		return true;
-	}
-
-	private canExecuteCell(cell: ICellViewModel): boolean {
-		if (!this._delegate.viewModel?.trusted) {
-			return false;
-		}
-		if (!this._delegate.activeKernel) {
-			return false;
-		}
-		if (cell.cellKind !== CellKind.Code) {
-			return false;
-		}
-		if (!this._delegate.activeKernel.supportedLanguages) {
-			return true;
-		}
-		if (this._delegate.activeKernel.supportedLanguages.includes(cell.language)) {
-			return true;
-		}
-		return false;
 	}
 }

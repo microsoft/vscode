@@ -789,12 +789,12 @@ export interface INotebookKernel {
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	supportedLanguages?: string[]
+	supportedLanguages: string[]
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
-	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
-	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
+	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 }
 
 export interface INotebookCellStatusBarItemProvider {

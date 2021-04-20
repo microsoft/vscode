@@ -3101,7 +3101,8 @@ export class NotebookCellData {
 	}
 
 	static isNotebookCellData(value: unknown): value is vscode.NotebookCellData {
-		return value instanceof NotebookCellData;
+		// return value instanceof NotebookCellData;
+		return true;
 	}
 
 	kind: NotebookCellKind;

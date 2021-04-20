@@ -46,7 +46,7 @@ import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN
 import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_ID, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/notebookEditorDecorations';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { IKernelManagerDelegate, NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
+import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -312,7 +312,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IStorageService storageService: IStorageService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
-		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
+		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -336,11 +336,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._register(instantiationService.createInstance(NotebookEditorContextKeys, this));
 
-		const that = this;
-		this._kernelManger = instantiationService.createInstance(NotebookEditorKernelManager, <IKernelManagerDelegate>{
-			get viewModel() { return that.viewModel; },
-			get activeKernel() { return that.activeKernel; }
-		});
+		this._kernelManger = instantiationService.createInstance(NotebookEditorKernelManager);
 		this._register(notebookKernelService.onDidChangeNotebookKernelBinding(e => {
 			if (isEqual(e.notebook, this.viewModel?.uri)) {
 				this._loadKernelPreloads();
@@ -1668,33 +1664,27 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	get activeKernel() {
-		if (!this.viewModel) {
-			return undefined;
-		}
-		let boundKernel = this.notebookKernelService.getBoundKernel(this.viewModel.notebookDocument);
-		if (boundKernel) {
-			return boundKernel;
-		}
-		return this.notebookKernelService.getMatchingKernels(this.viewModel.notebookDocument)[0];
+		return this.viewModel && this._kernelManger.getActiveKernel(this.viewModel.notebookDocument);
 	}
 
-	async cancelNotebookExecution(): Promise<void> {
-		return this._kernelManger.cancelNotebookExecution();
-	}
-
-	async executeNotebook(): Promise<void> {
-		return this._kernelManger.executeNotebook();
-	}
-
-	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
-		return this._kernelManger.cancelNotebookCellExecution(cell);
-	}
-
-	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
-		if (!this.viewModel) {
+	async cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
+		if (!this.hasModel()) {
 			return;
 		}
-		return this._kernelManger.executeNotebookCell(cell);
+		if (!cells) {
+			cells = this.viewModel.viewCells;
+		}
+		return this._kernelManger.cancelNotebookCells(this.viewModel.notebookDocument, cells);
+	}
+
+	async executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
+		if (!this.hasModel()) {
+			return;
+		}
+		if (!cells) {
+			cells = this.viewModel.viewCells;
+		}
+		return this._kernelManger.executeNotebookCells(this.viewModel.notebookDocument, cells);
 	}
 
 	//#endregion

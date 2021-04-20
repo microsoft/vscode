@@ -453,24 +453,14 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly activeKernel: INotebookKernel | undefined;
 
 	/**
-	 * Execute the given notebook cell
+	 * Execute the given notebook cells
 	 */
-	executeNotebookCell(cell: ICellViewModel): Promise<void>;
+	executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>
 
 	/**
-	 * Cancel the cell execution
+	 * Cancel the given notebook cells
 	 */
-	cancelNotebookCellExecution(cell: ICellViewModel): void;
-
-	/**
-	 * Executes all notebook cells in order
-	 */
-	executeNotebook(): Promise<void>;
-
-	/**
-	 * Cancel the notebook execution
-	 */
-	cancelNotebookExecution(): void;
+	cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>
 
 	/**
 	 * Get current active cell

@@ -31,6 +31,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { Iterable } from 'vs/base/common/iterator';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -427,7 +428,7 @@ registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		return context.notebookEditor.cancelNotebookCellExecution(context.cell);
+		return context.notebookEditor.cancelNotebookCells(Iterable.single(context.cell));
 	}
 });
 
@@ -569,7 +570,7 @@ registerAction2(class extends NotebookAction {
 			group?.pinEditor(editor.editor);
 		}
 
-		return context.notebookEditor.executeNotebook();
+		return context.notebookEditor.executeNotebookCells();
 	}
 });
 
@@ -611,7 +612,7 @@ registerAction2(class CancelNotebook extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		return context.notebookEditor.cancelNotebookExecution();
+		return context.notebookEditor.cancelNotebookCells();
 	}
 });
 
@@ -695,7 +696,7 @@ async function runCell(accessor: ServicesAccessor, context: INotebookCellActionC
 		context.notebookEditor.focusNotebookCell(context.cell, 'container');
 		return;
 	} else {
-		return context.notebookEditor.executeNotebookCell(context.cell);
+		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
 	}
 }
 

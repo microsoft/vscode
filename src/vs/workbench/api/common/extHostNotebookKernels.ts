@@ -10,7 +10,6 @@ import * as vscode from 'vscode';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -199,7 +198,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	async $executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): Promise<void> {
+	async $executeCells(handle: number, uri: UriComponents, handles: number[]): Promise<void> {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			// extension can dispose kernels in the meantime
@@ -211,8 +210,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		const cells: vscode.NotebookCell[] = [];
-		for (let range of ranges) {
-			cells.push(...document.notebookDocument.getCells(extHostTypeConverters.NotebookRange.to(range)));
+		for (let cellHandle of handles) {
+			const cell = document.getCell(cellHandle);
+			if (cell) {
+				cells.push(cell.cell);
+			}
 		}
 
 		try {
@@ -223,7 +225,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	async $cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): Promise<void> {
+	async $cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void> {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			// extension can dispose kernels in the meantime
@@ -238,12 +240,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		// we do both? interrupt and cancellation or should we be selective?
-		for (const range of ranges) {
-			for (let i = range.start; i < range.end; i++) {
-				const cell = document.getCellFromIndex(i);
-				if (cell) {
-					this._extHostNotebook.cancelOneNotebookCellExecution(cell);
-				}
+		for (let cellHandle of handles) {
+			const cell = document.getCell(cellHandle);
+			if (cell) {
+				this._extHostNotebook.cancelOneNotebookCellExecution(cell);
 			}
 		}
 	}
