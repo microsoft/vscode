@@ -362,7 +362,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		return this.jsonEditingService.write(toWorkspace.configPath, [{ path: ['settings'], value: targetWorkspaceConfiguration }], true);
 	}
 
-	private trustWorkspaceConfiguration(configPathURI: URI): void {
+	protected trustWorkspaceConfiguration(configPathURI: URI): void {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 			this.workspaceTrustManagementService.setFoldersTrust([dirname(configPathURI)], true);
 		}
