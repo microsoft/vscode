@@ -1016,7 +1016,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 						fileBytesDownloaded: number;
 					}
 
-					async function downloadFileBuffered(resource: URI, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
+					async function downloadFileBuffered(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
 						const contents = await fileService.readFileStream(resource);
 						if (cts.token.isCancellationRequested) {
 							target.close();
@@ -1056,7 +1056,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 						});
 					}
 
-					async function downloadFileUnbuffered(resource: URI, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
+					async function downloadFileUnbuffered(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
 						const contents = await fileService.readFile(resource);
 						if (!cts.token.isCancellationRequested) {
 							target.write(contents.value.buffer);
@@ -1066,7 +1066,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 						target.close();
 					}
 
-					async function downloadFile(targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, file: IFileStatWithMetadata, operation: IDownloadOperation): Promise<void> {
+					async function downloadFile(targetFolder: FileSystemDirectoryHandle, file: IFileStatWithMetadata, operation: IDownloadOperation): Promise<void> {
 
 						// Report progress
 						operation.filesDownloaded++;
@@ -1086,7 +1086,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 						return downloadFileUnbuffered(file.resource, targetFileWriter, operation);
 					}
 
-					async function downloadFolder(folder: IFileStatWithMetadata, targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, operation: IDownloadOperation): Promise<void> {
+					async function downloadFolder(folder: IFileStatWithMetadata, targetFolder: FileSystemDirectoryHandle, operation: IDownloadOperation): Promise<void> {
 						if (folder.children) {
 							operation.filesTotal += (folder.children.map(child => child.isFile)).length;
 
@@ -1133,7 +1133,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 					}
 
 					try {
-						const parentFolder: WebFileSystemAccess.FileSystemDirectoryHandle = await window.showDirectoryPicker();
+						const parentFolder: FileSystemDirectoryHandle = await window.showDirectoryPicker();
 						const operation: IDownloadOperation = {
 							startTime: Date.now(),
 							progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
