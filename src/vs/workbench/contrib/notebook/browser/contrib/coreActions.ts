@@ -94,25 +94,24 @@ export interface INotebookActionContext {
 	readonly cell?: ICellViewModel;
 	readonly notebookEditor: IActiveNotebookEditor;
 	readonly ui?: boolean;
+	readonly selectedCells?: ICellViewModel[];
 }
 
 export interface INotebookCellActionContext extends INotebookActionContext {
 	cell: ICellViewModel;
 }
 
-function getContextFromActiveEditor(editorService: IEditorService) {
+function getContextFromActiveEditor(editorService: IEditorService): INotebookActionContext | undefined {
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-	if (!editor) {
-		return;
-	}
-
-	if (!editor.hasModel()) {
+	if (!editor || !editor.hasModel()) {
 		return;
 	}
 
 	const activeCell = editor.getActiveCell();
+	const selectedCells = editor.getSelectionViewModels();
 	return {
 		cell: activeCell,
+		selectedCells,
 		notebookEditor: editor
 	};
 }
@@ -1566,19 +1565,21 @@ registerAction2(class extends NotebookCellAction {
 
 abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const cell = context.cell;
 		const textModel = context.notebookEditor.viewModel.notebookDocument;
 		if (!textModel) {
 			return;
 		}
 
-		const index = textModel.cells.indexOf(cell.model);
-
-		if (index < 0) {
-			return;
+		const metadataDelta = this.getMetadataDelta();
+		const edits: ICellEditOperation[] = [];
+		for (const cell of context.selectedCells || []) {
+			const index = textModel.cells.indexOf(cell.model);
+			if (index >= 0) {
+				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...metadataDelta } });
+			}
 		}
 
-		textModel.applyEdits([{ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...this.getMetadataDelta() } }], true, undefined, () => undefined, undefined);
+		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
 	}
 
 	abstract getMetadataDelta(): NotebookCellMetadata;
