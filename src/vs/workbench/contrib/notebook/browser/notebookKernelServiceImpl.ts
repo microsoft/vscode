@@ -140,7 +140,7 @@ export class NotebookKernelService implements INotebookKernelService {
 	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel | undefined): void {
 		const key = notebook.uri.toString();
 		const oldKernel = this._kernelBindings.get(key);
-		if (oldKernel !== kernel) {
+		if (oldKernel !== kernel?.id) {
 			if (kernel) {
 				this._kernelBindings.set(key, kernel.id);
 			} else {
