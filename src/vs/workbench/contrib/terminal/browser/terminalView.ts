@@ -365,7 +365,7 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		this._container = container;
-		super.render(container);
+		super.render(this._container);
 		this.element = DOM.append(this._container, DOM.$(''));
 		this.element.className = this._args.className;
 		this._primaryAction.render(this.element);
@@ -377,8 +377,8 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 	update(args: CombinedButtonArgs): void {
 		this._dropdown?.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-more'] });
-		if (this._container) {
-			this.render(this._container);
+		if (this._container && this.element) {
+			this._dropdown.render(this.element);
 		}
 	}
 }
