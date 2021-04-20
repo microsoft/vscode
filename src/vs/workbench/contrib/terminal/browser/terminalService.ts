@@ -37,6 +37,7 @@ import { equals } from 'vs/base/common/objects';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { URI } from 'vs/base/common/uri';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -930,7 +931,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	public convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
+	public convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
 		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
@@ -939,7 +940,8 @@ export class TerminalService implements ITerminalService {
 				args: profile.args,
 				env: profile.env,
 				icon: profile.icon,
-				name: profile.overrideName ? profile.profileName : undefined
+				name: profile.overrideName ? profile.profileName : undefined,
+				cwd
 			};
 		}
 

@@ -1217,7 +1217,8 @@ export function registerTerminalActions() {
 				if (cwd === undefined) {
 					return undefined;
 				}
-				const shellLaunchConfig = profile ? terminalService.convertProfileToShellLaunchConfig(profile) : { cwd };
+				const shellLaunchConfig = profile ? terminalService.convertProfileToShellLaunchConfig(profile, cwd) : { cwd };
+
 				terminalService.splitInstance(t, shellLaunchConfig);
 				return terminalService.showPanel(true);
 			});
