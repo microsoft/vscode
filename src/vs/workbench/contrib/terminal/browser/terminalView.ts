@@ -219,6 +219,7 @@ export class TerminalViewPane extends ViewPane {
 
 		for (const [, configureActions] of this._dropdownMenu.getActions()) {
 			for (const action of configureActions) {
+				// make sure the action is a MenuItemAction
 				if ('alt' in action) {
 					dropdownActions.push(action);
 				}
@@ -226,8 +227,8 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'more', title: 'more...', icon: Codicon.chevronDown }, undefined, undefined);
-		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions', secondaryIcon: 'codicon-chevron-down' };
+		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'launch-profile', title: 'Launch Profile...', icon: Codicon.chevronDown }, undefined, undefined);
+		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal-tab-actions', secondaryIcon: 'codicon-chevron-down' };
 	}
 
 	private _getInitialTabActionBarArgs(): CombinedButtonArgs {
