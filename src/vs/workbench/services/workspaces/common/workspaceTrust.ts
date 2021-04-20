@@ -6,14 +6,16 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
@@ -46,6 +48,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	constructor(
 		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
@@ -67,6 +70,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private registerListeners(): void {
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrust()));
+		this._register(this.workspaceService.onDidChangeWorkbenchState(() => this.currentTrustState = this.calculateWorkspaceTrust()));
 		this._register(this.storageService.onDidChangeValue(changeEvent => {
 			if (changeEvent.key === this.storageKey) {
 				this._trustStateInfo = this.loadTrustInfo();
@@ -115,8 +119,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true;
 		}
 
-		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
-		const trusted = this.getFoldersTrust(folderURIs);
+		const workspaceFolders = this.getWorkspaceFolders();
+		const trusted = this.getFoldersTrust(workspaceFolders);
 
 		return trusted;
 	}
@@ -133,6 +137,16 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		return state;
+	}
+
+	private getWorkspaceFolders(): URI[] {
+		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
+		const workspaceConfiguration = this.workspaceService.getWorkspace().configuration;
+		if (workspaceConfiguration && !isUntitledWorkspace(workspaceConfiguration, this.environmentService)) {
+			folderURIs.push(dirname(workspaceConfiguration));
+		}
+
+		return folderURIs;
 	}
 
 	public getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
@@ -196,10 +210,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	setWorkspaceTrust(trusted: boolean): void {
-		// TODO: workspace file for multi-root workspaces
-		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
-
-		this.setFoldersTrust(folderURIs, trusted);
+		const workspaceFolders = this.getWorkspaceFolders();
+		this.setFoldersTrust(workspaceFolders, trusted);
 	}
 
 	getTrustedFolders(): URI[] {
