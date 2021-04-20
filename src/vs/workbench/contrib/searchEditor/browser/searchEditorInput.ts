@@ -25,8 +25,9 @@ import { SearchEditorModel } from 'vs/workbench/contrib/searchEditor/browser/sea
 import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { ITextFileSaveOptions, ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ITextFileSaveOptions, ITextFileService, toBufferOrReadable } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export type SearchConfiguration = {
@@ -111,6 +112,17 @@ export class SearchEditorInput extends EditorInput {
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
+			// TODO@JacksonKearl consider to enable a `typeId` that is specific for custom
+			// editors. Using a distinct `typeId` allows the working copy to have
+			// any resource (including file based resources) even if other working
+			// copies exist with the same resource.
+			//
+			// IMPORTANT: changing the `typeId` has an impact on backups for this
+			// working copy. Any value that is not the empty string will be used
+			// as seed to the backup. Only change the `typeId` if you have implemented
+			// a fallback solution to resolve any existing backups that do not have
+			// this seed.
+			readonly typeId = NO_TYPE_ID;
 			readonly resource = input.modelUri;
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
@@ -255,8 +267,12 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	private async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-		const content = stringToSnapshot((await this.model).getValue());
-		return { content };
+		const model = await this.model;
+		if (token.isCancellationRequested) {
+			return {};
+		}
+
+		return { content: toBufferOrReadable(model.createSnapshot(true /* preserve BOM */)) };
 	}
 
 	private async suggestFileName(): Promise<URI> {

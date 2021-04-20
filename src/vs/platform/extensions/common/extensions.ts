@@ -223,6 +223,7 @@ export interface IExtensionManifest {
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
 	readonly workspaceTrust?: ExtensionWorkspaceTrust;
+	readonly supportsVirtualWorkspace?: boolean;
 }
 
 export const enum ExtensionType {

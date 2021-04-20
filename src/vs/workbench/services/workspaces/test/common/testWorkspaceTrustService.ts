@@ -55,10 +55,6 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return this.trusted;
 	}
 
-	setOpenEditors(openEditors: URI[]): void {
-		throw new Error('Method not implemented.');
-	}
-
 	setWorkspaceTrust(trusted: boolean): void {
 		if (this.trusted !== trusted) {
 			this.trusted = trusted;

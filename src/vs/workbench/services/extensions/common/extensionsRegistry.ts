@@ -415,6 +415,11 @@ export const schema: IJSONSchema = {
 				}
 			]
 		},
+		supportsVirtualWorkspace: {
+			description: nls.localize('supportsVirtualWorkspace', "When disabled the extension is not enabled in the workspace that has all folders using custom scheme. Default is `true`."),
+			type: 'boolean',
+			default: true
+		},
 		scripts: {
 			type: 'object',
 			properties: {

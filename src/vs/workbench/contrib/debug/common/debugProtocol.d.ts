@@ -586,6 +586,11 @@ declare module DebugProtocol {
 			The attribute is only honored by a debug adapter if the capability 'supportTerminateDebuggee' is true.
 		*/
 		terminateDebuggee?: boolean;
+		/** Indicates whether the debuggee should stay suspended when the debugger is disconnected.
+			If unspecified, the debuggee should resume execution.
+			The attribute is only honored by a debug adapter if the capability 'supportSuspendDebuggee' is true.
+		*/
+		suspendDebuggee?: boolean;
 	}
 
 	/** Response to 'disconnect' request. This is just an acknowledgement, so no body field is required. */
@@ -1609,6 +1614,8 @@ declare module DebugProtocol {
 		supportsExceptionInfoRequest?: boolean;
 		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
 		supportTerminateDebuggee?: boolean;
+		/** The debug adapter supports the 'suspendDebuggee' attribute on the 'disconnect' request. */
+		supportSuspendDebuggee?: boolean;
 		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and an optional 'totalFrames' result of the 'StackTrace' request are supported. */
 		supportsDelayedStackTraceLoading?: boolean;
 		/** The debug adapter supports the 'loadedSources' request. */

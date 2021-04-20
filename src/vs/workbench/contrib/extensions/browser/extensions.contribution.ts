@@ -174,6 +174,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsWebWorker', "Enable web worker extension host."),
 				default: false
+			},
+			'extensions.supportsVirtualWorkspace': {
+				type: 'object',
+				markdownDescription: localize('extensions.supportsVirtualWorkspace', "Override the virtual workspace support of an extension"),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						type: 'boolean',
+						default: false
+					}
+				},
+				default: {
+					'pub.name': false
+				}
 			}
 		}
 	});

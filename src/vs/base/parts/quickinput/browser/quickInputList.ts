@@ -27,6 +27,7 @@ import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput'
 import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { localize } from 'vs/nls';
+import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -427,7 +428,7 @@ export class QuickInputList {
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
 				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
-					.map(s => s && parseLabelWithIcons(s).text)
+					.map(s => getCodiconAriaLabel(s))
 					.filter(s => !!s)
 					.join(', ');
 
