@@ -84,7 +84,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany });
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, enableDragAndDrop: !!options.enableDragAndDrop });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -182,7 +182,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 type Root = null | undefined | void;
 type TreeData<T> = { message: boolean, element: T | Root | false };
 
-interface TreeNode extends IDisposable {
+export interface TreeNode extends IDisposable {
 	item: ITreeItem;
 	extensionItem: vscode.TreeItem;
 	parent: TreeNode | Root;
@@ -196,6 +196,8 @@ class ExtHostTreeView<T> extends Disposable {
 	private static readonly ID_HANDLE_PREFIX = '1';
 
 	private readonly dataProvider: vscode.TreeDataProvider<T>;
+
+	//private readonly moveHandler: vscode.TreeMoveItem<T>;
 
 	private roots: TreeNode[] | null = null;
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();

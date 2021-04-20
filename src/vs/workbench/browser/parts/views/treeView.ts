@@ -38,7 +38,8 @@ import { textLinkForeground, textCodeBlockBackground, focusBorder, listFilterMat
 import { isString } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -464,6 +465,7 @@ export class TreeView extends Disposable implements ITreeView {
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
 		const widgetAriaLabel = this._title;
 
+		//already using asyncData
 		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer, new TreeViewDelegate(), [renderer],
 			dataSource, {
 			identityProvider: new TreeViewIdentityProvider(),
@@ -503,6 +505,7 @@ export class TreeView extends Disposable implements ITreeView {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
 			},
 			multipleSelectionSupport: this.canSelectMany,
+			dnd: this.instantiationService.createInstance(CustomTreeViewDragAndDrop),
 			overrideStyles: {
 				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 			}
@@ -1181,5 +1184,29 @@ export class CustomTreeView extends TreeView {
 				});
 			this.activated = true;
 		}
+	}
+}
+
+export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
+	constructor() { }
+
+	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		return false;
+	}
+
+	getDragURI(element: ITreeItem): string | null {
+		return element.tooltip ? element.tooltip.toString() : null;
+	}
+
+	getDragLabel?(elements: ITreeItem[]): string | undefined {
+		if (elements.length > 1) {
+			return String(elements.length);
+		}
+
+		const element = elements[0];
+		return element.label ? element.label.label : undefined;
+	}
+
+	drop(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): void {
 	}
 }
