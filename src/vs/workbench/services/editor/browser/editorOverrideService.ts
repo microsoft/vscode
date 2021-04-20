@@ -29,9 +29,8 @@ interface IContributedEditorInput extends IEditorInput {
 
 interface ContributionPoint {
 	globPattern: string | glob.IRelativePattern,
-	priority: number,
 	editorInfo: ContributedEditorInfo,
-	options: ContributionPointOptions,
+	options?: ContributionPointOptions,
 	createEditorInput: EditorInputFactoryFunction
 	createDiffEditorInput?: DiffEditorInputFactoryFunction
 }
@@ -51,9 +50,9 @@ export type ContributedEditorInfo = {
 	priority: ContributedEditorPriority;
 };
 
-type EditorInputFactoryFunction = (resource: URI, editorID: string, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
-type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, editorID: string, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
 export interface IEditorOverrideService {
 	readonly _serviceBrand: undefined;
@@ -80,7 +79,6 @@ export interface IEditorOverrideService {
 	 */
 	registerContributionPoint(
 		globPattern: string | glob.IRelativePattern,
-		priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
 		createEditorInput: EditorInputFactoryFunction,
@@ -148,7 +146,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			return;
 		}
 
-		const handlesDiff = typeof selectedContribution.options.canHandleDiff === 'function' ? selectedContribution.options.canHandleDiff() : selectedContribution.options.canHandleDiff;
+		const handlesDiff = typeof selectedContribution.options?.canHandleDiff === 'function' ? selectedContribution.options.canHandleDiff() : selectedContribution.options?.canHandleDiff;
 		if (editor instanceof DiffEditorInput && handlesDiff === false) {
 			return;
 		}
@@ -173,7 +171,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 	registerContributionPoint(
 		globPattern: string | glob.IRelativePattern,
-		priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
 		createEditorInput: EditorInputFactoryFunction,
@@ -184,7 +181,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 		const remove = insert(this._contributionPoints.get(globPattern)!, {
 			globPattern,
-			priority,
 			editorInfo,
 			options,
 			createEditorInput,
@@ -233,7 +229,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			}
 		}
 		// Return the contributions sorted by their priority
-		return contributions.sort((a, b) => b.priority - a.priority);
+		return contributions.sort((a, b) => priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority));
 	}
 
 	/**
@@ -254,7 +250,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want built-in+ if no user defined setting is found, else we won't override
-		const possibleContributionPoints = contributionPoints.filter(contribPoint => contribPoint.priority >= priorityToRank(ContributedEditorPriority.builtin) && contribPoint.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		const possibleContributionPoints = contributionPoints.filter(contribPoint => priorityToRank(contribPoint.editorInfo.priority) >= priorityToRank(ContributedEditorPriority.builtin) && contribPoint.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		// If the user has a setting we use that, else choose the highest priority editor that is built-in+
 		const selectedViewType = associationsFromSetting[0]?.viewType || possibleContributionPoints[0]?.editorInfo.id;
 
@@ -281,7 +277,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			if (!selectedContribution.createDiffEditorInput) {
 				return;
 			}
-			const inputWithOptions = selectedContribution.createDiffEditorInput(editor, selectedContribution.editorInfo.id, options, group);
+			const inputWithOptions = selectedContribution.createDiffEditorInput(editor, options, group);
 			return inputWithOptions;
 		}
 
@@ -289,12 +285,12 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const resource = editor.resource!;
 
 		// Respect options passed back
-		const inputWithOptions = selectedContribution.createEditorInput(resource, selectedContribution.editorInfo.id, options, group);
+		const inputWithOptions = selectedContribution.createEditorInput(resource, options, group);
 		options = inputWithOptions.options ?? options;
 		const input = inputWithOptions.editor;
 
 		// If the editor states it can only be opened once per resource we must close all existing ones first
-		const singleEditorPerResource = typeof selectedContribution.options.singlePerResource === 'function' ? selectedContribution.options.singlePerResource() : selectedContribution.options.singlePerResource;
+		const singleEditorPerResource = typeof selectedContribution.options?.singlePerResource === 'function' ? selectedContribution.options.singlePerResource() : selectedContribution.options?.singlePerResource;
 		if (singleEditorPerResource) {
 			this.closeExistingEditorsForResource(resource, selectedContribution.editorInfo.id, group);
 		}
@@ -411,7 +407,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			} else if (b.editorInfo.id === DEFAULT_EDITOR_ASSOCIATION.id) {
 				return 1;
 			} else {
-				return b.priority - a.priority;
+				return priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority);
 			}
 		});
 		const contribGroups: { defaults: Array<IQuickPickSeparator | IQuickPickItem>, optional: Array<IQuickPickSeparator | IQuickPickItem> } = {

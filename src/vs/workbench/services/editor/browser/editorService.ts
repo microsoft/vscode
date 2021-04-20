@@ -37,7 +37,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
-import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -521,7 +521,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private registerDefaultOverride(): void {
 		this._register(this.editorOverrideService.registerContributionPoint(
 			'*',
-			priorityToRank(ContributedEditorPriority.builtin),
 			{
 				id: DEFAULT_EDITOR_ASSOCIATION.id,
 				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
@@ -530,10 +529,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				priority: ContributedEditorPriority.builtin,
 			},
 			{},
-			(resource, editorID, options, group) => {
+			(resource, options, group) => {
 				return { editor: this.createEditorInput({ resource }) };
 			},
-			(diffEditor, editorId, options, group) => {
+			(diffEditor, options, group) => {
 				return { editor: diffEditor };
 			}
 		));
