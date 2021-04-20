@@ -374,19 +374,22 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 	}
 
 	private _stylize(): void {
-		if (!this.element) {
+		if (!this.element || !this._dropdown.element || !this._primaryAction.element) {
 			return;
 		}
-		this.element.style.display = 'flex';
-		this.element.style.flexDirection = 'row';
-		this._dropdown.element!.style.paddingLeft = '0px';
-		this._dropdown.element!.style.fontSize = '12px';
-		this._dropdown.element!.style.maxWidth = '6px';
-		this._dropdown.element!.style.lineHeight = '16px';
-		this._dropdown.element!.style.marginTop = '12px';
-		this._dropdown.element!.style.marginLeft = '0px';
-		this._primaryAction.element!.style.marginRight = '0px';
-		this._primaryAction.element!.style.paddingRight = '0px';
+		const elementStyle = this.element.style;
+		elementStyle.display = 'flex';
+		elementStyle.flexDirection = 'row';
+		const dropdownStyle = this._dropdown.element.style;
+		dropdownStyle.paddingLeft = '0px';
+		dropdownStyle.fontSize = '12px';
+		dropdownStyle.maxWidth = '6px';
+		dropdownStyle.lineHeight = '16px';
+		dropdownStyle.marginTop = '12px';
+		dropdownStyle.marginLeft = '0px';
+		const primaryActionStyle = this._primaryAction.element.style;
+		primaryActionStyle.marginRight = '0px';
+		primaryActionStyle.paddingRight = '0px';
 	}
 
 	update(args: CombinedButtonArgs): void {
