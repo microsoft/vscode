@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -971,7 +971,7 @@ var requirejs = (function() {
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
-							if (data.shiftKey || data.metaKey) {
+							if (data.shiftKey || (isMacintosh ? data.metaKey : data.ctrlKey)) {
 								// Add to selection
 								this.notebookEditor.toggleNotebookCellSelection(cell);
 							} else {
