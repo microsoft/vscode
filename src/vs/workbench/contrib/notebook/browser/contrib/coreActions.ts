@@ -691,7 +691,12 @@ async function runCell(accessor: ServicesAccessor, context: INotebookCellActionC
 		}
 	}
 
-	return context.notebookEditor.executeNotebookCell(context.cell);
+	if (context.cell.cellKind === CellKind.Markdown) {
+		context.notebookEditor.focusNotebookCell(context.cell, 'container');
+		return;
+	} else {
+		return context.notebookEditor.executeNotebookCell(context.cell);
+	}
 }
 
 export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string): Promise<ICellViewModel | null> {

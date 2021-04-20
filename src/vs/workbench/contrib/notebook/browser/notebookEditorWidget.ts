@@ -1694,13 +1694,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!this.viewModel) {
 			return;
 		}
-
-		// TODO@roblourens, don't use the "execute" command for this
-		if (cell.cellKind === CellKind.Markdown) {
-			this.focusNotebookCell(cell, 'container');
-			return;
-		}
-
 		return this._kernelManger.executeNotebookCell(cell);
 	}
 
