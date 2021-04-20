@@ -77,17 +77,6 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 				this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { selections: { selections: editor.getSelections() } });
 			}));
 
-			editorDisposables.add(editor.onDidChangeKernel(() => {
-				if (!editor.hasModel()) {
-					return;
-				}
-				this._proxy.$acceptNotebookActiveKernelChange({
-					uri: editor.viewModel.uri,
-					providerHandle: editor.activeKernel?.providerHandle,
-					kernelFriendlyId: editor.activeKernel?.friendlyId
-				});
-			}));
-
 			const wrapper = new MainThreadNotebook(editor, editorDisposables);
 			this._mainThreadEditors.set(editor.getId(), wrapper);
 		}

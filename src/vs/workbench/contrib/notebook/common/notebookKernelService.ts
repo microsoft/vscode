@@ -6,33 +6,13 @@
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
-
-export interface INotebookKernel2ChangeEvent {
-	label?: true;
-	description?: true;
-	detail?: true;
-	isPreferred?: true;
-	supportedLanguages?: true;
-	hasExecutionOrder?: true;
-}
-
-export interface INotebookKernel2 extends INotebookKernel {
-
-	readonly id: string;
-	readonly selector: NotebookSelector
-	readonly extension: ExtensionIdentifier;
-
-	readonly onDidChange: Event<INotebookKernel2ChangeEvent>;
-}
 
 export interface INotebookKernelBindEvent {
 	notebook: URI;
-	oldKernel: INotebookKernel2 | undefined;
-	newKernel: INotebookKernel2 | undefined;
+	oldKernel: string | undefined;
+	newKernel: string | undefined;
 }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
@@ -40,18 +20,18 @@ export const INotebookKernelService = createDecorator<INotebookKernelService>('I
 export interface INotebookKernelService {
 	_serviceBrand: undefined;
 
-	readonly onDidAddKernel: Event<INotebookKernel2>;
-	readonly onDidRemoveKernel: Event<INotebookKernel2>;
+	readonly onDidAddKernel: Event<INotebookKernel>;
+	readonly onDidRemoveKernel: Event<INotebookKernel>;
 	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
 
-	registerKernel(kernel: INotebookKernel2): IDisposable;
-	getMatchingKernels(notebook: INotebookTextModel): INotebookKernel2[];
+	registerKernel(kernel: INotebookKernel): IDisposable;
+	getMatchingKernels(notebook: INotebookTextModel | { uri: URI, viewType: string }): INotebookKernel[];
 
 	/**
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */
-	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel2 | undefined): void;
+	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel | undefined): void;
 
-	getBoundKernel(notebook: INotebookTextModel): INotebookKernel2 | undefined
+	getBoundKernel(notebook: INotebookTextModel): INotebookKernel | undefined
 }
