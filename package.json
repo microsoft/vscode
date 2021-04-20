@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.56.0",
-  "distro": "b47f513fd6c89ab07715875241a42a3cd096c839",
+  "distro": "900923200327a1b5ecf3ad8dc533af4de84bafd1",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -78,7 +78,7 @@
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-oniguruma": "1.3.1",
-    "vscode-proxy-agent": "^0.8.2",
+    "vscode-proxy-agent": "^0.10.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-ripgrep": "^1.11.3",
     "vscode-sqlite3": "4.0.11",
@@ -109,6 +109,7 @@
     "@types/trusted-types": "^1.0.6",
     "@types/vscode-windows-registry": "^1.0.0",
     "@types/webpack": "^4.41.25",
+    "@types/wicg-file-system-access": "^2020.9.1",
     "@types/windows-foreground-love": "^0.3.0",
     "@types/windows-mutex": "^0.4.0",
     "@types/windows-process-tree": "^0.2.0",
@@ -212,7 +213,6 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "^0.3.0",
     "vscode-windows-registry": "1.0.3",
     "windows-foreground-love": "0.2.0",
     "windows-mutex": "0.3.0",

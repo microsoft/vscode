@@ -886,7 +886,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 
 	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;
 	$unregisterNotebookKernelProvider(handle: number): Promise<void>;
-	$registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, documentFilter: INotebookDocumentFilter): Promise<void>;
+	$registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, selector: NotebookSelector): Promise<void>;
 	$unregisterNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void>;
 	$emitCellStatusBarEvent(eventHandle: number): void;
 	$onNotebookKernelChange(handle: number, uri: UriComponents | undefined): void;
@@ -914,6 +914,7 @@ export interface INotebookKernelDto2 {
 	extensionId: ExtensionIdentifier;
 	extensionLocation: UriComponents;
 	label: string;
+	detail?: string;
 	description?: string;
 	isPreferred?: boolean;
 	supportedLanguages: string[];
@@ -1963,8 +1964,8 @@ export interface ExtHostNotebookEditorsShape {
 
 export interface ExtHostNotebookKernelsShape {
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void;
-	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
-	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
+	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): Promise<void>;
+	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): Promise<void>;
 	$acceptRendererMessage(handle: number, editorId: string, message: any): void;
 }
 

@@ -51,7 +51,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IEnvironmentService private readonly envService: IEnvironmentService,
 	) {
 		super();
 
@@ -113,6 +114,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private calculateWorkspaceTrust(): boolean {
 		if (!isWorkspaceTrustEnabled(this.configurationService)) {
 			return true;
+		}
+
+		if (this.envService.extensionTestsLocationURI) {
+			return true; // trust running tests with vscode-test
 		}
 
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {

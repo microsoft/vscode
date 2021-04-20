@@ -219,7 +219,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}));
 	}
 
-	private getActivityHoverOptions(): IActivityHoverOptions | undefined {
+	private getActivityHoverOptions(): IActivityHoverOptions {
 		return {
 			alignment: () => this.layoutService.getSideBarPosition() === Position.LEFT ? ActivityHoverAlignment.RIGHT : ActivityHoverAlignment.LEFT,
 			delay: () => 0

@@ -2355,12 +2355,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	scheduleOutputHeightAck(cellId: string, outputId: string, height: number) {
+	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.updateScrollHeight();
 
 			this._debug('ack height', height);
-			this._webview?.ackHeight(cellId, outputId, height);
+			this._webview?.ackHeight(cellInfo.cellId, outputId, height);
 		}, 10);
 	}
 

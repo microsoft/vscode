@@ -924,6 +924,10 @@ export class TestFileService implements IFileService {
 		return toDisposable(() => this.providers.delete(scheme));
 	}
 
+	getProvider(scheme: string) {
+		return this.providers.get(scheme);
+	}
+
 	activateProvider(_scheme: string): Promise<void> { throw new Error('not implemented'); }
 	canHandleResource(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
 	listCapabilities() {

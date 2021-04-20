@@ -27,6 +27,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { localize } from 'vs/nls';
+import Severity from 'vs/base/common/severity';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -62,8 +65,10 @@ export interface IWorkspaceProvider {
 	 * - `payload`: arbitrary payload that should be made available
 	 * to the opening window via the `IWorkspaceProvider.payload` property.
 	 * @param payload optional payload to send to the workspace to open.
+	 *
+	 * @returns true if successfully opened, false otherwise.
 	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void>;
+	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean>;
 }
 
 enum HostShutdownReason {
@@ -100,7 +105,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -110,7 +116,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.workspaceProvider = new class implements IWorkspaceProvider {
 				readonly workspace = undefined;
 				readonly trusted = undefined;
-				async open() { }
+				async open() { return true; }
 			};
 		}
 
@@ -372,7 +378,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
 	}
 
-	private doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
 		// with `options.reuse` so we update `shutdownReason` to reflect that
@@ -380,7 +386,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.shutdownReason = HostShutdownReason.Api;
 		}
 
-		return this.workspaceProvider.open(workspace, options);
+		const opened = await this.workspaceProvider.open(workspace, options);
+		if (!opened) {
+			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser prevented opening of a new tab or window. You must give permission to continue."), [localize('continue', "Continue"), localize('cancel', "Cancel")], { cancelId: 1 });
+			if (showResult.choice === 0) {
+				await this.workspaceProvider.open(workspace, options);
+			}
+		}
 	}
 
 	async toggleFullScreen(): Promise<void> {

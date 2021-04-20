@@ -77,7 +77,7 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._visibleCells.forEach(cell => cell.dispose());
 		this._visibleCells.clear();
 	}
@@ -130,7 +130,7 @@ class CellStatusBarHelper extends Disposable {
 		this._currentItemIds = newIds;
 	}
 
-	dispose() {
+	override  dispose() {
 		super.dispose();
 
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);

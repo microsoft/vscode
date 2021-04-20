@@ -40,7 +40,7 @@ suite('Workbench - Test Results Service', () => {
 	};
 
 	class TestLiveTestResult extends LiveTestResult {
-		public setAllToState(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
+		public override setAllToState(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
 			super.setAllToState(state, taskId, when);
 		}
 	}

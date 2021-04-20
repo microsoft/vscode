@@ -1229,6 +1229,12 @@ declare module 'vscode' {
 		 */
 		readonly visibleRanges: NotebookRange[];
 
+		/**
+		 * Scroll as indicated by `revealType` in order to reveal the given range.
+		 *
+		 * @param range A range.
+		 * @param revealType The scrolling strategy for revealing `range`.
+		 */
 		revealRange(range: NotebookRange, revealType?: NotebookEditorRevealType): void;
 
 		/**
@@ -1238,6 +1244,9 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookDocumentMetadataChangeEvent {
+		/**
+		 * The [notebook document](#NotebookDocument) for which the document metadata have changed.
+		 */
 		readonly document: NotebookDocument;
 	}
 
@@ -1252,39 +1261,49 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCellsChangeEvent {
-
 		/**
-		 * The affected document.
+		 * The [notebook document](#NotebookDocument) for which the cells have changed.
 		 */
 		readonly document: NotebookDocument;
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
 
 	export interface NotebookCellOutputsChangeEvent {
-
 		/**
-		 * The affected document.
+		 * The [notebook document](#NotebookDocument) for which the cell outputs have changed.
 		 */
 		readonly document: NotebookDocument;
 		readonly cells: NotebookCell[];
 	}
 
 	export interface NotebookCellMetadataChangeEvent {
+		/**
+		 * The [notebook document](#NotebookDocument) for which the cell metadata have changed.
+		 */
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
 	}
 
 	export interface NotebookEditorSelectionChangeEvent {
+		/**
+		 * The [notebook editor](#NotebookEditor) for which the selections have changed.
+		 */
 		readonly notebookEditor: NotebookEditor;
 		readonly selections: ReadonlyArray<NotebookRange>
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
+		/**
+		 * The [notebook editor](#NotebookEditor) for which the visible ranges have changed.
+		 */
 		readonly notebookEditor: NotebookEditor;
 		readonly visibleRanges: ReadonlyArray<NotebookRange>;
 	}
 
 	export interface NotebookCellExecutionStateChangeEvent {
+		/**
+		 * The [notebook document](#NotebookDocument) for which the cell execution state has changed.
+		 */
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
 		readonly executionState: NotebookCellExecutionState;
@@ -1494,6 +1513,7 @@ declare module 'vscode' {
 
 		// UI properties (get/set)
 		label: string;
+		detail?: string;
 		description?: string;
 		isPreferred?: boolean;
 
@@ -1811,7 +1831,7 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		export function registerNotebookCellStatusBarItemProvider(selector: NotebookDocumentFilter, provider: NotebookCellStatusBarItemProvider): Disposable;
+		export function registerNotebookCellStatusBarItemProvider(selector: NotebookSelector, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
 	//#endregion
@@ -2956,6 +2976,9 @@ declare module 'vscode' {
 		 * Prompt the user to chose whether to trust the current workspace
 		 * @param options Optional object describing the properties of the
 		 * workspace trust request. Defaults to { modal: false }
+		 * When using a non-modal request, the promise will return immediately.
+		 * Any time trust is not given, it is recommended to use the
+		 * `onDidReceiveWorkspaceTrust` event to listen for trust changes.
 		 */
 		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean>;
 

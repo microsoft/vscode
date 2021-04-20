@@ -30,7 +30,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 
 		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (!extDevPaths) {
-			return {};
+			return { success: false };
 		}
 
 		// split INullableProcessEnvironment into a IProcessEnvironment and an array of keys to be deleted
@@ -57,12 +57,12 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		});
 
 		if (!debugRenderer) {
-			return {};
+			return { success: true };
 		}
 
 		const win = codeWindow.win;
 		if (!win) {
-			return {};
+			return { success: true };
 		}
 
 		const debug = win.webContents.debugger;
@@ -127,6 +127,6 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		await new Promise<void>(r => server.listen(0, r));
 		win.on('close', () => server.close());
 
-		return { rendererDebugPort: (server.address() as AddressInfo).port };
+		return { rendererDebugPort: (server.address() as AddressInfo).port, success: true };
 	}
 }

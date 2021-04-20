@@ -619,7 +619,7 @@ suite('vscode API - workspace', () => {
 		assert.equal(results.length, 1);
 		const match = <vscode.TextSearchMatch>results[0];
 		assert(match.preview.text.indexOf('foo') >= 0);
-		assert.equal(vscode.workspace.asRelativePath(match.uri), '10linefile.ts');
+		assert.equal(basename(vscode.workspace.asRelativePath(match.uri)), '10linefile.ts');
 	});
 
 	test('findTextInFiles, cancellation', async () => {

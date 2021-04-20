@@ -397,6 +397,10 @@
 		{
 			"name": "vs/workbench/services/gettingStarted",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/host",
+			"project": "vscode-workbench"
 		}
 	]
 }
