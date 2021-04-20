@@ -15,6 +15,7 @@ const localize = nls.loadMessageBundle();
 
 export const NETWORK_ERROR = 'network error';
 const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
+const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
@@ -121,8 +122,10 @@ export class GitHubServer {
 				return;
 			}
 
+			const authServerHost = query.staging ? AUTH_RELAY_STAGING_SERVER : AUTH_RELAY_SERVER;
+
 			try {
-				const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`, {
+				const result = await fetch(`https://${authServerHost}/token?code=${code}&state=${query.state}`, {
 					method: 'POST',
 					headers: {
 						Accept: 'application/json'
