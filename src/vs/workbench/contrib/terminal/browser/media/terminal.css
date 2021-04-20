@@ -220,10 +220,6 @@
 	text-align: left;
 }
 
-.monaco-workbench .terminal-outer-container .menu-entry .monaco-dropdown {
-	font-size: 6px;
-}
-
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry {
 	text-align: center;
 }
