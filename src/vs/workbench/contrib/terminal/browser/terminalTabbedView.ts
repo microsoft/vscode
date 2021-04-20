@@ -11,7 +11,6 @@ import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import * as nls from 'vs/nls';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -21,13 +20,11 @@ import { URI } from 'vs/base/common/uri';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Codicon } from 'vs/base/common/codicons';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -204,7 +201,6 @@ export class TerminalTabbedView extends Disposable {
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
-		this._createButton();
 		this._refreshHasTextClass();
 		this._rerenderTabs();
 	}
@@ -254,15 +250,6 @@ export class TerminalTabbedView extends Disposable {
 
 	private _refreshHasTextClass() {
 		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth >= MIDPOINT_WIDGET_WIDTH);
-	}
-
-	private _createButton(): void {
-		const toolBar = new ToolBar(this._tabTreeContainer, this._contextMenuService);
-		toolBar.setActions([
-			this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined),
-			// TODO: Bring back context menu: await this._openTabsContextMenu(e);
-			this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: nls.localize('terminal.newWithProfile', "New Terminal With Profile"), icon: Codicon.chevronDown }, undefined, undefined)
-		]);
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
