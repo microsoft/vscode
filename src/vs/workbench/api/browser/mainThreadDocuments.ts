@@ -169,7 +169,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._modelTrackers = Object.create(null);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		Object.keys(this._modelTrackers).forEach((modelUrl) => {
 			this._modelTrackers[modelUrl].dispose();
 		});

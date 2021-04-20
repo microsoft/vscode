@@ -63,7 +63,7 @@ import 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
 import 'vs/workbench/services/timer/electron-sandbox/timerService';
 import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
-import 'vs/workbench/services/backup/electron-sandbox/backupFileService';
+import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/platform/checksum/electron-sandbox/checksumService';
 import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
@@ -93,9 +93,6 @@ import 'vs/workbench/electron-sandbox/desktop.contribution';
 // Explorer
 import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
 import 'vs/workbench/contrib/files/electron-sandbox/fileActions.contribution';
-
-// Backup
-import 'vs/workbench/contrib/backup/electron-sandbox/backup.contribution';
 
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/electron-sandbox/codeEditor.contribution';

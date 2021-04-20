@@ -164,16 +164,22 @@ export class HoverWidget extends Widget {
 		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
 
 		// Get horizontal alignment and position
-		let targetLeft = this._target.x !== undefined ? this._target.x : Math.min(...targetBounds.map(e => e.left));
-		if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-			this._x = document.documentElement.clientWidth - this._workbenchLayoutService.getWindowBorderWidth() - 1;
-			this._hover.containerDomNode.classList.add('right-aligned');
+		if (this._target.x !== undefined) {
+			this._x = this._target.x;
 		} else {
-			this._x = targetLeft;
+			const targetLeft = Math.min(...targetBounds.map(e => e.left));
+			if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
+				this._x = document.documentElement.clientWidth - this._workbenchLayoutService.getWindowBorderWidth() - 1;
+				this._hover.containerDomNode.classList.add('right-aligned');
+			} else {
+				this._x = targetLeft;
+			}
 		}
 
 		// Get vertical alignment and position
-		if (this._anchor === AnchorPosition.ABOVE) {
+		if (this._target.y !== undefined) {
+			this._y = this._target.y;
+		} else if (this._anchor === AnchorPosition.ABOVE) {
 			const targetTop = Math.min(...targetBounds.map(e => e.top));
 			if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
 				const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
@@ -204,7 +210,7 @@ export class HoverWidget extends Widget {
 		this.dispose();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
 			this._hover.containerDomNode.parentElement?.removeChild(this.domNode);

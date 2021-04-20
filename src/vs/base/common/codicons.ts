@@ -49,6 +49,16 @@ export function registerCodicon(id: string, def: Codicon): Codicon {
 	return new Codicon(id, def);
 }
 
+// Selects all codicon names encapsulated in the `$()` syntax and wraps the
+// results with spaces so that screen readers can read the text better.
+export function getCodiconAriaLabel(text: string | undefined) {
+	if (!text) {
+		return '';
+	}
+
+	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
+}
+
 export class Codicon implements CSSIcon {
 	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition, public description?: string) {
 		_registry.add(this);
@@ -551,6 +561,11 @@ export namespace Codicon {
 	export const workspaceTrusted = new Codicon('workspace-trusted', { fontCharacter: '\\ebc1' });
 	export const workspaceUntrusted = new Codicon('workspace-untrusted', { fontCharacter: '\\ebc2' });
 	export const workspaceUnspecified = new Codicon('workspace-unspecified', { fontCharacter: '\\ebc3' });
+	export const terminalCmd = new Codicon('terminal-cmd', { fontCharacter: '\\ebc4' });
+	export const terminalDebian = new Codicon('terminal-debian', { fontCharacter: '\\ebc5' });
+	export const terminalLinux = new Codicon('terminal-linux', { fontCharacter: '\\ebc6' });
+	export const terminalPowershell = new Codicon('terminal-powershell', { fontCharacter: '\\ebc7' });
+	export const terminalTmux = new Codicon('terminal-tmux', { fontCharacter: '\\ebc8' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

@@ -19,11 +19,13 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/objects';
 
-class MainThreadEditor {
+class MainThreadNotebook {
+
 	constructor(
 		readonly editor: INotebookEditor,
 		readonly disposables: DisposableStore
 	) { }
+
 	dispose() {
 		this.disposables.dispose();
 	}
@@ -34,7 +36,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _mainThreadEditors = new Map<string, MainThreadEditor>();
+	private readonly _mainThreadEditors = new Map<string, MainThreadNotebook>();
 
 	private _currentViewColumnInfo?: INotebookEditorViewColumnInfo;
 
@@ -86,7 +88,8 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 				});
 			}));
 
-			this._mainThreadEditors.set(editor.getId(), new MainThreadEditor(editor, editorDisposables));
+			const wrapper = new MainThreadNotebook(editor, editorDisposables);
+			this._mainThreadEditors.set(editor.getId(), wrapper);
 		}
 	}
 
@@ -128,9 +131,11 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		return editor.textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
 	}
 
+
+
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
 		const editorOptions = new NotebookEditorOptions({
-			cellSelections: options.selection && [options.selection],
+			cellSelections: options.selections,
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
 			// selection: options.selection,

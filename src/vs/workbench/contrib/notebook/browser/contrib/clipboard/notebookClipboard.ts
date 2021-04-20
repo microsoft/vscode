@@ -24,6 +24,55 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+
+function getFocusedWebviewDelegate(accessor: ServicesAccessor): Webview | undefined {
+	const editorService = accessor.get(IEditorService);
+	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	if (!editor?.hasFocus()) {
+		return;
+	}
+
+	if (!editor?.hasWebviewFocus()) {
+		return;
+	}
+
+	const webview = editor?.getInnerWebview();
+	return webview;
+}
+
+function withWebview(accessor: ServicesAccessor, f: (webviewe: Webview) => void) {
+	const webview = getFocusedWebviewDelegate(accessor);
+	if (webview) {
+		f(webview);
+		return true;
+	}
+	return false;
+}
+
+const PRIORITY = 105;
+
+UndoCommand.addImplementation(PRIORITY, 'notebook-webview', accessor => {
+	return withWebview(accessor, webview => webview.undo());
+});
+
+RedoCommand.addImplementation(PRIORITY, 'notebook-webview', accessor => {
+	return withWebview(accessor, webview => webview.redo());
+});
+
+CopyAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
+	return withWebview(accessor, webview => webview.copy());
+});
+
+PasteAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
+	return withWebview(accessor, webview => webview.paste());
+});
+
+CutAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
+	return withWebview(accessor, webview => webview.cut());
+});
+
 
 export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewModel | undefined, pasteCells: {
 	items: NotebookCellTextModel[];
@@ -31,7 +80,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 }): boolean {
 	const viewModel = editor.viewModel;
 
-	if (!viewModel || !viewModel.metadata.editable) {
+	if (!viewModel || viewModel.options.isReadOnly) {
 		return false;
 	}
 
@@ -127,7 +176,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor, targetCell: ICellViewModel | undefined): boolean {
 	const viewModel = editor.viewModel;
 
-	if (!viewModel || !viewModel.metadata.editable) {
+	if (!viewModel || viewModel.options.isReadOnly) {
 		return false;
 	}
 
@@ -376,7 +425,7 @@ registerAction2(class extends NotebookAction {
 
 		const viewModel = context.notebookEditor.viewModel;
 
-		if (!viewModel || !viewModel.metadata.editable) {
+		if (!viewModel || viewModel.options.isReadOnly) {
 			return;
 		}
 
@@ -408,7 +457,7 @@ registerAction2(class extends NotebookCellAction {
 
 		const viewModel = context.notebookEditor.viewModel;
 
-		if (!viewModel || !viewModel.metadata.editable) {
+		if (!viewModel || viewModel.options.isReadOnly) {
 			return;
 		}
 

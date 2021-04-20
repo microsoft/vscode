@@ -25,8 +25,9 @@ import { SearchEditorModel } from 'vs/workbench/contrib/searchEditor/browser/sea
 import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { ITextFileSaveOptions, ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ITextFileSaveOptions, ITextFileService, toBufferOrReadable } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export type SearchConfiguration = {
@@ -46,6 +47,10 @@ export const SEARCH_EDITOR_EXT = '.code-search';
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
+
+	override get typeId(): string {
+		return SearchEditorInput.ID;
+	}
 
 	private memento: Memento;
 
@@ -107,6 +112,17 @@ export class SearchEditorInput extends EditorInput {
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
+			// TODO@JacksonKearl consider to enable a `typeId` that is specific for custom
+			// editors. Using a distinct `typeId` allows the working copy to have
+			// any resource (including file based resources) even if other working
+			// copies exist with the same resource.
+			//
+			// IMPORTANT: changing the `typeId` has an impact on backups for this
+			// working copy. Any value that is not the empty string will be used
+			// as seed to the backup. Only change the `typeId` if you have implemented
+			// a fallback solution to resolve any existing backups that do not have
+			// this seed.
+			readonly typeId = NO_TYPE_ID;
 			readonly resource = input.modelUri;
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
@@ -121,7 +137,7 @@ export class SearchEditorInput extends EditorInput {
 		this._register(this.workingCopyService.registerWorkingCopy(workingCopyAdapter));
 	}
 
-	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	async override save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		if ((await this.model).isDisposed()) { return; }
 
 		if (this.backingUri) {
@@ -141,7 +157,7 @@ export class SearchEditorInput extends EditorInput {
 		return { config: this.config, body: await this.model };
 	}
 
-	async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	async override saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
 			this.telemetryService.publicLog2('searchEditor/saveSearchResults');
@@ -159,11 +175,7 @@ export class SearchEditorInput extends EditorInput {
 		return undefined;
 	}
 
-	getTypeId(): string {
-		return SearchEditorInput.ID;
-	}
-
-	getName(maxLength = 12): string {
+	override getName(maxLength = 12): string {
 		const trimToMax = (label: string) => (label.length < maxLength ? label : `${label.slice(0, maxLength - 3)}...`);
 
 		if (this.backingUri) {
@@ -183,19 +195,19 @@ export class SearchEditorInput extends EditorInput {
 		this._onDidChangeDirty.fire();
 	}
 
-	isDirty() {
+	override isDirty() {
 		return this.dirty;
 	}
 
-	isReadonly() {
+	override isReadonly() {
 		return false;
 	}
 
-	isUntitled() {
+	override isUntitled() {
 		return !this.backingUri;
 	}
 
-	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._cachedModel && extname(target) === SEARCH_EDITOR_EXT) {
 			return {
 				editor: this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: this.config, text: this._cachedModel.getValue(), backingUri: target })
@@ -205,12 +217,12 @@ export class SearchEditorInput extends EditorInput {
 		return undefined;
 	}
 
-	dispose() {
+	override dispose() {
 		this.modelService.destroyModel(this.modelUri);
 		super.dispose();
 	}
 
-	matches(other: unknown) {
+	override matches(other: unknown) {
 		if (this === other) { return true; }
 
 		if (other instanceof SearchEditorInput) {
@@ -233,7 +245,7 @@ export class SearchEditorInput extends EditorInput {
 			({ range, options: { className: SearchEditorFindMatchClass, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions) {
+	async override revert(group: GroupIdentifier, options?: IRevertOptions) {
 		if (options?.soft) {
 			this.setDirty(false);
 			return;
@@ -250,13 +262,17 @@ export class SearchEditorInput extends EditorInput {
 		this.setDirty(false);
 	}
 
-	supportsSplitEditor() {
+	override canSplit() {
 		return false;
 	}
 
 	private async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-		const content = stringToSnapshot((await this.model).getValue());
-		return { content };
+		const model = await this.model;
+		if (token.isCancellationRequested) {
+			return {};
+		}
+
+		return { content: toBufferOrReadable(model.createSnapshot(true /* preserve BOM */)) };
 	}
 
 	private async suggestFileName(): Promise<URI> {

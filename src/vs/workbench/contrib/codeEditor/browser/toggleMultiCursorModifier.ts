@@ -29,7 +29,7 @@ export class ToggleMultiCursorModifierAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		const newValue: 'ctrlCmd' | 'alt' = (editorConf.multiCursorModifier === 'ctrlCmd' ? 'alt' : 'ctrlCmd');
 

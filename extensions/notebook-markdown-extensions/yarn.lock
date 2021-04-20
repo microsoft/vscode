@@ -4,7 +4,7 @@
 
 "@iktakahiro/markdown-it-katex@https://github.com/mjbvz/markdown-it-katex.git":
   version "4.0.1"
-  resolved "https://github.com/mjbvz/markdown-it-katex.git#d3f98b077a40bc4ee9b42689df33feec62cdfbca"
+  resolved "https://github.com/mjbvz/markdown-it-katex.git#e88925a7cb3fd593a14ed117fb43627c4ba910b6"
   dependencies:
     katex "^0.13.0"
 

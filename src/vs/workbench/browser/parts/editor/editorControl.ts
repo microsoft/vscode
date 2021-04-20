@@ -58,7 +58,7 @@ export class EditorControl extends Disposable {
 		// Editor pane
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 		if (!descriptor) {
-			throw new Error(`No editor descriptor found for input id ${editor.getTypeId()}`);
+			throw new Error(`No editor descriptor found for input id ${editor.typeId}`);
 		}
 		const editorPane = this.doShowEditorPane(descriptor);
 

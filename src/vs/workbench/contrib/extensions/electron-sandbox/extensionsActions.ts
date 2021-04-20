@@ -26,7 +26,7 @@ export class OpenExtensionsFolderAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		const extensionsHome = URI.file(this.environmentService.extensionsPath);
 		const file = await this.fileService.resolve(extensionsHome);
 

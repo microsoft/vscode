@@ -18,16 +18,16 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 suite('Notebook Clipboard', () => {
 	const createEditorService = (editor: IActiveNotebookEditor) => {
 		const visibleEditorPane = new class extends mock<IVisibleEditorPane>() {
-			getId(): string {
+			override getId(): string {
 				return NOTEBOOK_EDITOR_ID;
 			}
-			getControl(): INotebookEditor {
+			override getControl(): INotebookEditor {
 				return editor;
 			}
 		};
 
 		const editorService: IEditorService = new class extends mock<IEditorService>() {
-			get activeEditorPane(): IVisibleEditorPane | undefined {
+			override get activeEditorPane(): IVisibleEditorPane | undefined {
 				return visibleEditorPane;
 			}
 		};
@@ -43,7 +43,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
@@ -78,7 +78,7 @@ suite('Notebook Clipboard', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
 
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 				clipboardContrib.runCutAction(accessor);
@@ -112,8 +112,8 @@ suite('Notebook Clipboard', () => {
 
 				let _cells: NotebookCellTextModel[] = [];
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy(cells: NotebookCellTextModel[]) { _cells = cells; }
-					getToCopy() { return { items: _cells, isCopy: true }; }
+					override setToCopy(cells: NotebookCellTextModel[]) { _cells = cells; }
+					override getToCopy() { return { items: _cells, isCopy: true }; }
 				});
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
@@ -134,7 +134,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
 				const viewModel = editor.viewModel;
@@ -154,8 +154,8 @@ suite('Notebook Clipboard', () => {
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return {
 							items: [
 								editor.viewModel.cellAt(0)!.model
@@ -190,8 +190,8 @@ suite('Notebook Clipboard', () => {
 			async (editor, accessor) => {
 				let _toCopy: NotebookCellTextModel[] = [];
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
-					getToCopy() {
+					override setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
+					override getToCopy() {
 						return {
 							items: _toCopy,
 							isCopy: true
@@ -220,8 +220,8 @@ suite('Notebook Clipboard', () => {
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return { items: [], isCopy: true };
 					}
 				});
@@ -262,8 +262,8 @@ suite('Notebook Clipboard', () => {
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return { items: [], isCopy: true };
 					}
 				});
@@ -287,8 +287,8 @@ suite('Notebook Clipboard', () => {
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return { items: [], isCopy: true };
 					}
 				});

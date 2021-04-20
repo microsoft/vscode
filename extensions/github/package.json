@@ -19,6 +19,9 @@
     "vscode.git"
   ],
   "main": "./out/extension.js",
+  "workspaceTrust": {
+    "request": "never"
+  },
   "contributes": {
     "commands": [
       {

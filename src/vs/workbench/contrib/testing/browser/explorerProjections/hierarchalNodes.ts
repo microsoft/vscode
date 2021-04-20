@@ -55,7 +55,6 @@ export class HierarchicalElement implements ITestTreeElement {
 
 	public state = TestResultState.Unset;
 	public retired = false;
-	public ownState = TestResultState.Unset;
 
 	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchicalFolder | HierarchicalElement) {
 		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
@@ -97,7 +96,6 @@ export class HierarchicalFolder implements ITestTreeElement {
 
 	public retired = false;
 	public state = TestResultState.Unset;
-	public ownState = TestResultState.Unset;
 
 	constructor(public readonly folder: IWorkspaceFolder) { }
 

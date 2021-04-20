@@ -198,10 +198,10 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, false));
+					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, () => false));
 			} else {
-				const useProc = (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
-				if (useProc) {
+				const useProc = () => (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
+				if (useProc()) {
 					this._register(new ProcAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService,
 						openerService, externalOpenerService, tunnelService, hostService, logService));
 				}
@@ -405,7 +405,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 		private readonly remoteAgentService: IRemoteAgentService,
 		readonly hostService: IHostService,
 		readonly logService: ILogService,
-		readonly privilegedOnly: boolean
+		readonly privilegedOnly: () => boolean
 	) {
 		super();
 		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService);
@@ -444,7 +444,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 			if ((await this.remoteExplorerService.tunnelModel.getAttributes([localUrl.port]))?.get(localUrl.port)?.onAutoForward === OnPortForward.Ignore) {
 				return;
 			}
-			if (this.privilegedOnly && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
+			if (this.privilegedOnly() && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
 				return;
 			}
 			const forwarded = await this.remoteExplorerService.forward(localUrl, undefined, undefined, undefined, undefined, undefined, false);

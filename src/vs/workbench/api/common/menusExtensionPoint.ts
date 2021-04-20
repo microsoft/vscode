@@ -212,6 +212,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'ports/item/origin/inline',
 		id: MenuId.TunnelOriginInline,
 		description: localize('view.tunnelOriginInline', "The Ports view item origin inline menu")
+	},
+	{
+		key: 'ports/item/port/inline',
+		id: MenuId.TunnelPortInline,
+		description: localize('view.tunnelPortInline', "The Ports view item port inline menu")
 	}
 ];
 

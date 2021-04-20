@@ -117,7 +117,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	private readonly _altKey: ModifierKeyEmitter;
 
 	constructor(
-		readonly _action: MenuItemAction,
+		_action: MenuItemAction,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService
 	) {
@@ -125,11 +125,15 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
-	protected get _commandAction(): MenuItemAction {
-		return this._wantsAltCommand && (<MenuItemAction>this._action).alt || this._action;
+	protected get _menuItemAction(): MenuItemAction {
+		return <MenuItemAction>this._action;
 	}
 
-	onClick(event: MouseEvent): void {
+	protected get _commandAction(): MenuItemAction {
+		return this._wantsAltCommand && this._menuItemAction.alt || this._menuItemAction;
+	}
+
+	override onClick(event: MouseEvent): void {
 		event.preventDefault();
 		event.stopPropagation();
 
@@ -138,11 +142,11 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			.catch(err => this._notificationService.error(err));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('menu-entry');
 
-		this._updateItemClass(this._action.item);
+		this._updateItemClass(this._menuItemAction.item);
 
 		let mouseOver = false;
 
@@ -158,7 +162,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			}
 		};
 
-		if (this._action.alt) {
+		if (this._menuItemAction.alt) {
 			this._register(this._altKey.event(value => {
 				alternativeKeyDown = value.altKey || ((isWindows || isLinux) && value.shiftKey);
 				updateAltState();
@@ -176,13 +180,13 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}));
 	}
 
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	updateTooltip(): void {
+	override updateTooltip(): void {
 		if (this.label) {
 			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 			const keybindingLabel = keybinding && keybinding.getLabel();
@@ -191,9 +195,9 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			let title = keybindingLabel
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
-			if (!this._wantsAltCommand && this._action.alt) {
-				const altTooltip = this._action.alt.tooltip || this._action.alt.label;
-				const altKeybinding = this._keybindingService.lookupKeybinding(this._action.alt.id);
+			if (!this._wantsAltCommand && this._menuItemAction.alt) {
+				const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
+				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id);
 				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
 				const altTitleSection = altKeybindingLabel
 					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
@@ -204,14 +208,14 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}
 	}
 
-	updateClass(): void {
+	override updateClass(): void {
 		if (this.options.icon) {
-			if (this._commandAction !== this._action) {
-				if (this._action.alt) {
-					this._updateItemClass(this._action.alt.item);
+			if (this._commandAction !== this._menuItemAction) {
+				if (this._menuItemAction.alt) {
+					this._updateItemClass(this._menuItemAction.alt.item);
 				}
-			} else if ((<MenuItemAction>this._action).alt) {
-				this._updateItemClass(this._action.item);
+			} else if (this._menuItemAction.alt) {
+				this._updateItemClass(this._menuItemAction.item);
 			}
 		}
 	}
@@ -268,7 +272,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		});
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		if (this.element) {
 			container.classList.add('menu-entry');

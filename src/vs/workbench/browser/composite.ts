@@ -118,7 +118,7 @@ export abstract class Composite extends Component implements IComposite {
 		this.parent = parent;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 	}
 

@@ -325,7 +325,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return protocol;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._isTerminating) {
 			return;
 		}

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane } from 'vs/workbench/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorAssociation, EditorsAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorAssociation, EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -34,7 +34,6 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -76,7 +75,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
@@ -91,7 +89,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private registerListeners(): void {
 
 		// Editor & group changes
-		this.editorGroupService.whenRestored.then(() => this.onEditorsRestored());
+		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
 		this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
 		this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
@@ -115,7 +113,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private lastActiveEditor: IEditorInput | undefined = undefined;
 
-	private onEditorsRestored(): void {
+	private onEditorGroupsReady(): void {
 
 		// Register listeners to each opened group
 		this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group as IEditorGroupView));
@@ -617,7 +615,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Untyped Text Editor Support
 		else {
-			const textInput = <IResourceEditorInputType>editor;
+			const textInput = editor as IResourceEditorInputType;
 			typedEditor = this.createEditorInput(textInput);
 			if (typedEditor) {
 				typedOptions = TextEditorOptions.from(textInput);
@@ -755,7 +753,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// Persist setting
 				if (resource && e.item && e.item.id) {
 					const newAssociation: EditorAssociation = { viewType: e.item.id, filenamePattern: `*${extname(resource)}` };
-					const currentAssociations = [...this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId)];
+					const currentAssociations = [...this.configurationService.getValue<EditorAssociations>(editorsAssociationsSettingId)];
 
 					// First try updating existing association
 					for (let i = 0; i < currentAssociations.length; ++i) {
@@ -1353,68 +1351,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-
-	//#region Editor Tracking
-
-	whenClosed(editors: IResourceEditorInput[], options?: { waitForSaved: boolean }): Promise<void> {
-		let remainingEditors = [...editors];
-
-		return new Promise(resolve => {
-			const listener = this.onDidCloseEditor(async event => {
-				const primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-				const secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
-
-				// Remove from resources to wait for being closed based on the
-				// resources from editors that got closed
-				remainingEditors = remainingEditors.filter(({ resource }) => {
-					if (this.uriIdentityService.extUri.isEqual(resource, primaryResource) || this.uriIdentityService.extUri.isEqual(resource, secondaryResource)) {
-						return false; // remove - the closing editor matches this resource
-					}
-
-					return true; // keep - not yet closed
-				});
-
-				// All resources to wait for being closed are closed
-				if (remainingEditors.length === 0) {
-					if (options?.waitForSaved) {
-						// If auto save is configured with the default delay (1s) it is possible
-						// to close the editor while the save still continues in the background. As such
-						// we have to also check if the editors to track for are dirty and if so wait
-						// for them to get saved.
-						const dirtyResources = editors.filter(({ resource }) => this.workingCopyService.isDirty(resource)).map(({ resource }) => resource);
-						if (dirtyResources.length > 0) {
-							await Promises.settled(dirtyResources.map(async resource => await this.whenSaved(resource)));
-						}
-					}
-
-					listener.dispose();
-
-					resolve();
-				}
-			});
-		});
-	}
-
-	private whenSaved(resource: URI): Promise<void> {
-		return new Promise(resolve => {
-			if (!this.workingCopyService.isDirty(resource)) {
-				return resolve(); // return early if resource is not dirty
-			}
-
-			// Otherwise resolve promise when resource is saved
-			const listener = this.workingCopyService.onDidChangeDirty(workingCopy => {
-				if (!workingCopy.isDirty() && this.uriIdentityService.extUri.isEqual(resource, workingCopy.resource)) {
-					listener.dispose();
-
-					resolve();
-				}
-			});
-		});
-	}
-
-	//#endregion
-
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		// Dispose remaining watchers if any
@@ -1504,8 +1441,6 @@ export class DelegatingEditorService implements IEditorService {
 
 	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { return this.editorService.revert(editors, options); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { return this.editorService.revertAll(options); }
-
-	whenClosed(editors: IResourceEditorInput[]): Promise<void> { return this.editorService.whenClosed(editors); }
 
 	//#endregion
 }

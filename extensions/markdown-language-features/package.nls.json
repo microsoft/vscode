@@ -25,5 +25,6 @@
 	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the Markdown preview.",
 	"configuration.markdown.links.openLocation.description": "Controls where links in Markdown files should be opened.",
 	"configuration.markdown.links.openLocation.currentGroup": "Open links in the active editor group.",
-	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor."
+	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor.",
+	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

@@ -3,26 +3,82 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustRequestModel, IWorkspaceTrustService, WorkspaceTrustChangeEvent, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
-import { WorkspaceTrustRequestModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { Emitter, Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 
-export class TestWorkspaceTrustService implements IWorkspaceTrustService {
+
+export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
 
-	requestModel: IWorkspaceTrustRequestModel = new WorkspaceTrustRequestModel();
+	private _onDidChangeTrust = new Emitter<boolean>();
+	onDidChangeTrust = this._onDidChangeTrust.event;
 
-	onDidChangeTrustState: WorkspaceTrustChangeEvent = Event.None;
+	private _onDidChangeTrustedFolders = new Emitter<void>();
+	onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
-	getWorkspaceTrustState(): WorkspaceTrustState {
-		return WorkspaceTrustState.Trusted;
+	private trusted: boolean;
+
+	constructor(trusted: boolean = true) {
+		this.trusted = trusted;
 	}
 
-	isWorkspaceTrustEnabled(): boolean {
-		return true;
+	getTrustedFolders(): URI[] {
+		throw new Error('Method not implemented.');
 	}
 
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
-		return Promise.resolve(WorkspaceTrustState.Trusted);
+	setParentFolderTrust(trusted: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+
+	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
+		throw new Error('Method not implemented.');
+	}
+
+	setTrustedFolders(folders: URI[]): void {
+		throw new Error('Method not implemented.');
+	}
+
+	setFoldersTrust(folders: URI[], trusted: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+
+	canSetParentFolderTrust(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	canSetWorkspaceTrust(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	isWorkpaceTrusted(): boolean {
+		return this.trusted;
+	}
+
+	setWorkspaceTrust(trusted: boolean): void {
+		if (this.trusted !== trusted) {
+			this.trusted = trusted;
+			this._onDidChangeTrust.fire(this.trusted);
+		}
+	}
+}
+
+export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
+	_serviceBrand: undefined;
+
+	onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions> = Event.None;
+	onDidCompleteWorkspaceTrustRequest: Event<boolean> = Event.None;
+
+
+	cancelRequest(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	completeRequest(trusted?: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
+		return Promise.resolve(true);
 	}
 }

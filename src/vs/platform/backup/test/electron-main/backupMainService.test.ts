@@ -123,7 +123,7 @@ flakySuite('BackupMainService', () => {
 				return path.join(this.backupHome, id);
 			}
 
-			getFolderHash(folderUri: URI): string {
+			override getFolderHash(folderUri: URI): string {
 				return super.getFolderHash(folderUri);
 			}
 		};

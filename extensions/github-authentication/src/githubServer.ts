@@ -45,7 +45,7 @@ export class GitHubServer {
 	constructor(private readonly telemetryReporter: TelemetryReporter) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
-		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
+		return /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
 	}
 
 	public async login(scopes: string): Promise<string> {

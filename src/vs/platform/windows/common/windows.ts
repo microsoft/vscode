@@ -219,8 +219,6 @@ export interface IColorScheme {
 }
 
 export interface IWindowConfiguration {
-	sessionId: string;
-
 	remoteAuthority?: string;
 
 	colorScheme: IColorScheme;
@@ -232,16 +230,20 @@ export interface IWindowConfiguration {
 
 export interface IOSConfiguration {
 	readonly release: string;
+	readonly hostname: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
-	windowId: number;
 	machineId: string;
 
 	execPath: string;
 	backupPath?: string;
+
+	homeDir: string;
+	tmpDir: string;
+	userDataDir: string;
 
 	partsSplashPath: string;
 
@@ -249,9 +251,11 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
+
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
+
 	perfMarks: PerformanceMark[];
 
 	filesToWait?: IPathsToWaitFor;

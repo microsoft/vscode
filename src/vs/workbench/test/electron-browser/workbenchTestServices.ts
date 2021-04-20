@@ -30,8 +30,8 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { NodeTestWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/test/electron-browser/workingCopyBackupService.test';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -39,16 +39,17 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { homedir, release, tmpdir } from 'os';
+import { homedir, release, tmpdir, hostname } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import { INativeEnvironmentPaths } from 'vs/platform/environment/common/environmentService';
+import product from 'vs/platform/product/common/product';
+
+const args = parseArgs(process.argv, OPTIONS);
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
-	sessionId: 'testSessionId',
 	logLevel: LogLevel.Error,
 	mainPid: 0,
 	partsSplashPath: '',
@@ -57,19 +58,21 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	execPath: process.execPath,
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
-	os: { release: release() },
-	...parseArgs(process.argv, OPTIONS)
+	os: { release: release(), hostname: hostname() },
+	product,
+	homeDir: homedir(),
+	tmpDir: tmpdir(),
+	userDataDir: getUserDataPath(args),
+	...args
 };
 
-export const TestEnvironmentPaths: INativeEnvironmentPaths = { homeDir: homedir(), tmpDir: tmpdir(), userDataDir: getUserDataPath(TestWorkbenchConfiguration) };
-
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestEnvironmentPaths, TestProductService);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestProductService);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
-		@IFileService protected fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -115,7 +118,7 @@ export class TestTextFileService extends NativeTextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -140,7 +143,7 @@ export class TestTextFileService extends NativeTextFileService {
 export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
 
 	private _testEncoding: TestEncodingOracle | undefined;
-	get encoding(): TestEncodingOracle {
+	override get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
 		}
@@ -271,7 +274,7 @@ export class TestServiceAccessor {
 		@IFileService public fileService: TestFileService,
 		@INativeHostService public nativeHostService: TestNativeHostService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
-		@IBackupFileService public backupFileService: NodeTestBackupFileService,
+		@IWorkingCopyBackupService public workingCopyBackupService: NodeTestWorkingCopyBackupService,
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
 		@IEditorService public editorService: IEditorService
 	) {
@@ -279,8 +282,6 @@ export class TestServiceAccessor {
 }
 
 export class TestNativePathService extends TestPathService {
-
-	declare readonly _serviceBrand: undefined;
 
 	constructor() {
 		super(URI.file(homedir()));

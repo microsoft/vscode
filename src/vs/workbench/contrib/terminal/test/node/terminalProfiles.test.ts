@@ -21,7 +21,6 @@ function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITe
 		strictEqual(actual.path, expected.path);
 		deepStrictEqual(actual.args, expected.args);
 		strictEqual(actual.isAutoDetected, expected.isAutoDetected);
-		strictEqual(actual.isWorkspaceProfile, expected.isWorkspaceProfile);
 		strictEqual(actual.overrideName, expected.overrideName);
 	}
 }
@@ -124,7 +123,7 @@ suite('Workbench - TerminalProfiles', () => {
 					];
 					profilesEqual(profiles, expected);
 				});
-				test('should fallback to Windows PowerShell', async () => {
+				test.skip('should fallback to Windows PowerShell', async () => {
 					const fsProvider = createFsProvider([
 						'C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 						'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'

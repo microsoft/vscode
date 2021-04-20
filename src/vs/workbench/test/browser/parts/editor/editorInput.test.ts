@@ -13,8 +13,8 @@ suite('Workbench editor input', () => {
 	class MyEditorInput extends EditorInput {
 		readonly resource = undefined;
 
-		getTypeId(): string { return ''; }
-		resolve(): any { return null; }
+		override get typeId(): string { return 'myEditorInput'; }
+		override resolve(): any { return null; }
 	}
 
 	test('EditorInput', () => {

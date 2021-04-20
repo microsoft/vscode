@@ -123,7 +123,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		}));
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		dispose(this._editorProviders.values());

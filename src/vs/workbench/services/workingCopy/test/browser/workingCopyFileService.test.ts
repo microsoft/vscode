@@ -463,7 +463,7 @@ suite('WorkingCopyFileService', () => {
 			eventCounter++;
 		});
 
-		await accessor.workingCopyFileService.delete(models.map(m => ({ resource: m.resource })), CancellationToken.None);
+		await accessor.workingCopyFileService.delete(models.map(model => ({ resource: model.resource })), CancellationToken.None);
 		for (const model of models) {
 			assert.ok(!accessor.workingCopyService.isDirty(model.resource));
 			model.dispose();

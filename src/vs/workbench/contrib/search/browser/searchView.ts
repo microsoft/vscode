@@ -23,8 +23,11 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchview';
 import { getCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
 import * as nls from 'vs/nls';
@@ -45,7 +48,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -149,6 +152,7 @@ export class SearchView extends ViewPane {
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IProgressService private readonly progressService: IProgressService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -158,7 +162,7 @@ export class SearchView extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -255,7 +259,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	renderBody(parent: HTMLElement): void {
+	override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
@@ -890,7 +894,7 @@ export class SearchView extends ViewPane {
 		this.tree.domFocus();
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		if (this.lastFocusState === 'input' || !this.hasSearchResults()) {
 			const updatedText = this.searchConfig.seedOnFocus ? this.updateTextFromSelection({ allowSearchOnType: false }) : false;
@@ -901,15 +905,19 @@ export class SearchView extends ViewPane {
 	}
 
 	updateTextFromFindWidgetOrSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
-		const activeEditor = this.editorService.activeTextEditorControl;
-		if (isCodeEditor(activeEditor)) {
+		let activeEditor = this.editorService.activeTextEditorControl;
+		if (isCodeEditor(activeEditor) && !activeEditor?.hasTextFocus()) {
 			const controller = CommonFindController.get(activeEditor as ICodeEditor);
 			if (controller.isFindInputFocused()) {
 				return this.updateTextFromFindWidget(controller, { allowSearchOnType });
 			}
+
+			const editors = this.codeEditorService.listCodeEditors();
+			activeEditor = editors.find(editor => editor instanceof EmbeddedCodeEditorWidget && editor.getParentEditor() === activeEditor && editor.hasTextFocus())
+				?? activeEditor;
 		}
 
-		return this.updateTextFromSelection({ allowUnselectedWord, allowSearchOnType });
+		return this.updateTextFromSelection({ allowUnselectedWord, allowSearchOnType }, activeEditor);
 	}
 
 	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
@@ -930,13 +938,13 @@ export class SearchView extends ViewPane {
 		return true;
 	}
 
-	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
+	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }, editor?: IEditor): boolean {
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 		if (!seedSearchStringFromSelection) {
 			return false;
 		}
 
-		let selectedText = this.getSearchTextFromEditor(allowUnselectedWord);
+		let selectedText = this.getSearchTextFromEditor(allowUnselectedWord, editor);
 		if (selectedText === null) {
 			return false;
 		}
@@ -1045,7 +1053,7 @@ export class SearchView extends ViewPane {
 		this.tree.layout(); // The tree will measure its container
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.size = new dom.Dimension(width, height);
 		this.reLayout();
@@ -1113,35 +1121,31 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private getSearchTextFromEditor(allowUnselectedWord: boolean): string | null {
-		if (!this.editorService.activeEditor) {
-			return null;
-		}
-
+	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
 		if (dom.isAncestor(document.activeElement, this.getContainer())) {
 			return null;
 		}
 
-		let activeTextEditorControl = this.editorService.activeTextEditorControl;
-		if (isDiffEditor(activeTextEditorControl)) {
-			if (activeTextEditorControl.getOriginalEditor().hasTextFocus()) {
-				activeTextEditorControl = activeTextEditorControl.getOriginalEditor();
+		editor = editor ?? this.editorService.activeTextEditorControl;
+		if (isDiffEditor(editor)) {
+			if (editor.getOriginalEditor().hasTextFocus()) {
+				editor = editor.getOriginalEditor();
 			} else {
-				activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
+				editor = editor.getModifiedEditor();
 			}
 		}
 
-		if (!isCodeEditor(activeTextEditorControl) || !activeTextEditorControl.hasModel()) {
+		if (!isCodeEditor(editor) || !editor.hasModel()) {
 			return null;
 		}
 
-		const range = activeTextEditorControl.getSelection();
+		const range = editor.getSelection();
 		if (!range) {
 			return null;
 		}
 
 		if (range.isEmpty() && this.searchConfig.seedWithNearestWord && allowUnselectedWord) {
-			const wordAtPosition = activeTextEditorControl.getModel().getWordAtPosition(range.getStartPosition());
+			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;
 			}
@@ -1150,7 +1154,7 @@ export class SearchView extends ViewPane {
 		if (!range.isEmpty()) {
 			let searchText = '';
 			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-				let lineText = activeTextEditorControl.getModel().getLineContent(i);
+				let lineText = editor.getModel().getLineContent(i);
 				if (i === range.endLineNumber) {
 					lineText = lineText.substring(0, range.endColumn - 1);
 				}
@@ -1444,7 +1448,7 @@ export class SearchView extends ViewPane {
 
 			if (completed && completed.limitHit) {
 				this.searchWidget.searchInput.showMessage({
-					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Please be more specific in your search to narrow down the results."),
+					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results."),
 					type: MessageType.WARNING
 				});
 			}
@@ -1798,7 +1802,7 @@ export class SearchView extends ViewPane {
 		this.inputPatternIncludes.clearHistory();
 	}
 
-	public saveState(): void {
+	public override saveState(): void {
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1868,7 +1872,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.isDisposed = true;
 		this.saveState();
 		super.dispose();
@@ -1928,6 +1932,16 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (activeLink) {
 		collector.addRule(`.monaco-workbench .search-view .message a:hover,
 			.monaco-workbench .search-view .message a:active { color: ${activeLink}; }`);
+	}
+
+	const toolbarHoverColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverColor) {
+		collector.addRule(`.monaco-workbench .search-view .search-widget .toggle-replace-button:hover { background-color: ${toolbarHoverColor} }`);
+	}
+
+	const toolbarActiveColor = theme.getColor(toolbarActiveBackground);
+	if (toolbarActiveColor) {
+		collector.addRule(`.monaco-workbench .search-view .search-widget .toggle-replace-button:active { background-color: ${toolbarActiveColor} }`);
 	}
 });
 
