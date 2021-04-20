@@ -62,7 +62,6 @@ import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 
 class BrowserMain extends Disposable {
 
@@ -308,8 +307,6 @@ class BrowserMain extends Disposable {
 				}
 			});
 		}
-
-		fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
