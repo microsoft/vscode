@@ -600,24 +600,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Override handling: pick editor or open specific
 			if (resolvedOptions?.override === EditorOverride.PICK || typeof resolvedOptions?.override === 'string') {
-				const resolvedInputWithOptions = await this.editorOverrideService.resolveEditorOverride(editor as IEditorInput, resolvedOptions, resolvedGroup);
-				if (!resolvedInputWithOptions) {
+				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(editor as IEditorInput, resolvedOptions, resolvedGroup);
+				if (!resolvedInputWithOptionsAndGroup) {
 					return undefined; // no editor was picked or registered for the identifier
 				}
-				return resolvedGroup.openEditor(resolvedInputWithOptions.editor, resolvedInputWithOptions.options ?? resolvedOptions);
+				return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(resolvedInputWithOptionsAndGroup.editor, resolvedInputWithOptionsAndGroup.options ?? resolvedOptions);
 			}
 
 			// Override handling: ask providers to override
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
 				// This will get cleaned up soon, but since the override service no longer uses the override flow we must check that
-				const resolvedInputWithOptions = await this.editorOverrideService.resolveEditorOverride(editor as IEditorInput, resolvedOptions, resolvedGroup);
-				if (!resolvedInputWithOptions) {
+				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(editor as IEditorInput, resolvedOptions, resolvedGroup);
+				if (!resolvedInputWithOptionsAndGroup) {
 					const override = this.doOverrideOpenEditor(resolvedEditor, resolvedOptions, resolvedGroup);
 					if (override) {
 						return override;
 					}
 				} else {
-					return resolvedGroup.openEditor(resolvedInputWithOptions.editor, resolvedInputWithOptions.options ?? resolvedOptions);
+					return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(resolvedInputWithOptionsAndGroup.editor, resolvedInputWithOptionsAndGroup.options ?? resolvedOptions);
 				}
 			}
 

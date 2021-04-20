@@ -13,7 +13,7 @@ import { EditorActivation, EditorOverride, IEditorOptions, ITextEditorOptions } 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorAssociation, EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
-import { EditorOptions, EditorResourceAccessor, EditorsOrder, IEditorInput, IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorResourceAccessor, EditorsOrder, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -92,9 +92,9 @@ export interface IEditorOverrideService {
 	 * @param editor The editor to override
 	 * @param options The current options for the editor
 	 * @param group The current group
-	 * @returns An IEditorInputeWithOptions if there is an available override or undefined if there is not
+	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or undefined if there is not
 	 */
-	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptions | undefined>;
+	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
 }
 
 export class EditorOverrideService extends Disposable implements IEditorOverrideService {
@@ -111,7 +111,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		super();
 	}
 
-	async resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptions | undefined> {
+	async resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined> {
 		if (options?.override === EditorOverride.DISABLED) {
 			throw new Error(`Calling resolve editor override when override is explicitly disabled!`);
 		}
@@ -163,6 +163,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			setTimeout(() => {
 				this.doHandleConflictingDefaults(input.editor, input.options ?? options, group);
 			}, 1000);
+		}
+		// Add the group as we might've changed it with the quickpick
+		if (input) {
+			return { ...input, group };
 		}
 		return input;
 	}
