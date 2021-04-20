@@ -377,7 +377,7 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 	update(args: CombinedButtonArgs): void {
 		this._dropdown?.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-more'] });
-		if (this._container && this.element) {
+		if (this.element) {
 			this._dropdown.render(this.element);
 		}
 	}
