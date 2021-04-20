@@ -1279,6 +1279,31 @@ suite('Notebook API tests', function () {
 	});
 
 
+	suite('statusbar', () => {
+		const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
+		const onDidCallProvide = emitter.event;
+		suiteSetup(() => {
+			vscode.notebook.registerNotebookCellStatusBarItemProvider({ viewType: 'notebookCoreTest' }, {
+				async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
+					emitter.fire(cell);
+					return [];
+				}
+			});
+		});
+
+		test('provideCellStatusBarItems called on metadata change', async function () {
+			const provideCalled = asPromise(onDidCallProvide);
+			const resource = await createRandomNotebookFile();
+			await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+			await provideCalled;
+
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookCellMetadata(resource, 0, new vscode.NotebookCellMetadata().with({ inputCollapsed: true }));
+			vscode.workspace.applyEdit(edit);
+			await provideCalled;
+		});
+	});
+
 	// });
 
 	// suite('webview', () => {
