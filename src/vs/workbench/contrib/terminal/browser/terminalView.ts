@@ -385,11 +385,12 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		dropdownStyle.fontSize = '12px';
 		dropdownStyle.maxWidth = '6px';
 		dropdownStyle.lineHeight = '16px';
-		dropdownStyle.marginTop = '12px';
 		dropdownStyle.marginLeft = '0px';
 		const primaryActionStyle = this._primaryAction.element.style;
 		primaryActionStyle.marginRight = '0px';
-		primaryActionStyle.paddingRight = '0px';
+		if (this._primaryAction.element.children[0]) {
+			(this._primaryAction.element.children[0] as HTMLElement).style.paddingRight = '0px';
+		}
 	}
 
 	update(args: CombinedButtonArgs): void {
