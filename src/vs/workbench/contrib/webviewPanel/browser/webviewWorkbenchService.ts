@@ -243,9 +243,13 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		group: IEditorGroup,
 		preserveFocus: boolean
 	): void {
-		const editor = this.findTopLevelEditorForWebview(webview);
+		const topLevelEditor = this.findTopLevelEditorForWebview(webview);
 		if (webview.group === group.id) {
-			this._editorService.openEditor(editor, {
+			if (this._editorService.activeEditor === topLevelEditor) {
+				return;
+			}
+
+			this._editorService.openEditor(topLevelEditor, {
 				preserveFocus,
 				// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 				// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
@@ -254,7 +258,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		} else {
 			const groupView = this._editorGroupService.getGroup(webview.group!);
 			if (groupView) {
-				groupView.moveEditor(editor, group, { preserveFocus });
+				groupView.moveEditor(topLevelEditor, group, { preserveFocus });
 			}
 		}
 	}
