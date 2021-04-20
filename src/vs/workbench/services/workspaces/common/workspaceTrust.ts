@@ -194,7 +194,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	canSetWorkspaceTrust(): boolean {
-		return this.workspaceService.getWorkspace().folders.length > 0;
+		return this.workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	canSetParentFolderTrust(): boolean {
