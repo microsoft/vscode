@@ -45,7 +45,7 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
-	private _tabButtons: CombinedButtonActionViewItem | undefined;
+	private _tabButtons: DropdownWithPrimaryActionViewItem | undefined;
 	private _dropdownMenu: IMenu;
 	private _requestedAvailableProfiles: boolean = false;
 
@@ -192,7 +192,7 @@ export class TerminalViewPane extends ViewPane {
 			if (this._tabButtons) {
 				this._tabButtons.dispose();
 			}
-			this._tabButtons = this._instantiationService.createInstance(CombinedButtonActionViewItem, this._getInitialTabActionBarArgs());
+			this._tabButtons = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, this._getInitialTabActionBarArgs());
 			return this._tabButtons;
 		}
 		return super.getActionViewItem(action);
@@ -228,7 +228,7 @@ export class TerminalViewPane extends ViewPane {
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
 		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'launch-profile', title: 'Launch Profile...', icon: Codicon.chevronDown }, undefined, undefined);
-		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal-tab-actions', secondaryIcon: 'codicon-chevron-down' };
+		return { primaryAction, dropdownAction: secondaryAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions', dropdownIcon: 'codicon-chevron-down' };
 	}
 
 	private _getInitialTabActionBarArgs(): CombinedButtonArgs {
@@ -244,7 +244,7 @@ export class TerminalViewPane extends ViewPane {
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
 		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'split', title: 'Split', icon: Codicon.chevronDown }, undefined, undefined);
-		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions', secondaryIcon: 'codicon-chevron-down' };
+		return { primaryAction, dropdownAction: secondaryAction, dropdownMenuActions: dropdownActions, className: 'terminal.profiles.actions', dropdownIcon: 'codicon-chevron-down' };
 	}
 
 
@@ -353,13 +353,13 @@ function getProfileSelectOptionItems(terminalService: ITerminalService): ISelect
 }
 interface CombinedButtonArgs {
 	primaryAction: MenuItemAction,
-	secondaryAction: MenuItemAction,
-	dropdownActions: IAction[],
+	dropdownAction: MenuItemAction,
+	dropdownMenuActions: IAction[],
 	className: string,
-	secondaryIcon?: string
+	dropdownIcon?: string
 }
 
-export class CombinedButtonActionViewItem extends BaseActionViewItem {
+export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: MenuEntryActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
@@ -372,7 +372,7 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		super(null, args.primaryAction);
 		this._args = args;
 		this._primaryAction = instantiationService.createInstance(MenuEntryActionViewItem, args.primaryAction);
-		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-chevron-down'] });
+		this._dropdown = new DropdownMenuActionViewItem(args.dropdownAction, args.dropdownMenuActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', args.dropdownIcon || 'codicon-chevron-down'] });
 	}
 
 	override render(container: HTMLElement): void {
@@ -407,7 +407,7 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 
 	update(args: CombinedButtonArgs): void {
 		this._dropdown?.dispose();
-		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-chevron-down'] });
+		this._dropdown = new DropdownMenuActionViewItem(args.dropdownAction, args.dropdownMenuActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', args.dropdownIcon || 'codicon-chevron-down'] });
 		if (this.element) {
 			this._dropdown.render(this.element);
 			this._stylize();

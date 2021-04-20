@@ -69,10 +69,10 @@ export class TerminalTabbedView extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -388,8 +388,8 @@ export class TerminalTabbedView extends Disposable {
 		}));
 	}
 	private _openContextMenu(event: MouseEvent, parent: HTMLElement): void {
-
 		const standardEvent = new StandardMouseEvent(event);
+
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 		const actions: IAction[] = [];
 		const menu = parent === this._terminalContainer ? this._instanceMenu : this._tabsWidgetMenu;

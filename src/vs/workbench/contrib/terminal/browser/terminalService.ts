@@ -611,14 +611,17 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
-	public splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null
-	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}): ITerminalInstance | null {
+	public splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
+	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
 		const tab = this.getTabForInstance(instanceToSplit);
 		if (!tab) {
 			return null;
 		}
-
-		const instance = tab.split(this.convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile));
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+		if (cwd) {
+			shellLaunchConfig.cwd = cwd;
+		}
+		const instance = tab.split(shellLaunchConfig);
 
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
@@ -697,6 +700,7 @@ export class TerminalService implements ITerminalService {
 				await instance.focusWhenReady(true);
 			}
 		}
+		this._onProfilesConfigChanged.fire();
 	}
 
 	private _getIndexFromId(terminalId: number): number {
@@ -931,7 +935,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	public convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
+	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
 		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
@@ -940,8 +944,7 @@ export class TerminalService implements ITerminalService {
 				args: profile.args,
 				env: profile.env,
 				icon: profile.icon,
-				name: profile.overrideName ? profile.profileName : undefined,
-				cwd
+				name: profile.overrideName ? profile.profileName : undefined
 			};
 		}
 
@@ -957,7 +960,7 @@ export class TerminalService implements ITerminalService {
 	public createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	public createTerminal(profile: ITerminalProfile): ITerminalInstance;
 	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile): ITerminalInstance {
-		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');

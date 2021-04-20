@@ -226,7 +226,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
-		const configure = new Action(TERMINAL_COMMAND_ID.CONFIGURE_ACTIVE, localize('terminal.configure', "Configure"), ThemeIcon.asClassName(Codicon.pencil), true, () => instance.configure());
+		const configure = new Action(TERMINAL_COMMAND_ID.CONFIGURE, localize('terminal.configure', "Configure"), ThemeIcon.asClassName(Codicon.pencil), true, () => instance.configure());
 		const split = new Action(TERMINAL_COMMAND_ID.SPLIT, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => this._terminalService.splitInstance(instance));
 		const kill = new Action(TERMINAL_COMMAND_ID.KILL, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => instance.dispose(true));
 		// TODO: Cache these in a way that will use the correct instance
