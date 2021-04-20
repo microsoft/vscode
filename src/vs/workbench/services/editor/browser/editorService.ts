@@ -515,6 +515,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return overrides;
 	}
 
+	/**
+	 * Registers the default editor to the override service so that it shows up in the reopen with... picker
+	 */
 	private registerDefaultOverride(): void {
 		this._register(this.editorOverrideService.registerContributionPoint(
 			'*',
