@@ -356,7 +356,6 @@ const newCommands: ApiCommand[] = [
 				displayName: item.displayName,
 				options: {
 					transientOutputs: item.options.transientOutputs,
-					transientMetadata: item.options.transientCellMetadata,
 					transientCellMetadata: item.options.transientCellMetadata,
 					transientDocumentMetadata: item.options.transientDocumentMetadata
 				},

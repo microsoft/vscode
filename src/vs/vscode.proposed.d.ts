@@ -1032,11 +1032,6 @@ declare module 'vscode' {
 		transientOutputs?: boolean;
 
 		/**
-		 * @deprecated use transientCellMetadata instead
-		 */
-		transientMetadata?: { [K in keyof NotebookCellMetadata]?: boolean };
-
-		/**
 		 * Controls if a cell metadata property change will trigger notebook document content change and if it will be used in the diff editor
 		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 		 */

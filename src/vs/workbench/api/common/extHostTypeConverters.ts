@@ -1644,7 +1644,7 @@ export namespace NotebookDocumentContentOptions {
 		return {
 			transientOutputs: options?.transientOutputs ?? false,
 			transientCellMetadata: {
-				...(options?.transientCellMetadata ?? options?.transientMetadata),
+				...options?.transientCellMetadata,
 				executionOrder: true,
 				runState: true,
 				runStartTime: true,
