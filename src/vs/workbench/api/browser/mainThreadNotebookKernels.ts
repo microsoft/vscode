@@ -51,6 +51,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
 		this.description = data.description;
+		this.detail = data.detail;
 		this.isPreferred = data.isPreferred;
 		this.supportedLanguages = data.supportedLanguages;
 		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
@@ -69,6 +70,10 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 			this.description = data.description;
 			event.description = true;
 		}
+		if (data.detail !== undefined) {
+			this.detail = data.detail;
+			event.detail = true;
+		}
 		if (data.isPreferred !== undefined) {
 			this.isPreferred = data.isPreferred;
 			event.isPreferred = true;
@@ -84,8 +89,13 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this._onDidChange.fire(event);
 	}
 
-	abstract executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
-	abstract cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void;
+	abstract executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
+	abstract cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
+
+	// old stuff
+	readonly resolve = () => Promise.resolve();
+	get friendlyId() { return this.id; }
+	get providerHandle() { return undefined; }
 }
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
@@ -180,11 +190,11 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
 		const that = this;
 		const kernel = new class extends MainThreadKernel {
-			executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void {
-				that._proxy.$executeCells(handle, uri, ranges);
+			async executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> {
+				await that._proxy.$executeCells(handle, uri, ranges);
 			}
-			cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void {
-				that._proxy.$cancelCells(handle, uri, ranges);
+			async cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void> {
+				await that._proxy.$cancelCells(handle, uri, ranges);
 			}
 		}(data);
 		const registration = this._notebookKernelService.registerKernel(kernel);

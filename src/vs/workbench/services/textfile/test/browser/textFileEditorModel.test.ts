@@ -5,9 +5,8 @@
 
 import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { TextFileEditorModelState, snapshotToString, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -15,7 +14,10 @@ import { FileOperationResult, FileOperationError } from 'vs/platform/files/commo
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { assertIsDefined } from 'vs/base/common/types';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -99,7 +101,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.hasState(TextFileEditorModelState.DIRTY));
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 		let workingCopyEvent = false;
 		accessor.workingCopyService.onDidChangeDirty(e => {
@@ -119,7 +121,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(workingCopyEvent);
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), false);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
 
 		savedEvent = false;
 
@@ -174,7 +176,7 @@ suite('Files - TextFileEditorModel', () => {
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 		} finally {
 			accessor.fileService.writeShouldThrowError = undefined;
 		}
@@ -210,7 +212,7 @@ suite('Files - TextFileEditorModel', () => {
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 			model.dispose();
 		} finally {
@@ -240,7 +242,7 @@ suite('Files - TextFileEditorModel', () => {
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 			model.dispose();
 		} finally {
@@ -370,7 +372,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 		await model.revert();
 		assert.strictEqual(model.isDirty(), false);
@@ -379,7 +381,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		assert.ok(workingCopyEvent);
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), false);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
 
 		model.dispose();
 	});
@@ -403,7 +405,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 		await model.revert({ soft: true });
 		assert.strictEqual(model.isDirty(), false);
@@ -412,7 +414,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		assert.ok(workingCopyEvent);
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), false);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
 
 		model.dispose();
 	});
@@ -437,7 +439,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 	});
 
 	test('Update Dirty', async function () {
@@ -751,5 +753,36 @@ suite('Files - TextFileEditorModel', () => {
 		await savePromise;
 
 		participant.dispose();
+	}
+
+	test('backup and restore (simple)', async function () {
+		return testBackupAndRestore(toResource.call(this, '/path/index_async.txt'), toResource.call(this, '/path/index_async2.txt'), 'Some very small file text content.');
+	});
+
+	test('backup and restore (large, #121347)', async function () {
+		const largeContent = '국어한\n'.repeat(100000);
+		return testBackupAndRestore(toResource.call(this, '/path/index_async.txt'), toResource.call(this, '/path/index_async2.txt'), largeContent);
+	});
+
+	async function testBackupAndRestore(resourceA: URI, resourceB: URI, contents: string): Promise<void> {
+		const originalModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resourceA, 'utf8', undefined);
+		await originalModel.resolve({
+			contents: await createTextBufferFactoryFromStream(await accessor.textFileService.getDecodedStream(resourceA, bufferToStream(VSBuffer.fromString(contents))))
+		});
+
+		assert.strictEqual(originalModel.textEditorModel?.getValue(), contents);
+
+		const backup = await originalModel.backup(CancellationToken.None);
+		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: resourceB };
+		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
+
+		const modelRestored: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, modelRestoredIdentifier.resource, 'utf8', undefined);
+		await modelRestored.resolve();
+
+		assert.strictEqual(modelRestored.textEditorModel?.getValue(), contents);
+		assert.strictEqual(modelRestored.isDirty(), true);
+
+		originalModel.dispose();
+		modelRestored.dispose();
 	}
 });

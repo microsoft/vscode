@@ -298,7 +298,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.showTabs': {
-			description: localize('terminal.integrated.showTabs', 'Controls whether or not the terminal tabs widget is shown'),
+			description: localize('terminal.integrated.showTabs', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
 			type: 'boolean',
 			default: true
 		},
@@ -306,7 +306,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['left', 'right'],
 			'default': 'right',
-			'description': localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either left or right of the terminal container.")
+			'description': localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
