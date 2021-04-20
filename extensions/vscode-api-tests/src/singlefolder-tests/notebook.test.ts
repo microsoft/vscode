@@ -68,11 +68,11 @@ class Kernel {
 
 	protected async _execute(cells: vscode.NotebookCell[]): Promise<void> {
 		for (let cell of cells) {
-			await this.#runCell(cell);
+			await this._runCell(cell);
 		}
 	}
 
-	async #runCell(cell: vscode.NotebookCell) {
+	protected async _runCell(cell: vscode.NotebookCell) {
 		const task = this.controller.createNotebookCellExecutionTask(cell);
 		task.start();
 		task.executionOrder = 1;
@@ -173,6 +173,15 @@ suite('Notebook API tests', function () {
 				super('secondaryKernel', 'Notebook Secondary Test Kernel');
 				this.controller.isPreferred = false;
 				this.controller.hasExecutionOrder = false;
+			}
+
+			override async _runCell(cell: vscode.NotebookCell) {
+				const task = this.controller.createNotebookCellExecutionTask(cell);
+				task.start();
+				await task.replaceOutput([new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+				])]);
+				task.end({ success: true });
 			}
 		};
 
@@ -716,15 +725,14 @@ suite('Notebook API tests', function () {
 	});
 
 	test('cell execute and select kernel', async function () {
-		this.skip(); //todo@jrieken
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cellAt(0);
 
-		vscode.commands.executeCommand('notebook.cell.execute');
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.cell.execute');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
@@ -734,9 +742,9 @@ suite('Notebook API tests', function () {
 			]);
 		});
 
-		await vscode.commands.executeCommand('notebook.selectKernel', { extension: 'vscode.vscode-api-tests', id: 'secondaryKernel' });
-		vscode.commands.executeCommand('notebook.cell.execute');
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.selectKernel', { extension: 'vscode.vscode-api-tests', id: 'secondaryKernel' });
+			await vscode.commands.executeCommand('notebook.cell.execute');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
