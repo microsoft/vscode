@@ -804,9 +804,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				let targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
 
 				const overridenEditor = await this.editorOverrideService.resolveEditorOverride(typedEditor.editor, typedEditor.options, targetGroup);
-				if (overridenEditor) {
-					targetGroup = overridenEditor.group ?? targetGroup;
-				}
+				targetGroup = overridenEditor?.group ?? targetGroup;
 				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
 				if (!targetGroupEditors) {
 					targetGroupEditors = [];
