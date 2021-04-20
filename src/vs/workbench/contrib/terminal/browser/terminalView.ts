@@ -22,7 +22,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfile, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -47,6 +47,7 @@ export class TerminalViewPane extends ViewPane {
 	private _isWelcomeShowing: boolean = false;
 	private _tabButtons: CombinedButtonActionViewItem | undefined;
 	private _dropdownMenu: IMenu;
+	private _requestedAvailableProfiles: boolean = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -87,12 +88,23 @@ export class TerminalViewPane extends ViewPane {
 
 		this._dropdownMenu = this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService);
 
-		this._terminalService.onRequestAvailableProfiles(async () => {
-			if (this._tabButtons) {
-				await this._updateTabActionBar();
+		this._terminalService.onRequestAvailableProfiles(() => {
+			if (!this._requestedAvailableProfiles) {
+				this._terminalService.getAvailableProfilesAsync().then(profiles => {
+					if (this._tabButtons) {
+						this._updateTabActionBar(profiles);
+					}
+				});
+				this._requestedAvailableProfiles = true;
 			}
 		});
-
+		this._terminalService.onProfilesConfigChanged(() => {
+			this._terminalService.getAvailableProfilesAsync().then(profiles => {
+				if (this._tabButtons) {
+					this._updateTabActionBar(profiles);
+				}
+			});
+		});
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -186,16 +198,15 @@ export class TerminalViewPane extends ViewPane {
 		return super.getActionViewItem(action);
 	}
 
-	private async _updateTabActionBar(): Promise<void> {
-		const actions = await this._getTabActionBarArgs();
+	private async _updateTabActionBar(profiles: ITerminalProfile[]): Promise<void> {
+		const actions = await this._getTabActionBarArgs(profiles);
 		this._tabButtons?.update(actions);
 	}
 
-	private async _getTabActionBarArgs(): Promise<CombinedButtonArgs> {
+	private _getTabActionBarArgs(profiles: ITerminalProfile[]): CombinedButtonArgs {
 		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
 
-		const profiles = await this._terminalService.getAvailableProfiles();
 		for (const p of profiles) {
 			dropdownActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
