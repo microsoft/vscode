@@ -436,6 +436,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 	private generateContent(coreDependencies: string, baseUrl: string) {
 		const markdownRenderersSrc = this.getMarkdownRendererScripts();
+		const outputWidth = `calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px)`;
+		const outputMarginLeft = `${this.options.leftMargin + this.options.runGutter}px`;
 		return html`
 		<html lang="en">
 			<head>
@@ -597,8 +599,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div > div.output {
-						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
-						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
+						width: ${outputWidth};
+						margin-left: ${outputMarginLeft};
 						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
