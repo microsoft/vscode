@@ -357,6 +357,7 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		this._primaryAction = instantiationService.createInstance(MenuEntryActionViewItem, args.primaryAction);
 		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', 'codicon-gear'] });
 	}
+
 	override render(container: HTMLElement): void {
 		this.container = container;
 		super.render(container);
@@ -364,6 +365,8 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		this.element.className = this._args.className;
 		this._primaryAction.render(this.element);
 		this._dropdown.render(this.element);
+		this.element.style.display = 'flex';
+		this.element.style.flexDirection = 'row';
 	}
 
 	update(args: CombinedButtonArgs): void {
