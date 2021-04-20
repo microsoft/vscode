@@ -21,7 +21,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
@@ -45,7 +45,8 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
-	private _combinedButton: CombinedButtonActionViewItem | undefined;
+	private _tabButtons: CombinedButtonActionViewItem | undefined;
+	private _dropdownMenu: IMenu;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -84,12 +85,15 @@ export class TerminalViewPane extends ViewPane {
 			}
 		});
 		this._terminalService.onRequestAvailableProfiles(async () => {
-			if (!this._combinedButton) {
-				this._combinedButton = this._instantiationService.createInstance(CombinedButtonActionViewItem, await this._getToolbarActions());
-				this._register(this._combinedButton);
+			if (this._tabButtons) {
+				await this._updateTabActionBar();
+			} else {
+				const args = await this._getTabActionBarArgs();
+				this._tabButtons = this._instantiationService.createInstance(CombinedButtonActionViewItem, args);
 			}
-			await this._updateButton();
 		});
+
+		this._dropdownMenu = this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService);
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -174,18 +178,20 @@ export class TerminalViewPane extends ViewPane {
 		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		} else if (action.id === TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON) {
-			this._combinedButton = this._register(this._instantiationService.createInstance(CombinedButtonActionViewItem, this._getToolbarActionsSync()));
-			return this._combinedButton;
+			if (!this._tabButtons) {
+				this._tabButtons = this._instantiationService.createInstance(CombinedButtonActionViewItem, this._getInitialTabActionBarArgs());
+			}
+			return this._tabButtons;
 		}
 		return super.getActionViewItem(action);
 	}
 
-	private async _updateButton(): Promise<void> {
-		const actions = await this._getToolbarActions();
-		this._combinedButton?.update(actions);
+	private async _updateTabActionBar(): Promise<void> {
+		const actions = await this._getTabActionBarArgs();
+		this._tabButtons?.update(actions);
 	}
 
-	private async _getToolbarActions(): Promise<CombinedButtonArgs> {
+	private async _getTabActionBarArgs(): Promise<CombinedButtonArgs> {
 		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
 
@@ -200,8 +206,7 @@ export class TerminalViewPane extends ViewPane {
 			dropdownActions.push(new Separator());
 		}
 
-		const dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService));
-		for (const [, configureActions] of dropdownMenu.getActions()) {
+		for (const [, configureActions] of this._dropdownMenu.getActions()) {
 			for (const action of configureActions) {
 				if ('alt' in action) {
 					dropdownActions.push(action);
@@ -210,15 +215,14 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'more', title: 'more...', icon: Codicon.gear }, undefined, undefined);
-		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions' };
+		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'more', title: 'more...', icon: Codicon.more }, undefined, undefined);
+		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions', secondaryIcon: 'codicon-more' };
 	}
 
-	private _getToolbarActionsSync(): CombinedButtonArgs {
+	private _getInitialTabActionBarArgs(): CombinedButtonArgs {
 		const dropdownActions: IAction[] = [];
 
-		const dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService));
-		for (const [, configureActions] of dropdownMenu.getActions()) {
+		for (const [, configureActions] of this._dropdownMenu.getActions()) {
 			for (const action of configureActions) {
 				if ('alt' in action) {
 					dropdownActions.push(action);
@@ -228,7 +232,7 @@ export class TerminalViewPane extends ViewPane {
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
 		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'split', title: 'Split', icon: Codicon.more }, undefined, undefined);
-		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions' };
+		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions', secondaryIcon: 'codicon-more' };
 	}
 
 
@@ -339,13 +343,14 @@ interface CombinedButtonArgs {
 	primaryAction: MenuItemAction,
 	secondaryAction: MenuItemAction,
 	dropdownActions: IAction[],
-	className: string
+	className: string,
+	secondaryIcon?: string
 }
 
 export class CombinedButtonActionViewItem extends BaseActionViewItem {
 	private _primaryAction: MenuEntryActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
-	private container: HTMLElement | null = null;
+	private _container: HTMLElement | null = null;
 	private _args: CombinedButtonArgs;
 	constructor(
 		args: CombinedButtonArgs,
@@ -355,13 +360,13 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		super(null, args.primaryAction);
 		this._args = args;
 		this._primaryAction = instantiationService.createInstance(MenuEntryActionViewItem, args.primaryAction);
-		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', 'codicon-gear'] });
+		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-more'] });
 	}
 
 	override render(container: HTMLElement): void {
-		this.container = container;
+		this._container = container;
 		super.render(container);
-		this.element = DOM.append(this.container, DOM.$(''));
+		this.element = DOM.append(this._container, DOM.$(''));
 		this.element.className = this._args.className;
 		this._primaryAction.render(this.element);
 		this._dropdown.render(this.element);
@@ -370,10 +375,10 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 	}
 
 	update(args: CombinedButtonArgs): void {
-		this._dropdown.dispose();
-		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', 'codicon-gear'] });
-		if (this.container) {
-			this.render(this.container);
+		this._dropdown?.dispose();
+		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-more'] });
+		if (this._container) {
+			this.render(this._container);
 		}
 	}
 }
