@@ -525,7 +525,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				id: DEFAULT_EDITOR_ASSOCIATION.id,
 				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				active: (currentEditor) => this.fileEditorInputFactory.isFileEditorInput(currentEditor) && isEqual(currentEditor.resource, this.activeEditor?.resource),
+				describes: (currentEditor) => this.fileEditorInputFactory.isFileEditorInput(currentEditor) && isEqual(currentEditor.resource, this.activeEditor?.resource),
 				priority: ContributedEditorPriority.builtin,
 			},
 			{},

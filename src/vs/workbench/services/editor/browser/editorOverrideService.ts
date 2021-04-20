@@ -44,7 +44,7 @@ export type ContributionPointOptions = {
 
 export type ContributedEditorInfo = {
 	id: string;
-	active: (currentEditor: IEditorInput) => boolean;
+	describes: (currentEditor: IEditorInput) => boolean;
 	label: string;
 	detail?: string;
 	priority: ContributedEditorPriority;
@@ -152,7 +152,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// If it's the currently active editor we shouldn't do anything
-		if (selectedContribution.editorInfo.active(editor)) {
+		if (selectedContribution.editorInfo.describes(editor)) {
 			return;
 		}
 		const input = await this.doOverrideEditorInput(editor, options, group, selectedContribution);
@@ -420,7 +420,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 		// Get the matching contribtuions and call resolve whether they're active for the picker
 		contributionPoints.forEach(contribPoint => {
-			const isActive = currentEditor ? contribPoint.editorInfo.active(currentEditor) : false;
+			const isActive = currentEditor ? contribPoint.editorInfo.describes(currentEditor) : false;
 			const quickPickEntry = {
 				id: contribPoint.editorInfo.id,
 				label: contribPoint.editorInfo.label,
