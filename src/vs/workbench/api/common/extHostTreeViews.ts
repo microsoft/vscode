@@ -182,7 +182,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 type Root = null | undefined | void;
 type TreeData<T> = { message: boolean, element: T | Root | false };
 
-export interface TreeNode extends IDisposable {
+interface TreeNode extends IDisposable {
 	item: ITreeItem;
 	extensionItem: vscode.TreeItem;
 	parent: TreeNode | Root;
@@ -196,8 +196,6 @@ class ExtHostTreeView<T> extends Disposable {
 	private static readonly ID_HANDLE_PREFIX = '1';
 
 	private readonly dataProvider: vscode.TreeDataProvider<T>;
-
-	//private readonly moveHandler: vscode.TreeMoveItem<T>;
 
 	private roots: TreeNode[] | null = null;
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
