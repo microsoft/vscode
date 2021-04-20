@@ -354,11 +354,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'playground',
 					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),
-					description: localize('gettingStarted.playground.description', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground."),
-					button: {
-						title: localize('gettingStarted.playground.button', "Open Interactive Playground"),
-						command: 'workbench.action.showInteractivePlayground'
-					},
+					description: localize('gettingStarted.playground.description', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground.\n[Open Interactive Playground](command:toSide:workbench.action.showInteractivePlayground)"),
 					doneOn: { commandExecuted: 'workbench.action.showInteractivePlayground' },
 					media: {
 						type: 'image', altText: 'Interactive Playground.', path: {
@@ -371,11 +367,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'splitview',
 					title: localize('gettingStarted.splitview.title', "Side by side editing"),
-					description: localize('gettingStarted.splitview.description', "Make the most of your screen estate by opening files side by side, vertically and horizontally."),
-					button: {
-						title: localize('gettingStarted.splitview.button', "Split Editor"),
-						command: 'workbench.action.splitEditor'
-					},
+					description: localize('gettingStarted.splitview.description', "Make the most of your screen estate by opening files side by side, vertically and horizontally.\n[Split Editor](command:workbench.action.splitEditor)"),
 					doneOn: { commandExecuted: 'workbench.action.splitEditor' },
 					media: {
 						type: 'image', altText: 'Multiple editors in split view.', path: {
@@ -388,12 +380,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'debugging',
 					title: localize('gettingStarted.debug.title', "Watch your code in action"),
-					description: localize('gettingStarted.debug.description', "Accelerate your edit, build, test, and debug loop by setting up a launch configuration."),
+					description: localize('gettingStarted.debug.description', "Accelerate your edit, build, test, and debug loop by setting up a launch configuration.\n[Run your Project](command:workbench.action.debug.selectandstart)"),
 					when: 'workspaceFolderCount != 0',
-					button: {
-						title: localize('gettingStarted.debug.button', "Run your Project"),
-						command: 'workbench.action.debug.selectandstart'
-					},
 					doneOn: { commandExecuted: 'workbench.action.debug.selectandstart' },
 					media: {
 						type: 'image', altText: 'Run and debug view.', path: {
@@ -406,12 +394,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'scmClone',
 					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scmSetup.description', "Set up the built-in version control for your project to track your changes and collaborate with others."),
+					description: localize('gettingStarted.scmClone.description', "Set up the built-in version control for your project to track your changes and collaborate with others.\n[Clone Repository](command:git.clone)"),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount == 0',
-					button: {
-						title: localize('gettingStarted.scmClone.button', "Clone Repository"),
-						command: 'git.clone'
-					},
 					doneOn: { commandExecuted: 'git.clone' },
 					media: {
 						type: 'image', altText: 'Source Control view.', path: {
@@ -424,12 +408,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'scmSetup',
 					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scmSetup.description', "Set up the built-in version control for your project to track your changes and collaborate with others."),
+					description: localize('gettingStarted.scmSetup.description', "Set up the built-in version control for your project to track your changes and collaborate with others.\n[Initialize Git Repository](command:git.init)"),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount == 0',
-					button: {
-						title: localize('gettingStarted.scmSetup.button', "Initialize Git Repository"),
-						command: 'git.init'
-					},
 					doneOn: { commandExecuted: 'git.init' },
 					media: {
 						type: 'image', altText: 'Source Control view.', path: {
@@ -442,12 +422,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'scm',
 					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scm.description', "No more looking up Git commands! Git and GitHub workflows are seamlessly integrated."),
+					description: localize('gettingStarted.scm.description', "No more looking up Git commands! Git and GitHub workflows are seamlessly integrated.[Open Source Control](command:workbench.view.scm)"),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount != 0 && activeViewlet != \'workbench.view.scm\'',
-					button: {
-						title: localize('gettingStarted.scm.button', "Open Source Control"),
-						command: 'workbench.view.scm'
-					},
 					doneOn: { commandExecuted: 'workbench.view.scm.focus' },
 					media: {
 						type: 'image', altText: 'Source Control view.', path: {
@@ -461,11 +437,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'tasks',
 					title: localize('gettingStarted.tasks.title', "Automate your project tasks"),
 					when: 'workspaceFolderCount != 0',
-					description: localize('gettingStarted.tasks.description', "Create tasks for your common workflows and enjoy the integrated experience of running scripts and automatically checking results."),
-					button: {
-						title: localize('gettingStarted.tasks.button', "Run Auto-detected Tasks"),
-						command: 'workbench.action.tasks.runTask'
-					},
+					description: localize('gettingStarted.tasks.description', "Create tasks for your common workflows and enjoy the integrated experience of running scripts and automatically checking results.\n[Run Auto-detected Tasks](command:workbench.action.tasks.runTask)"),
 					doneOn: { commandExecuted: 'workbench.action.tasks.runTask' },
 					media: {
 						type: 'image', altText: 'Task runner.', path: {
@@ -478,11 +450,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'shortcuts',
 					title: localize('gettingStarted.shortcuts.title', "Customize your shortcuts"),
-					description: localize('gettingStarted.shortcuts.description', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access."),
-					button: {
-						title: localize('gettingStarted.shortcuts.button', "Keyboard Shortcuts"),
-						command: 'workbench.action.openGlobalKeybindings'
-					},
+					description: localize('gettingStarted.shortcuts.description', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access.\n[Keyboard Shortcuts](command:toSide:workbench.action.openGlobalKeybindings)"),
 					doneOn: { commandExecuted: 'workbench.action.openGlobalKeybindings' },
 					media: {
 						type: 'image', altText: 'Interactive shortcuts.', path: {
