@@ -1328,18 +1328,6 @@ declare module 'vscode' {
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
-	/** @deprecated used NotebookController */
-	export interface NotebookCommunication {
-		/** @deprecated used NotebookController */
-		readonly editorId: string;
-		/** @deprecated used NotebookController */
-		readonly onDidReceiveMessage: Event<any>;
-		/** @deprecated used NotebookController */
-		postMessage(message: any): Thenable<boolean>;
-		/** @deprecated used NotebookController */
-		asWebviewUri(localResource: Uri): Uri;
-	}
-
 	export interface NotebookDocumentShowOptions {
 		viewColumn?: ViewColumn;
 		preserveFocus?: boolean;
@@ -1420,17 +1408,14 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorEdit
 
 	export interface WorkspaceEdit {
+		// todo@API add NotebookEdit-type which handles all these cases?
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
-
-		// todo@API use NotebookCellRange
-		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCells(uri: Uri, range: NotebookRange, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 
+		//todo@API remove output modifications?
 		replaceNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
 		appendNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
-
-		// TODO@api
-		// https://jupyter-protocol.readthedocs.io/en/latest/messaging.html#update-display-data
 		replaceNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 		appendNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 	}
@@ -1461,15 +1446,47 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookSerializer
 
+	/**
+	 * The notebook serializer enables the editor to open notebook files.
+	 *
+	 * At its core the editor only knows a [notebook data structure](#NotebookData) but not
+	 * how that data structure is written to a file, nor how it is read from a file. The
+	 * notebook serializer bridges this gap by deserializing bytes into notebook data and
+	 * vice versa.
+	 */
 	export interface NotebookSerializer {
-		deserializeNotebook(data: Uint8Array, token: CancellationToken): NotebookData | Thenable<NotebookData>;
+
+		/**
+		 * Deserialize contents of a notebook file into the notebook data structure.
+		 *
+		 * @param content Contents of a notebook file.
+		 * @param token A cancellation token.
+		 * @return Notebook data or a thenable that resolves to such.
+		 */
+		deserializeNotebook(content: Uint8Array, token: CancellationToken): NotebookData | Thenable<NotebookData>;
+
+		/**
+		 * Serialize notebook data into file contents.
+		 *
+		 * @param data A notebook data structure.
+		 * @param token A cancellation token.
+		 * @returns An array of bytes or a thenable that resolves to such.
+		 */
 		serializeNotebook(data: NotebookData, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
 	}
 
 	export namespace notebook {
 
 		// todo@API remove output when notebook marks that as transient, same for metadata
-		export function registerNotebookSerializer(notebookType: string, provider: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
+		/**
+		 * Register a [notebook serializer](#NotebookSerializer).
+		 *
+		 * @param notebookType A notebook.
+		 * @param serializer A notebook serialzier.
+		 * @param options Optional context options that define what parts of a notebook should be persisted
+		 * @return A [disposable](#Disposable) that unregisters this serializer when being disposed.
+		 */
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
 	}
 
 	//#endregion
@@ -1490,18 +1507,28 @@ declare module 'vscode' {
 		 * @param cells The notebook cells to execute
 		 * @param controller The controller that the handler is attached to
 		 */
-		(this: NotebookController, cells: NotebookCell[], controller: NotebookController): void
+		(this: NotebookController, cells: NotebookCell[], controller: NotebookController): void | Thenable<void>
 	}
 
 	export interface NotebookInterruptHandler {
-		(this: NotebookController): void;
+		(this: NotebookController): void | Thenable<void>;
 	}
 
 	export interface NotebookController {
 
+		/**
+		 * The unique identifier of this notebook controller.
+		 */
 		readonly id: string;
 
-		// select notebook of a type and/or by file-pattern
+		/**
+		 * The selector allows to narrow down on specific notebook types or
+		 * instances.
+		 *
+		 * For instance `{ viewType: 'notebook.test' }` selects all notebook
+		 * documents of the type `notebook.test`, whereas `{ pattern: '/my/file/test.nb' }`
+		 * selects only the notebook with the path `/my/file/test.nb`.
+		 */
 		readonly selector: NotebookSelector;
 
 		/**
@@ -1511,13 +1538,41 @@ declare module 'vscode' {
 		 */
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
-		// UI properties (get/set)
+		/**
+		 * The human-readable label of this notebook controller.
+		 */
 		label: string;
-		detail?: string;
+
+		/**
+		 * The human-readable description which is rendered less prominent.
+		 */
 		description?: string;
+
+		/**
+		 * The human-readable detail which is rendered less prominent.
+		 */
+		detail?: string;
+
+		/**
+		 * Marks this notebook controller as preferred.
+		 *
+		 * When multiple notebook controller apply to a single notebook then
+		 * users can select one - preferred controllers will be shows more
+		 * prominent then.
+		 */
 		isPreferred?: boolean;
 
+		/**
+		 * An array of language identifiers that are supported by this
+		 * controller.
+		 */
 		supportedLanguages: string[];
+
+		/**
+		 * Whether this controller supports execution order so that the
+		 * editor can render placeholders for them.
+		 */
+		// todo@API rename to supportsExecutionOrder, usesExecutionOrder
 		hasExecutionOrder?: boolean;
 
 		/**
@@ -1526,8 +1581,16 @@ declare module 'vscode' {
 		 */
 		executeHandler: NotebookExecutionHandler;
 
-		// optional kernel interrupt command
+		/**
+		 * The interrupt handler is invoked the interrupt all execution. This is contrary to cancellation (available via
+		 * [`NotebookCellExecutionTask#token`](NotebookCellExecutionTask#token)) and should only be used when
+		 * execution-level cancellation is supported
+		 */
 		interruptHandler?: NotebookInterruptHandler
+
+		/**
+		 * Dispose and free associated resources.
+		 */
 		dispose(): void;
 
 		/**
@@ -1542,8 +1605,25 @@ declare module 'vscode' {
 
 		// ipc
 		readonly preloads: NotebookKernelPreload[];
+
+		/**
+		 * An event that fires when a renderer (see `preloads`) has send a message to the controller.
+		 */
 		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
+
+		/**
+		 * Send a message to the renderer of notebook editors.
+		 *
+		 * Note that only editors showing documents that are bound to this controller
+		 * are receiving the message.
+		 *
+		 * @param message The message to send.
+		 * @param editor A specific editor to send the message to. When `undefined` all applicable editors are receiving the message.
+		 * @returns A promise that resolves to a boolean indicating if the message has been send or not.
+		 */
 		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+
+
 		asWebviewUri(localResource: Uri): Uri;
 	}
 
@@ -1631,45 +1711,6 @@ declare module 'vscode' {
 		uri: Uri;
 	}
 
-	/** @deprecated used NotebookController */
-	export interface NotebookKernel {
-
-		// todo@API make this mandatory?
-		readonly id?: string;
-
-		label: string;
-		description?: string;
-		detail?: string;
-		isPreferred?: boolean;
-
-		// todo@API do we need an preload change event?
-		preloads?: NotebookKernelPreload[];
-
-		/**
-		 * languages supported by kernel
-		 * - first is preferred
-		 * - `undefined` means all languages available in the editor
-		 */
-		supportedLanguages?: string[];
-
-		// todo@API kernel updating itself
-		// fired when properties like the supported languages etc change
-		// onDidChangeProperties?: Event<void>
-
-		/**
-		 * A kernel can optionally implement this which will be called when any "cancel" button is clicked in the document.
-		 */
-		interrupt?(document: NotebookDocument): void;
-
-		/**
-		 * Called when the user triggers execution of a cell by clicking the run button for a cell, multiple cells,
-		 * or full notebook. The cell will be put into the Pending state when this method is called. If
-		 * createNotebookCellExecutionTask has not been called by the time the promise returned by this method is
-		 * resolved, the cell will be put back into the Idle state.
-		 */
-		executeCellsRequest(document: NotebookDocument, ranges: NotebookRange[]): Thenable<void>;
-	}
-
 	export interface NotebookCellExecuteStartContext {
 		/**
 		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
@@ -1726,43 +1767,13 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		/**
-		 * Creates a [`NotebookCellExecutionTask`](#NotebookCellExecutionTask). Should only be called by a kernel. Returns undefined unless requested by the active kernel.
-		 * @param uri The [uri](#Uri) of the notebook document.
-		 * @param index The index of the cell.
-		 * @param kernelId The id of the kernel requesting this run task. If this kernel is not the current active kernel, `undefined` is returned.
-		 */
+		/** @deprecated use NotebookController */
 		export function createNotebookCellExecutionTask(uri: Uri, index: number, kernelId: string): NotebookCellExecutionTask | undefined;
 
 		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 	}
 
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
-
-	// todo@API why not for NotebookContentProvider?
-	export interface NotebookDocumentFilter {
-		viewType?: string | string[];
-		filenamePattern?: NotebookFilenamePattern;
-	}
-
-	/** @deprecated used NotebookController */
-	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
-		onDidChangeKernels?: Event<NotebookDocument | undefined>;
-		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
-		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
-	}
-
-	export interface NotebookEditor {
-		/** @deprecated kernels are private object*/
-		readonly kernel?: NotebookKernel;
-	}
-
-	export namespace notebook {
-		/** @deprecated */
-		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
-		/** @deprecated used NotebookController */
-		export function registerNotebookKernelProvider(selector: NotebookDocumentFilter, provider: NotebookKernelProvider): Disposable;
-	}
 
 	//#endregion
 

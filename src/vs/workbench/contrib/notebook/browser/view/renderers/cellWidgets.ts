@@ -44,6 +44,9 @@ export class CellEditorStatusBar extends Disposable {
 	private readonly rightContributedItemsContainer: HTMLElement;
 	private readonly itemsDisposable: DisposableStore;
 
+	private items: CellStatusBarItem[] = [];
+	private width: number = 0;
+
 	private currentContext: INotebookCellActionContext | undefined;
 	protected readonly _onDidClick: Emitter<IClickTarget> = this._register(new Emitter<IClickTarget>());
 	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
@@ -103,7 +106,15 @@ export class CellEditorStatusBar extends Disposable {
 	}
 
 	layout(width: number): void {
+		this.width = width;
 		this.statusBarContainer.style.width = `${width}px`;
+
+		const maxItemWidth = this.getMaxItemWidth();
+		this.items.forEach(item => item.maxWidth = maxItemWidth);
+	}
+
+	private getMaxItemWidth() {
+		return this.width / 2;
 	}
 
 	private async updateStatusBarItems() {
@@ -130,14 +141,15 @@ export class CellEditorStatusBar extends Disposable {
 		items.sort((itemA, itemB) => {
 			return (itemB.priority ?? 0) - (itemA.priority ?? 0);
 		});
-		items.forEach(item => {
-			const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
-			if (item.alignment === CellStatusbarAlignment.Left) {
-				this.leftContributedItemsContainer.appendChild(itemView.container);
-			} else {
-				this.rightContributedItemsContainer.appendChild(itemView.container);
-			}
-		});
+
+		const maxItemWidth = this.getMaxItemWidth();
+		const leftItems = items.filter(item => item.alignment === CellStatusbarAlignment.Left)
+			.map(item => this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item, maxItemWidth)));
+		const rightItems = items.filter(item => item.alignment === CellStatusbarAlignment.Right).reverse()
+			.map(item => this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item, maxItemWidth)));
+		leftItems.forEach(itemView => this.leftContributedItemsContainer.appendChild(itemView.container));
+		rightItems.forEach(itemView => this.rightContributedItemsContainer.appendChild(itemView.container));
+		this.items = [...leftItems, ...rightItems];
 	}
 }
 
@@ -145,15 +157,20 @@ class CellStatusBarItem extends Disposable {
 
 	readonly container = $('.cell-status-item');
 
+	set maxWidth(v: number) {
+		this.container.style.maxWidth = v + 'px';
+	}
+
 	constructor(
 		private readonly _context: INotebookCellActionContext,
 		private readonly _itemModel: INotebookCellStatusBarItem,
+		maxWidth: number | undefined,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
-		new SimpleIconLabel(this.container).text = this._itemModel.text;
+		new SimpleIconLabel(this.container).text = this._itemModel.text.replace(/\n/g, ' ');
 
 		if (this._itemModel.opacity) {
 			this.container.style.opacity = this._itemModel.opacity;
@@ -161,6 +178,10 @@ class CellStatusBarItem extends Disposable {
 
 		if (this._itemModel.onlyShowWhenActive) {
 			this.container.classList.add('cell-status-item-show-when-active');
+		}
+
+		if (typeof maxWidth === 'number') {
+			this.maxWidth = maxWidth;
 		}
 
 		let ariaLabel: string;

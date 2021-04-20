@@ -407,6 +407,7 @@
 	font-size: 12px;
 	display: flex;
 	position: relative;
+	overflow: hidden;
 }
 
 .monaco-workbench .notebookOverlay.cell-statusbar-hidden .cell-statusbar-container {
@@ -422,6 +423,10 @@
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
 	display: flex;
 	z-index: 26;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
+	flex-direction: row-reverse;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right .cell-contributed-items {
@@ -440,7 +445,9 @@
 	white-space: pre;
 
 	height: 21px; /* Editor outline is -1px in, don't overlap */
-	padding: 0px 6px;
+	margin: 0px 6px;
+	overflow: hidden;
+	text-overflow: clip;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item.cell-status-item-has-command {
@@ -953,7 +960,6 @@
 
 .monaco-workbench .notebookOverlay .output .error,
 .monaco-workbench .notebookOverlay .output .output-plaintext {
-	margin: 4px 0;
 	overflow-x: auto;
 }
 

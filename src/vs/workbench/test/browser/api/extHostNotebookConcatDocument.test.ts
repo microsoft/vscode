@@ -51,7 +51,7 @@ suite('NotebookConcatDocument', function () {
 				return URI.from({ scheme: 'test', path: generateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService(), extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, new NullLogService(), extHostStoragePaths);
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
@@ -70,14 +70,12 @@ suite('NotebookConcatDocument', function () {
 				}],
 				versionId: 0
 			}],
-			addedEditors: [
-				{
-					documentUri: notebookUri,
-					id: '_notebook_editor_0',
-					selections: [{ start: 0, end: 1 }],
-					visibleRanges: []
-				}
-			]
+			addedEditors: [{
+				documentUri: notebookUri,
+				id: '_notebook_editor_0',
+				selections: [{ start: 0, end: 1 }],
+				visibleRanges: []
+			}]
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
 

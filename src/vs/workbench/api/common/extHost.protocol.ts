@@ -50,7 +50,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, ProvidedPortAttributes } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, TransientCellMetadata, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto, TransientOptions, IImmediateCellEditOperation, INotebookCellStatusBarItem, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, TransientCellMetadata, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto, TransientOptions, IImmediateCellEditOperation, INotebookCellStatusBarItem, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
@@ -884,13 +884,9 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions): void;
 	$unregisterNotebookSerializer(handle: number): void;
 
-	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;
-	$unregisterNotebookKernelProvider(handle: number): Promise<void>;
 	$registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, selector: NotebookSelector): Promise<void>;
 	$unregisterNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void>;
 	$emitCellStatusBarEvent(eventHandle: number): void;
-	$onNotebookKernelChange(handle: number, uri: UriComponents | undefined): void;
-	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 }
 
 export interface MainThreadNotebookEditorsShape extends IDisposable {
@@ -1925,15 +1921,8 @@ export interface INotebookKernelInfoDto2 {
 }
 
 export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape, ExtHostNotebookDocumentsShape, ExtHostNotebookEditorsShape {
-	$resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void>;
-	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelFriendlyId: string | undefined }): void;
-	$provideNotebookKernels(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
-	$resolveNotebookKernel(handle: number, editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
-	$executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellRanges: ICellRange[]): Promise<void>;
-	$cancelNotebookCellExecution(handle: number, uri: UriComponents, kernelId: string, cellRange: ICellRange[]): Promise<void>;
 	$provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined>;
 	$releaseNotebookCellStatusBarItems(id: number): void;
-	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
 
 	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<NotebookDataDto>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
@@ -1964,8 +1953,8 @@ export interface ExtHostNotebookEditorsShape {
 
 export interface ExtHostNotebookKernelsShape {
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void;
-	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): Promise<void>;
-	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): Promise<void>;
+	$executeCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
+	$cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
 	$acceptRendererMessage(handle: number, editorId: string, message: any): void;
 }
 
