@@ -1446,15 +1446,47 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookSerializer
 
+	/**
+	 * The notebook serializer enables the editor to open notebook files.
+	 *
+	 * At its core the editor only knows a [notebook data structure](#NotebookData) but not
+	 * how that data structure is written to a file, nor how it is read from a file. The
+	 * notebook serializer bridges this gap by deserializing bytes into notebook data and
+	 * vice versa.
+	 */
 	export interface NotebookSerializer {
-		deserializeNotebook(data: Uint8Array, token: CancellationToken): NotebookData | Thenable<NotebookData>;
+
+		/**
+		 * Deserialize contents of a notebook file into the notebook data structure.
+		 *
+		 * @param content Contents of a notebook file.
+		 * @param token A cancellation token.
+		 * @return Notebook data or a thenable that resolves to such.
+		 */
+		deserializeNotebook(content: Uint8Array, token: CancellationToken): NotebookData | Thenable<NotebookData>;
+
+		/**
+		 * Serialize notebook data into file contents.
+		 *
+		 * @param data A notebook data structure.
+		 * @param token A cancellation token.
+		 * @returns An array of bytes or a thenable that resolves to such.
+		 */
 		serializeNotebook(data: NotebookData, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
 	}
 
 	export namespace notebook {
 
 		// todo@API remove output when notebook marks that as transient, same for metadata
-		export function registerNotebookSerializer(notebookType: string, provider: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
+		/**
+		 * Register a [notebook serializer](#NotebookSerializer).
+		 *
+		 * @param notebookType A notebook.
+		 * @param serializer A notebook serialzier.
+		 * @param options Optional context options that define what parts of a notebook should be persisted
+		 * @return A [disposable](#Disposable) that unregisters this serializer when being disposed.
+		 */
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
 	}
 
 	//#endregion
