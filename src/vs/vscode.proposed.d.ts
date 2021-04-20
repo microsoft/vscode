@@ -1484,9 +1484,19 @@ declare module 'vscode' {
 
 	export interface NotebookController {
 
+		/**
+		 * The unique identifier of this notebook controller.
+		 */
 		readonly id: string;
 
-		// select notebook of a type and/or by file-pattern
+		/**
+		 * The selector allows to narrow down on specific notebook types or
+		 * instances.
+		 *
+		 * For instance `{ viewType: 'notebook.test' }` selects all notebook
+		 * documents of the type `notebook.test`, whereas `{ pattern: '/my/file/test.nb' }`
+		 * selects only the notebook with the path `/my/file/test.nb`.
+		 */
 		readonly selector: NotebookSelector;
 
 		/**
@@ -1496,13 +1506,41 @@ declare module 'vscode' {
 		 */
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
-		// UI properties (get/set)
+		/**
+		 * The human-readable label of this notebook controller.
+		 */
 		label: string;
-		detail?: string;
+
+		/**
+		 * The human-readable description which is rendered less prominent.
+		 */
 		description?: string;
+
+		/**
+		 * The human-readable detail which is rendered less prominent.
+		 */
+		detail?: string;
+
+		/**
+		 * Marks this notebook controller as preferred.
+		 *
+		 * When multiple notebook controller apply to a single notebook then
+		 * users can select one - preferred controllers will be shows more
+		 * prominent then.
+		 */
 		isPreferred?: boolean;
 
+		/**
+		 * An array of language identifiers that are supported by this
+		 * controller.
+		 */
 		supportedLanguages: string[];
+
+		/**
+		 * Whether this controller supports execution order so that the
+		 * editor can render placeholders for them.
+		 */
+		// todo@API rename to supportsExecutionOrder, usesExecutionOrder
 		hasExecutionOrder?: boolean;
 
 		/**
@@ -1511,8 +1549,16 @@ declare module 'vscode' {
 		 */
 		executeHandler: NotebookExecutionHandler;
 
-		// optional kernel interrupt command
+		/**
+		 * The interrupt handler is invoked the interrupt all execution. This is contrary to cancellation (available via
+		 * [`NotebookCellExecutionTask#token`](NotebookCellExecutionTask#token)) and should only be used when
+		 * execution-level cancellation is supported
+		 */
 		interruptHandler?: NotebookInterruptHandler
+
+		/**
+		 * Dispose and free associated resources.
+		 */
 		dispose(): void;
 
 		/**
@@ -1527,8 +1573,25 @@ declare module 'vscode' {
 
 		// ipc
 		readonly preloads: NotebookKernelPreload[];
+
+		/**
+		 * An event that fires when a renderer (see `preloads`) has send a message to the controller.
+		 */
 		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
+
+		/**
+		 * Send a message to the renderer of notebook editors.
+		 *
+		 * Note that only editors showing documents that are bound to this controller
+		 * are receiving the message.
+		 *
+		 * @param message The message to send.
+		 * @param editor A specific editor to send the message to. When `undefined` all applicable editors are receiving the message.
+		 * @returns A promise that resolves to a boolean indicating if the message has been send or not.
+		 */
 		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+
+
 		asWebviewUri(localResource: Uri): Uri;
 	}
 
