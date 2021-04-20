@@ -18,6 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModel } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 
 class StackOperation implements IWorkspaceUndoRedoElement {
@@ -26,17 +27,17 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 	private _operations: IUndoRedoElement[] = [];
 	private _beginSelectionState: ISelectionState | undefined = undefined;
 	private _resultSelectionState: ISelectionState | undefined = undefined;
-	private _beginAlternativeVersionId: number;
-	private _resultAlternativeVersionId: number;
+	private _beginAlternativeVersionId: string;
+	private _resultAlternativeVersionId: string;
 
 	constructor(
 		readonly resource: URI,
 		readonly label: string,
 		readonly undoRedoGroup: UndoRedoGroup | undefined,
 		private _delayedEmitter: DelayedEmitter,
-		private _postUndoRedo: (alternativeVersionId: number) => void,
+		private _postUndoRedo: (alternativeVersionId: string) => void,
 		selectionState: ISelectionState | undefined,
-		beginAlternativeVersionId: number
+		beginAlternativeVersionId: string
 	) {
 		this.type = UndoRedoElementType.Workspace;
 		this._beginSelectionState = selectionState;
@@ -51,7 +52,7 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 		return this._operations.length === 0;
 	}
 
-	pushEndState(alternativeVersionId: number, selectionState: ISelectionState | undefined) {
+	pushEndState(alternativeVersionId: string, selectionState: ISelectionState | undefined) {
 		this._resultAlternativeVersionId = alternativeVersionId;
 		this._resultSelectionState = selectionState;
 	}
@@ -89,11 +90,11 @@ export class NotebookOperationManager {
 		private _undoService: IUndoRedoService,
 		private _resource: URI,
 		private _delayedEmitter: DelayedEmitter,
-		private _postUndoRedo: (alternativeVersionId: number) => void
+		private _postUndoRedo: (alternativeVersionId: string) => void
 	) {
 	}
 
-	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: number) {
+	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: string) {
 		if (this._pendingStackOperation) {
 			this._pendingStackOperation.pushEndState(alternativeVersionId, selectionState);
 			if (!this._pendingStackOperation.isEmpty) {
@@ -199,7 +200,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	/**
 	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
 	 */
-	private _alternativeVersionId: number = 0;
+	private _alternativeVersionId: string = '1';
 	private _operationManager: NotebookOperationManager;
 	private _eventEmitter: DelayedEmitter;
 
@@ -215,7 +216,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this._versionId;
 	}
 
-	get alternativeVersionId(): number {
+	get alternativeVersionId(): string {
 		return this._alternativeVersionId;
 	}
 
@@ -235,7 +236,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._initialize(cells);
 
 		const maybeUpdateCellTextModel = (textModel: ITextModel) => {
-			if (textModel.uri.scheme === Schemas.vscodeNotebookCell) {
+			if (textModel.uri.scheme === Schemas.vscodeNotebookCell && textModel instanceof TextModel) {
 				const cellUri = CellUri.parse(textModel.uri);
 				if (cellUri && isEqual(cellUri.notebook, this.uri)) {
 					const cellIdx = this._getCellIndexByHandle(cellUri.handle);
@@ -259,7 +260,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._undoService,
 			uri,
 			this._eventEmitter,
-			(alternativeVersionId: number) => {
+			(alternativeVersionId: string) => {
 				this._increaseVersionId();
 				this._overwriteAlternativeVersionId(alternativeVersionId);
 			}
@@ -287,6 +288,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		this._cells.splice(0, 0, ...mainCells);
+		this._alternativeVersionId = this._generateAlternativeId();
+	}
+
+	private _generateAlternativeId() {
+		return this.cells.map(cell => cell.handle + ',' + cell.alternativeId).join(';');
 	}
 
 	override dispose() {
@@ -453,7 +459,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._modeService
 			);
 			const textModel = this._modelService.getModel(cellUri);
-			if (textModel) {
+			if (textModel && textModel instanceof TextModel) {
 				cell.textModel = textModel;
 				cell.language = cellDto.language;
 			}
@@ -498,10 +504,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _increaseVersionId(): void {
 		this._versionId = this._versionId + 1;
-		this._alternativeVersionId = this.versionId;
+		this._alternativeVersionId = this._generateAlternativeId();
 	}
 
-	private _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
+	private _overwriteAlternativeVersionId(newAlternativeVersionId: string): void {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}
 

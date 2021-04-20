@@ -15,6 +15,7 @@ import { hash } from 'vs/base/common/hash';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -88,7 +89,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
-			this._onDidChangeContent.fire();
+			if (!this._textModel) {
+				this._onDidChangeContent.fire();
+			}
 		}));
 
 		return this._textBuffer;
@@ -96,13 +99,19 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	private _hash: number | null = null;
 
+	private _versionId: number = 1;
+	private _alternativeId: number = 1;
+	get alternativeId(): number {
+		return this._alternativeId;
+	}
+
 	private _textModelDisposables = new DisposableStore();
-	private _textModel: model.ITextModel | undefined = undefined;
-	get textModel(): model.ITextModel | undefined {
+	private _textModel: TextModel | undefined = undefined;
+	get textModel(): TextModel | undefined {
 		return this._textModel;
 	}
 
-	set textModel(m: model.ITextModel | undefined) {
+	set textModel(m: TextModel | undefined) {
 		if (this._textModel === m) {
 			return;
 		}
@@ -118,6 +127,16 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 				this.language = e.newLanguage;
 			}));
 			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
+			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
+				if (this._textModel) {
+					this._versionId = this._textModel.getVersionId();
+					this._alternativeId = this._textModel.getAlternativeVersionId();
+				}
+				this._onDidChangeContent.fire();
+			}));
+
+			this._textModel._overwriteVersionId(this._versionId);
+			this._textModel._overwriteAlternativeVersionId(this._versionId);
 		}
 	}
 
