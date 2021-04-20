@@ -960,7 +960,6 @@
 
 .monaco-workbench .notebookOverlay .output .error,
 .monaco-workbench .notebookOverlay .output .output-plaintext {
-	margin: 4px 0;
 	overflow-x: auto;
 }
 
