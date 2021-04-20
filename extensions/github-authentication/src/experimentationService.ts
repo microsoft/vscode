@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getExperimentationService, IExperimentationService, IExperimentationTelemetry, TargetPopulation } from 'vscode-tas-client';
@@ -57,7 +56,7 @@ interface ProductConfiguration {
 }
 
 async function getProductConfig(appRoot: string): Promise<ProductConfiguration> {
-	const raw = await vscode.workspace.fs.readFile(vscode.Uri.file(path.join(appRoot, 'product.json')));
+	const raw = await vscode.workspace.fs.readFile((vscode.Uri.joinPath(vscode.Uri.file(appRoot), 'product.json')));
 	return JSON.parse(raw.toString());
 }
 
