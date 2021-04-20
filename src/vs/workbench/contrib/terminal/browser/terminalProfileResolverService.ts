@@ -12,7 +12,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IProcessEnvironment, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
