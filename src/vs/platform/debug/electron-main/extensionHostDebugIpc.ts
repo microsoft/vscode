@@ -57,12 +57,12 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		});
 
 		if (!debugRenderer) {
-			return { success: false };
+			return { success: true };
 		}
 
 		const win = codeWindow.win;
 		if (!win) {
-			return { success: false };
+			return { success: true };
 		}
 
 		const debug = win.webContents.debugger;

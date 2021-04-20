@@ -149,18 +149,38 @@ export class TerminalTabbedView extends Disposable {
 		return parseInt(storedValue);
 	}
 
+	private _handleOnDidSashReset(): void {
+		// Calculate ideal size of widget to display all text based on its contents
+		let idealWidth = DEFAULT_TABS_WIDGET_WIDTH;
+		const offscreenCanvas = new OffscreenCanvas(1, 1);
+		const ctx = offscreenCanvas.getContext('2d');
+		if (ctx) {
+			const style = window.getComputedStyle(this._terminalTabTree);
+			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
+			const maxTextSize = this._terminalService.terminalInstances.reduce((p, c) => {
+				return Math.max(p, ctx.measureText(c.title).width);
+			}, 0);
+			// Size to include padding + icon + a little more
+			idealWidth = Math.ceil(Math.max(maxTextSize + 40, DEFAULT_TABS_WIDGET_WIDTH));
+		}
+		// If the size is already ideal, toggle to collapsed
+		const currentWidth = Math.ceil(this._splitView.getViewSize(this._tabTreeIndex));
+		if (currentWidth === idealWidth) {
+			idealWidth = MIN_TABS_WIDGET_WIDTH;
+		}
+		this._splitView.resizeView(this._tabTreeIndex, idealWidth);
+		this._updateWidgetWidth(idealWidth);
+	}
+
 	private _handleOnDidSashChange(): void {
 		let widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
 		if (!this._width || widgetWidth <= 0) {
 			return;
 		}
-		widgetWidth = this._updateWidgetWidth(widgetWidth);
-		this._refreshHasTextClass();
-		this._rerenderTabs();
-		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);
+		this._updateWidgetWidth(widgetWidth);
 	}
 
-	private _updateWidgetWidth(width: number): number {
+	private _updateWidgetWidth(width: number): void {
 		if (width < MIDPOINT_WIDGET_WIDTH && width > MIN_TABS_WIDGET_WIDTH) {
 			width = MIN_TABS_WIDGET_WIDTH;
 			this._splitView.resizeView(this._tabTreeIndex, width);
@@ -168,11 +188,13 @@ export class TerminalTabbedView extends Disposable {
 			width = DEFAULT_TABS_WIDGET_WIDTH;
 			this._splitView.resizeView(this._tabTreeIndex, width);
 		}
-		return width;
+		this._refreshHasTextClass();
+		this._rerenderTabs();
+		this._storageService.store(TABS_WIDGET_WIDTH_KEY, width, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private _setupSplitView(): void {
-		this._register(this._splitView.onDidSashReset(() => this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH)));
+		this._register(this._splitView.onDidSashReset(() => this._handleOnDidSashReset()));
 		this._register(this._splitView.onDidSashChange(() => this._handleOnDidSashChange()));
 
 		if (this._showTabs) {

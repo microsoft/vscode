@@ -38,6 +38,12 @@ suite('Notifications', () => {
 		assert.strictEqual(item1.equals(item4), false);
 		assert.strictEqual(item1.equals(item5), false);
 
+		let itemId1 = NotificationViewItem.create({ id: 'same', message: 'Info Message', severity: Severity.Info })!;
+		let itemId2 = NotificationViewItem.create({ id: 'same', message: 'Error Message', severity: Severity.Error })!;
+
+		assert.strictEqual(itemId1.equals(itemId2), true);
+		assert.strictEqual(itemId1.equals(item3), false);
+
 		// Progress
 		assert.strictEqual(item1.hasProgress, false);
 		assert.strictEqual(item6.hasProgress, true);
