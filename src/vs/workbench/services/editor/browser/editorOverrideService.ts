@@ -13,7 +13,7 @@ import { EditorActivation, EditorOverride, IEditorOptions, ITextEditorOptions } 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorAssociation, EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
-import { EditorOptions, EditorResourceAccessor, EditorsOrder, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -296,7 +296,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// If an existing editor for a resource exists within the group and we're reopening it, replace it.
-		const existing = firstOrDefault(group.findEditors(resource, EditorsOrder.SEQUENTIAL));
+		const existing = firstOrDefault(group.findEditors(resource));
 		if (existing) {
 			if (!input.matches(existing)) {
 				await group.replaceEditors([{
@@ -396,7 +396,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 
 	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup) {
-		const currentEditor = firstOrDefault(group.findEditors(resource, EditorsOrder.SEQUENTIAL));
+		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all contribution points
 		let contributionPoints = resource.scheme === Schemas.untitled ? distinct(flatten(Array.from(this._contributionPoints.values())), (contrib) => contrib.editorInfo.id) : this.findMatchingContributions(resource);
 

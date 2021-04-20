@@ -854,7 +854,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return [];
 		}
 
-		return targetGroup.findEditors(resource, EditorsOrder.SEQUENTIAL);
+		return targetGroup.findEditors(resource);
 	}
 
 	//#endregion
