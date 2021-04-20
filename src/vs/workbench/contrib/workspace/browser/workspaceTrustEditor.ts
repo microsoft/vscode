@@ -215,6 +215,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.workspaceTrustSettingsTreeModel.update(this.workspaceTrustManagementService.getTrustedFolders());
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
 
+		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
 		this.rendering = false;
 	}
@@ -429,8 +430,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.layoutParticipants.forEach(participant => {
 			participant.layout();
 		});
-
-		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 
 		this.bodyScrollBar.scanDomNode();
 	}

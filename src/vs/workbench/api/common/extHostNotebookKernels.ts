@@ -106,6 +106,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.label = value ?? extension.displayName ?? extension.name;
 				_update();
 			},
+			get detail() {
+				return data.detail ?? '';
+			},
+			set detail(value) {
+				data.detail = value;
+				_update();
+			},
 			get description() {
 				return data.description ?? '';
 			},
@@ -192,7 +199,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void {
+	async $executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): Promise<void> {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			// extension can dispose kernels in the meantime
@@ -216,7 +223,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void {
+	async $cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): Promise<void> {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			// extension can dispose kernels in the meantime

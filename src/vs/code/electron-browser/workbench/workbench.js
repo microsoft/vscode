@@ -32,9 +32,13 @@
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		},
 		{
-			configureDeveloperKeybindings: function (windowConfig) {
+			configureDeveloperSettings: function (windowConfig) {
 				return {
-					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath),
+					// disable automated devtools opening on error when running extension tests
+					// as this can lead to undeterministic test exectuion (devtools steals focus)
+					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string',
+					// enable devtools keybindings in extension development window
+					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath) && windowConfig.extensionDevelopmentPath.length > 0,
 					removeDeveloperKeybindingsAfterLoad: true
 				};
 			},
@@ -91,7 +95,12 @@
 	 *     modules: string[],
 	 *     resultCallback: (result, configuration: INativeWindowConfiguration) => unknown,
 	 *     options?: {
-	 *       configureDeveloperKeybindings?: (config: INativeWindowConfiguration & object) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & object) => {
+	 * 			forceDisableShowDevtoolsOnError?: boolean,
+	 * 			forceEnableDeveloperKeybindings?: boolean,
+	 * 			disallowReloadKeybinding?: boolean,
+	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 		 },
 	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & object) => void,
 	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *       beforeRequire?: () => void

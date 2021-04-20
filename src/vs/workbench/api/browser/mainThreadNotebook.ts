@@ -15,6 +15,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { ICellRange, INotebookCellStatusBarItemProvider, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookDataDto, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
 
@@ -204,7 +205,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		}
 	}
 
-	async $registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, documentFilter: INotebookDocumentFilter): Promise<void> {
+	async $registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, selector: NotebookSelector): Promise<void> {
 		const that = this;
 		const provider: INotebookCellStatusBarItemProvider = {
 			async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken) {
@@ -218,7 +219,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					}
 				};
 			},
-			selector: documentFilter
+			selector: selector
 		};
 
 		if (typeof eventHandle === 'number') {

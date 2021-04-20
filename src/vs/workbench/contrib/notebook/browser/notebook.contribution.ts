@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions } from 'vs/workbench/common/editor';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -47,6 +47,7 @@ import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/d
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
@@ -172,9 +173,9 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	new class implements ICustomEditorInputFactory {
 		async createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<NotebookEditorInput> {
 			return instantiationService.invokeFunction(async accessor => {
-				const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
+				const workingCopyBackupService = accessor.get<IWorkingCopyBackupService>(IWorkingCopyBackupService);
 
-				const backup = await backupFileService.resolve<NotebookDocumentBackupData>(resource);
+				const backup = await workingCopyBackupService.resolve<NotebookDocumentBackupData>({ resource, typeId: NO_TYPE_ID });
 				if (!backup?.meta) {
 					throw new Error(`No backup found for Notebook editor: ${resource}`);
 				}

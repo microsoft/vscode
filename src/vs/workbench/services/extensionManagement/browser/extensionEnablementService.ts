@@ -100,8 +100,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (this._isDisabledInEnv(extension)) {
 			return EnablementState.DisabledByEnvironment;
 		}
-		if (this._isDisabledByWorkspaceScheme(extension)) {
-			return EnablementState.DisabledByEnvironment;
+		if (this._isDisabledByVirtualWorkspace(extension)) {
+			return EnablementState.DisabledByVirtualWorkspace;
 		}
 		if (this._isDisabledByExtensionKind(extension)) {
 			return EnablementState.DisabledByExtensionKind;
@@ -119,7 +119,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 		const enablementState = this.getEnablementState(extension);
-		if (enablementState === EnablementState.DisabledByEnvironment || enablementState === EnablementState.DisabledByExtensionKind) {
+		if (enablementState === EnablementState.DisabledByEnvironment
+			|| enablementState === EnablementState.DisabledByVirtualWorkspace
+			|| enablementState === EnablementState.DisabledByTrustRequirement
+			|| enablementState === EnablementState.DisabledByExtensionKind) {
 			return false;
 		}
 		return true;
@@ -241,7 +244,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return false;
 	}
 
-	private _isDisabledByWorkspaceScheme(extension: IExtension): boolean {
+	private _isDisabledByVirtualWorkspace(extension: IExtension): boolean {
 		if (getVirtualWorkspaceScheme(this.contextService.getWorkspace()) !== undefined) {
 			return !this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.manifest);
 		}

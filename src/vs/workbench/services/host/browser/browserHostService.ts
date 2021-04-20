@@ -11,6 +11,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
+import { whenTextEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IModifierKeyStatus, ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
@@ -61,8 +62,10 @@ export interface IWorkspaceProvider {
 	 * - `payload`: arbitrary payload that should be made available
 	 * to the opening window via the `IWorkspaceProvider.payload` property.
 	 * @param payload optional payload to send to the workspace to open.
+	 *
+	 * @returns true if successfully opened, false otherwise.
 	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void>;
+	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean>;
 }
 
 enum HostShutdownReason {
@@ -109,7 +112,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.workspaceProvider = new class implements IWorkspaceProvider {
 				readonly workspace = undefined;
 				readonly trusted = undefined;
-				async open() { }
+				async open() { return true; }
 			};
 		}
 
@@ -307,8 +310,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 				if (waitMarkerFileURI) {
 					(async () => {
 
-						// Wait for the resources to be closed in the editor...
-						await editorService.whenClosed(fileOpenables.map(openable => ({ resource: openable.fileUri })), { waitForSaved: true });
+						// Wait for the resources to be closed in the text editor...
+						await this.instantiationService.invokeFunction(accessor => whenTextEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
 
 						// ...before deleting the wait marker file
 						await this.fileService.del(waitMarkerFileURI);
@@ -371,7 +374,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
 	}
 
-	private doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
 		// with `options.reuse` so we update `shutdownReason` to reflect that
@@ -379,7 +382,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			this.shutdownReason = HostShutdownReason.Api;
 		}
 
-		return this.workspaceProvider.open(workspace, options);
+		await this.workspaceProvider.open(workspace, options);
 	}
 
 	async toggleFullScreen(): Promise<void> {

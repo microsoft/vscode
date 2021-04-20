@@ -47,7 +47,6 @@ export interface IWorkspaceTrustManagementService {
 	canSetWorkspaceTrust(): boolean;
 	setWorkspaceTrust(trusted: boolean): void;
 	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
-	setOpenEditors(openEditors: URI[]): void;
 	setFoldersTrust(folders: URI[], trusted: boolean): void;
 	getTrustedFolders(): URI[];
 	setTrustedFolders(folders: URI[]): void;
