@@ -162,7 +162,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			// Wait one second to give the user ample time to see the current editor then ask them to configure a default
 			setTimeout(() => {
 				this.doHandleConflictingDefaults(input.editor, input.options ?? options, group);
-			}, 1000);
+			}, 1200);
 		}
 		// Add the group as we might've changed it with the quickpick
 		if (input) {
@@ -365,12 +365,18 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return out;
 	}
 
-	private async doHandleConflictingDefaults(currentEditor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
-		console.log('Conflicting defaults!');
-		this.notificationService.prompt(Severity.Warning,
+	private async doHandleConflictingDefaults(currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
+		const makeCurrentEditorDefault = () => {
+			const viewType = currentEditor.viewType;
+			if (viewType) {
+				this.updateUserAssociations(`*${extname(currentEditor.resource!)}`, viewType);
+			}
+		};
+
+		const handle = this.notificationService.prompt(Severity.Warning,
 			localize('editorOverride.conflictingDefaults', 'Two or more editors want to be your default editor for this resource. Consider configuring a default.'),
 			[{
-				label: localize('editorOverride.configureDefault', 'Configure default editor for resource'),
+				label: localize('editorOverride.configureDefault', 'Configure Default Editor For Resource'),
 				run: async () => {
 					// Show the picker and tell it to update the setting to whatever the user selected
 					const picked = await this.doPickEditorOverride(currentEditor, options, group, true);
@@ -380,7 +386,17 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 					// Resolve the new override and open that instead (this always triggers a replace as it's the same resource, so opening is implicitly called here)
 					this.resolveEditorOverride(currentEditor, picked[0], picked[1] ?? group);
 				}
-			}]);
+			},
+				// {
+				// 	label: localize('editorOverride.keepDefault', 'Keep Current Editor As Default'),
+				// 	run: makeCurrentEditorDefault
+				// }
+			]);
+		// If the user pressed X we assume they want to keep the current editor as default
+		const onCloseListener = handle.onDidClose(() => {
+			makeCurrentEditorDefault();
+			onCloseListener.dispose();
+		});
 	}
 
 	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup) {

@@ -17,7 +17,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { timeout } from 'vs/base/common/async';
 
-suite('HistoryService', function () {
+suite.skip('HistoryService', function () {
 
 	const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
