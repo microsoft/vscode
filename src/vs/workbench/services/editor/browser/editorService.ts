@@ -602,7 +602,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (resolvedOptions?.override === EditorOverride.PICK || typeof resolvedOptions?.override === 'string') {
 				const resolvedInputWithOptions = await this.editorOverrideService.resolveEditorOverride(editor as IEditorInput, resolvedOptions, resolvedGroup);
 				if (!resolvedInputWithOptions) {
-					return;
+					return undefined; // no editor was picked or registered for the identifier
 				}
 				return resolvedGroup.openEditor(resolvedInputWithOptions.editor, resolvedInputWithOptions.options ?? resolvedOptions);
 			}
