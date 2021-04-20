@@ -11,7 +11,12 @@
   "enableProposedApi": true,
   "workspaceTrust": {
     "request": "onDemand",
-    "description": "%workspaceTrust%"
+    "description": "%workspaceTrust%",
+    "requiredForConfigurations": [
+      "typescript.tsdk",
+      "typescript.tsserver.pluginPaths",
+      "typescript.npm"
+    ]
   },
   "engines": {
     "vscode": "^1.30.0"
