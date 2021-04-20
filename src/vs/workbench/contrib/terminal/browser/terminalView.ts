@@ -215,8 +215,8 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'more', title: 'more...', icon: Codicon.more }, undefined, undefined);
-		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions', secondaryIcon: 'codicon-more' };
+		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'more', title: 'more...', icon: Codicon.chevronDown }, undefined, undefined);
+		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions', secondaryIcon: 'codicon-chevron-down' };
 	}
 
 	private _getInitialTabActionBarArgs(): CombinedButtonArgs {
@@ -231,8 +231,8 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'split', title: 'Split', icon: Codicon.more }, undefined, undefined);
-		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions', secondaryIcon: 'codicon-more' };
+		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'split', title: 'Split', icon: Codicon.chevronDown }, undefined, undefined);
+		return { primaryAction, secondaryAction, dropdownActions, className: 'terminal.profiles.actions', secondaryIcon: 'codicon-chevron-down' };
 	}
 
 
@@ -360,7 +360,7 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		super(null, args.primaryAction);
 		this._args = args;
 		this._primaryAction = instantiationService.createInstance(MenuEntryActionViewItem, args.primaryAction);
-		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-more'] });
+		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-chevron-down'] });
 	}
 
 	override render(container: HTMLElement): void {
@@ -370,15 +370,31 @@ export class CombinedButtonActionViewItem extends BaseActionViewItem {
 		this.element.className = this._args.className;
 		this._primaryAction.render(this.element);
 		this._dropdown.render(this.element);
+		this._stylize();
+	}
+
+	private _stylize(): void {
+		if (!this.element) {
+			return;
+		}
 		this.element.style.display = 'flex';
 		this.element.style.flexDirection = 'row';
+		this._dropdown.element!.style.paddingLeft = '0px';
+		this._dropdown.element!.style.fontSize = '12px';
+		this._dropdown.element!.style.maxWidth = '6px';
+		this._dropdown.element!.style.lineHeight = '16px';
+		this._dropdown.element!.style.marginTop = '12px';
+		this._dropdown.element!.style.marginLeft = '0px';
+		this._primaryAction.element!.style.marginRight = '0px';
+		this._primaryAction.element!.style.paddingRight = '0px';
 	}
 
 	update(args: CombinedButtonArgs): void {
 		this._dropdown?.dispose();
-		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-more'] });
+		this._dropdown = new DropdownMenuActionViewItem(args.secondaryAction, args.dropdownActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', args.secondaryIcon || 'codicon-chevron-down'] });
 		if (this.element) {
 			this._dropdown.render(this.element);
+			this._stylize();
 		}
 	}
 }
