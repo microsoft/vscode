@@ -290,6 +290,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 				extensionHostDebugEnvironment.isExtensionDevelopment = true;
 			}
 		}
+		if (this.options.extensionTestsPath) {
+			extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(this.options.extensionTestsPath);
+		}
 
 		// Fill in selected extra environmental properties
 		if (this.payload) {
