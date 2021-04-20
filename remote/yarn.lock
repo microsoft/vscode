@@ -482,10 +482,10 @@ vscode-oniguruma@1.3.1:
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.3.1.tgz#e2383879c3485b19f533ec34efea9d7a2b14be8f"
   integrity sha512-gz6ZBofA7UXafVA+m2Yt2zHKgXC2qedArprIsHAPKByTkwq9l5y/izAGckqxYml7mSbYxTRTfdRwsFq3cwF4LQ==
 
-vscode-proxy-agent@^0.10.0:
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.10.0.tgz#ca183a10f1b0bf6b6862284c96a99e9a380ef17b"
-  integrity sha512-gbslzWeODAqganQTIoXv8iGQ/LorjamQkTXNmzIYDB1Fyz49RL9j86mUIj6avP4AzSje1XLm7/feReu6hyEoAw==
+vscode-proxy-agent@^0.11.0:
+  version "0.11.0"
+  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.11.0.tgz#9dc8d2bb9d448f1e33bb1caef97a741289660f2f"
+  integrity sha512-Y5mHjDGq/OKOvKG0IwCYfj25cvQ2cLEil8ce8n55IZHRAP9RF3e1sKU4ZUNDB8X2NIpKwyltrWpK9tFFE/kc3g==
   dependencies:
     "@tootallnate/once" "^1.1.2"
     agent-base "^6.0.2"
