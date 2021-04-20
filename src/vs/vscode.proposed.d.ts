@@ -1679,45 +1679,6 @@ declare module 'vscode' {
 		uri: Uri;
 	}
 
-	/** @deprecated used NotebookController */
-	export interface NotebookKernel {
-
-		// todo@API make this mandatory?
-		readonly id?: string;
-
-		label: string;
-		description?: string;
-		detail?: string;
-		isPreferred?: boolean;
-
-		// todo@API do we need an preload change event?
-		preloads?: NotebookKernelPreload[];
-
-		/**
-		 * languages supported by kernel
-		 * - first is preferred
-		 * - `undefined` means all languages available in the editor
-		 */
-		supportedLanguages?: string[];
-
-		// todo@API kernel updating itself
-		// fired when properties like the supported languages etc change
-		// onDidChangeProperties?: Event<void>
-
-		/**
-		 * A kernel can optionally implement this which will be called when any "cancel" button is clicked in the document.
-		 */
-		interrupt?(document: NotebookDocument): void;
-
-		/**
-		 * Called when the user triggers execution of a cell by clicking the run button for a cell, multiple cells,
-		 * or full notebook. The cell will be put into the Pending state when this method is called. If
-		 * createNotebookCellExecutionTask has not been called by the time the promise returned by this method is
-		 * resolved, the cell will be put back into the Idle state.
-		 */
-		executeCellsRequest(document: NotebookDocument, ranges: NotebookRange[]): Thenable<void>;
-	}
-
 	export interface NotebookCellExecuteStartContext {
 		/**
 		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
@@ -1781,13 +1742,6 @@ declare module 'vscode' {
 	}
 
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
-
-	// todo@API why not for NotebookContentProvider?
-	/** @deprecated use NotebookSelector */
-	export interface NotebookDocumentFilter {
-		viewType?: string | string[];
-		filenamePattern?: NotebookFilenamePattern;
-	}
 
 	//#endregion
 
