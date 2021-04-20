@@ -19,7 +19,8 @@ export class NotebookEditorKernelManager extends Disposable {
 	}
 
 	getActiveKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
-		return this._notebookKernelService.getBoundKernel(notebook) ?? this._notebookKernelService.getMatchingKernels(notebook)[0];
+		const info = this._notebookKernelService.getNotebookKernels(notebook);
+		return info.bound ?? info.all[0];
 	}
 
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
@@ -55,7 +56,7 @@ export class NotebookEditorKernelManager extends Disposable {
 	}
 
 	async cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
-		let kernel = this._notebookKernelService.getBoundKernel(notebook);
+		let kernel = this.getActiveKernel(notebook);
 		if (kernel) {
 			await kernel.cancelNotebookCellExecution(notebook.uri, Array.from(cells, cell => cell.handle));
 		}

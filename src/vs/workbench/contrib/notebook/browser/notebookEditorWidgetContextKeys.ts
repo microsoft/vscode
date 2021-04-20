@@ -91,9 +91,8 @@ export class NotebookEditorContextKeys {
 			return;
 		}
 
-		const kernel = this._notebookKernelService.getBoundKernel(this._editor.viewModel.notebookDocument);
-		const allKernels = this._notebookKernelService.getMatchingKernels(this._editor.viewModel.notebookDocument);
-		this._notebookKernelCount.set(allKernels.length);
-		this._interruptibleKernel.set(kernel?.implementsInterrupt ?? false);
+		const { bound, all } = this._notebookKernelService.getNotebookKernels(this._editor.viewModel.notebookDocument);
+		this._notebookKernelCount.set(all.length);
+		this._interruptibleKernel.set(bound?.implementsInterrupt ?? false);
 	}
 }

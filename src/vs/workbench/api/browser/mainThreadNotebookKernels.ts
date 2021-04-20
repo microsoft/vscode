@@ -133,7 +133,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				return;
 			}
-			const kernel = this._notebookKernelService.getBoundKernel(editor.viewModel.notebookDocument);
+			const { bound: kernel } = this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument);
 			if (!kernel) {
 				return;
 			}
@@ -163,7 +163,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				continue;
 			}
-			if (this._notebookKernelService.getBoundKernel(editor.viewModel.notebookDocument) !== kernel) {
+			if (this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument).bound !== kernel) {
 				// different kernel
 				continue;
 			}

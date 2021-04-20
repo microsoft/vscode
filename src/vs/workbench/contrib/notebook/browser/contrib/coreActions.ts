@@ -1749,9 +1749,9 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 }[]> => {
 	const notebookKernelService = accessor.get(INotebookKernelService);
 	const uri = URI.revive(args.uri as UriComponents);
-	const kernels = notebookKernelService.getMatchingKernels({ uri, viewType: args.viewType });
+	const kernels = notebookKernelService.getNotebookKernels({ uri, viewType: args.viewType });
 
-	return kernels.map(provider => ({
+	return kernels.all.map(provider => ({
 		id: provider.id,
 		label: provider.label,
 		description: provider.description,

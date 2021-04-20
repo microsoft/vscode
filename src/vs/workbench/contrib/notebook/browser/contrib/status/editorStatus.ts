@@ -75,17 +75,16 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.viewModel.notebookDocument;
-		const currentKernel = notebookKernelService.getBoundKernel(notebook);
+		const { bound, all } = notebookKernelService.getNotebookKernels(notebook);
 
-		if (currentKernel && context && currentKernel.id === context.id && ExtensionIdentifier.equals(currentKernel.extension, context.extension)) {
+		if (bound && context && bound.id === context.id && ExtensionIdentifier.equals(bound.extension, context.extension)) {
 			// current kernel is wanted kernel -> done
 			return;
 		}
 
-		const availableKernels = notebookKernelService.getMatchingKernels(notebook);
 		let newKernel: INotebookKernel | undefined;
 		if (context) {
-			for (let candidate of availableKernels) {
+			for (let candidate of all) {
 				if (candidate.id === context.id && ExtensionIdentifier.equals(candidate.extension, context.extension)) {
 					newKernel = candidate;
 					break;
@@ -99,10 +98,10 @@ registerAction2(class extends Action2 {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
 				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel.viewType)
 			};
-			const picks = availableKernels.map(kernel => {
+			const picks = all.map(kernel => {
 				return <KernelPick>{
 					kernel,
-					picked: kernel.id === currentKernel?.id,
+					picked: kernel.id === bound?.id,
 					label: kernel.label,
 					description: kernel.description,
 					detail: kernel.detail,
@@ -170,9 +169,8 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		const updateStatus = () => {
 			const notebook = activeEditor.viewModel?.notebookDocument;
 			if (notebook) {
-				const boundKernel = this._notebookKernelService.getBoundKernel(notebook);
-				const allKernels = this._notebookKernelService.getMatchingKernels(notebook);
-				this._showKernelStatus(boundKernel, allKernels);
+				const info = this._notebookKernelService.getNotebookKernels(notebook);
+				this._showKernelStatus(info.bound, info.all);
 			} else {
 				this._kernelInfoElement.clear();
 			}

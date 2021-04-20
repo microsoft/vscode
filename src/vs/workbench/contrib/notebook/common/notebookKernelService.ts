@@ -15,6 +15,8 @@ export interface INotebookKernelBindEvent {
 	newKernel: string | undefined;
 }
 
+export interface INotebookTextModelLike { uri: URI; viewType: string; }
+
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
 
 export interface INotebookKernelService {
@@ -25,7 +27,8 @@ export interface INotebookKernelService {
 	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
 
 	registerKernel(kernel: INotebookKernel): IDisposable;
-	getMatchingKernels(notebook: INotebookTextModel | { uri: URI, viewType: string }): INotebookKernel[];
+
+	getNotebookKernels(notebook: INotebookTextModelLike): { bound: INotebookKernel | undefined, all: INotebookKernel[] }
 
 	/**
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
@@ -33,5 +36,4 @@ export interface INotebookKernelService {
 	 */
 	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel | undefined): void;
 
-	getBoundKernel(notebook: INotebookTextModel): INotebookKernel | undefined
 }

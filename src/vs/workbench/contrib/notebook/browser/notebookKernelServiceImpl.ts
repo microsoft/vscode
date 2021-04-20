@@ -6,13 +6,27 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelBindEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelBindEvent, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { score } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { LRUCache } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { runWhenIdle } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isEqual } from 'vs/base/common/resources';
+
+interface IKernelInfo {
+	kernel: INotebookKernel;
+	score: number;
+}
+
+class ScoreInfo {
+	constructor(private readonly _anchor: INotebookTextModelLike) { }
+
+	equals(candidate: INotebookTextModelLike): boolean {
+		return this._anchor.viewType === candidate.viewType && isEqual(this._anchor.uri, candidate.uri);
+	}
+}
 
 export class NotebookKernelService implements INotebookKernelService {
 
@@ -20,8 +34,9 @@ export class NotebookKernelService implements INotebookKernelService {
 
 	private static _storageKey = 'notebook.kernelBindings';
 
-	private readonly _kernels = new Map<string, INotebookKernel>();
+	private readonly _kernels = new Map<string, IKernelInfo>();
 	private readonly _kernelBindings = new LRUCache<string, string>(1000, 0.7);
+	private _scoreInfo?: ScoreInfo;
 
 	private readonly _onDidChangeNotebookKernelBinding = new Emitter<INotebookKernelBindEvent>();
 	private readonly _onDidAddKernel = new Emitter<INotebookKernel>();
@@ -64,10 +79,12 @@ export class NotebookKernelService implements INotebookKernelService {
 			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
 		}
 
-		this._kernels.set(kernel.id, kernel);
+		this._scoreInfo = undefined;
+		this._kernels.set(kernel.id, { kernel, score: -1 });
 		this._onDidAddKernel.fire(kernel);
 
 		return toDisposable(() => {
+			this._scoreInfo = undefined;
 			if (this._kernels.delete(kernel.id)) {
 				this._onDidRemoveKernel.fire(kernel);
 			}
@@ -80,30 +97,42 @@ export class NotebookKernelService implements INotebookKernelService {
 		});
 	}
 
-	getMatchingKernels(notebook: INotebookTextModel | { uri: URI, viewType: string }): INotebookKernel[] {
-		const result: INotebookKernel[] = [];
-		for (const kernel of this._kernels.values()) {
-			if (score(kernel.selector, notebook.uri, notebook.viewType) > 0) {
-				result.push(kernel);
+	getNotebookKernels(notebook: INotebookTextModelLike): { bound: INotebookKernel | undefined, all: INotebookKernel[] } {
+
+		// update score if needed
+		if (!this._scoreInfo?.equals(notebook)) {
+			for (let item of this._kernels.values()) {
+				item.score = score(item.kernel.selector, notebook.uri, notebook.viewType);
 			}
+			this._scoreInfo = new ScoreInfo(notebook);
 		}
-		const boundKernel = this._kernelBindings.get(notebook.uri.toString());
-		return result.sort((a, b) => {
-			// (1) binding a kernel
-			if (a.id === boundKernel) {
-				return -1;
-			} else if (b.id === boundKernel) {
-				return 1;
-			}
-			// (2) preferring a kernel
-			if (a.isPreferred === b.isPreferred) {
-				return 0;
-			} else if (a.isPreferred) {
-				return -1;
-			} else {
-				return 1;
-			}
-		});
+
+		// all applicable kernels
+		const all = Array.from(this._kernels.values())
+			.filter(item => item.score > 0)
+			.sort((a, b) => {
+				// (1) sort by preference
+				if (a.kernel.isPreferred !== b.kernel.isPreferred) {
+					if (a.kernel.isPreferred) {
+						return -1;
+					} else {
+						return 1;
+					}
+				}
+				// (2) sort by score
+				if (b.score !== a.score) {
+					return b.score - a.score;
+				}
+				// (3) sort by name
+				return a.kernel.label.localeCompare(b.kernel.label);
+			})
+			.map(item => item.kernel);
+
+		// bound kernel
+		const boundId = this._kernelBindings.get(notebook.uri.toString());
+		const bound = boundId ? this._kernels.get(boundId)?.kernel : undefined;
+
+		return { all, bound };
 	}
 
 	// a notebook has one kernel, a kernel has N notebooks
@@ -120,10 +149,5 @@ export class NotebookKernelService implements INotebookKernelService {
 			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel?.id });
 			this._persistBindings();
 		}
-	}
-
-	getBoundKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
-		const id = this._kernelBindings.get(notebook.uri.toString());
-		return id ? this._kernels.get(id) : undefined;
 	}
 }
