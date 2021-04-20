@@ -12,7 +12,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
@@ -128,10 +128,20 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			executable = shellSetting;
 			const shellArgsSetting = this._configurationService.getValue(`terminal.integrated.shellArgs.${this._getOsKey(options.os)}`);
 			if (this._isValidShellArgs(shellArgsSetting, options.os)) {
-				args = shellArgsSetting || [];
+				args = shellArgsSetting;
 			}
 		} else {
 			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
+		}
+
+		if (args === undefined) {
+			if (options.os === OperatingSystem.Macintosh && args === undefined) {
+				// macOS should launch a login shell by default
+				args = ['--login'];
+			} else {
+				// Resolve undefined to []
+				args = [];
+			}
 		}
 
 		const icon = this._guessProfileIcon(executable);
