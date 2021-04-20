@@ -980,19 +980,13 @@ declare module 'vscode' {
 		readonly outputCollapsed?: boolean;
 
 		/**
-		 * @deprecated
-		 * Additional attributes of a cell metadata.
-		 */
-		readonly custom?: Record<string, any>;
-
-		/**
 		 * Additional attributes of a cell metadata.
 		 */
 		readonly [key: string]: any;
 
-		constructor(inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>);
+		constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
 
-		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, [key: string]: any }): NotebookCellMetadata;
+		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, [key: string]: any }): NotebookCellMetadata;
 	}
 
 	export interface NotebookCellExecutionSummary {
@@ -1015,11 +1009,6 @@ declare module 'vscode' {
 
 	export class NotebookDocumentMetadata {
 		/**
-		 * @deprecated
-		 * Additional attributes of the document metadata.
-		 */
-		readonly custom: { [key: string]: any; };
-		/**
 		 * Whether the document is trusted, default to true
 		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
 		 */
@@ -1030,9 +1019,9 @@ declare module 'vscode' {
 		 */
 		readonly [key: string]: any;
 
-		constructor(trusted?: boolean, custom?: { [key: string]: any; });
+		constructor(trusted?: boolean);
 
-		with(change: { trusted?: boolean | null, custom?: { [key: string]: any; } | null, [key: string]: any }): NotebookDocumentMetadata
+		with(change: { trusted?: boolean | null, [key: string]: any }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
