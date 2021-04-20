@@ -28,6 +28,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const $ = DOM.$;
 export const MIN_TABS_WIDGET_WIDTH = 46;
@@ -153,13 +154,16 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 					: undefined
 		});
 
-		return { element, label, actionBar };
+		return {
+			element,
+			label,
+			actionBar
+		};
 	}
 
 	shouldHideText(): boolean {
 		return this._container ? this._container.clientWidth < MIDPOINT_WIDGET_WIDTH : false;
 	}
-
 
 	renderElement(node: ITreeNode<ITerminalInstance>, index: number, template: ITerminalTabEntryTemplate): void {
 
@@ -215,11 +219,25 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			}
 		});
 
+		if (!template.elementDispoables) {
+			template.elementDispoables = new DisposableStore();
+		}
+
+		// Kill terminal on middle click
+		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, () => {
+			instance.dispose();
+		}));
+
 		if (instance.statusList.statuses.length && hasText) {
 			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: TERMINAL_DECORATIONS_SCHEME, path: instance.instanceId.toString() }), name: label };
 			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
 			template.label.setResource(labelProps, options);
 		}
+	}
+
+	disposeElement(element: ITreeNode<ITerminalInstance, any>, index: number, templateData: ITerminalTabEntryTemplate): void {
+		templateData.elementDispoables?.dispose();
+		templateData.elementDispoables = undefined;
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
@@ -241,4 +259,5 @@ interface ITerminalTabEntryTemplate {
 	element: HTMLElement;
 	label: IResourceLabel;
 	actionBar: ActionBar;
+	elementDispoables?: DisposableStore;
 }
