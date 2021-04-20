@@ -177,7 +177,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 		const handle = this.notificationService.notify({
-			id: `${hash(model.resource)}`, // unique per model (https://github.com/microsoft/vscode/issues/121539)
+			id: `${hash(model.resource.toString())}`, // unique per model (https://github.com/microsoft/vscode/issues/121539)
 			severity: Severity.Error,
 			message,
 			actions
@@ -255,7 +255,7 @@ class ResolveSaveConflictAction extends Action {
 			// Show additional help how to resolve the save conflict
 			const actions = { primary: [this.instantiationService.createInstance(ResolveConflictLearnMoreAction)] };
 			const handle = this.notificationService.notify({
-				id: `${hash(resource)}`, // unique per model
+				id: `${hash(resource.toString())}`, // unique per model
 				severity: Severity.Info,
 				message: conflictEditorHelp,
 				actions,

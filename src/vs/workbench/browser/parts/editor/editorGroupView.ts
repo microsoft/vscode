@@ -1068,7 +1068,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					}
 
 					const handle = this.notificationService.notify({
-						id: `${hash(editor.resource)}`, // unique per editor
+						id: `${hash(editor.resource?.toString())}`, // unique per editor
 						severity: Severity.Error,
 						message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
 						actions

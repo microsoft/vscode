@@ -446,7 +446,7 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 	} catch (error) {
 		if (!isPromiseCanceledError(error)) {
 			notificationService.notify({
-				id: editors.map(({ editor }) => hash(editor.resource)).join(), // ensure unique notification ID per set of editor
+				id: editors.map(({ editor }) => hash(editor.resource?.toString())).join(), // ensure unique notification ID per set of editor
 				severity: Severity.Error,
 				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
 				actions: {
