@@ -84,16 +84,15 @@ export class TerminalViewPane extends ViewPane {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		});
+
+		this._dropdownMenu = this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService);
+
 		this._terminalService.onRequestAvailableProfiles(async () => {
 			if (this._tabButtons) {
 				await this._updateTabActionBar();
-			} else {
-				const args = await this._getTabActionBarArgs();
-				this._tabButtons = this._instantiationService.createInstance(CombinedButtonActionViewItem, args);
 			}
 		});
 
-		this._dropdownMenu = this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService);
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -178,9 +177,10 @@ export class TerminalViewPane extends ViewPane {
 		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		} else if (action.id === TERMINAL_COMMAND_ID.CREATE_PROFILE_BUTTON) {
-			if (!this._tabButtons) {
-				this._tabButtons = this._instantiationService.createInstance(CombinedButtonActionViewItem, this._getInitialTabActionBarArgs());
+			if (this._tabButtons) {
+				this._tabButtons.dispose();
 			}
+			this._tabButtons = this._instantiationService.createInstance(CombinedButtonActionViewItem, this._getInitialTabActionBarArgs());
 			return this._tabButtons;
 		}
 		return super.getActionViewItem(action);
