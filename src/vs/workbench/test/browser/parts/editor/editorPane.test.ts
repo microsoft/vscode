@@ -312,7 +312,7 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			override get typeId() { return 'testEditorInputForMementoTest'; }
-			async override resolve(): Promise<IEditorModel | null> { return null; }
+			override async resolve(): Promise<IEditorModel | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -350,7 +350,7 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			override get typeId() { return 'testEditorInputForMementoTest'; }
-			async override resolve(): Promise<IEditorModel | null> { return null; }
+			override async resolve(): Promise<IEditorModel | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;

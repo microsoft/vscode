@@ -115,7 +115,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 				accessor.workingCopyService.registerWorkingCopy(this);
 			}
 
-			async override backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 				await timeout(this.backupDelay);
 
 				return {};

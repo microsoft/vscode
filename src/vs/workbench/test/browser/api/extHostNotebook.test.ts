@@ -44,8 +44,8 @@ suite('NotebookCell#Document', function () {
 			override $registerCommand() { }
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			async override $registerNotebookProvider() { }
-			async override $unregisterNotebookProvider() { }
+			override async $registerNotebookProvider() { }
+			override async $unregisterNotebookProvider() { }
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);

@@ -545,7 +545,7 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		});
 	}
 
-	public async override run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
+	public override async run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
 		if (test) {
 			await this.runForTest(accessor, test, preserveFocus);
 		} else {

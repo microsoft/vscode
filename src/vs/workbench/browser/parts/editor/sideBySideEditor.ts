@@ -94,7 +94,7 @@ export class SideBySideEditor extends EditorPane {
 		this.updateStyles();
 	}
 
-	async override setInput(newInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(newInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const oldInput = this.input as SideBySideEditorInput;
 		await super.setInput(newInput, options, context, token);
 

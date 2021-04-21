@@ -319,7 +319,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.readStreamError = error;
 	}
 
-	async override readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.readStreamError) {
 			const error = this.readStreamError;
 			this.readStreamError = undefined;
@@ -344,7 +344,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.writeError = error;
 	}
 
-	async override write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+	override async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
 		if (this.writeError) {
 			const error = this.writeError;
 			this.writeError = undefined;
@@ -1023,7 +1023,7 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async override backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	override async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		await super.backup(identifier, content, versionId, meta, token);
 
 		while (this.backupResourceJoiners.length) {
@@ -1031,7 +1031,7 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 		}
 	}
 
-	async override discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
+	override async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
 		await super.discardBackup(identifier);
 		this.discardedBackups.push(identifier);
 
@@ -1270,7 +1270,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 			this._scopedContextKeyService = new MockContextKeyService();
 		}
 
-		async override setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 			super.setInput(input, options, context, token);
 
 			await input.resolve();
@@ -1406,16 +1406,16 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	setFailToOpen(): void {
 		this.fails = true;
 	}
-	async override save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		this.gotSaved = true;
 		this.dirty = false;
 		return this;
 	}
-	async override saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		this.gotSavedAs = true;
 		return this;
 	}
-	async override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		this.gotReverted = true;
 		this.gotSaved = false;
 		this.gotSavedAs = false;

@@ -269,7 +269,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.updateStyles();
 	}
 
-	async override setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		await super.setInput(input, options, context, token);
 		await timeout(0); // Force setInput to be async
