@@ -190,7 +190,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (obj) {
 			obj.onDidChangeSelection.fire({
 				selected: value,
-				notebook: this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!.notebookDocument
+				notebook: this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!.apiNotebook
 			});
 		}
 	}
@@ -210,7 +210,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		for (let cellHandle of handles) {
 			const cell = document.getCell(cellHandle);
 			if (cell) {
-				cells.push(cell.cell);
+				cells.push(cell.apiCell);
 			}
 		}
 

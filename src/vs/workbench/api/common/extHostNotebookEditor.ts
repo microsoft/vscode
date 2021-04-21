@@ -100,7 +100,7 @@ export class ExtHostNotebookEditor {
 			const that = this;
 			this._editor = {
 				get document() {
-					return that.notebookData.notebookDocument;
+					return that.notebookData.apiNotebook;
 				},
 				get selections() {
 					return that._selections;
