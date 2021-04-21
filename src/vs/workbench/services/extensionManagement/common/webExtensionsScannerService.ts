@@ -98,7 +98,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	/**
-	 * All dev extesnions
+	 * All dev extensions
 	 */
 	private getDevExtensions(): IScannedExtension[] {
 		const devExtensions = this.environmentService.options?.developmentOptions?.extensions;
