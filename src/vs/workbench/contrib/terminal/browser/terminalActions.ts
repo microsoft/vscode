@@ -1519,7 +1519,7 @@ export function registerTerminalActions() {
 				}]
 			});
 		}
-		async run(accessor: ServicesAccessor, item?: string) {
+		async run(accessor: ServicesAccessor) {
 		}
 	});
 
@@ -1672,7 +1672,7 @@ export function registerTerminalActions() {
 				return commandService.executeCommand(customType.command);
 			}
 
-			const quickSelectProfiles = await terminalService.getAvailableProfiles();
+			const quickSelectProfiles = terminalService.availableProfiles;
 
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);
