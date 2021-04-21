@@ -216,13 +216,6 @@ export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
 	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
 };
 
-export type EditorAssociation = {
-	readonly viewType: string;
-	readonly filenamePattern?: string;
-};
-
-export type EditorAssociations = readonly EditorAssociation[];
-
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const editorTypeSchemaAddition: IJSONSchema = {

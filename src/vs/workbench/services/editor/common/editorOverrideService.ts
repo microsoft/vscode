@@ -4,11 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
+export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
+
+//#region Editor Associations
+export type EditorAssociation = {
+	readonly viewType: string;
+	readonly filenamePattern?: string;
+};
+
+export type EditorAssociations = readonly EditorAssociation[];
+//#endregion
+//#region EditorOverrideService types
 export enum ContributedEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
@@ -16,6 +33,67 @@ export enum ContributedEditorPriority {
 	default = 'default'
 }
 
+export type ContributionPointOptions = {
+	singlePerResource?: boolean | (() => boolean);
+	canHandleDiff?: boolean | (() => boolean);
+};
+
+export type ContributedEditorInfo = {
+	id: string;
+	describes: (currentEditor: IEditorInput) => boolean;
+	label: string;
+	detail?: string;
+	priority: ContributedEditorPriority;
+};
+
+export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+
+export type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+
+export interface IEditorOverrideService {
+	readonly _serviceBrand: undefined;
+	/**
+	 * Given a resource finds the editor associations that match it from the user's settings
+	 * @param resource The resource to match
+	 * @return The matching associations
+	 */
+	getAssociationsForResource(resource: URI): EditorAssociations;
+
+	/**
+	 * Updates the user's association to include a specific editor ID as a default for the given glob pattern
+	 * @param globPattern The glob pattern (must be a string as settings don't support relative glob)
+	 * @param editorID The ID of the editor to make a user default
+	 */
+	updateUserAssociations(globPattern: string, editorID: string): void;
+
+	/**
+	 * Registers a specific editor contribution.
+	 * @param globPattern The glob pattern for this contribution point
+	 * @param editorInfo Information about the contribution point
+	 * @param options Specific options which apply to this contribution
+	 * @param createEditorInput The factory method for creating inputs
+	 */
+	registerContributionPoint(
+		globPattern: string | glob.IRelativePattern,
+		editorInfo: ContributedEditorInfo,
+		options: ContributionPointOptions,
+		createEditorInput: EditorInputFactoryFunction,
+		createDiffEditorInput?: DiffEditorInputFactoryFunction
+	): IDisposable;
+
+	/**
+	 * Given an editor determines if there's a suitable override for it, if so returns an IEditorInputWithOptions for opening
+	 * @param editor The editor to override
+	 * @param options The current options for the editor
+	 * @param group The current group
+	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or undefined if there is not
+	 */
+	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
+}
+
+//#endregion
+
+//#region Util functions
 export function priorityToRank(priority: ContributedEditorPriority): number {
 	switch (priority) {
 		case ContributedEditorPriority.exclusive:
@@ -44,3 +122,4 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 	const target = matchOnPath ? resource.path : basename(resource);
 	return glob.match(globPattern, target.toLowerCase());
 }
+//#endregion
