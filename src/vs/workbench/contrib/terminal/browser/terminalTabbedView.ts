@@ -163,8 +163,7 @@ export class TerminalTabbedView extends Disposable {
 			const maxTextSize = this._terminalService.terminalInstances.reduce((p, c) => {
 				return Math.max(p, ctx.measureText(c.title).width);
 			}, 0);
-			const additionalWidth = this._getAdditionalWidth();
-			idealWidth = Math.ceil(Math.max(maxTextSize + additionalWidth, DEFAULT_TABS_WIDGET_WIDTH));
+			idealWidth = Math.ceil(Math.max(maxTextSize + this._getAdditionalWidth(), DEFAULT_TABS_WIDGET_WIDTH));
 		}
 		// If the size is already ideal, toggle to collapsed
 		const currentWidth = Math.ceil(this._splitView.getViewSize(this._tabTreeIndex));
@@ -177,7 +176,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getAdditionalWidth(): number {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
-		let additionalWidth = 30;
+		const additionalWidth = 30;
 		const statusIconWidth = this._terminalService.terminalInstances.find(i => i.statusList.statuses.length > 0) ? STATUS_ICON_WIDTH : 0;
 		const splitAnnotationWidth = this._terminalService.terminalTabs.find(t => t.terminalInstances.length > 1) ? SPLIT_ANNOTATION_WIDTH : 0;
 		if (statusIconWidth === 0 && splitAnnotationWidth === 0) {
@@ -190,7 +189,7 @@ export class TerminalTabbedView extends Disposable {
 			for (const tab of this._terminalService.terminalTabs.filter(t => t.terminalInstances.length > 1)) {
 				for (const instance of tab.terminalInstances) {
 					if (instance.statusList.statuses.length > 0) {
-						return additionalWidth += statusIconWidth + splitAnnotationWidth - 10;
+						return additionalWidth + statusIconWidth + splitAnnotationWidth - 10;
 					}
 				}
 			}
