@@ -88,7 +88,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFileToSaveSimplified(schema, this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems));
 		}
 
-		throw new Error('Method not implemented.');
+		const handle = await window.showSaveFilePicker();
+		const uuid = generateUuid();
+		const uri = URI.from({ scheme: Schemas.file, authority: uuid, path: `/${handle.name}` });
+
+		this.fileSystemProvider.registerFileHandle(uuid, handle);
+
+		return uri;
 	}
 
 	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
