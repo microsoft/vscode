@@ -12,6 +12,7 @@ import { IWorkspacesService, IRecent } from 'vs/platform/workspaces/common/works
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IViewDescriptorService, IViewsService, ViewVisibilityState } from 'vs/workbench/common/views';
+import { isWeb } from 'vs/base/common/platform';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -206,3 +207,15 @@ class DiffAPICommand {
 	}
 }
 CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));
+
+if (isWeb) {
+	CommandsRegistry.registerCommand('_workbench.fetchJSON', async function (accessor: ServicesAccessor, url: string, method: string) {
+		const result = await fetch(url, { method, headers: { Accept: 'application/json' } });
+
+		if (result.ok) {
+			return result.json();
+		} else {
+			throw new Error(result.statusText);
+		}
+	});
+}

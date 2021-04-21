@@ -126,25 +126,34 @@ export class GitHubServer {
 				return;
 			}
 
-			const authServerHost = query.staging ? AUTH_RELAY_STAGING_SERVER : AUTH_RELAY_SERVER;
-
-			try {
-				const result = await fetch(`https://${authServerHost}/token?code=${code}&state=${query.state}`, {
-					method: 'POST',
-					headers: {
-						Accept: 'application/json'
-					}
-				});
-
-				if (result.ok) {
-					const json = await result.json();
+			// TODO@joao: remove
+			if (query.staging) {
+				try {
+					const json: any = await vscode.commands.executeCommand('_workbench.fetchJSON', `https://${AUTH_RELAY_STAGING_SERVER}/token?code=${code}&state=${query.state}`, 'POST');
 					Logger.info('Token exchange success!');
 					resolve(json.access_token);
-				} else {
-					reject(result.statusText);
+				} catch (err) {
+					reject(err);
 				}
-			} catch (ex) {
-				reject(ex);
+			} else {
+				try {
+					const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`, {
+						method: 'POST',
+						headers: {
+							Accept: 'application/json'
+						}
+					});
+
+					if (result.ok) {
+						const json = await result.json();
+						Logger.info('Token exchange success!');
+						resolve(json.access_token);
+					} else {
+						reject(result.statusText);
+					}
+				} catch (ex) {
+					reject(ex);
+				}
 			}
 		};
 
