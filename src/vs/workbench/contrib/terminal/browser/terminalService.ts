@@ -79,7 +79,7 @@ export class TerminalService implements ITerminalService {
 
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	public get availableProfiles(): ITerminalProfile[] {
-		this.refreshAvailableProfiles('external');
+		this._refreshAvailableProfiles('external');
 		return this._availableProfiles || [];
 	}
 
@@ -167,7 +167,7 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
 				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
-				this.refreshAvailableProfiles('internal');
+				this._refreshAvailableProfiles('internal');
 			}
 		});
 
@@ -176,7 +176,7 @@ export class TerminalService implements ITerminalService {
 		const conn = this._remoteAgentService.getConnection();
 		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
 		this._whenExtHostReady(remoteAuthority).then(() => {
-			this.refreshAvailableProfiles('internal');
+			this._refreshAvailableProfiles('internal');
 		});
 
 		// Connect to the extension host if it's there, set the connection state to connected when
@@ -312,7 +312,7 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority]!.resolve();
 	}
 
-	public async refreshAvailableProfiles(requestType: 'internal' | 'external'): Promise<void> {
+	private async _refreshAvailableProfiles(requestType: 'internal' | 'external'): Promise<void> {
 		const result = await this._detectProfiles(true);
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;

@@ -192,7 +192,6 @@ export interface ITerminalService {
 	extHostReady(remoteAuthority: string): void;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
-	refreshAvailableProfiles(requestType: 'internal' | 'external'): Promise<void>;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

@@ -1526,21 +1526,6 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.REFRESH_PROFILES,
-				title: 'Launch Profile...',
-				f1: false,
-				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).refreshAvailableProfiles('internal');
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
 				id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
 				title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
 				f1: true,

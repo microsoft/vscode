@@ -188,7 +188,7 @@ export class TerminalViewPane extends ViewPane {
 
 	private _getTabActionBarArgs(profiles: ITerminalProfile[]): {
 		primaryAction: MenuItemAction,
-		dropdownAction: MenuItemAction,
+		dropdownAction: IAction,
 		dropdownMenuActions: IAction[],
 		className: string,
 		dropdownIcon?: string
@@ -218,8 +218,8 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-		const dropdownAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.REFRESH_PROFILES, title: 'Launch Profile...', icon: Codicon.chevronDown }, undefined, undefined);
-		return { primaryAction, dropdownAction: dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions', dropdownIcon: 'codicon-chevron-down' };
+		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', undefined, true, async () => this._updateTabActionBar(this._terminalService.availableProfiles));
+		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions', dropdownIcon: 'codicon-chevron-down' };
 	}
 
 	public override focus() {
@@ -332,7 +332,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _container: HTMLElement | null = null;
 	constructor(
 		primaryAction: MenuItemAction,
-		dropdownAction: MenuItemAction,
+		dropdownAction: IAction,
 		dropdownMenuActions: IAction[],
 		private readonly _className: string,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -375,7 +375,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	update(dropdownAction: MenuItemAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
+	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
 		this._dropdown?.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'] });
 		if (this.element) {
