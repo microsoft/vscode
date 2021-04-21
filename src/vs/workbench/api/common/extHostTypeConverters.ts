@@ -28,6 +28,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { ISerializedTestResults, ITestItem, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1407,11 +1408,11 @@ export namespace LanguageSelector {
 
 export namespace NotebookRange {
 
-	export function from(range: vscode.NotebookRange): notebooks.ICellRange {
+	export function from(range: vscode.NotebookRange): ICellRange {
 		return { start: range.start, end: range.end };
 	}
 
-	export function to(range: notebooks.ICellRange): types.NotebookRange {
+	export function to(range: ICellRange): types.NotebookRange {
 		return new types.NotebookRange(range.start, range.end);
 	}
 }
