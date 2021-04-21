@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
-import { debounce, throttle } from 'vs/base/common/decorators';
+import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
@@ -164,7 +164,7 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
 				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
-				this._updateAvailableProfilesNow();
+				this._updateAvailableProfiles();
 			}
 		});
 
@@ -309,19 +309,12 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority]!.resolve();
 	}
 
-	// when relevant config changes, update without debouncing
-	private async _updateAvailableProfilesNow(): Promise<void> {
+	private async _updateAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles(true);
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
 			this._onProfilesConfigChanged.fire();
 		}
-	}
-
-	// avoid checking this very often, every ten seconds shoulds suffice
-	@throttle(10000)
-	private _updateAvailableProfiles(): Promise<void> {
-		return this._updateAvailableProfilesNow();
 	}
 
 	private async _detectProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
