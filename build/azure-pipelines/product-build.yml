@@ -332,6 +332,7 @@ stages:
           value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
       jobs:
         - job: ReleaseBuild
+          timeoutInMinutes: 180
           displayName: Release Build
           steps:
             - template: product-release.yml
