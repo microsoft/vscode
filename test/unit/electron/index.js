@@ -85,6 +85,12 @@ function importMochaReporter(name) {
 function deserializeError(err) {
 	const inspect = err.inspect;
 	err.inspect = () => inspect;
+	if (err.actual) {
+		err.actual = JSON.parse(err.actual).value;
+	}
+	if (err.expected) {
+		err.expected = JSON.parse(err.expected).value;
+	}
 	return err;
 }
 
