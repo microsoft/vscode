@@ -42,7 +42,7 @@ steps:
         Start-Sleep -Seconds 10
 
         try {
-          $res = Invoke-RestMethod "https://dev.azure.com/monacotools/Monaco/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0" -Headers @{
+          $res = Invoke-RestMethod "$(BUILDS_API_URL)artifacts?api-version=6.0" -Headers @{
             Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
           } -MaximumRetryCount 5 -RetryIntervalSec 1
         } catch {
@@ -57,8 +57,18 @@ steps:
               Invoke-RestMethod $_.resource.downloadUrl -OutFile "$(Agent.TempDirectory)/$($_.name).zip" -Headers @{
                 Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
               } -MaximumRetryCount 5 -RetryIntervalSec 1
-              Expand-Archive -Path "$(Agent.TempDirectory)/$($_.name).zip" -DestinationPath "$(Agent.TempDirectory)/$($_.name)"
-              gci -rec "$(Agent.TempDirectory)/$($_.name)"
+              Expand-Archive -Path "$(Agent.TempDirectory)/$($_.name).zip" -DestinationPath "$(Agent.TempDirectory)"
+
+              Write-Host "Expanding variables:"
+              $null,$product,$platform,$arch,$type = $_name -split '_'
+              # turning in into an object just to log nicely
+              @{
+                product = $product
+                platform = $platform
+                arch = $arch
+                type = $type
+                asset = gci -rec "$(Agent.TempDirectory)/$($_.name)" | ForEach-Object FullName
+              }
             }
           }
         }
