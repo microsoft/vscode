@@ -301,7 +301,6 @@ export class TerminalTabbedView extends Disposable {
 
 	private _refreshHasTextClass() {
 		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH);
-		console.log('has text', this._tabTreeContainer.classList.contains('has-text'));
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
