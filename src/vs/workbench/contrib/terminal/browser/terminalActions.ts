@@ -1519,7 +1519,22 @@ export function registerTerminalActions() {
 				}]
 			});
 		}
-		async run(accessor: ServicesAccessor, item?: string) {
+		async run(accessor: ServicesAccessor) {
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.REFRESH_PROFILES,
+				title: 'Launch Profile...',
+				f1: false,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).refreshAvailableProfiles('internal');
 		}
 	});
 

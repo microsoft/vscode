@@ -63,7 +63,8 @@ export class TerminalViewPane extends ViewPane {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._terminalService.onDidRegisterProcessSupport(() => {
@@ -200,6 +201,8 @@ export class TerminalViewPane extends ViewPane {
 			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
+		const customType = this._terminalContributionService.terminalTypes;
+
 		if (dropdownActions.length) {
 			dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
 			dropdownActions.push(new Separator());
@@ -215,8 +218,8 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'launch-profile', title: 'Launch Profile...', icon: Codicon.chevronDown }, undefined, undefined);
-		return { primaryAction, dropdownAction: secondaryAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions', dropdownIcon: 'codicon-chevron-down' };
+		const dropdownAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.REFRESH_PROFILES, title: 'Launch Profile...', icon: Codicon.chevronDown }, undefined, undefined);
+		return { primaryAction, dropdownAction: dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions', dropdownIcon: 'codicon-chevron-down' };
 	}
 
 	public override focus() {
