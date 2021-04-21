@@ -138,7 +138,7 @@ suite('ExtensionManifestPropertiesService - ExtensionWorkspaceTrustType', () => 
 		instantiationService.stub(IProductService, <Partial<IProductService>>{});
 
 		const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
-		assertUntrustedWorkspaceSupport(extensionMaifest, true);
+		assertUntrustedWorkspaceSupport(extensionMaifest, 'limited');
 	});
 
 	test('test extension workspace trust request when no value exists in package.json', () => {
