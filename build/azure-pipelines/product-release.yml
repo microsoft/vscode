@@ -51,7 +51,9 @@ steps:
         }
 
         if ($res) {
-          $res.value | Where-Object name -Like 'vscode-*' | ForEach-Object {
+          $res.value | Where-Object name -Like 'vscode-*'
+          "should see output here"
+          $res.value | Where-Object { $_.name -Like 'vscode-*' } | ForEach-Object {
             if($set.Add($_.name)) {
               Write-Host "Processing artifact: '$($_.name). Downloading from: $($_.resource.downloadUrl)"
               Invoke-RestMethod $_.resource.downloadUrl -OutFile "$(Agent.TempDirectory)/$($_.name).zip"
@@ -82,6 +84,7 @@ steps:
       Write-Host "DONE WITH NUMBER OF ARTIFACTS: $($set.Count)"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Process artifacts
 
   - script: |
       set -e
