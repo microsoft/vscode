@@ -964,6 +964,7 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
 	export enum NotebookCellKind {
+		// todo@API rename/rethink as "Markup" cell
 		Markdown = 1,
 		Code = 2
 	}
@@ -1017,6 +1018,8 @@ declare module 'vscode' {
 		readonly document: TextDocument;
 		readonly metadata: NotebookCellMetadata
 		readonly outputs: ReadonlyArray<NotebookCellOutput>;
+
+		// todo@API maybe just executionSummary or lastExecutionSummary?
 		readonly latestExecutionSummary: NotebookCellExecutionSummary | undefined;
 	}
 
@@ -1085,6 +1088,7 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		// todo@API should we really expose this?
+		// todo@API should this be called `notebookType` or `notebookKind`
 		readonly viewType: string;
 
 		/**
@@ -1163,7 +1167,7 @@ declare module 'vscode' {
 		readonly end: number;
 
 		/**
-		 * `true` if `start` and `end` are equals
+		 * `true` if `start` and `end` are equal.
 		 */
 		readonly isEmpty: boolean;
 
@@ -1312,10 +1316,11 @@ declare module 'vscode' {
 		kind: NotebookCellKind;
 		// todo@API better names: value? text?
 		source: string;
-		// todo@API how does language and MD relate?
+		// todo@API languageId (as in TextDocument)
 		language: string;
 		outputs?: NotebookCellOutput[];
 		metadata?: NotebookCellMetadata;
+		// todo@API just executionSummary or lastExecutionSummary
 		latestExecutionSummary?: NotebookCellExecutionSummary;
 		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: NotebookCellExecutionSummary);
 	}
@@ -1348,8 +1353,11 @@ declare module 'vscode' {
 		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
 		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
+
+		// todo@API add onDidChangeNotebookCellOutputs
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 
+		// todo@API add onDidChangeNotebookCellMetadata
 		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
 	}
 
@@ -1535,13 +1543,6 @@ declare module 'vscode' {
 		readonly selector: NotebookSelector;
 
 		/**
-		 * A kernel can apply to one or many notebook documents but a notebook has only one active
-		 * kernel. This event fires whenever a notebook has been associated to a kernel or when
-		 * that association has been removed.
-		 */
-		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
-
-		/**
 		 * The human-readable label of this notebook controller.
 		 */
 		label: string;
@@ -1597,15 +1598,25 @@ declare module 'vscode' {
 		dispose(): void;
 
 		/**
-		 * Manually create an execution task. This should only be used when cell execution
-		 * has started before creating the kernel instance or when execution can be triggered
-		 * from another source.
+		 * A kernel can apply to one or many notebook documents but a notebook has only one active
+		 * kernel. This event fires whenever a notebook has been associated to a kernel or when
+		 * that association has been removed.
+		 */
+		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
+
+		/**
+		 * Create a cell execution task.
 		 *
-		 * @param cell The notebook cell for which to create the execution
+		 * This should be used in response to the [execution handler](#NotebookController.executeHandler)
+		 * being calleed or when cell execution has been started else, e.g when a cell was already
+		 * executing or when cell execution was triggered from another source.
+		 *
+		 * @param cell The notebook cell for which to create the execution.
 		 * @returns A notebook cell execution.
 		 */
 		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 
+		// todo@API allow add, not remove
 		// ipc
 		readonly preloads: NotebookKernelPreload[];
 
@@ -1626,7 +1637,7 @@ declare module 'vscode' {
 		 */
 		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
 
-
+		//todo@API validate this works
 		asWebviewUri(localResource: Uri): Uri;
 	}
 
@@ -1704,7 +1715,7 @@ declare module 'vscode' {
 		 */
 		viewOptions?: {
 			displayName: string;
-			filenamePattern: NotebookFilenamePattern[];
+			filenamePattern: GlobPattern | { include: GlobPattern; exclude: GlobPattern; }[];
 			exclusive?: boolean;
 		};
 	}
@@ -1720,6 +1731,7 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
+	// todo@API make class?
 	export interface NotebookKernelPreload {
 		provides?: string | string[];
 		uri: Uri;
@@ -1787,8 +1799,6 @@ declare module 'vscode' {
 		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 	}
 
-	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
-
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorDecorationType
@@ -1832,6 +1842,7 @@ declare module 'vscode' {
 		Right = 2
 	}
 
+	// todo@API remove readonlyness.
 	export class NotebookCellStatusBarItem {
 		readonly text: string;
 		readonly alignment: NotebookCellStatusBarAlignment;
@@ -1871,17 +1882,16 @@ declare module 'vscode' {
 		 * @param notebook
 		 * @param selector
 		 */
-		// @jrieken REMOVE. p_never
 		// todo@API really needed? we didn't find a user here
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 	}
 
 	export interface NotebookConcatTextDocument {
-		uri: Uri;
-		isClosed: boolean;
+		readonly uri: Uri;
+		readonly isClosed: boolean;
 		dispose(): void;
-		onDidChange: Event<void>;
-		version: number;
+		readonly onDidChange: Event<void>;
+		readonly version: number;
 		getText(): string;
 		getText(range: Range): string;
 
