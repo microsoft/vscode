@@ -119,7 +119,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private onEditorGroupsReady(): void {
 
 		// Register listeners to each opened group
-		this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group as IEditorGroupView));
+		for (const group of this.editorGroupService.groups) {
+			this.registerGroupListeners(group as IEditorGroupView);
+		}
 
 		// Fire initial set of editor events if there is an active editor
 		if (this.activeEditor) {
@@ -196,20 +198,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Handle no longer visible out of workspace resources
-		[...this.activeOutOfWorkspaceWatchers.keys()].forEach(resource => {
+		for (const resource of this.activeOutOfWorkspaceWatchers.keys()) {
 			if (!visibleOutOfWorkspaceResources.get(resource)) {
 				dispose(this.activeOutOfWorkspaceWatchers.get(resource));
 				this.activeOutOfWorkspaceWatchers.delete(resource);
 			}
-		});
+		}
 
 		// Handle newly visible out of workspace resources
-		visibleOutOfWorkspaceResources.forEach(resource => {
+		for (const resource of visibleOutOfWorkspaceResources.keys()) {
 			if (!this.activeOutOfWorkspaceWatchers.get(resource)) {
 				const disposable = this.fileService.watch(resource);
 				this.activeOutOfWorkspaceWatchers.set(resource, disposable);
 			}
-		});
+		}
 	}
 
 	//#endregion
@@ -449,9 +451,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			case EditorsOrder.SEQUENTIAL:
 				const editors: IEditorIdentifier[] = [];
 
-				this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(group => {
+				for (const group of this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
 					editors.push(...group.getEditors(EditorsOrder.SEQUENTIAL, options).map(editor => ({ editor, groupId: group.id })));
-				});
+				}
 
 				return editors;
 		}
@@ -789,33 +791,52 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				return editor;
 			}
 
-			return { editor: this.createEditorInput(editor), options: TextEditorOptions.from(editor) };
+			return {
+				editor: this.createEditorInput(editor),
+				options: TextEditorOptions.from(editor)
+			};
 		});
 
 		// Find target groups to open
-		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
+		const mapGroupToEditorsCandidates = new Map<IEditorGroup, IEditorInputWithOptions[]>();
 		if (group === SIDE_GROUP) {
-			mapGroupToEditors.set(this.findSideBySideGroup(), typedEditors);
+			mapGroupToEditorsCandidates.set(this.findSideBySideGroup(), typedEditors);
 		} else {
 			for (const typedEditor of typedEditors) {
-				let targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
+				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
 
-				const overridenEditor = await this.editorOverrideService.resolveEditorOverride(typedEditor.editor, typedEditor.options, targetGroup);
-				targetGroup = overridenEditor?.group ?? targetGroup;
+				let targetGroupEditors = mapGroupToEditorsCandidates.get(targetGroup);
+				if (!targetGroupEditors) {
+					targetGroupEditors = [];
+					mapGroupToEditorsCandidates.set(targetGroup, targetGroupEditors);
+				}
+
+				targetGroupEditors.push(typedEditor);
+			}
+		}
+
+		// Resolve overrides
+		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
+		for (const [group, editorsWithOptions] of mapGroupToEditorsCandidates) {
+			for (const { editor, options } of editorsWithOptions) {
+				const editorOverride = await this.editorOverrideService.resolveEditorOverride(editor, options, group);
+
+				const targetGroup = editorOverride?.group ?? group;
 				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
 				if (!targetGroupEditors) {
 					targetGroupEditors = [];
 					mapGroupToEditors.set(targetGroup, targetGroupEditors);
 				}
-				targetGroupEditors.push(overridenEditor ?? typedEditor);
+
+				targetGroupEditors.push(editorOverride ?? { editor, options });
 			}
 		}
 
 		// Open in target groups
 		const result: Promise<IEditorPane | null>[] = [];
-		mapGroupToEditors.forEach((editorsWithOptions, group) => {
+		for (const [group, editorsWithOptions] of mapGroupToEditors) {
 			result.push(group.openEditors(editorsWithOptions));
-		});
+		}
 
 		return coalesce(await Promises.settled(result));
 	}
@@ -864,7 +885,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	async replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
 		const typedEditors: IEditorReplacement[] = [];
 
-		editors.forEach(replaceEditorArg => {
+		for (const replaceEditorArg of editors) {
 			if (replaceEditorArg.editor instanceof EditorInput) {
 				const replacementArg = replaceEditorArg as IEditorReplacement;
 
@@ -883,7 +904,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					options: this.toOptions(replacementArg.replacement.options)
 				});
 			}
-		});
+		}
 
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 		if (targetGroup) {
