@@ -1239,7 +1239,7 @@ export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null, trusted: boolean): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
-	$onDidReceiveWorkspaceTrust(): void;
+	$onDidGrantWorkspaceTrust(): void;
 }
 
 export interface ExtHostFileSystemInfoShape {
