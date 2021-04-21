@@ -205,7 +205,7 @@ export class TerminalViewPane extends ViewPane {
 			dropdownActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.EXECUTE_COMMAND, title: contributed.title, category: ContextMenuTabsGroup.Profile }, undefined, { arg: contributed.command, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
-		if (dropdownActions.length) {
+		if (dropdownActions.length > 0) {
 			dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
 			dropdownActions.push(new Separator());
 		}

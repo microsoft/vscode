@@ -1531,7 +1531,7 @@ export function registerTerminalActions() {
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
 				description: {
-					description: 'workbench.action.terminal.runCommand',
+					description: 'workbench.action.terminal.executeCommand',
 					args: [{
 						name: 'command',
 						schema: {
