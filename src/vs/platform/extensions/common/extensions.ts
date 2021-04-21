@@ -164,7 +164,6 @@ export interface IExtensionContributions {
 }
 
 export interface IExtensionCapabilities {
-	virtualWorkspaces?: boolean;
 	untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
 }
 
