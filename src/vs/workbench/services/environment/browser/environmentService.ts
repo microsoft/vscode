@@ -282,16 +282,15 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			extensionDevelopmentLocationURI: undefined,
 			extensionDevelopmentKind: undefined
 		};
-
-		if (this.options.staticExtensions) {
-			const extensionDevelopmentLocations = this.options.staticExtensions.filter(s => s.isUnderDevelopment).map(e => e.extensionLocation);
-			if (extensionDevelopmentLocations.length) {
-				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = extensionDevelopmentLocations;
+		const developmentOptions = this.options.developmentOptions;
+		if (developmentOptions) {
+			if (developmentOptions.extensions?.length) {
+				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e.extensionLocation));
 				extensionHostDebugEnvironment.isExtensionDevelopment = true;
 			}
-		}
-		if (this.options.extensionTestsPath) {
-			extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(this.options.extensionTestsPath);
+			if (developmentOptions) {
+				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
+			}
 		}
 
 		// Fill in selected extra environmental properties

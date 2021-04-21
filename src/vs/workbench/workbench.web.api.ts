@@ -26,8 +26,8 @@ interface IResourceUriProvider {
 
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
-	extensionLocation: URI;
-	isUnderDevelopment?: boolean;
+	extensionLocation: UriComponents;
+	isBuiltin?: boolean;
 }
 
 interface ICommonTelemetryPropertiesResolver {
@@ -322,11 +322,6 @@ interface IWorkbenchConstructionOptions {
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
 
 	/**
-	 * Location of a module containing extension tests to run once the workbench is open.
-	 */
-	readonly extensionTestsPath?: URI;
-
-	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
 	 * Defaults to false on serverful and true on serverless.
@@ -415,12 +410,31 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly logLevel?: LogLevel;
 
+	//#endregion
+
+	//#region development options
+
+	readonly developmentOptions?: IDevelopmentOptions;
+
+	//#endregion
+
+}
+
+interface IDevelopmentOptions {
+	/**
+	 * Location of a module containing extension tests to run once the workbench is open.
+	 */
+	readonly extensionTestsPath?: URI;
+
+	/**
+	 * Add extensions under development.
+	 */
+	readonly extensions?: ReadonlyArray<IStaticExtension>;
+
 	/**
 	 * Whether to enable the smoke test driver.
 	 */
-	readonly driver?: boolean;
-
-	//#endregion
+	readonly enableSmokeTestDriver?: boolean;
 }
 
 interface IPerformanceMark {

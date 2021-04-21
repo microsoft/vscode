@@ -97,6 +97,23 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
+	/**
+	 * All dev extesnions
+	 */
+	private getDevExtensions(): IScannedExtension[] {
+		const devExtensions = this.environmentService.options?.developmentOptions?.extensions;
+		const result: IScannedExtension[] = [];
+		if (Array.isArray(devExtensions)) {
+			for (const e of devExtensions) {
+				const scannedExtension = this.parseStaticExtension(e, false, true);
+				if (scannedExtension) {
+					result.push(scannedExtension);
+				}
+			}
+		}
+		return result;
+	}
+
 	private async readDefaultExtensions(): Promise<IScannedExtension[]> {
 		const defaultUserWebExtensions = await this.readDefaultUserWebExtensions();
 		const extensions: IScannedExtension[] = [];
@@ -106,20 +123,21 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				extensions.push(scannedExtension);
 			}
 		}
-		return extensions.concat(this.getStaticExtensions(false));
+		return extensions.concat(this.getStaticExtensions(false), this.getDevExtensions());
 	}
 
 	private parseStaticExtension(e: IStaticExtension, builtin: boolean, isUnderDevelopment: boolean): IScannedExtension | null {
+		const extensionLocation = URI.revive(e.extensionLocation);
 		try {
 			return {
 				identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
-				location: e.extensionLocation,
+				location: extensionLocation,
 				type: builtin ? ExtensionType.System : ExtensionType.User,
 				packageJSON: e.packageJSON,
 				isUnderDevelopment
 			};
 		} catch (error) {
-			this.logService.error(`Error while parsing extension ${e.extensionLocation.toString()}`);
+			this.logService.error(`Error while parsing extension ${extensionLocation.toString()}`);
 			this.logService.error(error);
 		}
 		return null;
