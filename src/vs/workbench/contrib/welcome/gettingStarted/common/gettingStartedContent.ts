@@ -214,7 +214,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'settingsSync',
 					title: localize('gettingStarted.settingsSync.title', "Sync your favorite setup"),
-					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several VS Code instances.[Enable Settings Sync](command:workbench.userDataSync.actions.turnOn)"),
+					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several VS Code instances.\n[Enable Settings Sync](command:workbench.userDataSync.actions.turnOn)"),
 					when: 'syncStatus != uninitialized',
 					doneOn: { eventFired: 'sync-enabled' },
 					media: {
