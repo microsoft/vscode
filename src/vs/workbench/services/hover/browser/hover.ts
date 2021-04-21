@@ -86,6 +86,8 @@ export interface IHoverOptions {
 	 * if there is not enough room to layout the hover in the specified anchor position.
 	 */
 	anchorPosition?: AnchorPosition;
+
+	showPointer?: boolean;
 }
 
 export interface IHoverAction {

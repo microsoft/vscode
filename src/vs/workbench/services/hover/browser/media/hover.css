@@ -14,6 +14,31 @@
 	max-width: 700px;
 }
 
+.monaco-workbench .workbench-hover {
+	font-size: 11px;
+}
+
+.monaco-workbench .workbench-hover .hover-contents {
+	padding: 2px 4px;
+}
+
+.monaco-workbench .workbench-hover-pointer {
+	position: absolute;
+	/* Must be higher than workbench hover z-index */
+	z-index: 41;
+}
+
+.monaco-workbench .workbench-hover-pointer:after {
+	content: '';
+	position: absolute;
+	top: 9px;
+	right: -3px;
+	width: 5px;
+	height: 5px;
+	-moz-transform: rotate(1355deg);
+	-webkit-transform: rotate(135deg)
+}
+
 .monaco-workbench .workbench-hover a {
 	color: #3794ff;
 }

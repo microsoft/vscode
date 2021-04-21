@@ -424,7 +424,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		const anchorPosition: AnchorPosition | undefined = hoverAlignment === ActivityHoverAlignment.ABOVE ? AnchorPosition.ABOVE : hoverAlignment === ActivityHoverAlignment.BELOW ? AnchorPosition.BELOW : undefined;
 		const target: IHoverTarget | HTMLElement = anchorPosition === undefined ? {
 			targetElements: [this.container],
-			x: hoverAlignment === ActivityHoverAlignment.RIGHT ? right + 2 : left - 2,
+			x: hoverAlignment === ActivityHoverAlignment.RIGHT ? right + 4 : left - 4,
 			y: bottom - 10,
 			dispose: () => { }
 		} : this.container;
@@ -432,6 +432,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			target,
 			anchorPosition,
 			text: this.computeTitle(),
+			showPointer: true,
 		});
 	}
 

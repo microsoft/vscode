@@ -26,6 +26,7 @@ export class HoverWidget extends Widget {
 	private readonly _mouseTracker: CompositeMouseTracker;
 
 	private readonly _hover: BaseHoverWidget;
+	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _target: IHoverTarget;
 	private readonly _linkHandler: (url: string) => any;
 
@@ -60,6 +61,7 @@ export class HoverWidget extends Widget {
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
+		this._hoverPointer = options.showPointer ? $('div.workbench-hover-pointer') : undefined;
 		this._hover = this._register(new BaseHoverWidget());
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
 		if (options.additionalClasses) {
@@ -150,6 +152,9 @@ export class HoverWidget extends Widget {
 	}
 
 	public render(container?: HTMLElement): void {
+		if (this._hoverPointer) {
+			container?.appendChild(this._hoverPointer);
+		}
 		if (this._hover.containerDomNode.parentElement !== container) {
 			container?.appendChild(this._hover.containerDomNode);
 		}
@@ -213,6 +218,9 @@ export class HoverWidget extends Widget {
 	public override dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
+			if (this._hoverPointer) {
+				this._hoverPointer.parentElement?.removeChild(this._hoverPointer);
+			}
 			this._hover.containerDomNode.parentElement?.removeChild(this.domNode);
 			this._messageListeners.dispose();
 			this._target.dispose();
