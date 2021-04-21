@@ -63,17 +63,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		this._register(extensionManagementService.onDidInstallExtension(this._onDidInstallExtension, this));
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
 
-		// Trusted extensions notification
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
-				this._getExtensionsByWorkspaceTrustRequirement().then(extensions => {
-					if (extensions.length) {
-						this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: false });
-					}
-				});
-			}
-		});
-
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
 			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
@@ -429,7 +418,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _onDidInstallExtension({ local, error }: DidInstallExtensionEvent): void {
 		if (local && !error && this._isDisabledByTrustRequirement(local)) {
-			this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: false });
 			this._onEnablementChanged.fire([local]);
 		}
 	}
