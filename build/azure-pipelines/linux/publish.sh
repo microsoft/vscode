@@ -73,3 +73,4 @@ rm -rf $SNAP_TARBALL_PATH
 # Export DEB_PATH, RPM_PATH
 echo "##vso[task.setvariable variable=DEB_PATH]$DEB_PATH"
 echo "##vso[task.setvariable variable=RPM_PATH]$RPM_PATH"
+echo "##vso[task.setvariable variable=TARBALL_PATH]$TARBALL_PATH"
