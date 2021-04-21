@@ -11,16 +11,16 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel2, INotebookKernel2ChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
-abstract class MainThreadKernel implements INotebookKernel2 {
+abstract class MainThreadKernel implements INotebookKernel {
 
-	private readonly _onDidChange = new Emitter<INotebookKernel2ChangeEvent>();
+	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
 	private readonly preloads: { uri: URI, provides: string[] }[];
-	readonly onDidChange: Event<INotebookKernel2ChangeEvent> = this._onDidChange.event;
+	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
 	readonly selector: NotebookSelector;
@@ -61,7 +61,8 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 
 
 	update(data: Partial<INotebookKernelDto2>) {
-		const event: INotebookKernel2ChangeEvent = Object.create(null);
+
+		const event: INotebookKernelChangeEvent = Object.create(null);
 		if (data.label !== undefined) {
 			this.label = data.label;
 			event.label = true;
@@ -89,13 +90,8 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this._onDidChange.fire(event);
 	}
 
-	abstract executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
-	abstract cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
-
-	// old stuff
-	readonly resolve = () => Promise.resolve();
-	get friendlyId() { return this.id; }
-	get providerHandle() { return undefined; }
+	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
+	abstract cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 }
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
@@ -137,7 +133,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				return;
 			}
-			const kernel = this._notebookKernelService.getBoundKernel(editor.viewModel.notebookDocument);
+			const { bound: kernel } = this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument);
 			if (!kernel) {
 				return;
 			}
@@ -167,7 +163,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				continue;
 			}
-			if (this._notebookKernelService.getBoundKernel(editor.viewModel.notebookDocument) !== kernel) {
+			if (this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument).bound !== kernel) {
 				// different kernel
 				continue;
 			}
@@ -190,19 +186,19 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
 		const that = this;
 		const kernel = new class extends MainThreadKernel {
-			async executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> {
-				await that._proxy.$executeCells(handle, uri, ranges);
+			async executeNotebookCellsRequest(uri: URI, handles: number[]): Promise<void> {
+				await that._proxy.$executeCells(handle, uri, handles);
 			}
-			async cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void> {
-				await that._proxy.$cancelCells(handle, uri, ranges);
+			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
+				await that._proxy.$cancelCells(handle, uri, handles);
 			}
 		}(data);
 		const registration = this._notebookKernelService.registerKernel(kernel);
 
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
-			if (e.oldKernel === kernel) {
+			if (e.oldKernel === kernel.id) {
 				this._proxy.$acceptSelection(handle, e.notebook, false);
-			} else if (e.newKernel === kernel) {
+			} else if (e.newKernel === kernel.id) {
 				this._proxy.$acceptSelection(handle, e.notebook, true);
 			}
 		});

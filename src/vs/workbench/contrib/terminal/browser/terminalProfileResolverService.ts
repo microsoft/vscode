@@ -128,10 +128,20 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			executable = shellSetting;
 			const shellArgsSetting = this._configurationService.getValue(`terminal.integrated.shellArgs.${this._getOsKey(options.os)}`);
 			if (this._isValidShellArgs(shellArgsSetting, options.os)) {
-				args = shellArgsSetting || [];
+				args = shellArgsSetting;
 			}
 		} else {
 			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
+		}
+
+		if (args === undefined) {
+			if (options.os === OperatingSystem.Macintosh && args === undefined) {
+				// macOS should launch a login shell by default
+				args = ['--login'];
+			} else {
+				// Resolve undefined to []
+				args = [];
+			}
 		}
 
 		const icon = this._guessProfileIcon(executable);

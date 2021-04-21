@@ -246,6 +246,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	public readonly onDisposed: Event<ITerminalTab> = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
+	private readonly _onPanelMovedToSide = new Emitter<void>();
+	public get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
 	constructor(
 		private _container: HTMLElement | undefined,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
@@ -464,6 +466,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			if (this._initialRelativeSizes && height > 0 && width > 0) {
 				this.resizePanes(this._initialRelativeSizes);
 				this._initialRelativeSizes = undefined;
+			}
+			if (terminalPositionChanged && this._splitPaneContainer.orientation === Orientation.VERTICAL) {
+				this._onPanelMovedToSide.fire();
 			}
 		}
 	}

@@ -9,6 +9,7 @@
   "engines": {
     "vscode": "^1.25.0"
   },
+  "icon": "media/icon.png",
   "extensionKind": [
     "ui"
   ],
