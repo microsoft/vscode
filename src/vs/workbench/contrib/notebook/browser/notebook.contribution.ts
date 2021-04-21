@@ -48,6 +48,7 @@ import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
@@ -397,7 +398,7 @@ class NotebookFileTracker implements IWorkbenchContribution {
 			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID })) {
 				result.push({
 					editor: NotebookEditorInput.create(this._instantiationService, model.resource, model.viewType),
-					options: { inactive: true, preserveFocus: true, pinned: true, }
+					options: { inactive: true, preserveFocus: true, pinned: true, override: EditorOverride.DISABLED }
 				});
 			}
 		}

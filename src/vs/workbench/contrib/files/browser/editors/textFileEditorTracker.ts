@@ -80,7 +80,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		}
 
 		this.editorService.openEditors(resources.map(resource => ({
-			editor: this.editorService.createEditorInput({ resource, forceFile: true }),
+			resource,
 			options: { inactive: true, pinned: true, preserveFocus: true }
 		})));
 	}

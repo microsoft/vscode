@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/browser/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -819,7 +819,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
 		for (const [group, editorsWithOptions] of mapGroupToEditorsCandidates) {
 			for (const { editor, options } of editorsWithOptions) {
-				const editorOverride = await this.editorOverrideService.resolveEditorOverride(editor, options, group);
+				let editorOverride: IEditorInputWithOptionsAndGroup | undefined;
+				if (options?.override !== EditorOverride.DISABLED) {
+					editorOverride = await this.editorOverrideService.resolveEditorOverride(editor, options, group);
+				}
 
 				const targetGroup = editorOverride?.group ?? group;
 				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
