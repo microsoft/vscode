@@ -140,6 +140,11 @@ export default class PHPValidationProvider {
 			vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
 		}
 
+		const trustEnabled = vscode.workspace.getConfiguration().get('security.workspace.trust.enabled');
+		if (trustEnabled) {
+			vscode.workspace.requestWorkspaceTrust();
+		}
+
 		this.delayers = Object.create(null);
 		if (this.pauseValidation) {
 			this.pauseValidation = oldExecutable === this.config.executable;
@@ -173,9 +178,6 @@ export default class PHPValidationProvider {
 			return;
 		}
 
-		interface MessageItem extends vscode.MessageItem {
-			id: string;
-		}
 
 		let trigger = () => {
 			let key = textDocument.uri.toString();
@@ -187,35 +189,50 @@ export default class PHPValidationProvider {
 			delayer.trigger(() => this.doValidate(textDocument));
 		};
 
-		if (this.config!.executableIsUserDefined !== undefined && !this.config!.executableIsUserDefined) {
+		const trustEnabled = vscode.workspace.getConfiguration().get('security.workspace.trust.enabled');
+		if (trustEnabled) {
+			if (vscode.workspace.isTrusted) {
+				trigger();
+			}
+		} else if (this.config!.executableIsUserDefined !== undefined && !this.config!.executableIsUserDefined) {
 			const checkedExecutablePath = this.workspaceStore.get<string | undefined>(Setting.CheckedExecutablePath, undefined);
 			if (!checkedExecutablePath || checkedExecutablePath !== this.config!.executable) {
-				const selected = await vscode.window.showInformationMessage<MessageItem>(
-					localize('php.useExecutablePath', 'Do you allow {0} (defined as a workspace setting) to be executed to lint PHP files?', this.config!.executable),
-					{
-						title: localize('php.yes', 'Allow'),
-						id: 'yes'
-					},
-					{
-						title: localize('php.no', 'Disallow'),
-						isCloseAffordance: true,
-						id: 'no'
-					}
-				);
-
-				if (!selected || selected.id === 'no') {
-					this.pauseValidation = true;
-				} else if (selected.id === 'yes') {
+				if (await this.showCustomTrustDialog()) {
 					this.workspaceStore.update(Setting.CheckedExecutablePath, this.config!.executable);
 					vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
-					trigger();
+				} else {
+					this.pauseValidation = true;
+					return;
 				}
-
-				return;
 			}
+
+			trigger();
+		}
+	}
+
+	private async showCustomTrustDialog(): Promise<boolean> {
+		interface MessageItem extends vscode.MessageItem {
+			id: string;
 		}
 
-		trigger();
+		const selected = await vscode.window.showInformationMessage<MessageItem>(
+			localize('php.useExecutablePath', 'Do you allow {0} (defined as a workspace setting) to be executed to lint PHP files?', this.config!.executable),
+			{
+				title: localize('php.yes', 'Allow'),
+				id: 'yes'
+			},
+			{
+				title: localize('php.no', 'Disallow'),
+				isCloseAffordance: true,
+				id: 'no'
+			}
+		);
+
+		if (selected && selected.id === 'yes') {
+			return true;
+		}
+
+		return false;
 	}
 
 	private doValidate(textDocument: vscode.TextDocument): Promise<void> {
