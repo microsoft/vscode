@@ -141,7 +141,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
-		this._terminalService.onProfilesConfigChanged(profiles => this._updateTabActionBar(profiles));
+		this._terminalService.onDidAvailableProfilesChange(profiles => this._updateTabActionBar(profiles));
 	}
 
 	private _createTabsView(): void {
@@ -172,7 +172,7 @@ export class TerminalViewPane extends ViewPane {
 			if (this._tabButtons) {
 				this._tabButtons.dispose();
 			}
-			const actions = this._getInitialTabActionBarArgs();
+			const actions = this._getTabActionBarArgs(this._terminalService.availableProfiles);
 			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, this._keybindingService, this._notificationService, actions.dropdownIcon || 'codicon-chevron-down');
 			this._updateTabActionBar(this._terminalService.availableProfiles);
 			return this._tabButtons;
@@ -218,29 +218,6 @@ export class TerminalViewPane extends ViewPane {
 		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'launch-profile', title: 'Launch Profile...', icon: Codicon.chevronDown }, undefined, undefined);
 		return { primaryAction, dropdownAction: secondaryAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions', dropdownIcon: 'codicon-chevron-down' };
 	}
-
-	private _getInitialTabActionBarArgs(): {
-		primaryAction: MenuItemAction,
-		dropdownAction: MenuItemAction,
-		dropdownMenuActions: IAction[],
-		className: string,
-		dropdownIcon?: string
-	} {
-		const dropdownActions: IAction[] = [];
-
-		for (const [, configureActions] of this._dropdownMenu.getActions()) {
-			for (const action of configureActions) {
-				if ('alt' in action) {
-					dropdownActions.push(action);
-				}
-			}
-		}
-
-		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-		const secondaryAction = this._instantiationService.createInstance(MenuItemAction, { id: 'launch-profile', title: 'Launch Profile...', icon: Codicon.chevronDown }, undefined, undefined);
-		return { primaryAction, dropdownAction: secondaryAction, dropdownMenuActions: dropdownActions, className: 'terminal.profiles.actions', dropdownIcon: 'codicon-chevron-down' };
-	}
-
 
 	public override focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
@@ -298,7 +275,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onTabDisposed(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
-		this._register(_terminalService.onProfilesConfigChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onDidAvailableProfilesChange(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 

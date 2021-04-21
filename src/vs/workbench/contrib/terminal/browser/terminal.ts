@@ -102,7 +102,7 @@ export interface ITerminalService {
 	onRequestAvailableProfiles: Event<IAvailableProfilesRequest>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
-	onProfilesConfigChanged: Event<ITerminalProfile[]>;
+	onDidAvailableProfilesChange: Event<ITerminalProfile[]>;
 	onPanelMovedToSide: Event<void>;
 
 	/**

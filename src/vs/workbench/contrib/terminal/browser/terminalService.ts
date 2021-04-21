@@ -76,7 +76,10 @@ export class TerminalService implements ITerminalService {
 	private _connectionState: TerminalConnectionState;
 
 	private _availableProfiles: ITerminalProfile[] | undefined;
-	public get availableProfiles(): ITerminalProfile[] { return this._availableProfiles || []; }
+	public get availableProfiles(): ITerminalProfile[] {
+		this._refreshAvailableProfiles('external');
+		return this._availableProfiles || [];
+	}
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
@@ -113,8 +116,8 @@ export class TerminalService implements ITerminalService {
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
-	private readonly _onProfilesConfigChanged = new Emitter<ITerminalProfile[]>();
-	public get onProfilesConfigChanged(): Event<ITerminalProfile[]> { return this._onProfilesConfigChanged.event; }
+	private readonly _onDidAvailableProfilesChange = new Emitter<ITerminalProfile[]>();
+	public get onDidAvailableProfilesChange(): Event<ITerminalProfile[]> { return this._onDidAvailableProfilesChange.event; }
 	private readonly _onPanelMovedToSide = new Emitter<void>();
 	public get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
 	private readonly _localTerminalService?: ILocalTerminalService;
@@ -164,7 +167,7 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
 				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
-				this._updateAvailableProfiles();
+				this._refreshAvailableProfiles('internal');
 			}
 		});
 
@@ -173,7 +176,7 @@ export class TerminalService implements ITerminalService {
 		const conn = this._remoteAgentService.getConnection();
 		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
 		this._whenExtHostReady(remoteAuthority).then(() => {
-			this._updateAvailableProfiles();
+			this._refreshAvailableProfiles('internal');
 		});
 
 		// Connect to the extension host if it's there, set the connection state to connected when
@@ -309,11 +312,16 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority]!.resolve();
 	}
 
-	private async _updateAvailableProfiles(): Promise<void> {
+	private async _refreshAvailableProfiles(requestType: 'internal' | 'external'): Promise<void> {
 		const result = await this._detectProfiles(true);
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
-			this._onProfilesConfigChanged.fire(this._availableProfiles);
+			if (requestType === 'internal') {
+				// let external listeners know there was a change
+				// external requestors listen to this event so firing it would
+				// cause a cycle
+				this._onDidAvailableProfilesChange.fire(this._availableProfiles);
+			}
 		}
 	}
 
