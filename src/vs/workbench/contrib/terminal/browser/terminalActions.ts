@@ -1242,7 +1242,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SPLIT,
+				id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
 				title: { value: localize('workbench.action.terminal.splitWithInstance', "Split"), original: 'Split' },
 				f1: false,
 				category,
@@ -1273,7 +1273,7 @@ export function registerTerminalActions() {
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
 		command: {
-			id: TERMINAL_COMMAND_ID.SPLIT,
+			id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
 			title: localize('workbench.action.terminal.splitWithInstance', "Split")
 		},
 		group: ContextMenuGroup.Create
@@ -1426,7 +1426,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.KILL,
+				id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
 				title: { value: localize('workbench.action.terminal.killWithInstance', "Kill"), original: 'Kill' },
 				f1: false,
 				category,
@@ -1449,7 +1449,7 @@ export function registerTerminalActions() {
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
 		command: {
-			id: TERMINAL_COMMAND_ID.KILL,
+			id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
 			title: localize('workbench.action.terminal.killWithInstance', "Kill")
 		},
 		group: ContextMenuGroup.Kill
