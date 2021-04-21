@@ -36,7 +36,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
@@ -48,7 +48,6 @@ import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/wor
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView, INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
@@ -2658,21 +2657,6 @@ registerThemingParticipant((theme, collector) => {
 	if (cellBorderColor) {
 		collector.addRule(`.notebookOverlay .cell.markdown h1 { border-color: ${cellBorderColor}; }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row .cell-editor-part:before { outline: solid 1px ${cellBorderColor}; }`);
-	}
-
-	const cellStatusSuccessIcon = theme.getColor(cellStatusIconSuccess);
-	if (cellStatusSuccessIcon) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status ${ThemeIcon.asCSSSelector(successStateIcon)} { color: ${cellStatusSuccessIcon} }`);
-	}
-
-	const cellStatusErrorIcon = theme.getColor(cellStatusIconError);
-	if (cellStatusErrorIcon) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status ${ThemeIcon.asCSSSelector(errorStateIcon)} { color: ${cellStatusErrorIcon} }`);
-	}
-
-	const cellStatusRunningIcon = theme.getColor(cellStatusIconRunning);
-	if (cellStatusRunningIcon) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-sync { color: ${cellStatusRunningIcon} }`);
 	}
 
 	const cellStatusBarHoverBg = theme.getColor(cellStatusBarItemHover);

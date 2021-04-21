@@ -450,26 +450,8 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration {
-	margin-right: 8px;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration {
-	display: flex;
-	align-items: center;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status {
-	height: 100%;
-	display: flex;
-	align-items: center;
-	margin-left: 18px;
-	width: 18px;
-	margin-right: 2px;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > div:first-child {
-	margin-left: 18px;
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > .cell-contributed-items {
+	margin-left: 10px;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .codicon {
