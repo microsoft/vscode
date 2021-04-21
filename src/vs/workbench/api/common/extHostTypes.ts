@@ -8,6 +8,7 @@ import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -3097,17 +3098,21 @@ export class NotebookCellOutputItem {
 	}
 
 	constructor(
-		readonly mime: string,
-		readonly value: unknown, // JSON'able
-		readonly metadata?: Record<string, any>
-	) { }
+		public mime: string,
+		public value: unknown, // JSON'able
+		public metadata?: Record<string, any>
+	) {
+		if (isFalsyOrWhitespace(this.mime)) {
+			throw new Error('INVALID mime type, must not be empty or falsy');
+		}
+	}
 }
 
 export class NotebookCellOutput {
 
-	readonly outputs: NotebookCellOutputItem[];
-	readonly id: string;
-	readonly metadata?: Record<string, any>;
+	id: string;
+	outputs: NotebookCellOutputItem[];
+	metadata?: Record<string, any>;
 
 	constructor(
 		outputs: NotebookCellOutputItem[],

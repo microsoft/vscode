@@ -1381,23 +1381,19 @@ declare module 'vscode' {
 		// static textplain(value:string): NotebookCellOutputItem;
 		// static errortrace(value:any): NotebookCellOutputItem;
 
-		readonly mime: string;
-		readonly value: unknown;
-		readonly metadata?: Record<string, any>;
+		mime: string;
+		value: unknown;
+		metadata?: Record<string, any>;
 
 		constructor(mime: string, value: unknown, metadata?: Record<string, any>);
 	}
 
-	// @jrieken
-	// todo@API think about readonly...
-	//TODO@API add execution count to cell output?
+	// @jrieken transient
 	export class NotebookCellOutput {
-		readonly id: string;
-		readonly outputs: NotebookCellOutputItem[];
-		readonly metadata?: Record<string, any>;
-
+		id: string;
+		outputs: NotebookCellOutputItem[];
+		metadata?: Record<string, any>;
 		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, any>);
-
 		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: Record<string, any>);
 	}
 
