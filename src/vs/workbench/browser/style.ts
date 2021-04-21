@@ -190,6 +190,9 @@ registerThemingParticipant((theme, collector) => {
 		.monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
 			background-color: ${toolbarHoverBackgroundColor};
 		}
+		.monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
+			background-color: ${toolbarHoverBackgroundColor};
+		}
 	`);
 	}
 
