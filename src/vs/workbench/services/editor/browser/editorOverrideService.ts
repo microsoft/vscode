@@ -11,11 +11,13 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorOverride, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorAssociation, EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
 import { EditorOptions, EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { ContributedEditorInfo, ContributedEditorPriority, ContributionPoint, ContributionPointOptions, ContributionPoints, DEFAULT_EDITOR_ASSOCIATION, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorOverrideService, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority, globMatchesResource, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
@@ -23,6 +25,74 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 
 interface IContributedEditorInput extends IEditorInput {
 	viewType?: string;
+}
+
+interface ContributionPoint {
+	globPattern: string | glob.IRelativePattern,
+	editorInfo: ContributedEditorInfo,
+	options?: ContributionPointOptions,
+	createEditorInput: EditorInputFactoryFunction
+	createDiffEditorInput?: DiffEditorInputFactoryFunction
+}
+
+type ContributionPoints = Array<ContributionPoint>;
+
+export type ContributionPointOptions = {
+	singlePerResource?: boolean | (() => boolean);
+	canHandleDiff?: boolean | (() => boolean);
+};
+
+export type ContributedEditorInfo = {
+	id: string;
+	describes: (currentEditor: IEditorInput) => boolean;
+	label: string;
+	detail?: string;
+	priority: ContributedEditorPriority;
+};
+
+type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+
+type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+
+export interface IEditorOverrideService {
+	readonly _serviceBrand: undefined;
+	/**
+	 * Given a resource finds the editor associations that match it from the user's settings
+	 * @param resource The resource to match
+	 * @return The matching associations
+	 */
+	getAssociationsForResource(resource: URI): EditorAssociations;
+
+	/**
+	 * Updates the user's association to include a specific editor ID as a default for the given glob pattern
+	 * @param globPattern The glob pattern (must be a string as settings don't support relative glob)
+	 * @param editorID The ID of the editor to make a user default
+	 */
+	updateUserAssociations(globPattern: string, editorID: string): void;
+
+	/**
+	 * Registers a specific editor contribution.
+	 * @param globPattern The glob pattern for this contribution point
+	 * @param editorInfo Information about the contribution point
+	 * @param options Specific options which apply to this contribution
+	 * @param createEditorInput The factory method for creating inputs
+	 */
+	registerContributionPoint(
+		globPattern: string | glob.IRelativePattern,
+		editorInfo: ContributedEditorInfo,
+		options: ContributionPointOptions,
+		createEditorInput: EditorInputFactoryFunction,
+		createDiffEditorInput?: DiffEditorInputFactoryFunction
+	): IDisposable;
+
+	/**
+	 * Given an editor determines if there's a suitable override for it, if so returns an IEditorInputWithOptions for opening
+	 * @param editor The editor to override
+	 * @param options The current options for the editor
+	 * @param group The current group
+	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or undefined if there is not
+	 */
+	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
 }
 
 export class EditorOverrideService extends Disposable implements IEditorOverrideService {
@@ -147,8 +217,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
 	}
 
-	private findMatchingContributions(resource: URI): ContributionPoints {
-		let contributions: ContributionPoints = [];
+	private findMatchingContributions(resource: URI): ContributionPoint[] {
+		let contributions: ContributionPoint[] = [];
 		// Then all glob patterns
 		for (const key of this._contributionPoints.keys()) {
 			const contributionPoints = this._contributionPoints.get(key)!;
@@ -462,4 +532,5 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 }
 
+export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
 registerSingleton(IEditorOverrideService, EditorOverrideService);

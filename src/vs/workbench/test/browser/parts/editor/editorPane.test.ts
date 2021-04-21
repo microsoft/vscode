@@ -15,14 +15,12 @@ import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsSer
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { extUri } from 'vs/base/common/resources';
-import { Extensions } from 'vs/workbench/services/editor/common/editorOverrideService';
-
 
 const NullThemeService = new TestThemeService();
 

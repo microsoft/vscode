@@ -32,13 +32,15 @@ import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/con
 import { ComplexNotebookProviderInfo, IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Extensions as EditorExtensions, IEditorTypesHandler, IEditorType, IEditorAssociationsRegistry } from 'vs/workbench/browser/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { Lazy } from 'vs/base/common/lazy';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { ContributedEditorPriority, Extensions, IEditorAssociationsRegistry, IEditorOverrideService, IEditorType, IEditorTypesHandler } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -387,7 +389,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 			}
 		});
 
-		this._register(Registry.as<IEditorAssociationsRegistry>(Extensions.Associations).registerEditorTypesHandler('Notebook', this));
+		this._register(Registry.as<IEditorAssociationsRegistry>(EditorExtensions.Associations).registerEditorTypesHandler('Notebook', this));
 
 		const updateOrder = () => {
 			const userOrder = this._configurationService.getValue<string[]>(DisplayOrderKey);

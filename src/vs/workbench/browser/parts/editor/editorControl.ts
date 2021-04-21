@@ -7,7 +7,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorRegistry, IEditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,7 +15,6 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
-import { Extensions } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export interface IOpenEditorResult {
 	readonly editorPane: EditorPane;
@@ -57,7 +56,7 @@ export class EditorControl extends Disposable {
 	async openEditor(editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<IOpenEditorResult> {
 
 		// Editor pane
-		const descriptor = Registry.as<IEditorRegistry>(Extensions.Editors).getEditor(editor);
+		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 		if (!descriptor) {
 			throw new Error(`No editor descriptor found for input id ${editor.typeId}`);
 		}

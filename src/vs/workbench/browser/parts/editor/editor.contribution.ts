@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorRegistry, EditorDescriptor, } from 'vs/workbench/browser/editor';
+import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { EditorInput, IEditorInputSerializer, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
@@ -63,10 +63,9 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { FileAccess } from 'vs/base/common/network';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Extensions } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 // Register String Editor
-Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		TextResourceEditor,
 		TextResourceEditor.ID,
@@ -79,7 +78,7 @@ Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
 );
 
 // Register Text Diff Editor
-Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		TextDiffEditor,
 		TextDiffEditor.ID,
@@ -91,7 +90,7 @@ Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
 );
 
 // Register Binary Resource Diff Editor
-Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		BinaryResourceDiffEditor,
 		BinaryResourceDiffEditor.ID,
@@ -102,7 +101,7 @@ Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		SideBySideEditor,
 		SideBySideEditor.ID,
