@@ -916,6 +916,8 @@ export class CodeApplication extends Disposable {
 
 				if (hasWorkspaceFileExtension(path)) {
 					return { workspaceUri: remoteUri };
+				} else if (/:[\d]+$/.test(path)) { // path with :line:column syntax
+					return { fileUri: remoteUri };
 				} else {
 					return { folderUri: remoteUri };
 				}
