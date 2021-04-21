@@ -6,79 +6,60 @@
 import { flatten } from 'vs/base/common/arrays';
 import { Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export class NotebookStatusBarController extends Disposable implements INotebookEditorContribution {
+export class ContributedStatusBarItemController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar';
 
 	private readonly _visibleCells = new Map<number, CellStatusBarHelper>();
 
-	private readonly _viewModelDisposables = new DisposableStore();
+	private readonly _observer: NotebookVisibleCellObserver;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@INotebookCellStatusBarService private readonly _notebookCellStatusBarService: INotebookCellStatusBarService
 	) {
 		super();
-		this._updateVisibleCells();
-		this._register(this._notebookEditor.onDidChangeVisibleRanges(this._updateVisibleCells, this));
-		this._register(this._notebookEditor.onDidChangeModel(this._onModelChange, this));
+		this._observer = this._register(new NotebookVisibleCellObserver(this._notebookEditor));
+		this._register(this._observer.onDidChangeVisibleCells(this._updateVisibleCells, this));
+
+		this._updateEverything();
 		this._register(this._notebookCellStatusBarService.onDidChangeProviders(this._updateEverything, this));
 		this._register(this._notebookCellStatusBarService.onDidChangeItems(this._updateEverything, this));
-	}
-
-	private _onModelChange() {
-		this._viewModelDisposables.clear();
-		const vm = this._notebookEditor.viewModel;
-		if (!vm) {
-			return;
-		}
-
-		this._viewModelDisposables.add(vm.onDidChangeViewCells(() => this._updateEverything()));
-		this._updateEverything();
 	}
 
 	private _updateEverything(): void {
 		this._visibleCells.forEach(cell => cell.dispose());
 		this._visibleCells.clear();
-		this._updateVisibleCells();
+		this._updateVisibleCells({ added: this._observer.visibleCells, removed: [] });
 	}
 
-	private _updateVisibleCells(): void {
+	private _updateVisibleCells(e: ICellVisibilityChangeEvent): void {
 		const vm = this._notebookEditor.viewModel;
 		if (!vm) {
 			return;
 		}
 
-		const newVisibleCells = new Set<number>();
-		const rangesWithEnd = this._notebookEditor.visibleRanges
-			.map(range => ({ start: range.start, end: range.end + 1 }));
-		cellRangesToIndexes(rangesWithEnd)
-			.map(index => vm.cellAt(index))
-			.filter((cell: CellViewModel | undefined): cell is CellViewModel => !!cell)
-			.map(cell => {
-				if (!this._visibleCells.has(cell.handle)) {
-					const helper = new CellStatusBarHelper(vm, cell, this._notebookCellStatusBarService);
-					this._visibleCells.set(cell.handle, helper);
-				}
-				newVisibleCells.add(cell.handle);
-			});
+		for (let newCell of e.added) {
+			const helper = new CellStatusBarHelper(vm, newCell, this._notebookCellStatusBarService);
+			this._visibleCells.set(newCell.handle, helper);
+		}
 
-		for (let handle of this._visibleCells.keys()) {
-			if (!newVisibleCells.has(handle)) {
-				this._visibleCells.get(handle)?.dispose();
-				this._visibleCells.delete(handle);
-			}
+		for (let oldCell of e.removed) {
+			this._visibleCells.get(oldCell.handle)?.dispose();
+			this._visibleCells.delete(oldCell.handle);
 		}
 	}
 
 	override dispose(): void {
+		super.dispose();
+
 		this._visibleCells.forEach(cell => cell.dispose());
 		this._visibleCells.clear();
 	}
@@ -131,7 +112,7 @@ class CellStatusBarHelper extends Disposable {
 		this._currentItemIds = newIds;
 	}
 
-	override  dispose() {
+	override dispose() {
 		super.dispose();
 
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
@@ -139,4 +120,4 @@ class CellStatusBarHelper extends Disposable {
 	}
 }
 
-registerNotebookContribution(NotebookStatusBarController.id, NotebookStatusBarController);
+registerNotebookContribution(ContributedStatusBarItemController.id, ContributedStatusBarItemController);

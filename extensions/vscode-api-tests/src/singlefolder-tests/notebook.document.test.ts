@@ -248,67 +248,6 @@ suite('Notebook Document', function () {
 		assert.strictEqual(data.changes[0].items[1], document.cellAt(1));
 	});
 
-	test('workspace edit API (appendNotebookCellOutput, replaceCellOutput, event)', async function () {
-		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const document = await vscode.notebook.openNotebookDocument(uri);
-
-		const outputChangeEvent = utils.asPromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
-		const edit = new vscode.WorkspaceEdit();
-		const firstCellOutput = new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('foo', 'bar')]);
-		edit.appendNotebookCellOutput(document.uri, 0, [firstCellOutput]);
-		const success = await vscode.workspace.applyEdit(edit);
-		const data = await outputChangeEvent;
-
-		assert.strictEqual(success, true);
-		assert.strictEqual(document.cellCount, 1);
-		assert.strictEqual(document.cellAt(0).outputs.length, 1);
-		assert.deepStrictEqual(document.cellAt(0).outputs, [firstCellOutput]);
-
-		assert.strictEqual(data.document === document, true);
-		assert.strictEqual(data.cells.length, 1);
-		assert.strictEqual(data.cells[0].outputs.length, 1);
-		assert.deepStrictEqual(data.cells[0].outputs, [firstCellOutput]);
-
-
-		{
-			const outputChangeEvent = utils.asPromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
-			const edit = new vscode.WorkspaceEdit();
-			const secondCellOutput = new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('foo', 'baz')]);
-			edit.appendNotebookCellOutput(document.uri, 0, [secondCellOutput]);
-			const success = await vscode.workspace.applyEdit(edit);
-			const data = await outputChangeEvent;
-
-			assert.strictEqual(success, true);
-			assert.strictEqual(document.cellCount, 1);
-			assert.strictEqual(document.cellAt(0).outputs.length, 2);
-			assert.deepStrictEqual(document.cellAt(0).outputs, [firstCellOutput, secondCellOutput]);
-
-			assert.strictEqual(data.document === document, true);
-			assert.strictEqual(data.cells.length, 1);
-			assert.strictEqual(data.cells[0].outputs.length, 2);
-			assert.deepStrictEqual(data.cells[0].outputs, [firstCellOutput, secondCellOutput]);
-		}
-
-		{
-			const outputChangeEvent = utils.asPromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
-			const edit = new vscode.WorkspaceEdit();
-			const thirdOutput = new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('foo', 'baz1')]);
-			edit.replaceNotebookCellOutput(document.uri, 0, [thirdOutput]);
-			const success = await vscode.workspace.applyEdit(edit);
-			const data = await outputChangeEvent;
-
-			assert.strictEqual(success, true);
-			assert.strictEqual(document.cellCount, 1);
-			assert.strictEqual(document.cellAt(0).outputs.length, 1);
-			assert.deepStrictEqual(document.cellAt(0).outputs, [thirdOutput]);
-
-			assert.strictEqual(data.document === document, true);
-			assert.strictEqual(data.cells.length, 1);
-			assert.strictEqual(data.cells[0].outputs.length, 1);
-			assert.deepStrictEqual(data.cells[0].outputs, [thirdOutput]);
-		}
-	});
-
 	test('document save API', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.notebook.openNotebookDocument(uri);
@@ -373,45 +312,6 @@ suite('Notebook Document', function () {
 		let cellDoc = await vscode.workspace.openTextDocument(firstCelUri);
 		cellDoc = await vscode.languages.setTextDocumentLanguage(cellDoc, 'css');
 		assert.strictEqual(cellDoc.languageId, 'css');
-	});
-
-	test('#117273, Add multiple outputs', async function () {
-
-		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const document = await vscode.notebook.openNotebookDocument(resource);
-
-		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCellOutput(document.uri, 0, [
-			new vscode.NotebookCellOutput(
-				[new vscode.NotebookCellOutputItem('application/x.notebook.stream', '1', { outputType: 'stream', streamName: 'stdout' })],
-				{ outputType: 'stream', streamName: 'stdout' }
-			)
-		]);
-		let success = await vscode.workspace.applyEdit(edit);
-
-		assert.ok(success);
-		assert.strictEqual(document.cellAt(0).outputs.length, 1);
-		assert.strictEqual(document.cellAt(0).outputs[0].outputs.length, 1);
-		assert.deepStrictEqual(document.cellAt(0).outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
-		assert.deepStrictEqual(document.cellAt(0).outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
-
-		const edit2 = new vscode.WorkspaceEdit();
-		edit2.appendNotebookCellOutput(document.uri, 0, [
-			new vscode.NotebookCellOutput(
-				[new vscode.NotebookCellOutputItem('hello', '1', { outputType: 'stream', streamName: 'stderr' })],
-				{ outputType: 'stream', streamName: 'stderr' }
-			)
-		]);
-		success = await vscode.workspace.applyEdit(edit2);
-		assert.ok(success);
-
-		assert.strictEqual(document.cellAt(0).outputs.length, 2);
-		assert.strictEqual(document.cellAt(0).outputs[0].outputs.length, 1);
-		assert.strictEqual(document.cellAt(0).outputs[1].outputs.length, 1);
-		assert.deepStrictEqual(document.cellAt(0).outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
-		assert.deepStrictEqual(document.cellAt(0).outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
-		assert.deepStrictEqual(document.cellAt(0).outputs[1].metadata, { outputType: 'stream', streamName: 'stderr' });
-		assert.deepStrictEqual(document.cellAt(0).outputs[1].outputs[0].metadata, { outputType: 'stream', streamName: 'stderr' });
 	});
 
 	test('dirty state - complex', async function () {

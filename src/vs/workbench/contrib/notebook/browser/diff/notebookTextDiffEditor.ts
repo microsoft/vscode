@@ -371,7 +371,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		outputNodeLeftPadding: 32,
 		previewNodePadding: MARKDOWN_PREVIEW_PADDING,
 		leftMargin: 0,
-		cellMargin: 0,
+		rightMargin: 0,
 		runGutter: 0
 	};
 

@@ -60,11 +60,12 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			result = await model.load();
 
 		} else if (info instanceof SimpleNotebookProviderInfo) {
-			let workingCopyManager = this._workingCopyManagers.get(viewType);
+			const workingCopyTypeId = `notebook/${viewType}`;
+			let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 			if (!workingCopyManager) {
 				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
 					FileWorkingCopyManager,
-					viewType,
+					workingCopyTypeId,
 					new NotebookFileWorkingCopyModelFactory(this._notebookService)
 				);
 			}

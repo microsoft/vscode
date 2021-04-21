@@ -8,6 +8,7 @@ import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -704,30 +705,6 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		if (start !== end || cellData.length > 0) {
 			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata: workspaceEditMetadata });
 		}
-	}
-
-	replaceNotebookCellOutput(uri: URI, index: number, outputs: vscode.NotebookCellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._editNotebookCellOutput(uri, index, false, outputs, metadata);
-	}
-
-	appendNotebookCellOutput(uri: URI, index: number, outputs: vscode.NotebookCellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._editNotebookCellOutput(uri, index, true, outputs, metadata);
-	}
-
-	replaceNotebookCellOutputItems(uri: URI, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._editNotebookCellOutputItems(uri, index, outputId, false, items, metadata);
-	}
-
-	appendNotebookCellOutputItems(uri: URI, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._editNotebookCellOutputItems(uri, index, outputId, true, items, metadata);
-	}
-
-	private _editNotebookCellOutputItems(uri: URI, index: number, id: string, append: boolean, items: vscode.NotebookCellOutputItem[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
-		this._edits.push({ _type: FileEditType.CellOutputItem, metadata, uri, index, outputId: id, append, newOutputItems: items });
-	}
-
-	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: vscode.NotebookCellOutput[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
-		this._edits.push({ _type: FileEditType.CellOutput, metadata, uri, index, append, newOutputs: outputs, newMetadata: undefined });
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -2982,7 +2959,6 @@ export class NotebookRange {
 export class NotebookCellMetadata {
 	readonly inputCollapsed?: boolean;
 	readonly outputCollapsed?: boolean;
-	readonly custom?: Record<string, any>;
 	readonly [key: string]: any;
 
 	constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
@@ -2999,11 +2975,10 @@ export class NotebookCellMetadata {
 	with(change: {
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
-		custom?: Record<string, any> | null,
 		[key: string]: any
 	}): NotebookCellMetadata {
 
-		let { inputCollapsed, outputCollapsed, custom, ...remaining } = change;
+		let { inputCollapsed, outputCollapsed, ...remaining } = change;
 
 		if (inputCollapsed === undefined) {
 			inputCollapsed = this.inputCollapsed;
@@ -3015,15 +2990,9 @@ export class NotebookCellMetadata {
 		} else if (outputCollapsed === null) {
 			outputCollapsed = undefined;
 		}
-		if (custom === undefined) {
-			custom = this.custom;
-		} else if (custom === null) {
-			custom = undefined;
-		}
 
 		if (inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
-			custom === this.custom &&
 			Object.keys(remaining).length === 0
 		) {
 			return this;
@@ -3033,7 +3002,6 @@ export class NotebookCellMetadata {
 			{
 				inputCollapsed,
 				outputCollapsed,
-				custom,
 				...remaining
 			}
 		);
@@ -3042,43 +3010,33 @@ export class NotebookCellMetadata {
 
 export class NotebookDocumentMetadata {
 	readonly trusted: boolean;
-	readonly custom: { [key: string]: any; };
 	readonly [key: string]: any;
 
-	constructor(trusted?: boolean, custom?: { [key: string]: any; });
+	constructor(trusted?: boolean);
 	constructor(data: Record<string, any>);
-	constructor(trustedOrData: boolean | Record<string, any> = true, custom: { [key: string]: any; } = {}) {
+	constructor(trustedOrData: boolean | Record<string, any> = true) {
 		if (typeof trustedOrData === 'object') {
 			Object.assign(this, trustedOrData);
 			this.trusted = trustedOrData.trusted ?? true;
-			this.custom = trustedOrData.custom ?? {};
 		} else {
 			this.trusted = trustedOrData;
-			this.custom = custom;
 		}
 	}
 
 	with(change: {
 		trusted?: boolean | null,
-		custom?: { [key: string]: any; } | null,
 		[key: string]: any
 	}): NotebookDocumentMetadata {
 
-		let { custom, trusted, ...remaining } = change;
+		let { trusted, ...remaining } = change;
 
-		if (custom === undefined) {
-			custom = this.custom;
-		} else if (custom === null) {
-			custom = undefined;
-		}
 		if (trusted === undefined) {
 			trusted = this.trusted;
 		} else if (trusted === null) {
 			trusted = undefined;
 		}
 
-		if (custom === this.custom &&
-			trusted === this.trusted &&
+		if (trusted === this.trusted &&
 			Object.keys(remaining).length === 0
 		) {
 			return this;
@@ -3087,7 +3045,6 @@ export class NotebookDocumentMetadata {
 		return new NotebookDocumentMetadata(
 			{
 				trusted,
-				custom,
 				...remaining
 			}
 		);
@@ -3141,17 +3098,21 @@ export class NotebookCellOutputItem {
 	}
 
 	constructor(
-		readonly mime: string,
-		readonly value: unknown, // JSON'able
-		readonly metadata?: Record<string, any>
-	) { }
+		public mime: string,
+		public value: unknown, // JSON'able
+		public metadata?: Record<string, any>
+	) {
+		if (isFalsyOrWhitespace(this.mime)) {
+			throw new Error('INVALID mime type, must not be empty or falsy');
+		}
+	}
 }
 
 export class NotebookCellOutput {
 
-	readonly outputs: NotebookCellOutputItem[];
-	readonly id: string;
-	readonly metadata?: Record<string, any>;
+	id: string;
+	outputs: NotebookCellOutputItem[];
+	metadata?: Record<string, any>;
 
 	constructor(
 		outputs: NotebookCellOutputItem[],
