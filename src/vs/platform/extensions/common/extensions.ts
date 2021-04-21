@@ -163,9 +163,14 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 }
 
+export interface IExtensionCapabilities {
+	virtualWorkspaces?: boolean;
+	untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+}
+
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-export type ExtensionWorkspaceTrustRequestType = 'never' | 'onStart' | 'onDemand';
-export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart', description: string } | { request: 'onDemand', description: string, requiredForConfigurations?: string[] };
+export type ExtensionUntrustedWorkpaceSupportType = boolean | 'limited';
+export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: 'limited', description: string, restrictedConfigurations?: string[] };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -222,7 +227,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
-	readonly workspaceTrust?: ExtensionWorkspaceTrust;
+	readonly capabilities?: IExtensionCapabilities;
 	readonly supportsVirtualWorkspace?: boolean;
 }
 

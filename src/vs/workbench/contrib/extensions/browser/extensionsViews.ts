@@ -561,15 +561,15 @@ export class ExtensionsListView extends ViewPane {
 
 		value = value.replace(/@trustRequired/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		const result = local.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) !== 'never' && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+		const result = local.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) !== true && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
 
 		if (onStartOnly) {
-			const onStartExtensions = result.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onStart');
+			const onStartExtensions = result.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) === false);
 			return this.sortExtensions(onStartExtensions, options);
 		}
 
 		if (onDemandOnly) {
-			const onDemandExtensions = result.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onDemand');
+			const onDemandExtensions = result.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) === 'limited');
 			return this.sortExtensions(onDemandExtensions, options);
 		}
 
