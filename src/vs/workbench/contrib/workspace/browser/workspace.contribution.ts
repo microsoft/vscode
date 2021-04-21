@@ -89,7 +89,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 				const result = await this.dialogService.show(
 					Severity.Info,
-					localize('workspaceTrust', "Should {0} allow features to automatically execute code in open folders?", product.nameShort),
+					localize('workspaceTrust', "Should {0} allow features to automatically execute code in this folder?", product.nameShort),
 					[
 						localize('dontTrustOption', "Do Not Allow"),
 						localize('trustOption', "Allow Execution"),
