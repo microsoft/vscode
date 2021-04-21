@@ -631,7 +631,7 @@ export class GettingStartedPage extends EditorPane {
 		if (this.gettingStartedList) { this.gettingStartedList.dispose(); }
 
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
-			localize('gettingStarted', "Getting Stared"),
+			localize('gettingStarted', "Getting Started"),
 			'getting-started',
 			10,
 			undefined,
