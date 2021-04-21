@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
+import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
@@ -79,7 +79,7 @@ export class TerminalService implements ITerminalService {
 
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	public get availableProfiles(): ITerminalProfile[] {
-		this._refreshAvailableProfiles('external');
+		this._refreshAvailableProfiles();
 		return this._availableProfiles || [];
 	}
 
@@ -159,7 +159,7 @@ export class TerminalService implements ITerminalService {
 		});
 		// update detected profiles so for example we detect if you've installed a pwsh
 		// this avoids having poll routinely
-		this.onInstanceCreated(() => this._refreshAvailableProfiles('external'));
+		this.onInstanceCreated(() => this._refreshAvailableProfiles());
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
@@ -170,7 +170,7 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
 				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
-				this._refreshAvailableProfiles('internal');
+				this._refreshAvailableProfiles();
 			}
 		});
 
@@ -179,7 +179,7 @@ export class TerminalService implements ITerminalService {
 		const conn = this._remoteAgentService.getConnection();
 		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
 		this._whenExtHostReady(remoteAuthority).then(() => {
-			this._refreshAvailableProfiles('internal');
+			this._refreshAvailableProfiles();
 		});
 
 		// Connect to the extension host if it's there, set the connection state to connected when
@@ -315,16 +315,12 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority]!.resolve();
 	}
 
-	private async _refreshAvailableProfiles(requestType: 'internal' | 'external'): Promise<void> {
+	@throttle(10000)
+	private async _refreshAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles(true);
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
-			if (requestType === 'internal') {
-				// let external listeners know there was a change
-				// external requestors listen to this event so firing it would
-				// cause a cycle
-				this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
-			}
+			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 		}
 	}
 

@@ -202,7 +202,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		for (const contributed of this._terminalContributionService.terminalTypes) {
-			dropdownActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.EXECUTE_COMMAND, title: contributed.title, category: ContextMenuTabsGroup.Profile }, undefined, { arg: contributed.command, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			dropdownActions.push(new MenuItemAction({ id: contributed.command, title: contributed.title, category: ContextMenuTabsGroup.Profile }, undefined, undefined, this._contextKeyService, this._commandService));
 		}
 
 		if (dropdownActions.length > 0) {
