@@ -90,7 +90,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		rpcProtocol = new TestRPCProtocol();
 		const services = new ServiceCollection();
 		services.set(IExtensionService, new class extends mock<IExtensionService>() {
-			async override activateByEvent() {
+			override async activateByEvent() {
 
 			}
 
@@ -111,14 +111,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			override getModel() { return model; }
 		});
 		services.set(ITextModelService, new class extends mock<ITextModelService>() {
-			async override createModelReference() {
+			override async createModelReference() {
 				return new ImmortalReference<IResolvedTextEditorModel>(new class extends mock<IResolvedTextEditorModel>() {
 					override textEditorModel = model;
 				});
 			}
 		});
 		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-			async override computeMoreMinimalEdits(_uri: any, edits: any) {
+			override async computeMoreMinimalEdits(_uri: any, edits: any) {
 				return edits || undefined;
 			}
 		});

@@ -204,7 +204,7 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened = workspacesService.getRecentlyOpened();
 	}
 
-	async override setInput(newInput: GettingStartedInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
+	override async setInput(newInput: GettingStartedInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this.container.classList.remove('animationReady');
 		this.editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
@@ -631,7 +631,7 @@ export class GettingStartedPage extends EditorPane {
 		if (this.gettingStartedList) { this.gettingStartedList.dispose(); }
 
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
-			localize('gettingStarted', "Getting Stared"),
+			localize('gettingStarted', "Getting Started"),
 			'getting-started',
 			10,
 			undefined,

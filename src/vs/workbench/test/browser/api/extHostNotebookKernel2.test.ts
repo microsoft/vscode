@@ -29,7 +29,7 @@ suite('NotebookKernel', function () {
 			override $registerCommand() { }
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebookKernels, new class extends mock<MainThreadNotebookKernelsShape>() {
-			async override $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
+			override async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
 				kernelData.set(handle, data);
 			}
 			override $removeKernel(handle: number) {

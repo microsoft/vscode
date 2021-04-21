@@ -24,6 +24,12 @@ import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
+// Static values for editor contributions
+export const EditorExtensions = {
+	Editors: 'workbench.contributions.editors',
+	Associations: 'workbench.editors.associations'
+};
+
 // Editor State Context Keys
 export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));

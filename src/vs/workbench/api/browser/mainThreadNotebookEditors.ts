@@ -8,7 +8,8 @@ import { getNotebookEditorFromEditorPane, INotebookEditor, NotebookEditorOptions
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
-import { ICellEditOperation, ICellRange, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellEditOperation, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';

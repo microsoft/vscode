@@ -83,7 +83,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		this.preferredMode = mode;
 	}
 
-	async override resolve(): Promise<ITextEditorModel> {
+	override async resolve(): Promise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}

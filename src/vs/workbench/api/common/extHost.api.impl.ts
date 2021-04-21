@@ -921,15 +921,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
 			},
 			get isTrusted() {
-				checkProposedApiEnabled(extension);
 				return extHostWorkspace.trusted;
 			},
 			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
 				checkProposedApiEnabled(extension);
 				return extHostWorkspace.requestWorkspaceTrust(options);
 			},
-			onDidReceiveWorkspaceTrust: (listener, thisArgs?, disposables?) => {
-				return extHostWorkspace.onDidReceiveWorkspaceTrust(listener, thisArgs, disposables);
+			onDidGrantWorkspaceTrust: (listener, thisArgs?, disposables?) => {
+				return extHostWorkspace.onDidGrantWorkspaceTrust(listener, thisArgs, disposables);
 			}
 		};
 
@@ -1055,7 +1054,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get notebookDocuments(): vscode.NotebookDocument[] {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.notebookDocuments.map(d => d.notebookDocument);
+				return extHostNotebook.notebookDocuments.map(d => d.apiNotebook);
 			},
 			registerNotebookSerializer(viewType, serializer, options) {
 				checkProposedApiEnabled(extension);

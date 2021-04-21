@@ -413,7 +413,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			outputNodeLeftPadding: number,
 			previewNodePadding: number,
 			leftMargin: number,
-			cellMargin: number,
+			rightMargin: number,
 			runGutter: number,
 		},
 		@IWebviewService readonly webviewService: IWebviewService,
@@ -436,7 +436,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 	private generateContent(coreDependencies: string, baseUrl: string) {
 		const markdownRenderersSrc = this.getMarkdownRendererScripts();
-		const outputWidth = `calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px)`;
+		const outputWidth = `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`;
 		const outputMarginLeft = `${this.options.leftMargin + this.options.runGutter}px`;
 		return html`
 		<html lang="en">

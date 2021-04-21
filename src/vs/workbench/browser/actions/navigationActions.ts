@@ -32,7 +32,7 @@ abstract class BaseNavigationAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
@@ -234,7 +234,7 @@ export class FocusNextPart extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		focusNextOrPreviousPart(this.layoutService, this.editorService, true);
 	}
 }
@@ -252,7 +252,7 @@ export class FocusPreviousPart extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		focusNextOrPreviousPart(this.layoutService, this.editorService, false);
 	}
 }
