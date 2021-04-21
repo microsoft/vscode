@@ -853,10 +853,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.timer.clear();
 		}
 
-		if (typeof metadata.breakpointMargin === 'boolean') {
-			editorOptions.setGlyphMargin(metadata.breakpointMargin);
-		}
-
 		if (metadata.runState === NotebookCellExecutionState.Executing) {
 			templateData.progressBar.infinite().show(500);
 		} else {

@@ -481,7 +481,6 @@ abstract class AbstractElementRenderer extends Disposable {
 			const keys = new Set([...Object.keys(newMetadataObj)]);
 			for (let key of keys) {
 				switch (key as keyof NotebookCellMetadata) {
-					case 'breakpointMargin':
 					case 'inputCollapsed':
 					case 'outputCollapsed':
 						// boolean

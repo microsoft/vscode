@@ -82,7 +82,6 @@ export interface INotebookCellPreviousExecutionResult {
 }
 
 export interface NotebookCellMetadata {
-	breakpointMargin?: boolean;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
 	runState?: NotebookCellExecutionState;
