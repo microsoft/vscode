@@ -176,6 +176,11 @@ export interface IEditorControl extends ICompositeControl { }
 export interface IFileEditorInputFactory {
 
 	/**
+	 * The type identifier of the file editor input.
+	 */
+	typeId: string;
+
+	/**
 	 * Creates new new editor input capable of showing files.
 	 */
 	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;

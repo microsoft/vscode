@@ -417,8 +417,8 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(group.isActive(input), true);
 		assert.strictEqual(group.isActive(inputInactive), false);
-		assert.strictEqual(group.isOpened(input), true);
-		assert.strictEqual(group.isOpened(inputInactive), true);
+		assert.strictEqual(group.contains(input), true);
+		assert.strictEqual(group.contains(inputInactive), true);
 		assert.strictEqual(group.isEmpty, false);
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(editorDidOpenCounter, 2);

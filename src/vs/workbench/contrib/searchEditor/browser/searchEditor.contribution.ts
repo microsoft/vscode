@@ -91,7 +91,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 					return undefined;
 				}
 
-				if (editor instanceof SearchEditorInput && group.isOpened(editor)) {
+				if (editor instanceof SearchEditorInput && group.contains(editor)) {
 					return undefined;
 				}
 

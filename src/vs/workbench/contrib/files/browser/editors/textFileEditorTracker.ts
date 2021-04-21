@@ -14,6 +14,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RunOnceWorker } from 'vs/base/common/async';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -65,7 +66,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false;
 			}
 
-			if (this.editorService.isOpen({ resource })) {
+			if (this.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID })) {
 				return false; // model must not be opened already as file
 			}
 

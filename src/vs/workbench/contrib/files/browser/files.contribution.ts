@@ -67,6 +67,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 // Register default file input factory
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileEditorInputFactory({
 
+	typeId: FILE_EDITOR_INPUT_ID,
+
 	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, instantiationService): IFileEditorInput => {
 		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode);
 	},

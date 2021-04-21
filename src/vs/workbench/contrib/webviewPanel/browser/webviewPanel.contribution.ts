@@ -46,14 +46,14 @@ class WebviewPanelContribution implements IWorkbenchContribution {
 			return undefined;
 		}
 
-		if (group.isOpened(editor)) {
+		if (group.contains(editor)) {
 			return undefined;
 		}
 
 		let previousGroup: IEditorGroup | undefined;
 		const groups = this.editorGroupService.groups;
 		for (const group of groups) {
-			if (group.isOpened(editor)) {
+			if (group.contains(editor)) {
 				previousGroup = group;
 				break;
 			}

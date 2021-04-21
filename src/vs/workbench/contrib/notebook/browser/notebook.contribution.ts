@@ -394,7 +394,7 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
 		const result: IEditorInputWithOptions[] = [];
 		for (let model of models) {
-			if (model.isDirty() && !this._editorService.isOpen({ resource: model.resource })) {
+			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID })) {
 				result.push({
 					editor: NotebookEditorInput.create(this._instantiationService, model.resource, model.viewType),
 					options: { inactive: true, preserveFocus: true, pinned: true, }

@@ -494,7 +494,10 @@ export interface IEditorGroup {
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorInput>;
 
 	/**
-	 * Finds all editors for the given resource that are currently opened in the group
+	 * Finds all editors for the given resource that are currently
+	 * opened in the group. This method will return an entry for
+	 * each editor that reports a `resource` that matches the
+	 * provided one.
 	 *
 	 * @param resource The resource of the editor to find
 	 */
@@ -529,13 +532,6 @@ export interface IEditorGroup {
 	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditorPane | null>;
 
 	/**
-	 * Find out if the provided editor is opened in the group.
-	 *
-	 * Note: An editor can be opened but not actively visible.
-	 */
-	isOpened(editor: IEditorInput): boolean;
-
-	/**
 	 * Find out if the provided editor is pinned in the group.
 	 */
 	isPinned(editor: IEditorInput): boolean;
@@ -552,6 +548,12 @@ export interface IEditorGroup {
 
 	/**
 	 * Find out if a certain editor is included in the group.
+	 *
+	 * @param candidate the editor to find
+	 * @param options with `supportSideBySide: true`, will also
+	 * consider each editor of a side by side editor as matching
+	 * and with `strictEquals: true` will require strict `===`
+	 * check instead of the `IEditorInput#matches()` method.
 	 */
 	contains(candidate: IEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean;
 

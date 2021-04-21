@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/browser/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -724,7 +724,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					let groupWithInputOpened: IEditorGroup | undefined = undefined;
 
 					for (const group of groupsByLastActive) {
-						if (group.isOpened(editor)) {
+						if (group.contains(editor)) {
 							if (!groupWithInputOpened) {
 								groupWithInputOpened = group;
 							}
@@ -843,18 +843,21 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region isOpen()
+	//#region isOpened()
 
-	isOpen(editor: IEditorInput): boolean;
-	isOpen(editor: IResourceEditorInput): boolean;
-	isOpen(editor: IEditorInput | IResourceEditorInput): boolean;
-	isOpen(editor: IEditorInput | IResourceEditorInput): boolean {
+	isOpened(editor: IEditorInput): boolean;
+	isOpened(editor: IResourceEditorInputIdentifier): boolean;
+	isOpened(editor: IEditorInput | IResourceEditorInputIdentifier): boolean;
+	isOpened(editor: IEditorInput | IResourceEditorInputIdentifier): boolean {
 		if (editor instanceof EditorInput) {
-			return this.editorGroupService.groups.some(group => group.isOpened(editor));
+			return this.editorGroupService.groups.some(group => group.contains(editor));
 		}
 
 		if (editor.resource) {
-			return this.editorsObserver.hasEditor(this.asCanonicalEditorResource(editor.resource));
+			return this.editorsObserver.hasEditor({
+				resource: this.asCanonicalEditorResource(editor.resource),
+				typeId: editor.typeId
+			});
 		}
 
 		return false;
@@ -865,8 +868,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region findEditors()
 
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput> {
-		if (!this.isOpen({ resource })) {
-			return [];
+		if (!this.editorsObserver.hasEditors(resource)) {
+			return []; // this is a very fast efficient check via editor observer
 		}
 
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
@@ -1323,9 +1326,9 @@ export class DelegatingEditorService implements IEditorService {
 		return this.editorService.replaceEditors(editors, group);
 	}
 
-	isOpen(editor: IEditorInput): boolean;
-	isOpen(editor: IResourceEditorInput): boolean;
-	isOpen(editor: IEditorInput | IResourceEditorInput): boolean { return this.editorService.isOpen(editor); }
+	isOpened(editor: IEditorInput): boolean;
+	isOpened(editor: IResourceEditorInputIdentifier): boolean;
+	isOpened(editor: IEditorInput | IResourceEditorInputIdentifier): boolean { return this.editorService.isOpened(editor); }
 
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput> { return this.editorService.findEditors(resource, group); }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, IEditorOptions, ITextEditorOptions, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -213,14 +213,9 @@ export interface IEditorService {
 	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
-	 *
-	 * @param editor the editor to check for being opened. If a
-	 * `IResourceEditorInput` is passed in, the resource is checked on
-	 * all opened editors. In case of a side by side editor, the
-	 * right hand side resource is considered only.
 	 */
-	isOpen(editor: IResourceEditorInput): boolean;
-	isOpen(editor: IEditorInput): boolean;
+	isOpened(editor: IEditorInput): boolean;
+	isOpened(editor: IResourceEditorInputIdentifier): boolean;
 
 	/**
 	 * Find the existing editors for a given resource. It is possible

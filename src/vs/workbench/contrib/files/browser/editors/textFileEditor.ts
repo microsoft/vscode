@@ -259,7 +259,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
-		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.isOpened(input))) {
+		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input))) {
 			this.clearTextEditorViewState([input.resource], this.group);
 		}
 

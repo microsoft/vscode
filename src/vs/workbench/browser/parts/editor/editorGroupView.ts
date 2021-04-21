@@ -822,10 +822,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.indexOf(editor);
 	}
 
-	isOpened(editor: EditorInput): boolean {
-		return this.model.contains(editor);
-	}
-
 	focus(): void {
 
 		// Pass focus to editor panes
