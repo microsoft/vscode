@@ -125,11 +125,11 @@ steps:
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
-    artifact: vscode-server-linux-alpine
+    artifact: vscode_server_linux_alpine_archive-unsigned
     displayName: Publish server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine-web.tar.gz
-    artifact: vscode-server-linux-alpine-web
+    artifact: vscode_web_linux_alpine_archive-unsigned
     displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
