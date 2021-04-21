@@ -19,6 +19,7 @@ export interface ILinkDescriptor {
 }
 
 export interface ILinkStyles {
+	readonly textLinkActiveForeground?: Color;
 	readonly textLinkForeground?: Color;
 	readonly disabled?: boolean;
 }
@@ -28,6 +29,7 @@ export class Link extends Disposable {
 	readonly el: HTMLAnchorElement;
 	private disabled: boolean;
 	private styles: ILinkStyles = {
+		textLinkActiveForeground: Color.fromHex('#3794FF'),
 		textLinkForeground: Color.fromHex('#006AB1')
 	};
 
@@ -56,6 +58,11 @@ export class Link extends Disposable {
 				openerService.open(link.href, { allowCommands: true });
 			}
 		}));
+
+		const onMouseOver = domEvent(this.el, 'mouseover');
+		this._register(onMouseOver(() => this.setHoverColor()));
+		const onMouseOut = domEvent(this.el, 'mouseout');
+		this._register(onMouseOut(() => this.applyStyles()));
 
 		this.disabled = false;
 		this.applyStyles();
@@ -87,6 +94,13 @@ export class Link extends Disposable {
 				this.el.style.cursor = 'pointer';
 				this.disabled = false;
 			}
+		}
+	}
+
+	private setHoverColor(): void {
+		const hoverColor = this.styles.textLinkActiveForeground?.toString();
+		if (hoverColor) {
+			this.el.style.color = hoverColor;
 		}
 	}
 }
