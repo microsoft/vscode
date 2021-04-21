@@ -11,6 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { generateUuid } from 'vs/base/common/uuid';
+import { localize } from 'vs/nls';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -30,7 +31,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFileFolderAndOpenSimplified(schema, options, false);
 		}
 
-		throw new Error('Method not implemented.');
+		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
 	}
 
 	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -64,7 +65,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFolderAndOpenSimplified(schema, options);
 		}
 
-		throw new Error('Method not implemented.');
+		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
@@ -78,7 +79,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickWorkspaceAndOpenSimplified(schema, options);
 		}
 
-		throw new Error('Method not implemented.');
+		throw new Error(localize('pickWorkspaceAndOpen', "Can't open workspaces, try adding a folder to the workspace instead."));
 	}
 
 	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
@@ -104,7 +105,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showSaveDialogSimplified(schema, options);
 		}
 
-		throw new Error('Method not implemented.');
+		const handle = await window.showSaveFilePicker();
+		const uuid = generateUuid();
+		const uri = URI.from({ scheme: Schemas.file, authority: uuid, path: `/${handle.name}` });
+
+		this.fileSystemProvider.registerFileHandle(uuid, handle);
+
+		return uri;
 	}
 
 	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
