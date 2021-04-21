@@ -150,7 +150,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			activityHoverOptions: {
-				position: () => HoverPosition.ABOVE,
+				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
 				delay: () => 0
 			},
 			openComposite: compositeId => this.openPanel(compositeId, true).then(panel => panel || null),
