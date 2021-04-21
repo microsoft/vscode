@@ -367,6 +367,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: MenuEntryActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
+
 	constructor(
 		primaryAction: MenuItemAction,
 		dropdownAction: MenuItemAction,
@@ -387,6 +388,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		super.render(this._container);
 		this.element = DOM.append(this._container, DOM.$(''));
 		this.element.className = this._className;
+		this.element.classList.add('monaco-dropdown-with-primary');
 		this._primaryAction.render(this.element);
 		this._dropdown.render(this.element);
 		this._stylize();
@@ -396,20 +398,14 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		if (!this.element || !this._dropdown.element || !this._primaryAction.element) {
 			return;
 		}
-		const elementStyle = this.element.style;
-		elementStyle.display = 'flex';
-		elementStyle.flexDirection = 'row';
 		const dropdownStyle = this._dropdown.element.style;
 		dropdownStyle.paddingLeft = '0px';
+		dropdownStyle.paddingRight = '0px';
 		dropdownStyle.fontSize = '12px';
-		dropdownStyle.maxWidth = '6px';
 		dropdownStyle.lineHeight = '16px';
-		dropdownStyle.marginLeft = '0px';
+		dropdownStyle.marginLeft = '-4px';
 		const primaryActionStyle = this._primaryAction.element.style;
 		primaryActionStyle.marginRight = '0px';
-		if (this._primaryAction.element.children[0]) {
-			(this._primaryAction.element.children[0] as HTMLElement).style.paddingRight = '0px';
-		}
 	}
 
 	update(dropdownAction: MenuItemAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {

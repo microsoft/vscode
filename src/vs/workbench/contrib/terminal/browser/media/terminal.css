@@ -253,3 +253,10 @@
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-list-row:hover .actions {
 	display: block;
 }
+
+
+.monaco-dropdown-with-primary {
+	display: flex;
+	flex-direction: row;
+	border-radius: 5px;
+}
