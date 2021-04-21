@@ -1193,18 +1193,21 @@ export function computeScreenAwareSize(cssPx: number): number {
  * to change the location of the current page.
  * See https://mathiasbynens.github.io/rel-noopener/
  */
-export function windowOpenNoOpener(url: string): void {
+export function windowOpenNoOpener(url: string): boolean {
 	if (browser.isElectron || browser.isEdgeLegacyWebView) {
 		// In VSCode, window.open() always returns null...
 		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
 		// Also call directly window.open in sandboxed Electron (see https://github.com/microsoft/monaco-editor/issues/2220)
 		window.open(url);
+		return true;
 	} else {
 		let newTab = window.open();
 		if (newTab) {
 			(newTab as any).opener = null;
 			newTab.location.href = url;
+			return true;
 		}
+		return false;
 	}
 }
 

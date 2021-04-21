@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.4.0"
   },
+  "icon": "images/icon.png",
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:markdown",

@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.5.0"
   },
+  "icon": "media/icon.png",
   "workspaceTrust": {
     "request": "never"
   },

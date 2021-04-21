@@ -25,6 +25,8 @@ import { launchSchemaId } from 'vs/workbench/services/configuration/common/confi
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 export class AdapterManager implements IAdapterManager {
@@ -45,7 +47,8 @@ export class AdapterManager implements IAdapterManager {
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
@@ -249,11 +252,22 @@ export class AdapterManager implements IAdapterManager {
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
 		const picks: { label: string, debugger?: Debugger, type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
-		let placeHolder = languageLabel ? nls.localize('CouldNotFindLanguage', "Can not find an extension to debug {0}", languageLabel) : nls.localize('CouldNotFind', "Can not find extension to debug");
-		if (picks.length > 0) {
-			placeHolder = nls.localize('selectDebug', "Select environment");
-			picks.push({ type: 'separator', label: '' });
+
+		if (picks.length === 0 && languageLabel) {
+			if (languageLabel.indexOf(' ') >= 0) {
+				languageLabel = `'${languageLabel}'`;
+			}
+			const message = nls.localize('CouldNotFindLanguage', "You don't have an extension for debugging {0}. Should we find a {0} extension in the Marketplace?", languageLabel);
+			const buttonLabel = nls.localize('findExtension', "Find {0} extension", languageLabel);
+			const showResult = await this.dialogService.show(Severity.Warning, message, [buttonLabel, nls.localize('cancel', "Cancel")], { cancelId: 1 });
+			if (showResult.choice === 0) {
+				await this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
+			}
+			return undefined;
 		}
+
+		picks.push({ type: 'separator', label: '' });
+		const placeHolder = nls.localize('selectDebug', "Select environment");
 
 		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
 		return this.quickInputService.pick<{ label: string, debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })

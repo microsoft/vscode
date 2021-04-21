@@ -570,7 +570,8 @@ export class RawDebugSession implements IDisposable {
 				try {
 					let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
 					if (!result.success) {
-						const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."), [nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")]);
+						const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
+							[nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
 						if (showResult.choice === 0) {
 							result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
 						} else {

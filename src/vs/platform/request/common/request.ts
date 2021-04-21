@@ -103,10 +103,11 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 			},
 			'http.proxySupport': {
 				type: 'string',
-				enum: ['off', 'on', 'override'],
+				enum: ['off', 'on', 'fallback', 'override'],
 				enumDescriptions: [
 					localize('proxySupportOff', "Disable proxy support for extensions."),
 					localize('proxySupportOn', "Enable proxy support for extensions."),
+					localize('proxySupportFallback', "Enable proxy support for extensions, fall back to request options, when no proxy found."),
 					localize('proxySupportOverride', "Enable proxy support for extensions, override request options."),
 				],
 				default: 'override',

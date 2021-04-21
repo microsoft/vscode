@@ -37,6 +37,7 @@ import { equals } from 'vs/base/common/objects';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { URI } from 'vs/base/common/uri';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -113,6 +114,8 @@ export class TerminalService implements ITerminalService {
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
 	private readonly _onProfilesConfigChanged = new Emitter<void>();
 	public get onProfilesConfigChanged(): Event<void> { return this._onProfilesConfigChanged.event; }
+	private readonly _onPanelMovedToSide = new Emitter<void>();
+	public get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
 	private readonly _localTerminalService?: ILocalTerminalService;
 
 	constructor(
@@ -610,14 +613,17 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
-	public splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null
-	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}): ITerminalInstance | null {
+	public splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
+	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
 		const tab = this.getTabForInstance(instanceToSplit);
 		if (!tab) {
 			return null;
 		}
-
-		const instance = tab.split(this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile));
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+		if (cwd) {
+			shellLaunchConfig.cwd = cwd;
+		}
+		const instance = tab.split(shellLaunchConfig);
 
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
@@ -696,6 +702,7 @@ export class TerminalService implements ITerminalService {
 				await instance.focusWhenReady(true);
 			}
 		}
+		this._onProfilesConfigChanged.fire();
 	}
 
 	private _getIndexFromId(terminalId: number): number {
@@ -969,6 +976,7 @@ export class TerminalService implements ITerminalService {
 
 		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shellLaunchConfig);
 		this._terminalTabs.push(terminalTab);
+		terminalTab.onPanelMovedToSide(() => this._onPanelMovedToSide.fire());
 
 		const instance = terminalTab.terminalInstances[0];
 

@@ -51,8 +51,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessBinary = this._register(new Emitter<{ id: number, event: string }>());
-	readonly onProcessBinary = this._onProcessBinary.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string } }>());
@@ -124,7 +122,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
-		this._register(proxy.onProcessBinary(e => this._onProcessBinary.fire(e)));
 		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
 		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));

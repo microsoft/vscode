@@ -9,12 +9,13 @@ import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import { ExperimentationTelemetry } from './experimentationService';
 
 const localize = nls.loadMessageBundle();
 
 export const NETWORK_ERROR = 'network error';
 const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
+const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
@@ -42,7 +43,7 @@ export class GitHubServer {
 	private _pendingStates = new Map<string, string[]>();
 	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
 
-	constructor(private readonly telemetryReporter: TelemetryReporter) { }
+	constructor(private readonly telemetryReporter: ExperimentationTelemetry) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
 		return /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
@@ -80,7 +81,9 @@ export class GitHubServer {
 			const existingStates = this._pendingStates.get(scopes) || [];
 			this._pendingStates.set(scopes, [...existingStates, state]);
 
-			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
+			// TODO@joaomoreno TODO@RMacfarlane
+			const staging = callbackUri.scheme === 'https' && /^vscode\./.test(callbackUri.authority);
+			const uri = vscode.Uri.parse(`https://${staging ? AUTH_RELAY_STAGING_SERVER : AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com${staging ? '&staging=true' : ''}`);
 			await vscode.env.openExternal(uri);
 		}
 
@@ -121,8 +124,10 @@ export class GitHubServer {
 				return;
 			}
 
+			const authServerHost = query.staging ? AUTH_RELAY_STAGING_SERVER : AUTH_RELAY_SERVER;
+
 			try {
-				const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`, {
+				const result = await fetch(`https://${authServerHost}/token?code=${code}&state=${query.state}`, {
 					method: 'POST',
 					headers: {
 						Accept: 'application/json'

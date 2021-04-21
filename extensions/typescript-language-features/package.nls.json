@@ -1,6 +1,7 @@
 {
 	"displayName": "TypeScript and JavaScript Language Features",
 	"description": "Provides rich language support for JavaScript and TypeScript.",
+	"workspaceTrust": "The extension requires workspace trust when the workspace version is used because it executes code specified by the workspace.",
 	"reloadProjects.title": "Reload Project",
 	"configuration.typescript": "TypeScript",
 	"configuration.suggest.completeFunctionCalls": "Complete functions with their parameter signature.",
