@@ -571,6 +571,8 @@ export namespace Codicon {
 	export const copy = new Codicon('copy', { fontCharacter: '\\ebcc' });
 	export const personAdd = new Codicon('person-add', { fontCharacter: '\\ebcd' });
 	export const filterFilled = new Codicon('filter-filled', { fontCharacter: '\\ebce' });
+	export const wand = new Codicon('wand', { fontCharacter: '\\ebcf' });
+	export const debugLineByLine = new Codicon('debug-line-by-line', { fontCharacter: '\\ebd0' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }
