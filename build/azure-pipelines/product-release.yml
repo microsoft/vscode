@@ -44,23 +44,28 @@ steps:
         try {
           $res = Invoke-RestMethod "https://dev.azure.com/monacotools/Monaco/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0" -Headers @{
             Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-          }
+          } -MaximumRetryCount 5 -RetryIntervalSec 1
         } catch {
           Write-Warning $_
           $res = $null
         }
 
         if ($res) {
-          $res.value | ForEach-Object {
+          $res.value | Where-Object name -Like 'vscode-*' | ForEach-Object {
             if($set.Add($_.name)) {
-              Write-Host "NEWLY ADDED: $($_.name)"
+              Write-Host "Processing artifact: '$($_.name). Downloading from: $($_.resource.downloadUrl)"
+              Invoke-RestMethod $_.resource.downloadUrl -OutFile "$(Agent.TempDirectory)/$($_.name).zip"
+              Expand-Archive -Path "$(Agent.TempDirectory)/$($_.name).zip" -DestinationPath "$(Agent.TempDirectory)/$($_.name)"
+              gci -rec "$(Agent.TempDirectory)/$($_.name)"
             }
           }
         }
 
         # Get the timeline and see if it says the other stage completed
         try {
-          $timeline = Invoke-RestMethod "$(BUILDS_API_URL)timeline?api-version=6.0" -Headers @{ Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN" }
+          $timeline = Invoke-RestMethod "$(BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
+            Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
+          }  -MaximumRetryCount 5 -RetryIntervalSec 1
         } catch {
           Write-Warning $_
           continue
