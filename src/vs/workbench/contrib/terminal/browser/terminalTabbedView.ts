@@ -35,6 +35,8 @@ const $ = dom.$;
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
 const MAX_TABS_WIDGET_WIDTH = 500;
+const STATUS_ICON_WIDTH = 30;
+const SPLIT_ANNOTATION_WIDTH = 30;
 
 export class TerminalTabbedView extends Disposable {
 
@@ -161,8 +163,8 @@ export class TerminalTabbedView extends Disposable {
 			const maxTextSize = this._terminalService.terminalInstances.reduce((p, c) => {
 				return Math.max(p, ctx.measureText(c.title).width);
 			}, 0);
-			// Size to include padding + icon + a little more
-			idealWidth = Math.ceil(Math.max(maxTextSize + 40, DEFAULT_TABS_WIDGET_WIDTH));
+			const additionalWidth = this._getAdditionalWidth();
+			idealWidth = Math.ceil(Math.max(maxTextSize + additionalWidth, DEFAULT_TABS_WIDGET_WIDTH));
 		}
 		// If the size is already ideal, toggle to collapsed
 		const currentWidth = Math.ceil(this._splitView.getViewSize(this._tabTreeIndex));
@@ -171,6 +173,29 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._splitView.resizeView(this._tabTreeIndex, idealWidth);
 		this._updateWidgetWidth(idealWidth);
+	}
+
+	private _getAdditionalWidth(): number {
+		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
+		let additionalWidth = 30;
+		const statusIconWidth = this._terminalService.terminalInstances.find(i => i.statusList.statuses.length > 0) ? STATUS_ICON_WIDTH : 0;
+		const splitAnnotationWidth = this._terminalService.terminalTabs.find(t => t.terminalInstances.length > 1) ? SPLIT_ANNOTATION_WIDTH : 0;
+		if (statusIconWidth === 0 && splitAnnotationWidth === 0) {
+			return additionalWidth;
+		} else if (splitAnnotationWidth === 0 || statusIconWidth === 0) {
+			// splits or status
+			return additionalWidth + splitAnnotationWidth + statusIconWidth;
+		} else {
+			// check if a split terminal has a status icon
+			for (const tab of this._terminalService.terminalTabs.filter(t => t.terminalInstances.length > 1)) {
+				for (const instance of tab.terminalInstances) {
+					if (instance.statusList.statuses.length > 0) {
+						return additionalWidth += statusIconWidth + splitAnnotationWidth - 10;
+					}
+				}
+			}
+			return additionalWidth + statusIconWidth;
+		}
 	}
 
 	private _handleOnDidSashChange(): void {
