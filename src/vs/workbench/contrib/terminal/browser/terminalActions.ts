@@ -647,12 +647,23 @@ export function registerTerminalActions() {
 			return accessor.get(ITerminalService).getActiveInstance()?.changeIcon();
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.CHANGE_ICON,
-			title: localize('workbench.action.terminal.changeIcon', "Change Icon")
-		},
-		group: ContextMenuGroup.Edit
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
+				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
+				f1: false,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: {
+					id: MenuId.TerminalTabsWidgetContext,
+					group: ContextMenuGroup.Edit
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return getFocusedTabInstance(accessor)?.changeIcon();
+		}
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -668,19 +679,29 @@ export function registerTerminalActions() {
 			return accessor.get(ITerminalService).getActiveInstance()?.rename();
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.RENAME,
-			title: localize('workbench.action.terminal.rename', "Rename")
-		},
-		group: ContextMenuGroup.Edit
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.RENAME,
-			title: localize('workbench.action.terminal.rename', "Rename")
-		},
-		group: ContextMenuGroup.Edit
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
+				title: { value: localize('workbench.action.terminal.rename', "Rename"), original: 'Rename' },
+				f1: false,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: [
+					{
+						id: MenuId.TerminalTabsWidgetContext,
+						group: ContextMenuGroup.Edit
+					},
+					{
+						id: MenuId.TerminalContainerContext,
+						group: ContextMenuGroup.Edit
+					}
+				]
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return getFocusedTabInstance(accessor)?.rename();
+		}
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1247,36 +1268,18 @@ export function registerTerminalActions() {
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
-				keybinding: [{
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
-					weight: KeybindingWeight.WorkbenchContrib,
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
-					},
-					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
-				}],
+				menu: {
+					id: MenuId.TerminalTabsWidgetContext,
+					group: ContextMenuGroup.Create
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const listService = accessor.get(IListService);
-			if (!listService.lastFocusedList?.getFocus()?.length) {
-				return;
-			}
-			const instance = listService.lastFocusedList?.getFocus()[0];
+			const instance = getFocusedTabInstance(accessor);
 			if (instance) {
-				terminalService.splitInstance(instance);
-				return;
+				accessor.get(ITerminalService).splitInstance(instance);
 			}
 		}
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
-			title: localize('workbench.action.terminal.splitWithInstance', "Split")
-		},
-		group: ContextMenuGroup.Create
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1431,28 +1434,22 @@ export function registerTerminalActions() {
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN),
+				menu: {
+					id: MenuId.TerminalTabsWidgetContext,
+					group: ContextMenuGroup.Kill
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const listService = accessor.get(IListService);
-			if (!listService.lastFocusedList?.getFocus()?.length) {
-				return;
+			const instance = getFocusedTabInstance(accessor);
+			if (instance) {
+				const terminalService = accessor.get(ITerminalService);
+				instance.dispose(true);
+				if (terminalService.terminalInstances.length > 0) {
+					await terminalService.showPanel(true);
+				}
 			}
-			const instance = listService.lastFocusedList?.getFocus()[0];
-			instance.dispose(true);
-			if (terminalService.terminalInstances.length > 0) {
-				await terminalService.showPanel(true);
-			}
-			return;
 		}
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
-			title: localize('workbench.action.terminal.killWithInstance', "Kill")
-		},
-		group: ContextMenuGroup.Kill
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1709,4 +1706,16 @@ export function registerTerminalActions() {
 
 interface IRemoteTerminalPick extends IQuickPickItem {
 	term: IRemoteTerminalAttachTarget;
+}
+
+function getFocusedTabInstance(accessor: ServicesAccessor): ITerminalInstance | undefined {
+	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList?.getFocus()?.length) {
+		return undefined;
+	}
+	const result = listService.lastFocusedList?.getFocus()[0];
+	if ('instanceId' in result) {
+		return result as ITerminalInstance;
+	}
+	return undefined;
 }
