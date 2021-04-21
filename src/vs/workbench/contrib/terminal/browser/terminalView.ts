@@ -141,6 +141,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
+		this._terminalService.onProfilesConfigChanged(() => this._updateTabActionBar(this._terminalService.availableProfiles));
 	}
 
 	private _createTabsView(): void {
