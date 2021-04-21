@@ -15,7 +15,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
@@ -26,8 +25,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Promises } from 'vs/base/common/async';
-import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -46,10 +45,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IProductService productService: IProductService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -103,6 +100,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (this._isDisabledInEnv(extension)) {
 			return EnablementState.DisabledByEnvironment;
 		}
+		if (this._isDisabledByVirtualWorkspace(extension)) {
+			return EnablementState.DisabledByVirtualWorkspace;
+		}
 		if (this._isDisabledByExtensionKind(extension)) {
 			return EnablementState.DisabledByExtensionKind;
 		}
@@ -119,7 +119,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 		const enablementState = this.getEnablementState(extension);
-		if (enablementState === EnablementState.DisabledByEnvironment || enablementState === EnablementState.DisabledByExtensionKind) {
+		if (enablementState === EnablementState.DisabledByEnvironment
+			|| enablementState === EnablementState.DisabledByVirtualWorkspace
+			|| enablementState === EnablementState.DisabledByTrustRequirement
+			|| enablementState === EnablementState.DisabledByExtensionKind) {
 			return false;
 		}
 		return true;
@@ -241,6 +244,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return false;
 	}
 
+	private _isDisabledByVirtualWorkspace(extension: IExtension): boolean {
+		if (getVirtualWorkspaceScheme(this.contextService.getWorkspace()) !== undefined) {
+			return !this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.manifest);
+		}
+		return false;
+	}
+
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer || this.extensionManagementServerService.webExtensionManagementServer) {
 			const server = this.extensionManagementServerService.getExtensionManagementServer(extension);
@@ -279,7 +289,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
-		return this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.manifest) === 'onStart';
+		return this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.manifest) === 'onStart';
 	}
 
 	private _getEnablementState(identifier: IExtensionIdentifier): EnablementState {
@@ -432,7 +442,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private async _getExtensionsByWorkspaceTrustRequirement(): Promise<IExtension[]> {
 		const extensions = await this.extensionManagementService.getInstalled();
-		return extensions.filter(e => this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(e.manifest) === 'onStart');
+		return extensions.filter(e => this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(e.manifest) === 'onStart');
 	}
 
 	public async updateEnablementByWorkspaceTrustRequirement(): Promise<void> {

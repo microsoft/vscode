@@ -14,7 +14,7 @@
 		return issueReporter.startup(configuration);
 	},
 		{
-			configureDeveloperKeybindings: function () {
+			configureDeveloperSettings: function () {
 				return {
 					forceEnableDeveloperKeybindings: true,
 					disallowReloadKeybinding: true
@@ -31,7 +31,11 @@
 	 *     modules: string[],
 	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
 	 *     options?: {
-	 *       configureDeveloperKeybindings?: (config: ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 			forceEnableDeveloperKeybindings?: boolean,
+	 * 			disallowReloadKeybinding?: boolean,
+	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 		 },
 	 * 	     canModifyDOM?: (config: ISandboxConfiguration) => void,
 	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *       beforeRequire?: () => void

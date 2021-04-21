@@ -677,9 +677,32 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
 	}
 
-	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		if (start !== end || cells.length > 0) {
-			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells, metadata });
+	replaceNotebookCells(uri: URI, range: vscode.NotebookRange, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
+	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void;
+	replaceNotebookCells(uri: URI, startOrRange: number | vscode.NotebookRange, endOrCells: number | vscode.NotebookCellData[], cellsOrMetadata?: vscode.NotebookCellData[] | vscode.WorkspaceEditEntryMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		let start: number | undefined;
+		let end: number | undefined;
+		let cellData: vscode.NotebookCellData[] = [];
+		let workspaceEditMetadata: vscode.WorkspaceEditEntryMetadata | undefined;
+
+		if (NotebookRange.isNotebookRange(startOrRange) && NotebookCellData.isNotebookCellDataArray(endOrCells) && !NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
+			start = startOrRange.start;
+			end = startOrRange.end;
+			cellData = endOrCells;
+			workspaceEditMetadata = cellsOrMetadata;
+		} else if (typeof startOrRange === 'number' && typeof endOrCells === 'number' && NotebookCellData.isNotebookCellDataArray(cellsOrMetadata)) {
+			start = startOrRange;
+			end = endOrCells;
+			cellData = cellsOrMetadata;
+			workspaceEditMetadata = metadata;
+		}
+
+		if (start === undefined || end === undefined) {
+			throw new Error('Invalid arguments');
+		}
+
+		if (start !== end || cellData.length > 0) {
+			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells: cellData, metadata: workspaceEditMetadata });
 		}
 	}
 
@@ -2897,6 +2920,16 @@ export enum ColorThemeKind {
 //#region Notebook
 
 export class NotebookRange {
+	static isNotebookRange(thing: any): thing is vscode.NotebookRange {
+		if (thing instanceof NotebookRange) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return typeof (<NotebookRange>thing).start === 'number'
+			&& typeof (<NotebookRange>thing).end === 'number';
+	}
 
 	private _start: number;
 	private _end: number;
@@ -2949,7 +2982,6 @@ export class NotebookRange {
 export class NotebookCellMetadata {
 	readonly inputCollapsed?: boolean;
 	readonly outputCollapsed?: boolean;
-	readonly custom?: Record<string, any>;
 	readonly [key: string]: any;
 
 	constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
@@ -2966,11 +2998,10 @@ export class NotebookCellMetadata {
 	with(change: {
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
-		custom?: Record<string, any> | null,
 		[key: string]: any
 	}): NotebookCellMetadata {
 
-		let { inputCollapsed, outputCollapsed, custom, ...remaining } = change;
+		let { inputCollapsed, outputCollapsed, ...remaining } = change;
 
 		if (inputCollapsed === undefined) {
 			inputCollapsed = this.inputCollapsed;
@@ -2982,15 +3013,9 @@ export class NotebookCellMetadata {
 		} else if (outputCollapsed === null) {
 			outputCollapsed = undefined;
 		}
-		if (custom === undefined) {
-			custom = this.custom;
-		} else if (custom === null) {
-			custom = undefined;
-		}
 
 		if (inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
-			custom === this.custom &&
 			Object.keys(remaining).length === 0
 		) {
 			return this;
@@ -3000,7 +3025,6 @@ export class NotebookCellMetadata {
 			{
 				inputCollapsed,
 				outputCollapsed,
-				custom,
 				...remaining
 			}
 		);
@@ -3009,43 +3033,33 @@ export class NotebookCellMetadata {
 
 export class NotebookDocumentMetadata {
 	readonly trusted: boolean;
-	readonly custom: { [key: string]: any; };
 	readonly [key: string]: any;
 
-	constructor(trusted?: boolean, custom?: { [key: string]: any; });
+	constructor(trusted?: boolean);
 	constructor(data: Record<string, any>);
-	constructor(trustedOrData: boolean | Record<string, any> = true, custom: { [key: string]: any; } = {}) {
+	constructor(trustedOrData: boolean | Record<string, any> = true) {
 		if (typeof trustedOrData === 'object') {
 			Object.assign(this, trustedOrData);
 			this.trusted = trustedOrData.trusted ?? true;
-			this.custom = trustedOrData.custom ?? {};
 		} else {
 			this.trusted = trustedOrData;
-			this.custom = custom;
 		}
 	}
 
 	with(change: {
 		trusted?: boolean | null,
-		custom?: { [key: string]: any; } | null,
 		[key: string]: any
 	}): NotebookDocumentMetadata {
 
-		let { custom, trusted, ...remaining } = change;
+		let { trusted, ...remaining } = change;
 
-		if (custom === undefined) {
-			custom = this.custom;
-		} else if (custom === null) {
-			custom = undefined;
-		}
 		if (trusted === undefined) {
 			trusted = this.trusted;
 		} else if (trusted === null) {
 			trusted = undefined;
 		}
 
-		if (custom === this.custom &&
-			trusted === this.trusted &&
+		if (trusted === this.trusted &&
 			Object.keys(remaining).length === 0
 		) {
 			return this;
@@ -3054,7 +3068,6 @@ export class NotebookDocumentMetadata {
 		return new NotebookDocumentMetadata(
 			{
 				trusted,
-				custom,
 				...remaining
 			}
 		);
@@ -3062,6 +3075,15 @@ export class NotebookDocumentMetadata {
 }
 
 export class NotebookCellData {
+
+	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
+		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
+	}
+
+	static isNotebookCellData(value: unknown): value is vscode.NotebookCellData {
+		// return value instanceof NotebookCellData;
+		return true;
+	}
 
 	kind: NotebookCellKind;
 	source: string;

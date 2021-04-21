@@ -11,7 +11,8 @@ import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { cellRangesToIndexes, INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export class NotebookStatusBarController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar';
@@ -77,7 +78,7 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._visibleCells.forEach(cell => cell.dispose());
 		this._visibleCells.clear();
 	}
@@ -130,7 +131,7 @@ class CellStatusBarHelper extends Disposable {
 		this._currentItemIds = newIds;
 	}
 
-	dispose() {
+	override  dispose() {
 		super.dispose();
 
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);

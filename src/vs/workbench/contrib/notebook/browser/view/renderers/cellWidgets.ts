@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -13,12 +14,14 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension, isThemeColor } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { CodeCellLayoutInfo, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
@@ -30,19 +33,19 @@ export interface IClickTarget {
 
 export const enum ClickTargetType {
 	Container = 0,
-	CellStatus = 1,
-	ContributedTextItem = 2,
-	ContributedCommandItem = 3
+	ContributedTextItem = 1,
+	ContributedCommandItem = 2
 }
 
 export class CellEditorStatusBar extends Disposable {
-	readonly cellRunStatusContainer: HTMLElement;
 	readonly statusBarContainer: HTMLElement;
-	readonly durationContainer: HTMLElement;
 
 	private readonly leftContributedItemsContainer: HTMLElement;
 	private readonly rightContributedItemsContainer: HTMLElement;
 	private readonly itemsDisposable: DisposableStore;
+
+	private items: CellStatusBarItem[] = [];
+	private width: number = 0;
 
 	private currentContext: INotebookCellActionContext | undefined;
 	protected readonly _onDidClick: Emitter<IClickTarget> = this._register(new Emitter<IClickTarget>());
@@ -50,33 +53,26 @@ export class CellEditorStatusBar extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this.statusBarContainer = DOM.append(container, $('.cell-statusbar-container'));
 		this.statusBarContainer.tabIndex = -1;
 		const leftItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-left'));
 		const rightItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-right'));
-		this.cellRunStatusContainer = DOM.append(leftItemsContainer, $('.cell-run-status'));
-		this.durationContainer = DOM.append(leftItemsContainer, $('.cell-run-duration'));
 		this.leftContributedItemsContainer = DOM.append(leftItemsContainer, $('.cell-contributed-items.cell-contributed-items-left'));
 		this.rightContributedItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items.cell-contributed-items-right'));
 
 		this.itemsDisposable = this._register(new DisposableStore());
+
+		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.update(this.currentContext)));
 
 		this._register(DOM.addDisposableListener(this.statusBarContainer, DOM.EventType.CLICK, e => {
 			if (e.target === leftItemsContainer || e.target === rightItemsContainer || e.target === this.statusBarContainer) {
 				// hit on empty space
 				this._onDidClick.fire({
 					type: ClickTargetType.Container,
-					event: e
-				});
-			} else if (e.target && (
-				this.cellRunStatusContainer.contains(e.target as Node)
-				|| this.durationContainer.contains(e.target as Node)
-			)) {
-				this._onDidClick.fire({
-					type: ClickTargetType.CellStatus,
 					event: e
 				});
 			} else {
@@ -96,23 +92,40 @@ export class CellEditorStatusBar extends Disposable {
 		}));
 	}
 
+	private layout(): void {
+		if (!this.currentContext) {
+			return;
+		}
+
+		// TODO@roblou maybe more props should be in common layoutInfo?
+		const layoutInfo = this.currentContext.cell.layoutInfo as CodeCellLayoutInfo | MarkdownCellLayoutInfo;
+		const width = layoutInfo.editorWidth;
+		if (!width) {
+			return;
+		}
+
+		this.width = width;
+		this.statusBarContainer.style.width = `${width}px`;
+
+		const maxItemWidth = this.getMaxItemWidth();
+		this.items.forEach(item => item.maxWidth = maxItemWidth);
+	}
+
+	private getMaxItemWidth() {
+		return this.width / 2;
+	}
+
 	update(context: INotebookCellActionContext) {
 		this.currentContext = context;
 		this.itemsDisposable.clear();
-		this.updateStatusBarItems();
-	}
 
-	layout(width: number): void {
-		this.statusBarContainer.style.width = `${width}px`;
-	}
-
-	private async updateStatusBarItems() {
 		if (!this.currentContext) {
 			return;
 		}
 
 		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
 		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
+		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(e => this.layout()));
 		this.updateActiveCell();
 		this.updateRenderedItems();
 	}
@@ -130,14 +143,15 @@ export class CellEditorStatusBar extends Disposable {
 		items.sort((itemA, itemB) => {
 			return (itemB.priority ?? 0) - (itemA.priority ?? 0);
 		});
-		items.forEach(item => {
-			const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
-			if (item.alignment === CellStatusbarAlignment.Left) {
-				this.leftContributedItemsContainer.appendChild(itemView.container);
-			} else {
-				this.rightContributedItemsContainer.appendChild(itemView.container);
-			}
-		});
+
+		const maxItemWidth = this.getMaxItemWidth();
+		const leftItems = items.filter(item => item.alignment === CellStatusbarAlignment.Left)
+			.map(item => this.itemsDisposable.add(this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item, maxItemWidth)));
+		const rightItems = items.filter(item => item.alignment === CellStatusbarAlignment.Right).reverse()
+			.map(item => this.itemsDisposable.add(this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item, maxItemWidth)));
+		leftItems.forEach(itemView => this.leftContributedItemsContainer.appendChild(itemView.container));
+		rightItems.forEach(itemView => this.rightContributedItemsContainer.appendChild(itemView.container));
+		this.items = [...leftItems, ...rightItems];
 	}
 }
 
@@ -145,15 +159,51 @@ class CellStatusBarItem extends Disposable {
 
 	readonly container = $('.cell-status-item');
 
+	set maxWidth(v: number) {
+		this.container.style.maxWidth = v + 'px';
+	}
+
 	constructor(
 		private readonly _context: INotebookCellActionContext,
 		private readonly _itemModel: INotebookCellStatusBarItem,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ICommandService private readonly commandService: ICommandService,
-		@INotificationService private readonly notificationService: INotificationService
+		maxWidth: number | undefined,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
-		new SimpleIconLabel(this.container).text = this._itemModel.text;
+
+		const resolveColor = (color: ThemeColor | string) => {
+			return isThemeColor(color) ?
+				this._themeService.getColorTheme().getColor(color.id)?.toString() :
+				color;
+		};
+
+		if (this._itemModel.icon) {
+			const iconContainer = renderIcon(this._itemModel.icon);
+			if (this._itemModel.iconColor) {
+				const colorResult = resolveColor(this._itemModel.iconColor);
+				iconContainer.style.color = colorResult || '';
+			}
+
+			this.container.appendChild(iconContainer);
+		}
+
+		if (this._itemModel.text) {
+			const textContainer = $('span', undefined);
+			new SimpleIconLabel(textContainer).text = this._itemModel.text.replace(/\n/g, ' ');
+			this.container.appendChild(textContainer);
+		}
+
+		if (this._itemModel.color) {
+			this.container.style.color = resolveColor(this._itemModel.color) || '';
+		}
+
+		if (this._itemModel.backgroundColor) {
+			const colorResult = resolveColor(this._itemModel.backgroundColor);
+			this.container.style.backgroundColor = colorResult || '';
+		}
 
 		if (this._itemModel.opacity) {
 			this.container.style.opacity = this._itemModel.opacity;
@@ -161,6 +211,10 @@ class CellStatusBarItem extends Disposable {
 
 		if (this._itemModel.onlyShowWhenActive) {
 			this.container.classList.add('cell-status-item-show-when-active');
+		}
+
+		if (typeof maxWidth === 'number') {
+			this.maxWidth = maxWidth;
 		}
 
 		let ariaLabel: string;
@@ -209,11 +263,11 @@ class CellStatusBarItem extends Disposable {
 
 		args.unshift(this._context);
 
-		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
+		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
 		try {
-			await this.commandService.executeCommand(id, ...args);
+			await this._commandService.executeCommand(id, ...args);
 		} catch (error) {
-			this.notificationService.error(toErrorMessage(error));
+			this._notificationService.error(toErrorMessage(error));
 		}
 	}
 }

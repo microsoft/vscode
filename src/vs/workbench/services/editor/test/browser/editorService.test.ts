@@ -1029,22 +1029,6 @@ suite('EditorService', () => {
 		handler.dispose();
 	});
 
-	test('whenClosed', async function () {
-		const [, service] = await createEditorService();
-
-		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		const editor = await service.openEditor(input1, { pinned: true });
-		await service.openEditor(input2, { pinned: true });
-
-		const whenClosed = service.whenClosed([{ resource: input1.resource }, { resource: input2.resource }]);
-
-		editor?.group?.closeAllEditors();
-
-		await whenClosed;
-	});
-
 	test('findEditors', async () => {
 		const [part, service] = await createEditorService();
 

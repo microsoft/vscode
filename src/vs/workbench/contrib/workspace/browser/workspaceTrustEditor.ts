@@ -42,7 +42,7 @@ import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/e
 import { trustedForegroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
 import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 
 const untrustedIcon = registerCodicon('workspace-untrusted-icon', Codicon.workspaceUntrusted);
@@ -79,7 +79,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -215,12 +215,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.workspaceTrustSettingsTreeModel.update(this.workspaceTrustManagementService.getTrustedFolders());
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
 
+		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
 		this.rendering = false;
 	}
 
 	private getExtensionCountByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): number {
-		const filtered = extensions.filter(ext => this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(ext.local.manifest) === trustRequestType);
+		const filtered = extensions.filter(ext => this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(ext.local.manifest) === trustRequestType);
 		const set = new Set<string>();
 		for (const ext of filtered) {
 			set.add(ext.identifier.id);
@@ -429,8 +430,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.layoutParticipants.forEach(participant => {
 			participant.layout();
 		});
-
-		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 
 		this.bodyScrollBar.scanDomNode();
 	}

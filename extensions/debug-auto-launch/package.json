@@ -8,6 +8,9 @@
   "engines": {
     "vscode": "^1.5.0"
   },
+  "workspaceTrust": {
+    "request": "never"
+  },
   "activationEvents": [
     "*"
   ],

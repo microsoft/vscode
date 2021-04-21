@@ -32,7 +32,12 @@
 	 * @param {string[]} modulePaths
 	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
-	 * 	configureDeveloperKeybindings?: (config: ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 *  configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 		forceDisableShowDevtoolsOnError?: boolean,
+	 * 		forceEnableDeveloperKeybindings?: boolean,
+	 * 		disallowReloadKeybinding?: boolean,
+	 * 		removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 	},
 	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
 	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *  beforeRequire?: () => void
@@ -41,8 +46,9 @@
 	async function load(modulePaths, resultCallback, options) {
 
 		// Error handler (TODO@sandbox non-sandboxed only)
+		let showDevtoolsOnError = !!safeProcess.env['VSCODE_DEV'];
 		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
-			onUnexpectedError(error, enableDeveloperKeybindings);
+			onUnexpectedError(error, showDevtoolsOnError);
 		});
 
 		// Await window configuration from preload
@@ -51,8 +57,19 @@
 		const configuration = await preloadGlobals.context.resolveConfiguration();
 		performance.mark('code/didWaitForWindowConfig');
 
-		// Developer keybindings
-		const { forceEnableDeveloperKeybindings, disallowReloadKeybinding, removeDeveloperKeybindingsAfterLoad } = typeof options?.configureDeveloperKeybindings === 'function' ? options.configureDeveloperKeybindings(configuration) : { forceEnableDeveloperKeybindings: false, disallowReloadKeybinding: false, removeDeveloperKeybindingsAfterLoad: false };
+		// Developer settings
+		const {
+			forceDisableShowDevtoolsOnError,
+			forceEnableDeveloperKeybindings,
+			disallowReloadKeybinding,
+			removeDeveloperKeybindingsAfterLoad
+		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
+			forceDisableShowDevtoolsOnError: false,
+			forceEnableDeveloperKeybindings: false,
+			disallowReloadKeybinding: false,
+			removeDeveloperKeybindingsAfterLoad: false
+		};
+		showDevtoolsOnError = safeProcess.env['VSCODE_DEV'] && !forceDisableShowDevtoolsOnError;
 		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || forceEnableDeveloperKeybindings;
 		let developerDeveloperKeybindingsDisposable;
 		if (enableDeveloperKeybindings) {
@@ -232,10 +249,10 @@
 
 	/**
 	 * @param {string | Error} error
-	 * @param {boolean} [enableDeveloperTools]
+	 * @param {boolean} [showDevtoolsOnError]
 	 */
-	function onUnexpectedError(error, enableDeveloperTools) {
-		if (enableDeveloperTools) {
+	function onUnexpectedError(error, showDevtoolsOnError) {
+		if (showDevtoolsOnError) {
 			const ipcRenderer = preloadGlobals.ipcRenderer;
 			ipcRenderer.send('vscode:openDevTools');
 		}

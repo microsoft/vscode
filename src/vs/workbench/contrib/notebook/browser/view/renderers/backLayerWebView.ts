@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -436,6 +436,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 	private generateContent(coreDependencies: string, baseUrl: string) {
 		const markdownRenderersSrc = this.getMarkdownRendererScripts();
+		const outputWidth = `calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px)`;
+		const outputMarginLeft = `${this.options.leftMargin + this.options.runGutter}px`;
 		return html`
 		<html lang="en">
 			<head>
@@ -597,8 +599,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div > div.output {
-						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
-						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
+						width: ${outputWidth};
+						margin-left: ${outputMarginLeft};
 						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
@@ -872,7 +874,7 @@ var requirejs = (function() {
 								if (resolvedResult) {
 									const { cellInfo, output } = resolvedResult;
 									this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
-									this.notebookEditor.scheduleOutputHeightAck(cellInfo.cellId, update.id, height);
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
 								}
 							} else {
 								this.notebookEditor.updateMarkdownCellHeight(update.id, height, !!update.init);
@@ -971,7 +973,7 @@ var requirejs = (function() {
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
-							if (data.shiftKey || data.metaKey) {
+							if (data.shiftKey || (isMacintosh ? data.metaKey : data.ctrlKey)) {
 								// Add to selection
 								this.notebookEditor.toggleNotebookCellSelection(cell);
 							} else {

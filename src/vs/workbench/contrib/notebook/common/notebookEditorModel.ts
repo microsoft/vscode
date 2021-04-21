@@ -10,9 +10,10 @@ import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorMode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService, FileChangeType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -43,7 +44,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
 	private readonly _name: string;
-	private readonly _workingCopyResource: URI;
+	private readonly _workingCopyIdentifier: IWorkingCopyIdentifier;
 	private readonly _saveSequentializer = new TaskSequentializer();
 
 	private _dirty: boolean = false;
@@ -55,7 +56,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
-		@IBackupFileService private readonly _backupFileService: IBackupFileService,
+		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
@@ -67,9 +68,23 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		this._name = labelService.getUriBasenameLabel(resource);
 
 		const that = this;
-		this._workingCopyResource = URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() });
+		this._workingCopyIdentifier = {
+			// TODO@jrieken TODO@rebornix consider to enable a `typeId` that is
+			// specific for custom editors. Using a distinct `typeId` allows the
+			// working copy to have any resource (including file based resources)
+			// even if other working copies exist with the same resource.
+			//
+			// IMPORTANT: changing the `typeId` has an impact on backups for this
+			// working copy. Any value that is not the empty string will be used
+			// as seed to the backup. Only change the `typeId` if you have implemented
+			// a fallback solution to resolve any existing backups that do not have
+			// this seed.
+			typeId: NO_TYPE_ID,
+			resource: URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() })
+		};
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = that._workingCopyResource;
+			readonly typeId = that._workingCopyIdentifier.typeId;
+			readonly resource = that._workingCopyIdentifier.resource;
 			get name() { return that._name; }
 			readonly capabilities = that._isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = that.onDidChangeDirty;
@@ -126,7 +141,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 	}
 
-	async backup(token: CancellationToken): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 
 		if (!this.isResolved()) {
 			return {};
@@ -173,7 +188,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return this;
 		}
 
-		const backup = await this._backupFileService.resolve<NotebookDocumentBackupData>(this._workingCopyResource);
+		const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopyIdentifier);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
@@ -247,7 +262,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 
 		if (backupId) {
-			this._backupFileService.discardBackup(this._workingCopyResource);
+			this._workingCopyBackupService.discardBackup(this._workingCopyIdentifier);
 			this.setDirty(true);
 		} else {
 			this.setDirty(false);

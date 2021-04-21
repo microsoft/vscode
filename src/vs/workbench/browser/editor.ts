@@ -5,16 +5,23 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorResourceAccessor, IEditorInput, IEditorInputFactoryRegistry, SideBySideEditorInput, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature0, IInstantiationService, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { insert } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Promises } from 'vs/base/common/async';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { URI } from 'vs/workbench/workbench.web.api';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const Extensions = {
 	Editors: 'workbench.contributions.editors',
@@ -326,5 +333,110 @@ class EditorAssociationsRegistry implements IEditorAssociationsRegistry {
 
 Registry.add(Extensions.Associations, new EditorAssociationsRegistry());
 configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
+
+//#endregion
+
+
+//#region Text Editor Close Tracker
+
+export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[]): Promise<void> {
+	const editorService = accessor.get(IEditorService);
+	const uriIdentityService = accessor.get(IUriIdentityService);
+	const workingCopyService = accessor.get(IWorkingCopyService);
+
+	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
+
+	return new Promise(resolve => {
+		let remainingResources = [...resources];
+
+		// Observe any editor closing from this moment on
+		const listener = editorService.onDidCloseEditor(async event => {
+			let primaryResource: URI | undefined = undefined;
+			let secondaryResource: URI | undefined = undefined;
+
+			// Resolve the resources from the editor that closed
+			// but only consider file editor inputs, given we
+			// are only tracking text editors.
+			if (event.editor instanceof SideBySideEditorInput) {
+				if (fileEditorInputFactory.isFileEditorInput(event.editor.primary)) {
+					primaryResource = EditorResourceAccessor.getOriginalUri(event.editor.primary);
+				}
+
+				if (fileEditorInputFactory.isFileEditorInput(event.editor.secondary)) {
+					secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor.secondary);
+				}
+			} else {
+				if (fileEditorInputFactory.isFileEditorInput(event.editor)) {
+					primaryResource = EditorResourceAccessor.getOriginalUri(event.editor);
+				}
+			}
+
+			// Remove from resources to wait for being closed based on the
+			// resources from editors that got closed
+			remainingResources = remainingResources.filter(resource => {
+				if (uriIdentityService.extUri.isEqual(resource, primaryResource) || uriIdentityService.extUri.isEqual(resource, secondaryResource)) {
+					return false; // remove - the closing editor matches this resource
+				}
+
+				return true; // keep - not yet closed
+			});
+
+			// All resources to wait for being closed are closed
+			if (remainingResources.length === 0) {
+
+				// If auto save is configured with the default delay (1s) it is possible
+				// to close the editor while the save still continues in the background. As such
+				// we have to also check if the editors to track for are dirty and if so wait
+				// for them to get saved.
+				const dirtyResources = resources.filter(resource => workingCopyService.isDirty(resource, NO_TYPE_ID /* only check on text file working copies */));
+				if (dirtyResources.length > 0) {
+					await Promises.settled(dirtyResources.map(async resource => await new Promise<void>(resolve => {
+						if (!workingCopyService.isDirty(resource, NO_TYPE_ID /* only check on text file working copies */)) {
+							return resolve(); // return early if resource is not dirty
+						}
+
+						// Otherwise resolve promise when resource is saved
+						const listener = workingCopyService.onDidChangeDirty(workingCopy => {
+							if (!workingCopy.isDirty() && uriIdentityService.extUri.isEqual(resource, workingCopy.resource)) {
+								listener.dispose();
+
+								return resolve();
+							}
+						});
+					})));
+				}
+
+				listener.dispose();
+
+				return resolve();
+			}
+		});
+	});
+}
+
+//#endregion
+
+
+//#region ARIA
+
+export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
+	let ariaLabel = input.getAriaLabel();
+	if (group && !group.isPinned(input)) {
+		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
+	}
+
+	if (group?.isSticky(index ?? input)) {
+		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
+	}
+
+	// Apply group information to help identify in
+	// which group we are (only if more than one group
+	// is actually opened)
+	if (group && groupCount > 1) {
+		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
+	}
+
+	return ariaLabel;
+}
 
 //#endregion

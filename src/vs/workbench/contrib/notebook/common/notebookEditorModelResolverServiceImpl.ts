@@ -17,10 +17,9 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceMap } from 'vs/base/common/map';
 
-
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
-	private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>;
+	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel>>();
 	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
 
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
@@ -37,18 +36,13 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-
-		this._workingCopyManager = <any>_instantiationService.createInstance(
-			FileWorkingCopyManager,
-			new NotebookFileWorkingCopyModelFactory(_notebookService)
-		);
 	}
 
 	dispose(): void {
 		this._onDidSaveNotebook.dispose();
 		this._onDidChangeDirty.dispose();
 		dispose(this._modelListener.values());
-		this._workingCopyManager.dispose();
+		dispose(this._workingCopyManagers.values());
 	}
 
 	isDirty(resource: URI): boolean {
@@ -66,7 +60,15 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			result = await model.load();
 
 		} else if (info instanceof SimpleNotebookProviderInfo) {
-			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, viewType, this._workingCopyManager);
+			let workingCopyManager = this._workingCopyManagers.get(viewType);
+			if (!workingCopyManager) {
+				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
+					FileWorkingCopyManager,
+					viewType,
+					new NotebookFileWorkingCopyModelFactory(this._notebookService)
+				);
+			}
+			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, viewType, workingCopyManager);
 			result = await model.load();
 
 		} else {

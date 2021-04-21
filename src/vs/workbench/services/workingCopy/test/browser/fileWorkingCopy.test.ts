@@ -16,6 +16,7 @@ import { basename } from 'vs/base/common/resources';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { Promises } from 'vs/base/common/async';
+import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 
 export class TestFileWorkingCopyModel extends Disposable implements IFileWorkingCopyModel {
 
@@ -88,7 +89,7 @@ suite('FileWorkingCopy', function () {
 	let workingCopy: FileWorkingCopy<TestFileWorkingCopyModel>;
 
 	function createWorkingCopy() {
-		return new FileWorkingCopy<TestFileWorkingCopyModel>(resource, basename(resource), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.backupFileService, accessor.workingCopyService);
+		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', resource, basename(resource), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService);
 	}
 
 	setup(() => {
@@ -240,7 +241,9 @@ suite('FileWorkingCopy', function () {
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello backup')) });
 
 		const backup = await workingCopy.backup(CancellationToken.None);
-		accessor.backupFileService.backup(workingCopy.resource, backup.content, undefined, backup.meta);
+		await accessor.workingCopyBackupService.backup(workingCopy, backup.content, undefined, backup.meta);
+
+		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(workingCopy), true);
 
 		workingCopy.dispose();
 
@@ -273,7 +276,9 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.ORPHAN), true);
 
 		const backup = await workingCopy.backup(CancellationToken.None);
-		accessor.backupFileService.backup(workingCopy.resource, backup.content, undefined, backup.meta);
+		await accessor.workingCopyBackupService.backup(workingCopy, backup.content, undefined, backup.meta);
+
+		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(workingCopy), true);
 
 		workingCopy.dispose();
 
@@ -345,7 +350,17 @@ suite('FileWorkingCopy', function () {
 		const backup = await workingCopy.backup(CancellationToken.None);
 
 		assert.ok(backup.meta);
-		assert.strictEqual(backup.content?.read(), 'hello backup');
+
+		let backupContents: string | undefined = undefined;
+		if (backup.content instanceof VSBuffer) {
+			backupContents = backup.content.toString();
+		} else if (isReadableStream(backup.content)) {
+			backupContents = (await consumeStream(backup.content, chunks => VSBuffer.concat(chunks))).toString();
+		} else if (backup.content) {
+			backupContents = consumeReadable(backup.content, chunks => VSBuffer.concat(chunks)).toString();
+		}
+
+		assert.strictEqual(backupContents, 'hello backup');
 	});
 
 	test('save (no errors)', async () => {

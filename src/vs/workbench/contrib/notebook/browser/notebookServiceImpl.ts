@@ -6,8 +6,6 @@
 import * as glob from 'vs/base/common/glob';
 import { localize } from 'vs/nls';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { flatten } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -24,10 +22,10 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
+import { NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -43,44 +41,6 @@ import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/n
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
-
-export class NotebookKernelProviderInfoStore {
-	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
-
-	add(provider: INotebookKernelProvider) {
-		this._notebookKernelProviders.push(provider);
-		this._updateProviderExtensionsInfo();
-
-		return toDisposable(() => {
-			const idx = this._notebookKernelProviders.indexOf(provider);
-			if (idx >= 0) {
-				this._notebookKernelProviders.splice(idx, 1);
-			}
-
-			this._updateProviderExtensionsInfo();
-		});
-	}
-
-	get(viewType: string, resource: URI) {
-		return this._notebookKernelProviders.filter(provider => notebookDocumentFilterMatch(provider.selector, viewType, resource));
-	}
-
-	getContributedKernelProviders() {
-		return [...this._notebookKernelProviders];
-	}
-
-	private _updateProviderExtensionsInfo() {
-		NotebookKernelProviderAssociationRegistry.extensionIds.length = 0;
-		NotebookKernelProviderAssociationRegistry.extensionDescriptions.length = 0;
-
-		this._notebookKernelProviders.forEach(provider => {
-			NotebookKernelProviderAssociationRegistry.extensionIds.push(provider.providerExtensionId);
-			NotebookKernelProviderAssociationRegistry.extensionDescriptions.push(provider.providerDescription || '');
-		});
-
-		updateNotebookKernelProvideAssociationSchema();
-	}
-}
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -338,7 +298,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	private readonly _notebookProviderInfoStore: NotebookProviderInfoStore;
 	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
 	private readonly _markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
-	private readonly _notebookKernelProviderInfoStore: NotebookKernelProviderInfoStore = new NotebookKernelProviderInfoStore();
 	private readonly _models = new ResourceMap<ModelData>();
 
 	private readonly _onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
@@ -577,36 +536,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return result;
 	}
 
-	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable {
-		const d = this._notebookKernelProviderInfoStore.add(provider);
-		const kernelChangeEventListener = provider.onDidChangeKernels((e) => {
-			this._onDidChangeKernels.fire(e);
-		});
-
-		this._onDidChangeKernels.fire(undefined);
-		return toDisposable(() => {
-			kernelChangeEventListener.dispose();
-			d.dispose();
-			this._onDidChangeKernels.fire(undefined);
-		});
-	}
-
-	async getNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernel[]> {
-		const filteredProvider = this._notebookKernelProviderInfoStore.get(viewType, resource);
-		const result = new Array<INotebookKernel[]>(filteredProvider.length);
-		const promises = filteredProvider.map(async (provider, index) => {
-			const data = await provider.provideKernels(resource, token);
-			result[index] = data;
-		});
-		await Promise.all(promises);
-		return flatten(result);
-	}
-
-	async getContributedNotebookKernelProviders(): Promise<INotebookKernelProvider[]> {
-		const kernelProviders = this._notebookKernelProviderInfoStore.getContributedKernelProviders();
-		return kernelProviders;
-	}
-
 	getRendererInfo(rendererId: string): INotebookRendererInfo | undefined {
 		return this._notebookRenderersInfoStore.get(rendererId);
 	}
@@ -737,22 +666,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		});
 
 		return ret;
-	}
-
-	// --- data provider IPC (deprecated)
-
-	async resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void> {
-		const entry = this._notebookProviders.get(viewType);
-		if (entry instanceof ComplexNotebookProviderInfo) {
-			entry.controller.resolveNotebookEditor(viewType, uri, editorId);
-		}
-	}
-
-	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: any): void {
-		const provider = this._notebookProviders.get(viewType);
-		if (provider instanceof ComplexNotebookProviderInfo) {
-			return provider.controller.onDidReceiveMessage(editorId, rendererType, message);
-		}
 	}
 
 	// --- copy & paste

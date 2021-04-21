@@ -18,10 +18,10 @@ suite('NotebookTextModel', () => {
 	test('insert', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -42,10 +42,10 @@ suite('NotebookTextModel', () => {
 	test('multiple inserts at same position', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -66,10 +66,10 @@ suite('NotebookTextModel', () => {
 	test('delete', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const textModel = editor.viewModel.notebookDocument;
@@ -87,10 +87,10 @@ suite('NotebookTextModel', () => {
 	test('delete + insert', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -111,10 +111,10 @@ suite('NotebookTextModel', () => {
 	test('delete + insert at same position', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -135,10 +135,10 @@ suite('NotebookTextModel', () => {
 	test('(replace) delete + insert at same position', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -158,7 +158,7 @@ suite('NotebookTextModel', () => {
 	test('output', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const textModel = editor.viewModel.notebookDocument;
@@ -231,7 +231,7 @@ suite('NotebookTextModel', () => {
 	test('metadata', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const textModel = editor.viewModel.notebookDocument;
@@ -241,7 +241,7 @@ suite('NotebookTextModel', () => {
 					textModel.applyEdits([{
 						index: Number.MAX_VALUE,
 						editType: CellEditType.Metadata,
-						metadata: { editable: false }
+						metadata: {}
 					}], true, undefined, () => undefined, undefined);
 				});
 
@@ -250,7 +250,7 @@ suite('NotebookTextModel', () => {
 					textModel.applyEdits([{
 						index: -1,
 						editType: CellEditType.Metadata,
-						metadata: { editable: false }
+						metadata: {}
 					}], true, undefined, () => undefined, undefined);
 				});
 
@@ -263,11 +263,10 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.Metadata,
-					metadata: { editable: false },
+					metadata: {},
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].metadata?.editable, false);
 				assert.strictEqual(textModel.cells[0].metadata?.executionOrder, undefined);
 			}
 		);
@@ -276,7 +275,7 @@ suite('NotebookTextModel', () => {
 	test('partial metadata', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const textModel = editor.viewModel.notebookDocument;
@@ -290,11 +289,10 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.PartialMetadata,
-					metadata: { editable: false },
+					metadata: {},
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].metadata?.editable, false);
 				assert.strictEqual(textModel.cells[0].metadata?.executionOrder, 15);
 			}
 		);
@@ -303,10 +301,10 @@ suite('NotebookTextModel', () => {
 	test('multiple inserts in one edit', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -339,10 +337,10 @@ suite('NotebookTextModel', () => {
 	test('insert and metadata change in one edit', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const textModel = editor.viewModel.notebookDocument;
@@ -357,7 +355,7 @@ suite('NotebookTextModel', () => {
 					{
 						index: 0,
 						editType: CellEditType.Metadata,
-						metadata: { editable: false },
+						metadata: {},
 					}
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
@@ -373,7 +371,7 @@ suite('NotebookTextModel', () => {
 
 	test('Updating appending/updating output in Notebooks does not work as expected #117273', function () {
 		withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }]
+			['var a = 1;', 'javascript', CellKind.Code, [], {}]
 		], (editor) => {
 			const model = editor.viewModel.notebookDocument;
 
@@ -408,8 +406,8 @@ suite('NotebookTextModel', () => {
 
 	test('Clearing output of an empty notebook makes it dirty #119608', function () {
 		withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-			['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}]
 		], (editor) => {
 			const model = editor.viewModel.notebookDocument;
 
@@ -478,8 +476,8 @@ suite('NotebookTextModel', () => {
 
 	test('Cell text model update increases notebook model version id #119561', function () {
 		withTestNotebook([
-			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-			['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}]
 		], async (editor) => {
 			const textModel = await editor.viewModel.cellAt(0)!.resolveTextModel();
 			assert.ok(textModel !== undefined);
