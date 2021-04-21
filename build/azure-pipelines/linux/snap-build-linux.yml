@@ -59,6 +59,6 @@ steps:
       echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
 
   - publish: $(SNAP_PATH)
-    artifact: vscode-linux-snap-$(VSCODE_ARCH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_snap
     displayName: Publish snap package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

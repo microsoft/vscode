@@ -35,13 +35,13 @@ steps:
     displayName: Restore modules for just build folder and compile it
 
   - download: current
-    artifact: vscode-darwin-$(VSCODE_ARCH)
+    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
     displayName: Download $(VSCODE_ARCH) artifact
 
   - script: |
       set -e
-      unzip $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      mv $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Unzip & move
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
@@ -125,5 +125,8 @@ steps:
         "$ASSET_ID" \
         archive \
         "VSCode-$ASSET_ID.zip" \
-        ../VSCode-darwin-$(VSCODE_ARCH).zip
+        $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Publish Clients
+
+  - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+    artifact: vscode_client_darwin_$(VSCODE_ARCH)_archive

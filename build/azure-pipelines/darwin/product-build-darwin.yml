@@ -138,19 +138,19 @@ steps:
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - download: current
-    artifact: vscode-darwin-x64
+    artifact: unsigned_vscode_client_darwin_x64_archive
     displayName: Download x64 artifact
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
 
   - download: current
-    artifact: vscode-darwin-arm64
+    artifact: unsigned_vscode_client_darwin_arm64_archive
     displayName: Download arm64 artifact
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
-      cp $(Pipeline.Workspace)/vscode-darwin-x64/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin-x64.zip
-      cp $(Pipeline.Workspace)/vscode-darwin-arm64/VSCode-darwin-arm64.zip $(agent.builddirectory)/VSCode-darwin-arm64.zip
+      cp $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin-x64.zip
+      cp $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip $(agent.builddirectory)/VSCode-darwin-arm64.zip
       unzip $(agent.builddirectory)/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64
       unzip $(agent.builddirectory)/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
       DEBUG=* node build/darwin/create-universal-app.js
@@ -289,17 +289,17 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-    artifact: vscode-darwin-$(VSCODE_ARCH)
+    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
     displayName: Publish client archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
-    artifact: vscode-server-darwin-$(VSCODE_ARCH)
+    artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
-    artifact: vscode-server-darwin-$(VSCODE_ARCH)-web
+    artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish web server archive
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
