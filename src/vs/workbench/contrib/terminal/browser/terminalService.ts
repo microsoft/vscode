@@ -619,10 +619,7 @@ export class TerminalService implements ITerminalService {
 		if (!tab) {
 			return null;
 		}
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
-		if (cwd) {
-			shellLaunchConfig.cwd = cwd;
-		}
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
 		const instance = tab.split(shellLaunchConfig);
 
 		this._initInstanceListeners(instance);
@@ -937,7 +934,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
+	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
 		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
@@ -946,7 +943,8 @@ export class TerminalService implements ITerminalService {
 				args: profile.args,
 				env: profile.env,
 				icon: profile.icon,
-				name: profile.overrideName ? profile.profileName : undefined
+				name: profile.overrideName ? profile.profileName : undefined,
+				cwd
 			};
 		}
 
