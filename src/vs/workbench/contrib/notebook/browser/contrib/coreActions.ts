@@ -1416,10 +1416,11 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const modelService = accessor.get(IModelService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const providerLanguages = [
+		const providerLanguages = new Set([
 			...(context.notebookEditor.activeKernel?.supportedLanguages ?? modeService.getRegisteredModes()),
 			'markdown'
-		];
+		]);
+
 		providerLanguages.forEach(languageId => {
 			let description: string;
 			if (context.cell.cellKind === CellKind.Markdown ? (languageId === 'markdown') : (languageId === context.cell.language)) {

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -43,7 +44,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 		return flatten(this.preloads.map(p => p.provides));
 	}
 
-	constructor(data: INotebookKernelDto2) {
+	constructor(data: INotebookKernelDto2, private _modeService: IModeService) {
 		this.id = data.id;
 		this.selector = data.selector;
 		this.extension = data.extensionId;
@@ -53,7 +54,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.description = data.description;
 		this.detail = data.detail;
 		this.isPreferred = data.isPreferred;
-		this.supportedLanguages = data.supportedLanguages;
+		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _modeService.getRegisteredModes();
 		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
 		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
@@ -80,7 +81,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 			event.isPreferred = true;
 		}
 		if (data.supportedLanguages !== undefined) {
-			this.supportedLanguages = data.supportedLanguages;
+			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._modeService.getRegisteredModes();
 			event.supportedLanguages = true;
 		}
 		if (data.hasExecutionOrder !== undefined) {
@@ -105,6 +106,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IModeService private readonly _modeService: IModeService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
@@ -192,7 +194,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
 				await that._proxy.$cancelCells(handle, uri, handles);
 			}
-		}(data);
+		}(data, this._modeService);
 		const registration = this._notebookKernelService.registerKernel(kernel);
 
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
