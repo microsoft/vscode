@@ -142,7 +142,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(themeService);
 
@@ -807,9 +807,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.getEditors(order, options);
 	}
 
-	findEditors(resource: URI, options?: { excludeSticky?: boolean }): EditorInput[] {
+	findEditors(resource: URI): EditorInput[] {
 		const canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
-		return this.getEditors(EditorsOrder.SEQUENTIAL, options).filter(editor => {
+		return this.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
 			return editor.resource && isEqual(editor.resource, canonicalResource);
 		});
 	}

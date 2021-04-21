@@ -497,9 +497,8 @@ export interface IEditorGroup {
 	 * Finds all editors for the given resource that are currently opened in the group
 	 *
 	 * @param resource The resource of the editor to find
-	 * @param options options to select only specific editors as instructed
 	 */
-	findEditors(resource: URI, options?: { excludeSticky?: boolean }): Array<IEditorInput>;
+	findEditors(resource: URI): Array<IEditorInput>;
 
 	/**
 	 * Returns the editor at a specific index of the group.

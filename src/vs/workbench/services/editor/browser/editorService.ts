@@ -84,6 +84,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		this.registerListeners();
 
+		// Register the default editor to the override service
+		// so that it shows up in the editors picker
 		this.registerDefaultOverride();
 	}
 
@@ -515,9 +517,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return overrides;
 	}
 
-	/**
-	 * Registers the default editor to the override service so that it shows up in the reopen with... picker
-	 */
 	private registerDefaultOverride(): void {
 		this._register(this.editorOverrideService.registerContributionPoint(
 			'*',
@@ -526,17 +525,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
 				describes: (currentEditor) => this.fileEditorInputFactory.isFileEditorInput(currentEditor) && isEqual(currentEditor.resource, this.activeEditor?.resource),
-				priority: ContributedEditorPriority.builtin,
+				priority: ContributedEditorPriority.builtin
 			},
 			{},
-			(resource, options, group) => {
-				return { editor: this.createEditorInput({ resource }) };
-			},
-			(diffEditor, options, group) => {
-				return { editor: diffEditor };
-			}
+			resource => ({ editor: this.createEditorInput({ resource }) }),
+			diffEditor => ({ editor: diffEditor })
 		));
 	}
+
 	private getDefaultEditorOverride(resource: URI): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry] {
 		return [
 			{
@@ -606,12 +602,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				if (!resolvedInputWithOptionsAndGroup) {
 					return undefined; // no editor was picked or registered for the identifier
 				}
+
 				return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(resolvedInputWithOptionsAndGroup.editor, resolvedInputWithOptionsAndGroup.options ?? resolvedOptions);
 			}
 
 			// Override handling: ask providers to override
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				// This will get cleaned up soon, but since the override service no longer uses the override flow we must check that
+				// TODO@lramos15 this will get cleaned up soon, but since the override
+				// service no longer uses the override flow we must check that
 				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
 				if (!resolvedInputWithOptionsAndGroup) {
 					const override = this.doOverrideOpenEditor(resolvedEditor, resolvedOptions, resolvedGroup);
@@ -786,13 +784,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
 
 		// Convert to typed editors and options
-		const typedEditors = editors.map(editor => {
+		const typedEditors: IEditorInputWithOptions[] = editors.map(editor => {
 			if (isEditorInputWithOptions(editor)) {
 				return editor;
 			}
 
-			const editorInput: IEditorInputWithOptions = { editor: this.createEditorInput(editor), options: TextEditorOptions.from(editor) };
-			return editorInput;
+			return { editor: this.createEditorInput(editor), options: TextEditorOptions.from(editor) };
 		});
 
 		// Find target groups to open
@@ -843,7 +840,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region findEditor()
+	//#region findEditors()
 
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): IEditorInput[] {
 		if (!this.isOpen({ resource })) {
