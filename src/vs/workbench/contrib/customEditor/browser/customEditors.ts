@@ -23,7 +23,7 @@ import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITA
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
@@ -111,23 +111,21 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				}
 				this._register(this.extensionContributedEditorService.registerContributionPoint(
 					globPattern.filenamePattern,
-					priorityToRank(contributedEditor.priority),
 					{
 						id: contributedEditor.id,
 						label: contributedEditor.displayName,
 						detail: contributedEditor.providerDisplayName,
-						active: (currentEditor) => currentEditor instanceof CustomEditorInput && currentEditor.viewType === contributedEditor.id,
-						instanceOf: (editorInput) => editorInput instanceof CustomEditorInput,
+						describes: (currentEditor) => currentEditor instanceof CustomEditorInput && currentEditor.viewType === contributedEditor.id,
 						priority: contributedEditor.priority,
 					},
 					{
 						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
 					},
-					(resource, editorID, options, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, resource, editorID, group.id) };
+					(resource, options, group) => {
+						return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
 					},
-					(diffEditorInput, editorID, options, group) => {
-						return { editor: this.createDiffEditorInput(diffEditorInput, editorID, group) };
+					(diffEditorInput, options, group) => {
+						return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
 					}
 				));
 			}

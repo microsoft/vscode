@@ -11,6 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -491,6 +492,13 @@ export interface IEditorGroup {
 	 * @param options options to select only specific editors as instructed
 	 */
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorInput>;
+
+	/**
+	 * Finds all editors for the given resource that are currently opened in the group
+	 *
+	 * @param resource The resource of the editor to find
+	 */
+	findEditors(resource: URI): Array<IEditorInput>;
 
 	/**
 	 * Returns the editor at a specific index of the group.

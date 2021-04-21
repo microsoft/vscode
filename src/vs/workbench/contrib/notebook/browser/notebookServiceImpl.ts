@@ -39,7 +39,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 
 export class NotebookProviderInfoStore extends Disposable {
@@ -151,19 +151,17 @@ export class NotebookProviderInfoStore extends Disposable {
 			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
 			this._contributedEditorDisposables.add(this._editorOverrideService.registerContributionPoint(
 				globPattern,
-				priorityToRank(notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority),
 				{
 					id: notebookProviderInfo.id,
 					label: notebookProviderInfo.displayName,
 					detail: notebookProviderInfo.providerDisplayName,
-					active: (currentEditor) => currentEditor instanceof NotebookEditorInput && currentEditor.viewType === notebookProviderInfo.id,
-					instanceOf: (editorInput) => editorInput instanceof NotebookEditorInput,
-					priority: notebookProviderInfo.priority,
+					describes: (currentEditor) => currentEditor instanceof NotebookEditorInput && currentEditor.viewType === notebookProviderInfo.id,
+					priority: notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority,
 				},
 				{
 					canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized()
 				},
-				(resource, editorID, options, group) => {
+				(resource, options, group) => {
 					const data = CellUri.parse(resource);
 					let notebookUri: URI = resource;
 					let cellOptions: IResourceEditorInput | undefined;
@@ -174,14 +172,14 @@ export class NotebookProviderInfoStore extends Disposable {
 					}
 
 					const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions });
-					return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, editorID), options: notebookOptions };
+					return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 				},
-				(diffEditorInput, editorID, group) => {
+				(diffEditorInput, group) => {
 					const modifiedInput = diffEditorInput.modifiedInput;
 					const originalInput = diffEditorInput.originalInput;
 					const notebookUri = modifiedInput.resource!;
 					const originalNotebookUri = originalInput.resource!;
-					return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), editorID) };
+					return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), notebookProviderInfo.id) };
 				}
 			));
 		}

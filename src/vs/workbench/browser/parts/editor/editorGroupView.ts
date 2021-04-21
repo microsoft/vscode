@@ -43,7 +43,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
-import { extname } from 'vs/base/common/resources';
+import { extname, isEqual } from 'vs/base/common/resources';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
@@ -51,6 +51,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -139,7 +141,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(themeService);
 
@@ -802,6 +805,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
 		return this.model.getEditors(order, options);
+	}
+
+	findEditors(resource: URI): EditorInput[] {
+		const canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
+		return this.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
+			return editor.resource && isEqual(editor.resource, canonicalResource);
+		});
 	}
 
 	getEditorByIndex(index: number): EditorInput | undefined {

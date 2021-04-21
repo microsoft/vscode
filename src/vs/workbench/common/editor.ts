@@ -881,6 +881,10 @@ export interface IEditorInputWithOptions {
 	options?: IEditorOptions | ITextEditorOptions;
 }
 
+export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
+	group?: IEditorGroup;
+}
+
 export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
 	const editorInputWithOptions = obj as IEditorInputWithOptions;
 

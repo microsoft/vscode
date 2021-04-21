@@ -130,6 +130,7 @@ import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/termina
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isArray } from 'vs/base/common/types';
 import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EditorOverrideService, IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -225,6 +226,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ILabelService, <ILabelService>disposables.add(instantiationService.createInstance(LabelService)));
 	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
 	instantiationService.stub(IEditorService, editorService);
+	instantiationService.stub(IEditorOverrideService, disposables.add(instantiationService.createInstance(EditorOverrideService)));
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IViewletService, new TestViewletService());
 	instantiationService.stub(IListService, new TestListService());
@@ -694,6 +696,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	onWillMoveEditor: Event<IEditorMoveEvent> = Event.None;
 
 	getEditors(_order?: EditorsOrder): ReadonlyArray<IEditorInput> { return []; }
+	findEditors(_resource: URI): Array<IEditorInput> { return []; }
 	getEditorByIndex(_index: number): IEditorInput { throw new Error('not implemented'); }
 	getIndexOfEditor(_editor: IEditorInput): number { return -1; }
 	openEditor(_editor: IEditorInput, _options?: IEditorOptions): Promise<IEditorPane> { throw new Error('not implemented'); }

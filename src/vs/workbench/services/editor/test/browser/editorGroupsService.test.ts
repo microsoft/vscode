@@ -1059,6 +1059,30 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getEditorByIndex(4), input8);
 	});
 
+	test('find editors', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+		const group2 = part.addGroup(group, GroupDirection.RIGHT);
+		assert.strictEqual(group.isEmpty, true);
+
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar1'), `${TEST_EDITOR_INPUT_ID}-1`);
+		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.file('foo/bar4'), TEST_EDITOR_INPUT_ID);
+		const input5 = new TestFileEditorInput(URI.file('foo/bar4'), `${TEST_EDITOR_INPUT_ID}-1`);
+
+		await group.openEditor(input1, { pinned: true });
+		await group.openEditor(input2, { pinned: true });
+		await group.openEditor(input3, { pinned: true });
+		await group.openEditor(input4, { pinned: true });
+		await group2.openEditor(input5, { pinned: true });
+
+		let foundEditors = group.findEditors(URI.file('foo/bar1'));
+		assert.strictEqual(foundEditors.length, 2);
+		foundEditors = group2.findEditors(URI.file('foo/bar4'));
+		assert.strictEqual(foundEditors.length, 1);
+	});
+
 	test('find neighbour group (left/right)', async function () {
 		const [part] = await createPart();
 		const rootGroup = part.activeGroup;
