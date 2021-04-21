@@ -114,6 +114,8 @@ export class TerminalService implements ITerminalService {
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
 	private readonly _onProfilesConfigChanged = new Emitter<void>();
 	public get onProfilesConfigChanged(): Event<void> { return this._onProfilesConfigChanged.event; }
+	private readonly _onPanelMovedToSide = new Emitter<void>();
+	public get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
 	private readonly _localTerminalService?: ILocalTerminalService;
 
 	constructor(
@@ -974,6 +976,7 @@ export class TerminalService implements ITerminalService {
 
 		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shellLaunchConfig);
 		this._terminalTabs.push(terminalTab);
+		terminalTab.onPanelMovedToSide(() => this._onPanelMovedToSide.fire());
 
 		const instance = terminalTab.terminalInstances[0];
 

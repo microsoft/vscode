@@ -102,6 +102,7 @@ export interface ITerminalService {
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
 	onProfilesConfigChanged: Event<void>;
+	onPanelMovedToSide: Event<void>;
 
 	/**
 	 * Creates a terminal.
