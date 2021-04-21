@@ -174,7 +174,7 @@ export class TerminalViewPane extends ViewPane {
 				this._tabButtons.dispose();
 			}
 			const actions = this._getTabActionBarArgs(this._terminalService.availableProfiles);
-			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, this._keybindingService, this._notificationService, actions.dropdownIcon || 'codicon-chevron-down');
+			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, this._keybindingService, this._notificationService);
 			this._updateTabActionBar(this._terminalService.availableProfiles);
 			return this._tabButtons;
 		}
@@ -220,8 +220,8 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
-		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', undefined, true, async () => this._updateTabActionBar(this._terminalService.availableProfiles));
-		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions', dropdownIcon: 'codicon-chevron-down' };
+		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
+		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
 	}
 
 	public override focus() {
@@ -339,12 +339,11 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		private readonly _className: string,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		dropdownIcon?: string
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super(null, primaryAction);
 		this._primaryAction = new MenuEntryActionViewItem(primaryAction, this._keybindingService, this._notificationService);
-		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'] });
+		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, _contextMenuService, { menuAsChild: true });
 	}
 
 	override render(container: HTMLElement): void {

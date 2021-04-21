@@ -157,6 +157,9 @@ export class TerminalService implements ITerminalService {
 			const instance = this.getActiveInstance();
 			this._onActiveInstanceChanged.fire(instance ? instance : undefined);
 		});
+		// update detected profiles so for example we detect if you've installed a pwsh
+		// this avoids having poll routinely
+		this.onInstanceCreated(() => this._refreshAvailableProfiles('external'));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
