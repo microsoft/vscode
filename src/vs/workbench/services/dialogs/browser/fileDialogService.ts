@@ -108,7 +108,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showOpenDialogSimplified(schema, options);
 		}
 
-		throw new Error('Method not implemented.');
+		const handle = await window.showDirectoryPicker();
+		const uuid = generateUuid();
+		const uri = URI.from({ scheme: Schemas.file, authority: uuid, path: `/${handle.name}` });
+
+		this.fileSystemProvider.registerDirectoryHandle(uuid, handle);
+
+		return [uri];
 	}
 
 	protected addFileSchemaIfNeeded(schema: string): string[] {
@@ -116,7 +122,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	private shouldUseSimplified(schema: string): boolean {
-		return schema !== Schemas.file;
+		return schema !== Schemas.file && schema !== Schemas.userData;
 	}
 }
 
