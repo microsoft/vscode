@@ -482,7 +482,6 @@ abstract class AbstractElementRenderer extends Disposable {
 			for (let key of keys) {
 				switch (key as keyof NotebookCellMetadata) {
 					case 'breakpointMargin':
-					case 'editable':
 					case 'inputCollapsed':
 					case 'outputCollapsed':
 						// boolean

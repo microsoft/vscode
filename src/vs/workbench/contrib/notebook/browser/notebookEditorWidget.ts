@@ -880,7 +880,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const focused = this._list.getFocusedElements()[0];
 		if (focused) {
 			if (!this._cellContextKeyManager) {
-				this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, this.viewModel.notebookDocument, focused as CellViewModel));
+				this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, focused as CellViewModel));
 			}
 
 			this._cellContextKeyManager.updateForElement(focused as CellViewModel);

@@ -458,7 +458,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			}
 		}));
 
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel.notebookDocument!, element));
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
@@ -830,7 +830,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			return;
 		}
 
-		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel.notebookDocument.metadata);
+		const metadata = element.metadata;
 		this.updateExecutionOrder(metadata, templateData);
 
 		templateData.cellRunState.renderState(element.metadata?.runState, () => {
@@ -948,7 +948,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(cellEditorOptions.onDidChange(newValue => templateData.editor.updateOptions(newValue)));
 		templateData.editor.updateOptions(cellEditorOptions.value);
 
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel.notebookDocument!, element));
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {

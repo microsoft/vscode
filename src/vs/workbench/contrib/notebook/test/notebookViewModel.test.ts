@@ -45,13 +45,11 @@ suite('NotebookViewModel', () => {
 	test('insert/delete', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				assert.strictEqual(viewModel.cellAt(0)?.metadata?.editable, true);
-				assert.strictEqual(viewModel.cellAt(1)?.metadata?.editable, false);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
 				assert.strictEqual(viewModel.length, 3);
@@ -69,9 +67,9 @@ suite('NotebookViewModel', () => {
 	test('move cells down', async function () {
 		await withTestNotebook(
 			[
-				['//a', 'javascript', CellKind.Code, [], { editable: true }],
-				['//b', 'javascript', CellKind.Code, [], { editable: true }],
-				['//c', 'javascript', CellKind.Code, [], { editable: true }],
+				['//a', 'javascript', CellKind.Code, [], {}],
+				['//b', 'javascript', CellKind.Code, [], {}],
+				['//c', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -98,9 +96,9 @@ suite('NotebookViewModel', () => {
 	test('move cells up', async function () {
 		await withTestNotebook(
 			[
-				['//a', 'javascript', CellKind.Code, [], { editable: true }],
-				['//b', 'javascript', CellKind.Code, [], { editable: true }],
-				['//c', 'javascript', CellKind.Code, [], { editable: true }],
+				['//a', 'javascript', CellKind.Code, [], {}],
+				['//b', 'javascript', CellKind.Code, [], {}],
+				['//c', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -121,8 +119,8 @@ suite('NotebookViewModel', () => {
 	test('index', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -176,10 +174,10 @@ suite('NotebookViewModel Decorations', () => {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -232,12 +230,12 @@ suite('NotebookViewModel Decorations', () => {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 6;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 7;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+				['var e = 6;', 'javascript', CellKind.Code, [], {}],
+				['var e = 7;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;

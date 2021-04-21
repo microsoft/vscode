@@ -319,9 +319,6 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 
 	for (let i = 0; i < cells.length; i++) {
 		const cell = cells[i];
-		if (!cell.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
-			return null;
-		}
 
 		if (constraint && cell.cellKind !== constraint) {
 			return null;
@@ -331,10 +328,6 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 	if (direction === 'above') {
 		const above = viewModel.cellAt(range.start - 1) as CellViewModel;
 		if (constraint && above.cellKind !== constraint) {
-			return null;
-		}
-
-		if (!above.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
 			return null;
 		}
 
@@ -361,10 +354,6 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 	} else {
 		const below = viewModel.cellAt(range.end) as CellViewModel;
 		if (constraint && below.cellKind !== constraint) {
-			return null;
-		}
-
-		if (!below.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
 			return null;
 		}
 
@@ -493,7 +482,7 @@ registerAction2(class extends NotebookCellAction {
 				},
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
 					group: CellOverflowToolbarGroups.Edit,
 					order: 10
 				}
@@ -519,7 +508,7 @@ registerAction2(class extends NotebookCellAction {
 				},
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
 					group: CellOverflowToolbarGroups.Edit,
 					order: 11
 				}

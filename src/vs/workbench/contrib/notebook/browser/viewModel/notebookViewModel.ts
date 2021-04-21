@@ -919,10 +919,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			return null;
 		}
 
-		if (!cell.getEvaluatedMetadata(this.notebookDocument.metadata).editable) {
-			return null;
-		}
-
 		const splitPoints = cell.focusMode === CellFocusMode.Container ? [{ lineNumber: 1, column: 1 }] : cell.getSelectionsStartPosition();
 
 		if (splitPoints && splitPoints.length > 0) {
