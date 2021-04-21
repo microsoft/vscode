@@ -215,8 +215,10 @@ abstract class AbstractCellRenderer {
 
 			updateActions();
 		}));
+		templateData.container.classList.toggle('cell-toolbar-dropdown-active', false);
 		disposables.add(templateData.toolbar.onDidChangeDropdownVisibility(visible => {
 			dropdownIsVisible = visible;
+			templateData.container.classList.toggle('cell-toolbar-dropdown-active', visible);
 
 			if (deferredUpdate && !visible) {
 				setTimeout(() => {
