@@ -19,7 +19,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
-export interface IMainNotebookController {
+export interface INotebookContentProvider {
 	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: TransientOptions;
 
@@ -43,7 +43,7 @@ export interface INotebookRawData {
 export class ComplexNotebookProviderInfo {
 	constructor(
 		readonly viewType: string,
-		readonly controller: IMainNotebookController,
+		readonly controller: INotebookContentProvider,
 		readonly extensionData: NotebookExtensionDescription
 	) { }
 }
@@ -63,7 +63,7 @@ export interface INotebookService {
 	onDidRemoveNotebookDocument: Event<URI>;
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
 	withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
 

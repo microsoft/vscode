@@ -15,7 +15,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -35,7 +35,7 @@ suite('NotebookEditorModel', function () {
 		override getUriBasenameLabel(uri: URI) { return uri.toString(); }
 	};
 
-	const notebookDataProvider = new class extends mock<IMainNotebookController>() { };
+	const notebookDataProvider = new class extends mock<INotebookContentProvider>() { };
 
 	test('working copy uri', function () {
 
