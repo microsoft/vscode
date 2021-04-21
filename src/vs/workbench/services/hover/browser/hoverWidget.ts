@@ -11,7 +11,7 @@ import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverPosition, HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -31,7 +31,7 @@ export class HoverWidget extends Widget {
 	private readonly _linkHandler: (url: string) => any;
 
 	private _isDisposed: boolean = false;
-	private _anchor: AnchorPosition;
+	private _hoverPosition: HoverPosition;
 	private _x: number = 0;
 	private _y: number = 0;
 
@@ -43,7 +43,7 @@ export class HoverWidget extends Widget {
 	private readonly _onRequestLayout = this._register(new Emitter<void>());
 	get onRequestLayout(): Event<void> { return this._onRequestLayout.event; }
 
-	get anchor(): AnchorPosition { return this._anchor; }
+	get anchor(): AnchorPosition { return this._hoverPosition === HoverPosition.BELOW ? AnchorPosition.BELOW : AnchorPosition.ABOVE; }
 	get x(): number { return this._x; }
 	get y(): number { return this._y; }
 
@@ -64,11 +64,14 @@ export class HoverWidget extends Widget {
 		this._hoverPointer = options.showPointer ? $('div.workbench-hover-pointer') : undefined;
 		this._hover = this._register(new BaseHoverWidget());
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
+		if (options.compact) {
+			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
+		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
 
-		this._anchor = options.anchorPosition ?? AnchorPosition.ABOVE;
+		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -171,6 +174,16 @@ export class HoverWidget extends Widget {
 		// Get horizontal alignment and position
 		if (this._target.x !== undefined) {
 			this._x = this._target.x;
+		} else if (this._hoverPosition === HoverPosition.RIGHT) {
+			this._x = Math.max(...targetBounds.map(e => e.right));
+			if (this._hoverPointer) {
+				this._x = this._x + 5;
+			}
+		} else if (this._hoverPosition === HoverPosition.LEFT) {
+			this._x = Math.min(...targetBounds.map(e => e.left)) - this._hover.containerDomNode.clientWidth;
+			if (this._hoverPointer) {
+				this._x = this._x - 5;
+			}
 		} else {
 			const targetLeft = Math.min(...targetBounds.map(e => e.left));
 			if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
@@ -184,11 +197,13 @@ export class HoverWidget extends Widget {
 		// Get vertical alignment and position
 		if (this._target.y !== undefined) {
 			this._y = this._target.y;
-		} else if (this._anchor === AnchorPosition.ABOVE) {
+		} else if (this._hoverPosition === HoverPosition.RIGHT || this._hoverPosition === HoverPosition.LEFT) {
+			this._y = Math.max(...targetBounds.map(e => e.bottom));
+		} else if (this._hoverPosition === HoverPosition.ABOVE) {
 			const targetTop = Math.min(...targetBounds.map(e => e.top));
 			if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
 				const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
-				this._anchor = AnchorPosition.BELOW;
+				this._hoverPosition = HoverPosition.BELOW;
 				this._y = targetBottom - 2;
 			} else {
 				this._y = targetTop;
@@ -197,10 +212,40 @@ export class HoverWidget extends Widget {
 			const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
 			if (targetBottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
 				const targetTop = Math.min(...targetBounds.map(e => e.top));
-				this._anchor = AnchorPosition.ABOVE;
+				this._hoverPosition = HoverPosition.ABOVE;
 				this._y = targetTop;
 			} else {
 				this._y = targetBottom - 2;
+			}
+		}
+
+		if (this._hoverPointer) {
+
+			this._hoverPointer.classList.remove('top');
+			this._hoverPointer.classList.remove('left');
+			this._hoverPointer.classList.remove('right');
+			this._hoverPointer.classList.remove('bottom');
+
+			if (this._hoverPosition === HoverPosition.RIGHT) {
+				this._hoverPointer.classList.add('left');
+				this._hoverPointer.style.top = `${(this._hover.containerDomNode.clientHeight / 2) - 3}px`;
+			}
+
+			else if (this._hoverPosition === HoverPosition.LEFT) {
+				this._hoverPointer.classList.add('right');
+				this._hoverPointer.style.top = `${(this._hover.containerDomNode.clientHeight / 2) - 3}px`;
+			}
+
+			else if (this._hoverPosition === HoverPosition.BELOW) {
+				this._hoverPointer.classList.add('top');
+				this._hoverPointer.style.left = `${(this._hover.containerDomNode.clientWidth / 2) - 3}px`;
+				this._hoverPointer.style.left = `${targetBounds[0].width / 2}px`;
+			}
+
+			else if (this._hoverPosition === HoverPosition.ABOVE) {
+				this._hoverPointer.classList.add('bottom');
+				this._hoverPointer.style.left = `${(this._hover.containerDomNode.clientWidth / 2) - 3}px`;
+				this._hoverPointer.style.left = `${targetBounds[0].width / 2}px`;
 			}
 		}
 
@@ -221,7 +266,7 @@ export class HoverWidget extends Widget {
 			if (this._hoverPointer) {
 				this._hoverPointer.parentElement?.removeChild(this._hoverPointer);
 			}
-			this._hover.containerDomNode.parentElement?.removeChild(this.domNode);
+			this._hover.containerDomNode.parentElement?.removeChild(this._hover.containerDomNode);
 			this._messageListeners.dispose();
 			this._target.dispose();
 			super.dispose();

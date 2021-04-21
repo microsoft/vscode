@@ -23,9 +23,9 @@ import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/
 import { Codicon } from 'vs/base/common/codicons';
 import { IHoverService, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { domEvent } from 'vs/base/browser/event';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -127,12 +127,8 @@ export interface ICompositeBarColors {
 	dragAndDropBorder?: Color;
 }
 
-export const enum ActivityHoverAlignment {
-	LEFT, RIGHT, BELOW, ABOVE
-}
-
 export interface IActivityHoverOptions {
-	alignment: () => ActivityHoverAlignment;
+	position: () => HoverPosition;
 	delay: () => number;
 }
 
@@ -419,20 +415,19 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.hover.value) {
 			return;
 		}
-		const { left, right, bottom } = this.container.getBoundingClientRect();
-		const hoverAlignment = this.options.hoverOptions!.alignment();
-		const anchorPosition: AnchorPosition | undefined = hoverAlignment === ActivityHoverAlignment.ABOVE ? AnchorPosition.ABOVE : hoverAlignment === ActivityHoverAlignment.BELOW ? AnchorPosition.BELOW : undefined;
-		const target: IHoverTarget | HTMLElement = anchorPosition === undefined ? {
+		const { bottom } = this.container.getBoundingClientRect();
+		const hoverPosition = this.options.hoverOptions!.position();
+		const target: IHoverTarget | HTMLElement = hoverPosition === HoverPosition.LEFT || hoverPosition === HoverPosition.RIGHT ? {
 			targetElements: [this.container],
-			x: hoverAlignment === ActivityHoverAlignment.RIGHT ? right + 4 : left - 4,
 			y: bottom - 10,
 			dispose: () => { }
 		} : this.container;
 		this.hover.value = this.hoverService.showHover({
 			target,
-			anchorPosition,
+			hoverPosition,
 			text: this.computeTitle(),
 			showPointer: true,
+			compact: true
 		});
 	}
 

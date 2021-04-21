@@ -22,7 +22,7 @@ import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType } 
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity, ActivityHoverAlignment, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation, IViewsService, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined, isString } from 'vs/base/common/types';
@@ -43,6 +43,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { StringSHA1 } from 'vs/base/common/hash';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -221,7 +222,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private getActivityHoverOptions(): IActivityHoverOptions {
 		return {
-			alignment: () => this.layoutService.getSideBarPosition() === Position.LEFT ? ActivityHoverAlignment.RIGHT : ActivityHoverAlignment.LEFT,
+			position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
 			delay: () => 0
 		};
 	}
