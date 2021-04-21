@@ -647,9 +647,23 @@ export function registerTerminalActions() {
 			return accessor.get(ITerminalService).getActiveInstance()?.changeIcon();
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
+				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return getFocusedTabInstance(accessor)?.changeIcon();
+		}
+	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
 		command: {
-			id: TERMINAL_COMMAND_ID.CHANGE_ICON,
+			id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
 			title: localize('workbench.action.terminal.changeIcon', "Change Icon")
 		},
 		group: ContextMenuGroup.Edit
@@ -668,16 +682,30 @@ export function registerTerminalActions() {
 			return accessor.get(ITerminalService).getActiveInstance()?.rename();
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
+				title: { value: localize('workbench.action.terminal.rename', "Rename"), original: 'Rename' },
+				f1: false,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return getFocusedTabInstance(accessor)?.rename();
+		}
+	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
 		command: {
-			id: TERMINAL_COMMAND_ID.RENAME,
+			id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
 			title: localize('workbench.action.terminal.rename', "Rename")
 		},
 		group: ContextMenuGroup.Edit
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 		command: {
-			id: TERMINAL_COMMAND_ID.RENAME,
+			id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
 			title: localize('workbench.action.terminal.rename', "Rename")
 		},
 		group: ContextMenuGroup.Edit
@@ -1259,15 +1287,9 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const listService = accessor.get(IListService);
-			if (!listService.lastFocusedList?.getFocus()?.length) {
-				return;
-			}
-			const instance = listService.lastFocusedList?.getFocus()[0];
+			const instance = getFocusedTabInstance(accessor);
 			if (instance) {
-				terminalService.splitInstance(instance);
-				return;
+				accessor.get(ITerminalService).splitInstance(instance);
 			}
 		}
 	});
@@ -1434,17 +1456,14 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const listService = accessor.get(IListService);
-			if (!listService.lastFocusedList?.getFocus()?.length) {
-				return;
+			const instance = getFocusedTabInstance(accessor);
+			if (instance) {
+				const terminalService = accessor.get(ITerminalService);
+				instance.dispose(true);
+				if (terminalService.terminalInstances.length > 0) {
+					await terminalService.showPanel(true);
+				}
 			}
-			const instance = listService.lastFocusedList?.getFocus()[0];
-			instance.dispose(true);
-			if (terminalService.terminalInstances.length > 0) {
-				await terminalService.showPanel(true);
-			}
-			return;
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
@@ -1709,4 +1728,16 @@ export function registerTerminalActions() {
 
 interface IRemoteTerminalPick extends IQuickPickItem {
 	term: IRemoteTerminalAttachTarget;
+}
+
+function getFocusedTabInstance(accessor: ServicesAccessor): ITerminalInstance | undefined {
+	const listService = accessor.get(IListService);
+	if (!listService.lastFocusedList?.getFocus()?.length) {
+		return undefined;
+	}
+	const result = listService.lastFocusedList?.getFocus()[0];
+	if ('instanceId' in result) {
+		return result as ITerminalInstance;
+	}
+	return undefined;
 }
