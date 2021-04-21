@@ -113,6 +113,8 @@ export class BrowserDialogHandler implements IDialogHandler {
 				},
 				renderBody,
 				icon: customOptions?.icon,
+				disableCloseAction: customOptions?.disableCloseAction,
+				buttonDetails: customOptions?.buttonDetails,
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
 				inputs
