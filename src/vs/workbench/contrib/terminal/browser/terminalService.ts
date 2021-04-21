@@ -117,8 +117,8 @@ export class TerminalService implements ITerminalService {
 	public get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
-	private readonly _onDidAvailableProfilesChange = new Emitter<ITerminalProfile[]>();
-	public get onDidAvailableProfilesChange(): Event<ITerminalProfile[]> { return this._onDidAvailableProfilesChange.event; }
+	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
+	public get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
 	private readonly _onPanelMovedToSide = new Emitter<void>();
 	public get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
 
@@ -323,7 +323,7 @@ export class TerminalService implements ITerminalService {
 				// let external listeners know there was a change
 				// external requestors listen to this event so firing it would
 				// cause a cycle
-				this._onDidAvailableProfilesChange.fire(this._availableProfiles);
+				this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			}
 		}
 	}

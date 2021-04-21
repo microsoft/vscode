@@ -88,7 +88,7 @@ export class TerminalViewPane extends ViewPane {
 		});
 
 		this._dropdownMenu = this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService);
-		this._terminalService.onDidAvailableProfilesChange(profiles => this._updateTabActionBar(profiles));
+		this._terminalService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles));
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -280,7 +280,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onTabDisposed(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
-		this._register(_terminalService.onDidAvailableProfilesChange(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 

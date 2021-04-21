@@ -84,7 +84,7 @@ export interface ITerminalService {
 	terminalTabs: ITerminalTab[];
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
-	availableProfiles: ITerminalProfile[];
+	readonly availableProfiles: ITerminalProfile[];
 
 	initializeTerminals(): Promise<void>;
 	onActiveTabChanged: Event<void>;
@@ -102,7 +102,7 @@ export interface ITerminalService {
 	onRequestAvailableProfiles: Event<IAvailableProfilesRequest>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
-	onDidAvailableProfilesChange: Event<ITerminalProfile[]>;
+	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	onPanelMovedToSide: Event<void>;
 
 	/**
