@@ -228,7 +228,7 @@ export interface IEditorService {
 	 * is opened in different editors. To find the specific editor,
 	 * either check on the `typeId` or do an `instanceof` check.
 	 */
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): IEditorInput[];
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput>;
 
 	/**
 	 * Get all available editor overrides for the editor input.

@@ -498,7 +498,7 @@ export interface IEditorGroup {
 	 *
 	 * @param resource The resource of the editor to find
 	 */
-	findEditors(resource: URI): Array<IEditorInput>;
+	findEditors(resource: URI): ReadonlyArray<IEditorInput>;
 
 	/**
 	 * Returns the editor at a specific index of the group.

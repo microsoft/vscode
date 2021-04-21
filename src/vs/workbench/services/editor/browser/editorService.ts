@@ -847,6 +847,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(editor: IResourceEditorInput): boolean;
+	isOpen(editor: IEditorInput | IResourceEditorInput): boolean;
 	isOpen(editor: IEditorInput | IResourceEditorInput): boolean {
 		if (editor instanceof EditorInput) {
 			return this.editorGroupService.groups.some(group => group.isOpened(editor));
@@ -863,7 +864,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region findEditors()
 
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): IEditorInput[] {
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput> {
 		if (!this.isOpen({ resource })) {
 			return [];
 		}
@@ -1319,14 +1320,14 @@ export class DelegatingEditorService implements IEditorService {
 	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 	replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
-		return this.editorService.replaceEditors(editors as IResourceEditorReplacement[] /* TS fail */, group);
+		return this.editorService.replaceEditors(editors, group);
 	}
 
 	isOpen(editor: IEditorInput): boolean;
 	isOpen(editor: IResourceEditorInput): boolean;
-	isOpen(editor: IEditorInput | IResourceEditorInput): boolean { return this.editorService.isOpen(editor as IResourceEditorInput /* TS fail */); }
+	isOpen(editor: IEditorInput | IResourceEditorInput): boolean { return this.editorService.isOpen(editor); }
 
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier) { return this.editorService.findEditors(resource, group); }
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput> { return this.editorService.findEditors(resource, group); }
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable { return this.editorService.overrideOpenEditor(handler); }
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) { return this.editorService.getEditorOverrides(resource, options, group); }
