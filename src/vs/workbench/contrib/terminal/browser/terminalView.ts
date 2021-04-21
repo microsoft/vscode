@@ -88,6 +88,7 @@ export class TerminalViewPane extends ViewPane {
 		});
 
 		this._dropdownMenu = this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService);
+		this._terminalService.onDidAvailableProfilesChange(profiles => this._updateTabActionBar(profiles));
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -142,7 +143,6 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
-		this._terminalService.onDidAvailableProfilesChange(profiles => this._updateTabActionBar(profiles));
 	}
 
 	private _createTabsView(): void {
