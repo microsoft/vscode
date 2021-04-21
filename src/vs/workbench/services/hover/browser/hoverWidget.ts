@@ -176,14 +176,8 @@ export class HoverWidget extends Widget {
 			this._x = this._target.x;
 		} else if (this._hoverPosition === HoverPosition.RIGHT) {
 			this._x = Math.max(...targetBounds.map(e => e.right));
-			if (this._hoverPointer) {
-				this._x = this._x + 5;
-			}
 		} else if (this._hoverPosition === HoverPosition.LEFT) {
-			this._x = Math.min(...targetBounds.map(e => e.left)) - this._hover.containerDomNode.clientWidth;
-			if (this._hoverPointer) {
-				this._x = this._x - 5;
-			}
+			this._x = Math.min(...targetBounds.map(e => e.left)) - this._hover.containerDomNode.clientWidth - 1;
 		} else {
 			const targetLeft = Math.min(...targetBounds.map(e => e.left));
 			if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
