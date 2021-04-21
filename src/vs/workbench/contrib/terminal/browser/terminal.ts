@@ -582,9 +582,4 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to rename this terminal.
 	 */
 	changeIcon(): Promise<void>;
-
-	/**
-	 * Allows the user to configure this terminal.
-	 */
-	configure(): Promise<void>;
 }

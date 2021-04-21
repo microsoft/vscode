@@ -633,57 +633,6 @@ export function registerTerminalActions() {
 			}
 		}
 	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TERMINAL_COMMAND_ID.CONFIGURE,
-				title: { value: localize('workbench.action.terminal.configure', "Configure Active Terminal"), original: 'Configure Active Terminal' },
-				f1: true,
-				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
-				description: {
-					description: 'workbench.action.terminal.configure',
-					args: [{
-						name: 'instance',
-						schema: {
-							type: 'object'
-						}
-					}]
-				},
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			return terminalService.getActiveInstance()?.configure();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TERMINAL_COMMAND_ID.CONFIGURE,
-				title: { value: localize('workbench.action.terminal.configureWithInstance', "Configure"), original: 'Configure' },
-				f1: false,
-				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			const listService = accessor.get(IListService);
-			if (!listService.lastFocusedList?.getFocus()?.length) {
-				return;
-			}
-			const instance = listService.lastFocusedList?.getFocus()[0];
-			return instance.configure();
-		}
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.CONFIGURE,
-			title: localize('workbench.action.terminal.configureAction', "Configure")
-		},
-		group: ContextMenuGroup.Edit
-	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -698,6 +647,13 @@ export function registerTerminalActions() {
 			return accessor.get(ITerminalService).getActiveInstance()?.changeIcon();
 		}
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.CHANGE_ICON,
+			title: localize('workbench.action.terminal.changeIcon', "Change Icon")
+		},
+		group: ContextMenuGroup.Edit
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -711,6 +667,13 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			return accessor.get(ITerminalService).getActiveInstance()?.rename();
 		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.RENAME,
+			title: localize('workbench.action.terminal.rename', "Rename")
+		},
+		group: ContextMenuGroup.Edit
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 		command: {

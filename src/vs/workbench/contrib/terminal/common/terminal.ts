@@ -454,7 +454,6 @@ export const enum TERMINAL_COMMAND_ID {
 	SCROLL_TO_TOP = 'workbench.action.terminal.scrollToTop',
 	CLEAR = 'workbench.action.terminal.clear',
 	CLEAR_SELECTION = 'workbench.action.terminal.clearSelection',
-	CONFIGURE = 'workbench.action.terminal.configureActive',
 	CHANGE_ICON = 'workbench.action.terminal.changeIcon',
 	RENAME = 'workbench.action.terminal.rename',
 	RENAME_WITH_ARG = 'workbench.action.terminal.renameWithArg',
