@@ -1169,33 +1169,6 @@ suite('Notebook API tests', function () {
 		await closeAllEditors();
 	});
 
-	test('#116598, output items change event.', async function () {
-
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-
-		const edit = new vscode.WorkspaceEdit();
-		edit.appendNotebookCellOutput(resource, 0, [new vscode.NotebookCellOutput([
-			new vscode.NotebookCellOutputItem('application/foo', 'bar'),
-			new vscode.NotebookCellOutputItem('application/json', { data: true }, { metadata: true }),
-		])]);
-		await vscode.workspace.applyEdit(edit);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0).outputs.length, 1);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0).outputs[0].outputs.length, 2);
-
-		const appendEdit = new vscode.WorkspaceEdit();
-		const newItem = new vscode.NotebookCellOutputItem('text/plain', '1');
-		appendEdit.appendNotebookCellOutputItems(
-			resource,
-			0,
-			vscode.window.activeNotebookEditor!.document.cellAt(0).outputs[0].id,
-			[newItem]
-		);
-		await vscode.workspace.applyEdit(appendEdit);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0).outputs[0].outputs.length, 3);
-		assert.deepStrictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0).outputs[0].outputs[2], newItem);
-	});
-
 	test('#115855 onDidSaveNotebookDocument', async function () {
 		const resource = await createRandomNotebookFile();
 		const notebook = await vscode.notebook.openNotebookDocument(resource);

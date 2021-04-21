@@ -706,30 +706,6 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		}
 	}
 
-	replaceNotebookCellOutput(uri: URI, index: number, outputs: vscode.NotebookCellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._editNotebookCellOutput(uri, index, false, outputs, metadata);
-	}
-
-	appendNotebookCellOutput(uri: URI, index: number, outputs: vscode.NotebookCellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._editNotebookCellOutput(uri, index, true, outputs, metadata);
-	}
-
-	replaceNotebookCellOutputItems(uri: URI, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._editNotebookCellOutputItems(uri, index, outputId, false, items, metadata);
-	}
-
-	appendNotebookCellOutputItems(uri: URI, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._editNotebookCellOutputItems(uri, index, outputId, true, items, metadata);
-	}
-
-	private _editNotebookCellOutputItems(uri: URI, index: number, id: string, append: boolean, items: vscode.NotebookCellOutputItem[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
-		this._edits.push({ _type: FileEditType.CellOutputItem, metadata, uri, index, outputId: id, append, newOutputItems: items });
-	}
-
-	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: vscode.NotebookCellOutput[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
-		this._edits.push({ _type: FileEditType.CellOutput, metadata, uri, index, append, newOutputs: outputs, newMetadata: undefined });
-	}
-
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
 	}
