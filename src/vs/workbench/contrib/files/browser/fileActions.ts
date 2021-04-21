@@ -443,7 +443,6 @@ export class GlobalCompareResourcesAction extends Action {
 		label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super(id, label);
@@ -490,8 +489,6 @@ export class GlobalCompareResourcesAction extends Action {
 
 			// Bring up quick access
 			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
-		} else {
-			this.notificationService.warn(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
 	}
 }
