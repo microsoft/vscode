@@ -120,9 +120,6 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				try {
 					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
-					// Set trust for the workspace file
-					this.trustWorkspaceConfiguration(newWorkspacePath);
-
 					// Make sure to add the new workspace to the history to find it again
 					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
 					await this.workspacesService.addRecentlyOpened([{

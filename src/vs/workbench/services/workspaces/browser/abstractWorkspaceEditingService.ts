@@ -206,9 +206,6 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		if (path) {
 			try {
 				await this.saveWorkspaceAs(untitledWorkspace, path);
-
-				// Set trust for the workspace file
-				this.trustWorkspaceConfiguration(path);
 			} finally {
 				await this.workspacesService.deleteUntitledWorkspace(untitledWorkspace); // https://github.com/microsoft/vscode/issues/100276
 			}
@@ -238,9 +235,6 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 		await this.saveWorkspaceAs(workspaceIdentifier, path);
 
-		// Set trust for the workspace file
-		this.trustWorkspaceConfiguration(path);
-
 		return this.enterWorkspace(path);
 	}
 
@@ -262,6 +256,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const raw = await this.fileService.readFile(configPathURI);
 		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI, this.uriIdentityService.extUri);
 		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
+
+		// Set trust for the workspace file
+		this.trustWorkspaceConfiguration(targetConfigPathURI);
 	}
 
 	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -362,7 +359,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		return this.jsonEditingService.write(toWorkspace.configPath, [{ path: ['settings'], value: targetWorkspaceConfiguration }], true);
 	}
 
-	protected trustWorkspaceConfiguration(configPathURI: URI): void {
+	private trustWorkspaceConfiguration(configPathURI: URI): void {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 			this.workspaceTrustManagementService.setFoldersTrust([dirname(configPathURI)], true);
 		}
