@@ -343,8 +343,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
 
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
-		DOM.hide(statusBar.durationContainer);
-		DOM.hide(statusBar.cellRunStatusContainer);
 
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
@@ -717,8 +715,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		disposables.add(progressBar);
 
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
-		const timer = new TimerRenderer(statusBar.durationContainer);
-		const cellRunState = new RunStateRenderer(statusBar.cellRunStatusContainer);
 
 		const outputContainer = DOM.append(container, $('.output'));
 		const outputShowMoreContainer = DOM.append(container, $('.output-show-more-container'));
@@ -742,7 +738,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			container,
 			decorationContainer,
 			cellContainer,
-			cellRunState,
 			progressBar,
 			statusBar,
 			focusIndicatorLeft: focusIndicator,
@@ -761,7 +756,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			disposables,
 			elementDisposables: new DisposableStore(),
 			bottomCellContainer,
-			timer,
 			titleMenu,
 			dragHandle,
 			toJSON: () => { return {}; }
@@ -832,26 +826,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const metadata = element.metadata;
 		this.updateExecutionOrder(metadata, templateData);
-
-		templateData.cellRunState.renderState(element.metadata?.runState, () => {
-			if (!this.notebookEditor.viewModel) {
-				return -1;
-			}
-
-			return this.notebookEditor.viewModel.getCellIndex(element);
-		}, element.metadata?.lastRunSuccess);
-
-		if (metadata.runState === NotebookCellExecutionState.Executing) {
-			if (metadata.runStartTime) {
-				templateData.elementDisposables.add(templateData.timer.start(metadata.runStartTime, metadata.runStartTimeAdjustment ?? 0));
-			} else {
-				templateData.timer.clear();
-			}
-		} else if (metadata.runState !== NotebookCellExecutionState.Pending && metadata.runStartTime && metadata.runEndTime) {
-			templateData.timer.show(metadata.runEndTime - metadata.runStartTime);
-		} else {
-			templateData.timer.clear();
-		}
 
 		if (metadata.runState === NotebookCellExecutionState.Executing) {
 			templateData.progressBar.infinite().show(500);
@@ -951,7 +925,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.updateForLayout(element, templateData);
 		}));
 
-		templateData.cellRunState.clear();
 		this.updateForMetadata(element, templateData, cellEditorOptions);
 		this.updateForHover(element, templateData);
 		this.updateForFocus(element, templateData);

@@ -425,10 +425,6 @@
 	z-index: 26;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
-	flex-direction: row-reverse;
-}
-
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right .cell-contributed-items {
 	justify-content: flex-end;
 }
@@ -944,6 +940,10 @@
 
 .cell-contributed-items.cell-contributed-items-left {
 	margin-left: 4px;
+}
+
+.cell-contributed-items.cell-contributed-items-right {
+	flex-direction: row-reverse;
 }
 
 .monaco-workbench .notebookOverlay .output .error::-webkit-scrollbar,

@@ -752,7 +752,7 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.mixinMetadata({
 					runState: extHostTypes.NotebookCellExecutionState.Executing,
-					runStartTime: context?.startTime
+					runStartTime: context?.startTime ?? null
 				});
 			},
 
