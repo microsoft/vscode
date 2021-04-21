@@ -48,16 +48,17 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 	private discardBackupJoiners: Function[];
 	discardedBackups: IWorkingCopyIdentifier[];
 	private pendingBackupsArr: Promise<void>[];
+	private diskFileSystemProvider: DiskFileSystemProvider;
 
 	constructor(testDir: string, workspaceBackupPath: string) {
 		const environmentService = new TestWorkbenchEnvironmentService(testDir, workspaceBackupPath);
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
-		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService));
-
 		super(environmentService, fileService, logService);
+
+		this.diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		fileService.registerProvider(Schemas.file, this.diskFileSystemProvider);
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.userData, logService));
 
 		this.fileService = fileService;
 		this.backupResourceJoiners = [];
@@ -109,6 +110,10 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 
 		return fileContents.value.toString();
 	}
+
+	dispose() {
+		this.diskFileSystemProvider.dispose();
+	}
 }
 
 suite('WorkingCopyBackupService', () => {
@@ -142,6 +147,7 @@ suite('WorkingCopyBackupService', () => {
 	});
 
 	teardown(() => {
+		service.dispose();
 		return rimraf(testDir);
 	});
 
