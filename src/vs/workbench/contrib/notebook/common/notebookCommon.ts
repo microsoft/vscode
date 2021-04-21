@@ -67,6 +67,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 export interface NotebookDocumentMetadata {
 	custom?: { [key: string]: unknown };
 	trusted: boolean;
+	[key: string]: unknown;
 }
 
 export enum NotebookCellExecutionState {
@@ -90,7 +91,11 @@ export interface NotebookCellMetadata {
 	runEndTime?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
-	custom?: { [key: string]: unknown };
+
+	/**
+	 * custom metadata
+	 */
+	[key: string]: unknown;
 }
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
