@@ -1274,16 +1274,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.splitWithInstance', "Split"), original: 'Split' },
 				f1: false,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
-				keybinding: [{
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
-					weight: KeybindingWeight.WorkbenchContrib,
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
-					},
-					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
-				}],
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor) {
