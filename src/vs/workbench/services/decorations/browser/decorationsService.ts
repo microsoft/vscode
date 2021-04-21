@@ -77,7 +77,6 @@ class DecorationRule {
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 		// icon
 		if (ThemeIcon.isThemeIcon(letter)) {
-			console.log('letter', letter);
 			this._createIconCSSRule(letter, color, element, theme);
 		}
 		// letter
@@ -92,10 +91,8 @@ class DecorationRule {
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 
 		// icon (only show first)
-		console.log('data', data);
 		const icon = data.find(d => ThemeIcon.isThemeIcon(d.letter))?.letter as ThemeIcon | undefined;
 		if (icon) {
-			console.log('icon', icon);
 			this._createIconCSSRule(icon, color, element, theme);
 		} else {
 			// badge
