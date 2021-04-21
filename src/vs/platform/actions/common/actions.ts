@@ -156,8 +156,9 @@ export class MenuId {
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly PanelTitle = new MenuId('PanelTitle');
-	static readonly TerminalContext = new MenuId('TerminalContext');
-	static readonly TerminalTabsContext = new MenuId('TerminalTabsContext');
+	static readonly TerminalContainerContext = new MenuId('TerminalContainerContext');
+	static readonly TerminalToolbarContext = new MenuId('TerminalToolbarContext');
+	static readonly TerminalTabsWidgetContext = new MenuId('TerminalTabsWidgetContext');
 
 	readonly id: number;
 	readonly _debugName: string;
