@@ -308,10 +308,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
 
-	private readonly _onDidChangeKernels = this._register(new Emitter<URI | undefined>());
-	onDidChangeKernels: Event<URI | undefined> = this._onDidChangeKernels.event;
-	private readonly _onDidChangeNotebookActiveKernel = this._register(new Emitter<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }>());
-	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }> = this._onDidChangeNotebookActiveKernel.event;
 	private _cutItems: NotebookCellTextModel[] | undefined;
 	private _lastClipboardIsCopy: boolean = true;
 

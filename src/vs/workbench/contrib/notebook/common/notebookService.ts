@@ -63,9 +63,6 @@ export interface INotebookService {
 	onDidRemoveNotebookDocument: Event<URI>;
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
 
-	onDidChangeKernels: Event<URI | undefined>;
-	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }>;
-
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
 	withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
