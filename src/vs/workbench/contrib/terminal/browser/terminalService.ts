@@ -113,8 +113,8 @@ export class TerminalService implements ITerminalService {
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
-	private readonly _onProfilesConfigChanged = new Emitter<void>();
-	public get onProfilesConfigChanged(): Event<void> { return this._onProfilesConfigChanged.event; }
+	private readonly _onProfilesConfigChanged = new Emitter<ITerminalProfile[]>();
+	public get onProfilesConfigChanged(): Event<ITerminalProfile[]> { return this._onProfilesConfigChanged.event; }
 	private readonly _onPanelMovedToSide = new Emitter<void>();
 	public get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
 	private readonly _localTerminalService?: ILocalTerminalService;
@@ -313,7 +313,7 @@ export class TerminalService implements ITerminalService {
 		const result = await this._detectProfiles(true);
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
-			this._onProfilesConfigChanged.fire();
+			this._onProfilesConfigChanged.fire(this._availableProfiles);
 		}
 	}
 
@@ -683,7 +683,6 @@ export class TerminalService implements ITerminalService {
 				await instance.focusWhenReady(true);
 			}
 		}
-		this._onProfilesConfigChanged.fire();
 	}
 
 	private _getIndexFromId(terminalId: number): number {
