@@ -984,8 +984,21 @@ declare module 'vscode' {
 		 */
 		readonly [key: string]: any;
 
+		/**
+		 * Create a new notebook cell metadata.
+		 *
+		 * @param inputCollapsed Whether a code cell's editor is collapsed
+		 * @param outputCollapsed Whether a code cell's outputs are collapsed
+		 */
 		constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
 
+		/**
+		 * Derived a new cell metadata from this metadata.
+		 *
+		 * @param change An object that describes a change to this NotebookCellMetadata.
+		 * @return A new NotebookCellMetadata that reflects the given change. Will return `this` NotebookCellMetadata if the change
+		 *  is not changing anything.
+		 */
 		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, [key: string]: any }): NotebookCellMetadata;
 	}
 
@@ -1019,8 +1032,19 @@ declare module 'vscode' {
 		 */
 		readonly [key: string]: any;
 
+		/**
+		 * Create a new notebook document metadata
+		 * @param trusted Whether the document metadata is trusted.
+		 */
 		constructor(trusted?: boolean);
 
+		/**
+		 * Derived a new document metadata from this metadata.
+		 *
+		 * @param change An object that describes a change to this NotebookDocumentMetadata.
+		 * @return A new NotebookDocumentMetadata that reflects the given change. Will return `this` NotebookDocumentMetadata if the change
+		 *  is not changing anything.
+		 */
 		with(change: { trusted?: boolean | null, [key: string]: any }): NotebookDocumentMetadata
 	}
 
@@ -1042,17 +1066,6 @@ declare module 'vscode' {
 		* Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 		*/
 		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
-	}
-
-	export interface NotebookDocumentContentOptions {
-		/**
-		 * Not ready for production or development use yet.
-		 */
-		viewOptions?: {
-			displayName: string;
-			filenamePattern: NotebookFilenamePattern[];
-			exclusive?: boolean;
-		};
 	}
 
 	/**
@@ -1178,6 +1191,7 @@ declare module 'vscode' {
 		 * The range will be revealed with as little scrolling as possible.
 		 */
 		Default = 0,
+
 		/**
 		 * The range will always be revealed in the center of the viewport.
 		 */
@@ -1677,6 +1691,17 @@ declare module 'vscode' {
 
 		// todo@API use NotebookData instead
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
+	}
+
+	export interface NotebookDocumentContentOptions {
+		/**
+		 * Not ready for production or development use yet.
+		 */
+		viewOptions?: {
+			displayName: string;
+			filenamePattern: NotebookFilenamePattern[];
+			exclusive?: boolean;
+		};
 	}
 
 	export namespace notebook {
