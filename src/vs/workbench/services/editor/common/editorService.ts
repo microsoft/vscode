@@ -213,15 +213,19 @@ export interface IEditorService {
 	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
+	 *
+	 * Note: This method will return `true` if a side by side editor
+	 * is opened where the `primary` editor matches too.
 	 */
-	isOpened(editor: IEditorInput): boolean;
 	isOpened(editor: IResourceEditorInputIdentifier): boolean;
 
 	/**
-	 * Find the existing editors for a given resource. It is possible
-	 * that multiple editors are returned in case the same resource
-	 * is opened in different editors. To find the specific editor,
-	 * either check on the `typeId` or do an `instanceof` check.
+	 * This method will return an entry for each editor that reports
+	 * a `resource` that matches the provided one in the group.
+	 *
+	 * It is possible that multiple editors are returned in case the
+	 * same resource is opened in different editors. To find the specific
+	 * editor, either check on the `typeId` or do an `instanceof` check.
 	 */
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput>;
 

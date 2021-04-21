@@ -181,8 +181,7 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup.count, 1);
 
 		assert.strictEqual(service.isOpened(input), false);
-		assert.strictEqual(service.isOpened(otherInput), false);
-		assert.strictEqual(service.isOpened(sideBySideInput), true);
+		assert.strictEqual(service.isOpened(otherInput), true);
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
 		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
 
@@ -190,8 +189,7 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup.count, 2);
 
 		assert.strictEqual(service.isOpened(input), true);
-		assert.strictEqual(service.isOpened(otherInput), false);
-		assert.strictEqual(service.isOpened(sideBySideInput), true);
+		assert.strictEqual(service.isOpened(otherInput), true);
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), true);
 		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
 
@@ -199,8 +197,7 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup.count, 1);
 
 		assert.strictEqual(service.isOpened(input), false);
-		assert.strictEqual(service.isOpened(otherInput), false);
-		assert.strictEqual(service.isOpened(sideBySideInput), true);
+		assert.strictEqual(service.isOpened(otherInput), true);
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
 		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
 
@@ -208,7 +205,6 @@ suite('EditorService', () => {
 
 		assert.strictEqual(service.isOpened(input), false);
 		assert.strictEqual(service.isOpened(otherInput), false);
-		assert.strictEqual(service.isOpened(sideBySideInput), false);
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
 		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), false);
 	});

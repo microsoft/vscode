@@ -553,10 +553,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// (including being visible in side by side / diff editors) and as such we
 		// only dispose when they are not opened elsewhere.
 		for (const editor of editorsToClose) {
-			if (!this.accessor.groups.some(groupView => groupView.contains(editor, {
-				strictEquals: true,		// only if this input is not shared across editor groups
-				supportSideBySide: true // include side by side editor primary & secondary
-			}))) {
+			if (this.canDispose(editor)) {
 				editor.dispose();
 			}
 		}
@@ -576,6 +573,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Event
 		this._onDidCloseEditor.fire(event);
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
+	}
+
+	private canDispose(editor: EditorInput): boolean {
+		for (const groupView of this.accessor.groups) {
+			if (groupView instanceof EditorGroupView && groupView.model.contains(editor, {
+				strictEquals: true,		// only if this input is not shared across editor groups
+				supportSideBySide: true // include side by side editor primary & secondary
+			})) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {
@@ -799,8 +809,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isActive(editor);
 	}
 
-	contains(candidate: EditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
-		return this.model.contains(candidate, options);
+	contains(candidate: EditorInput): boolean {
+		return this.model.contains(candidate);
 	}
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {

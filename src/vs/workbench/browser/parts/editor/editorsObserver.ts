@@ -39,7 +39,7 @@ export class EditorsObserver extends Disposable {
 
 	private readonly keyMap = new Map<GroupIdentifier, Map<IEditorInput, IEditorIdentifier>>();
 	private readonly mostRecentEditorsMap = new LinkedMap<IEditorIdentifier, IEditorIdentifier>();
-	private readonly editorsByResourceMap = new ResourceMap<Map<string /* type ID */, number /* counter */>>();
+	private readonly editorsPerResourceCounter = new ResourceMap<Map<string /* type ID */, number /* counter */>>();
 
 	private readonly _onDidMostRecentlyActiveEditorsChange = this._register(new Emitter<void>());
 	readonly onDidMostRecentlyActiveEditorsChange = this._onDidMostRecentlyActiveEditorsChange.event;
@@ -53,13 +53,13 @@ export class EditorsObserver extends Disposable {
 	}
 
 	hasEditor(editor: IResourceEditorInputIdentifier): boolean {
-		const editors = this.editorsByResourceMap.get(editor.resource);
+		const editors = this.editorsPerResourceCounter.get(editor.resource);
 
 		return editors?.has(editor.typeId) ?? false;
 	}
 
 	hasEditors(resource: URI): boolean {
-		return this.editorsByResourceMap.has(resource);
+		return this.editorsPerResourceCounter.has(resource);
 	}
 
 	constructor(
@@ -192,6 +192,9 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private updateEditorResourcesMap(editor: IEditorInput, add: boolean): void {
+
+		// Distill the editor resource and type id with support
+		// for side by side editor's primary side too.
 		let resource: URI | undefined = undefined;
 		let typeId: string | undefined = undefined;
 		if (editor instanceof SideBySideEditorInput) {
@@ -208,10 +211,10 @@ export class EditorsObserver extends Disposable {
 
 		// Add entry
 		if (add) {
-			let editorsPerResource = this.editorsByResourceMap.get(resource);
+			let editorsPerResource = this.editorsPerResourceCounter.get(resource);
 			if (!editorsPerResource) {
 				editorsPerResource = new Map<string, number>();
-				this.editorsByResourceMap.set(resource, editorsPerResource);
+				this.editorsPerResourceCounter.set(resource, editorsPerResource);
 			}
 
 			editorsPerResource.set(typeId, (editorsPerResource.get(typeId) ?? 0) + 1);
@@ -219,13 +222,17 @@ export class EditorsObserver extends Disposable {
 
 		// Remove entry
 		else {
-			const editorsPerResource = this.editorsByResourceMap.get(resource);
+			const editorsPerResource = this.editorsPerResourceCounter.get(resource);
 			if (editorsPerResource) {
 				const counter = editorsPerResource.get(typeId) ?? 0;
 				if (counter > 1) {
 					editorsPerResource.set(typeId, counter - 1);
 				} else {
-					this.editorsByResourceMap.delete(resource);
+					editorsPerResource.delete(typeId);
+
+					if (editorsPerResource.size === 0) {
+						this.editorsPerResourceCounter.delete(resource);
+					}
 				}
 			}
 		}

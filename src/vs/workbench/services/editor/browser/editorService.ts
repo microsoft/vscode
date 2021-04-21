@@ -845,22 +845,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region isOpened()
 
-	isOpened(editor: IEditorInput): boolean;
-	isOpened(editor: IResourceEditorInputIdentifier): boolean;
-	isOpened(editor: IEditorInput | IResourceEditorInputIdentifier): boolean;
-	isOpened(editor: IEditorInput | IResourceEditorInputIdentifier): boolean {
-		if (editor instanceof EditorInput) {
-			return this.editorGroupService.groups.some(group => group.contains(editor));
-		}
-
-		if (editor.resource) {
-			return this.editorsObserver.hasEditor({
-				resource: this.asCanonicalEditorResource(editor.resource),
-				typeId: editor.typeId
-			});
-		}
-
-		return false;
+	isOpened(editor: IResourceEditorInputIdentifier): boolean {
+		return this.editorsObserver.hasEditor({
+			resource: this.asCanonicalEditorResource(editor.resource),
+			typeId: editor.typeId
+		});
 	}
 
 	//#endregion
@@ -1326,9 +1315,7 @@ export class DelegatingEditorService implements IEditorService {
 		return this.editorService.replaceEditors(editors, group);
 	}
 
-	isOpened(editor: IEditorInput): boolean;
-	isOpened(editor: IResourceEditorInputIdentifier): boolean;
-	isOpened(editor: IEditorInput | IResourceEditorInputIdentifier): boolean { return this.editorService.isOpened(editor); }
+	isOpened(editor: IResourceEditorInputIdentifier): boolean { return this.editorService.isOpened(editor); }
 
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput> { return this.editorService.findEditors(resource, group); }
 

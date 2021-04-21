@@ -550,12 +550,8 @@ export interface IEditorGroup {
 	 * Find out if a certain editor is included in the group.
 	 *
 	 * @param candidate the editor to find
-	 * @param options with `supportSideBySide: true`, will also
-	 * consider each editor of a side by side editor as matching
-	 * and with `strictEquals: true` will require strict `===`
-	 * check instead of the `IEditorInput#matches()` method.
 	 */
-	contains(candidate: IEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean;
+	contains(candidate: IEditorInput): boolean;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
