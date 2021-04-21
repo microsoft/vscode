@@ -7,17 +7,18 @@ import { Schemas } from 'vs/base/common/network';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { customEditorInputFactory, CustomEditorInputSerializer } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditor } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
+import { Extensions } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { CustomEditorInput } from './customEditorInput';
 import { CustomEditorService } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors)
+Registry.as<IEditorRegistry>(Extensions.Editors)
 	.registerEditor(
 		EditorDescriptor.create(
 			WebviewEditor,

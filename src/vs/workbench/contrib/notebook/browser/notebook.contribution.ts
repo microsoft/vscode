@@ -20,7 +20,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -49,6 +49,8 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { Extensions as EditorExtensions } from 'vs/workbench/services/editor/common/editorOverrideService';
+
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';

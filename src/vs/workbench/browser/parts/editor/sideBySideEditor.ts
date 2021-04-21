@@ -11,13 +11,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { IEditorRegistry } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined } from 'vs/base/common/types';
+import { Extensions as EditorExtensions } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export class SideBySideEditor extends EditorPane {
 

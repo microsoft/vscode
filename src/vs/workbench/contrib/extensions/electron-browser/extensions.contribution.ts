@@ -12,7 +12,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { RuntimeExtensionsEditor, IExtensionHostProfileService, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { DebugExtensionHostAction } from 'vs/workbench/contrib/extensions/electron-browser/debugExtensionHostAction';
@@ -27,6 +27,7 @@ import { IExtensionRecommendationNotificationService } from 'vs/platform/extensi
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 import { Codicon } from 'vs/base/common/codicons';
+import { Extensions as EditorExtensions } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
