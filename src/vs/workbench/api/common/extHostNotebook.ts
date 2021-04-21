@@ -27,6 +27,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { hash } from 'vs/base/common/hash';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { Cache } from 'vs/workbench/api/common/cache';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 
 export class NotebookEditorDecorationType {
@@ -185,7 +186,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		}
 	): vscode.Disposable {
-
+		if (isFalsyOrWhitespace(viewType)) {
+			throw new Error(`viewType cannot be empty or just whitespace`);
+		}
 		if (this._notebookContentProviders.has(viewType)) {
 			throw new Error(`Notebook provider for '${viewType}' already registered`);
 		}
@@ -332,6 +335,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _notebookSerializer = new Map<number, vscode.NotebookSerializer>();
 
 	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions): vscode.Disposable {
+		if (isFalsyOrWhitespace(viewType)) {
+			throw new Error(`viewType cannot be empty or just whitespace`);
+		}
 		const handle = this._handlePool++;
 		this._notebookSerializer.set(handle, serializer);
 		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
