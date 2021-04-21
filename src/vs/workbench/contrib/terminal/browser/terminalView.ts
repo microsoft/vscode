@@ -23,7 +23,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfile, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -32,8 +32,8 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -61,7 +61,6 @@ export class TerminalViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService
@@ -191,7 +190,7 @@ export class TerminalViewPane extends ViewPane {
 				this._tabButtons.dispose();
 			}
 			const actions = this._getInitialTabActionBarArgs();
-			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, this._keybindingService, this._notificationService, actions.dropdownIcon || 'codicon-chevron-down');
+			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, actions.dropdownIcon || 'codicon-chevron-down');
 			return this._tabButtons;
 		}
 		return super.getActionViewItem(action);
@@ -364,23 +363,27 @@ function getProfileSelectOptionItems(terminalService: ITerminalService): ISelect
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
-	private _primaryAction: MenuEntryActionViewItem;
+	private _primaryAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 
 	constructor(
-		primaryAction: MenuItemAction,
-		dropdownAction: MenuItemAction,
+		primaryAction: IAction,
+		dropdownAction: IAction,
 		dropdownMenuActions: IAction[],
 		private readonly _className: string,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@INotificationService private readonly _notificationService: INotificationService,
+		private readonly _contextMenuProvider: IContextMenuProvider,
 		dropdownIcon?: string
 	) {
 		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, this._keybindingService, this._notificationService);
-		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, _contextMenuService, { menuAsChild: true, classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'] });
+		this._primaryAction = new ActionViewItem(undefined, primaryAction, {
+			icon: true,
+			label: false
+		});
+		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
+			menuAsChild: true,
+			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down']
+		});
 	}
 
 	override render(container: HTMLElement): void {
@@ -395,7 +398,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 
 	update(dropdownAction: MenuItemAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
 		this._dropdown?.dispose();
-		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'] });
+		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
+			menuAsChild: true,
+			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down']
+		});
 		if (this.element) {
 			this._dropdown.render(this.element);
 		}
