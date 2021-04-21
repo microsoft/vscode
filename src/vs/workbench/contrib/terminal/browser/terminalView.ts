@@ -157,9 +157,6 @@ export class TerminalViewPane extends ViewPane {
 				this._terminalService.showPanel(true);
 			} else {
 				this._terminalService.getActiveTab()?.setVisible(false);
-				this._terminalService.terminalInstances.forEach(instance => {
-					instance.notifyFindWidgetFocusChanged(false);
-				});
 			}
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
