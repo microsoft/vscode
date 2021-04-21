@@ -20,8 +20,10 @@
     "vscode.git"
   ],
   "main": "./out/extension.js",
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "commands": [
