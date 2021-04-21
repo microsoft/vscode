@@ -50,6 +50,7 @@ export class NotebookEditorContextKeys {
 		this._viewModelDisposables.clear();
 		dispose(this._cellStateListeners);
 		this._cellStateListeners.length = 0;
+		this._updateKernelContext();
 
 		if (!this._editor.hasModel()) {
 			return;
