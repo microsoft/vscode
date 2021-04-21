@@ -16,9 +16,7 @@ export const IDecorationsService = createDecorator<IDecorationsService>('IFileDe
 export interface IDecorationData {
 	readonly weight?: number;
 	readonly color?: ColorIdentifier;
-	readonly letter?: string;
-	/** The icon to show, letter is ignored if this is specified */
-	readonly icon?: ThemeIcon;
+	readonly letter?: string | ThemeIcon;
 	readonly tooltip?: string;
 	readonly bubble?: boolean;
 }

@@ -43,8 +43,7 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 
 		return {
 			color: this.getColorForSeverity(instance.statusList.primary.severity),
-			letter: instance.statusList.statuses.length > 1 ? instance.statusList.statuses.length.toString() : '',
-			icon: instance.statusList.primary.icon
+			letter: instance.statusList.primary.icon
 		};
 	}
 

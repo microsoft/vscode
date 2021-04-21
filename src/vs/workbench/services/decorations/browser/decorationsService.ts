@@ -27,8 +27,12 @@ class DecorationRule {
 		if (Array.isArray(data)) {
 			return data.map(DecorationRule.keyOf).join(',');
 		} else {
-			const { color, letter, icon } = data;
-			return `${color}/${letter}/${icon?.id}`;
+			const { color, letter } = data;
+			if (ThemeIcon.isThemeIcon(letter)) {
+				return `${color}+${letter.id}`;
+			} else {
+				return `${color}/${letter}`;
+			}
 		}
 	}
 
@@ -68,16 +72,13 @@ class DecorationRule {
 	}
 
 	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: IColorTheme): void {
-		const { color, letter, icon } = data;
+		const { color, letter } = data;
 		// label
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 		// icon
-		if (icon) {
-			createCSSRule(
-				`.${this.iconBadgeClassName}::after`,
-				`content: "${String.fromCharCode(charCode)}"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; padding-right: 14px;`,
-				element
-			);
+		if (ThemeIcon.isThemeIcon(letter)) {
+			console.log('letter', letter);
+			this._createIconCSSRule(letter, color, element, theme);
 		}
 		// letter
 		else if (letter) {
@@ -91,18 +92,20 @@ class DecorationRule {
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 
 		// icon (only show first)
-		const icon = data.find(d => d.icon)?.icon;
+		console.log('data', data);
+		const icon = data.find(d => ThemeIcon.isThemeIcon(d.letter))?.letter as ThemeIcon | undefined;
 		if (icon) {
-			this.createIconCSSRule(icon, color, element, theme);
+			console.log('icon', icon);
+			this._createIconCSSRule(icon, color, element, theme);
 		} else {
 			// badge
-			const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
+			const letters = data.filter(d => !isFalsyOrWhitespace(d.letter as string | undefined)).map(d => d.letter);
 			if (letters.length) {
 				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(theme, color)};`, element);
 			}
 
 			// bubble badge
-			// TODO @misolori update bubble badge to use class name instead of unicode
+			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
 			createCSSRule(
 				`.${this.bubbleBadgeClassName}::after`,
 				`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
@@ -111,7 +114,7 @@ class DecorationRule {
 		}
 	}
 
-	private createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement, theme: IColorTheme) {
+	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement, theme: IColorTheme) {
 		const codicon = iconRegistry.get(icon.id);
 		if (!codicon || !('fontCharacter' in codicon.definition)) {
 			return;
