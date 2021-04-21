@@ -54,7 +54,9 @@ steps:
           $res.value | Where-Object { $_.name -Like 'vscode_*' } | ForEach-Object {
             if($set.Add($_.name)) {
               Write-Host "Processing artifact: '$($_.name). Downloading from: $($_.resource.downloadUrl)"
-              Invoke-RestMethod $_.resource.downloadUrl -OutFile "$(Agent.TempDirectory)/$($_.name).zip"
+              Invoke-RestMethod $_.resource.downloadUrl -OutFile "$(Agent.TempDirectory)/$($_.name).zip" -Headers @{
+                Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
+              } -MaximumRetryCount 5 -RetryIntervalSec 1
               Expand-Archive -Path "$(Agent.TempDirectory)/$($_.name).zip" -DestinationPath "$(Agent.TempDirectory)/$($_.name)"
               gci -rec "$(Agent.TempDirectory)/$($_.name)"
             }
