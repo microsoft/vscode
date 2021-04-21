@@ -1522,6 +1522,31 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.EXECUTE_COMMAND,
+				title: TERMINAL_COMMAND_ID.EXECUTE_COMMAND,
+				f1: false,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				description: {
+					description: 'workbench.action.terminal.runCommand',
+					args: [{
+						name: 'command',
+						schema: {
+							type: 'object'
+						}
+					}]
+				},
+			});
+		}
+		async run(accessor: ServicesAccessor, command?: string) {
+			if (command) {
+				return accessor.get(ICommandService).executeCommand(command);
+			}
+		}
+	});
 
 	registerAction2(class extends Action2 {
 		constructor() {

@@ -201,7 +201,9 @@ export class TerminalViewPane extends ViewPane {
 			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
-		const customType = this._terminalContributionService.terminalTypes;
+		for (const contributed of this._terminalContributionService.terminalTypes) {
+			dropdownActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.EXECUTE_COMMAND, title: contributed.title, category: ContextMenuTabsGroup.Profile }, undefined, { arg: contributed.command, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+		}
 
 		if (dropdownActions.length) {
 			dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
