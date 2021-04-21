@@ -652,7 +652,7 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
 				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
-				f1: true,
+				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
 				menu: {
