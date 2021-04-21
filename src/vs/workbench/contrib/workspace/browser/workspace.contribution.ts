@@ -105,7 +105,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 							icon: Codicon.shield,
 							markdownDetails: [
 								{
-									markdown: new MarkdownString(localize('learnMore', "Allowing these features could be unsafe or malicious if you don't trust the source of the files in this folder. [Learn more](https://aka.ms/vscode-workspace-trust)."))
+									markdown: new MarkdownString(localize('learnMore', "Allowing these features could be unsafe or malicious if you don't trust the origin of the files in this folder. [Learn more](https://aka.ms/vscode-workspace-trust)."))
 								}
 							]
 						},
