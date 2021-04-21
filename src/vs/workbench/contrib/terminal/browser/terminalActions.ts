@@ -654,19 +654,16 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: {
+					id: MenuId.TerminalTabsWidgetContext,
+					group: ContextMenuGroup.Edit
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
 			return getFocusedTabInstance(accessor)?.changeIcon();
 		}
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
-			title: localize('workbench.action.terminal.changeIcon', "Change Icon")
-		},
-		group: ContextMenuGroup.Edit
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -689,26 +686,22 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.rename', "Rename"), original: 'Rename' },
 				f1: false,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: [
+					{
+						id: MenuId.TerminalTabsWidgetContext,
+						group: ContextMenuGroup.Edit
+					},
+					{
+						id: MenuId.TerminalContainerContext,
+						group: ContextMenuGroup.Edit
+					}
+				]
 			});
 		}
 		async run(accessor: ServicesAccessor) {
 			return getFocusedTabInstance(accessor)?.rename();
 		}
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
-			title: localize('workbench.action.terminal.rename', "Rename")
-		},
-		group: ContextMenuGroup.Edit
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
-			title: localize('workbench.action.terminal.rename', "Rename")
-		},
-		group: ContextMenuGroup.Edit
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1274,7 +1267,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.splitWithInstance', "Split"), original: 'Split' },
 				f1: false,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: {
+					id: MenuId.TerminalTabsWidgetContext,
+					group: ContextMenuGroup.Create
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1283,13 +1280,6 @@ export function registerTerminalActions() {
 				accessor.get(ITerminalService).splitInstance(instance);
 			}
 		}
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
-			title: localize('workbench.action.terminal.splitWithInstance', "Split")
-		},
-		group: ContextMenuGroup.Create
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1444,6 +1434,10 @@ export function registerTerminalActions() {
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN),
+				menu: {
+					id: MenuId.TerminalTabsWidgetContext,
+					group: ContextMenuGroup.Kill
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1456,13 +1450,6 @@ export function registerTerminalActions() {
 				}
 			}
 		}
-	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
-			title: localize('workbench.action.terminal.killWithInstance', "Kill")
-		},
-		group: ContextMenuGroup.Kill
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
