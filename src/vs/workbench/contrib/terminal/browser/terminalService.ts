@@ -76,6 +76,7 @@ export class TerminalService implements ITerminalService {
 	private _connectionState: TerminalConnectionState;
 
 	private _availableProfiles: ITerminalProfile[] | undefined;
+	public get availableProfiles(): ITerminalProfile[] { return this._availableProfiles || []; }
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
@@ -306,16 +307,6 @@ export class TerminalService implements ITerminalService {
 	public async extHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
 		this._extHostsReady[remoteAuthority]!.resolve();
-	}
-
-	public getAvailableProfiles(): ITerminalProfile[] {
-		this._updateAvailableProfiles();
-		return this._availableProfiles || [];
-	}
-
-	public async getAvailableProfilesAsync(): Promise<ITerminalProfile[]> {
-		await this._updateAvailableProfilesNow();
-		return this._availableProfiles || [];
 	}
 
 	// when relevant config changes, update without debouncing

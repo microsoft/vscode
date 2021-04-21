@@ -47,7 +47,6 @@ export class TerminalViewPane extends ViewPane {
 	private _isWelcomeShowing: boolean = false;
 	private _tabButtons: DropdownWithPrimaryActionViewItem | undefined;
 	private _dropdownMenu: IMenu;
-	private _requestedAvailableProfiles: boolean = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -88,24 +87,6 @@ export class TerminalViewPane extends ViewPane {
 		});
 
 		this._dropdownMenu = this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService);
-
-		this._terminalService.onRequestAvailableProfiles(() => {
-			if (!this._requestedAvailableProfiles) {
-				this._terminalService.getAvailableProfilesAsync().then(profiles => {
-					if (this._tabButtons) {
-						this._updateTabActionBar(profiles);
-					}
-				});
-				this._requestedAvailableProfiles = true;
-			}
-		});
-		this._terminalService.onProfilesConfigChanged(() => {
-			this._terminalService.getAvailableProfilesAsync().then(profiles => {
-				if (this._tabButtons) {
-					this._updateTabActionBar(profiles);
-				}
-			});
-		});
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -192,13 +173,14 @@ export class TerminalViewPane extends ViewPane {
 			}
 			const actions = this._getInitialTabActionBarArgs();
 			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, this._keybindingService, this._notificationService, actions.dropdownIcon || 'codicon-chevron-down');
+			this._updateTabActionBar(this._terminalService.availableProfiles);
 			return this._tabButtons;
 		}
 		return super.getActionViewItem(action);
 	}
 
-	private async _updateTabActionBar(profiles: ITerminalProfile[]): Promise<void> {
-		const actions = await this._getTabActionBarArgs(profiles);
+	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
+		const actions = this._getTabActionBarArgs(profiles);
 		this._tabButtons?.update(actions.dropdownAction, actions.dropdownMenuActions, actions.dropdownIcon);
 	}
 
@@ -359,8 +341,8 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 }
 
 function getProfileSelectOptionItems(terminalService: ITerminalService): ISelectOptionItem[] {
-	const detectedProfiles = terminalService.getAvailableProfiles();
-	return detectedProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
+	const detectedProfiles = terminalService.availableProfiles;
+	return detectedProfiles.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
