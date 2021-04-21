@@ -38,6 +38,7 @@ export function setup() {
 			await app.workbench.quickaccess.runCommand('notifications.clearAll');
 			await app.workbench.quickaccess.runCommand('notebook.renderAllMarkdownCells'); // For a cell at an index persisted as edit-mode
 			await app.workbench.quickaccess.runCommand('workbench.action.splitEditor');
+			await new Promise(r => setTimeout(r, 1000));
 		});
 
 		afterEach(async function () {
