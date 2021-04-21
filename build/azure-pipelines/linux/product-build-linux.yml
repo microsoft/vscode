@@ -259,6 +259,11 @@ steps:
     displayName: Publish rpm package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  - publish: $(TARBALL_PATH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+    displayName: Publish client archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
     artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
