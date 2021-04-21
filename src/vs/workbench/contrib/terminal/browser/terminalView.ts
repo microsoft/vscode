@@ -391,21 +391,6 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this.element.classList.add('monaco-dropdown-with-primary');
 		this._primaryAction.render(this.element);
 		this._dropdown.render(this.element);
-		this._stylize();
-	}
-
-	private _stylize(): void {
-		if (!this.element || !this._dropdown.element || !this._primaryAction.element) {
-			return;
-		}
-		const dropdownStyle = this._dropdown.element.style;
-		dropdownStyle.paddingLeft = '0px';
-		dropdownStyle.paddingRight = '0px';
-		dropdownStyle.fontSize = '12px';
-		dropdownStyle.lineHeight = '16px';
-		dropdownStyle.marginLeft = '-4px';
-		const primaryActionStyle = this._primaryAction.element.style;
-		primaryActionStyle.marginRight = '0px';
 	}
 
 	update(dropdownAction: MenuItemAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
@@ -413,7 +398,6 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuService, { menuAsChild: true, classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'] });
 		if (this.element) {
 			this._dropdown.render(this.element);
-			this._stylize();
 		}
 	}
 }
