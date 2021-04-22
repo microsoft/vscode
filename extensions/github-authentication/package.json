@@ -21,7 +21,11 @@
   "activationEvents": [
     "onAuthenticationRequest:github"
   ],
-  "workspaceTrust": { "request": "never" },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {

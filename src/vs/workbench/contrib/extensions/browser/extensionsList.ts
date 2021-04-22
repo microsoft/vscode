@@ -205,14 +205,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
 
-		if (extension.local?.manifest.workspaceTrust?.request) {
-			const trustRequirement = extension.local.manifest.workspaceTrust;
-			const requestType = this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.local.manifest);
-			if (requestType !== 'never' && trustRequirement.request !== 'never') {
-				data.workspaceTrustDescription.textContent = trustRequirement.description;
-			} else if (requestType === 'onStart') {
+		if (extension.local?.manifest.capabilities?.untrustedWorkspaces?.supported) {
+			const untrustedWorkspaceCapability = extension.local.manifest.capabilities.untrustedWorkspaces;
+			const untrustedWorkspaceSupported = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest);
+			if (untrustedWorkspaceSupported !== true && untrustedWorkspaceCapability.supported !== true) {
+				data.workspaceTrustDescription.textContent = untrustedWorkspaceCapability.description;
+			} else if (untrustedWorkspaceSupported === false) {
 				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
-			} else if (requestType === 'onDemand') {
+			} else if (untrustedWorkspaceSupported === 'limited') {
 				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
 			}
 		}

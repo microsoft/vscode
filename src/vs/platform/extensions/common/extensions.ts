@@ -163,10 +163,14 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 }
 
+export interface IExtensionCapabilities {
+	readonly virtualWorkspaces?: boolean;
+	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+}
+
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-export type ExtensionWorkspaceTrustRequestType = 'never' | 'onStart' | 'onDemand';
-export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart', description: string } | { request: 'onDemand', description: string };
-export type UntrustedWorkspaces = { supported: true; } | { supported: false, description: string } | { supported: 'limited', description: string, restrictedConfigurations?: string[] };
+export type ExtensionUntrustedWorkpaceSupportType = boolean | 'limited';
+export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: 'limited', description: string, restrictedConfigurations?: string[] };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -223,11 +227,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
-	readonly capabilities?: {
-		readonly virtualWorkspaces?: boolean;
-		readonly untrustedWorkspaces?: UntrustedWorkspaces;
-	};
-	readonly workspaceTrust?: ExtensionWorkspaceTrust;
+	readonly capabilities?: IExtensionCapabilities;
 }
 
 export const enum ExtensionType {

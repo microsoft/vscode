@@ -26,9 +26,11 @@
     "update-grammar": "node ./build/update-grammars.js",
     "test": "node ../../node_modules/mocha/bin/mocha"
   },
-	"workspaceTrust": {
-		"request": "never"
-	},
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {

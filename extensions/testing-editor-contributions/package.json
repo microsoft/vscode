@@ -21,8 +21,10 @@
   "dependencies": {
     "vscode-nls": "^5.0.0"
   },
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:testing-editor-contributions ./tsconfig.json"
