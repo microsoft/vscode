@@ -224,6 +224,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	private _guessProfileIcon(shell: string): string | undefined {
 		const file = path.parse(shell).name;
 		switch (file) {
+			case 'bash':
+				return Codicon.terminalBash.id;
 			case 'pwsh':
 			case 'powershell':
 				return Codicon.terminalPowershell.id;
