@@ -169,6 +169,9 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
+				e.affectsConfiguration('terminal.integrated.defaultProfile.windows') ||
+				e.affectsConfiguration('terminal.integrated.defaultProfile.osx') ||
+				e.affectsConfiguration('terminal.integrated.defaultProfile.linux') ||
 				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
 				this._refreshAvailableProfiles();
 			}
@@ -884,8 +887,22 @@ export class TerminalService implements ITerminalService {
 			if ('command' in value.profile) {
 				return; // Should never happen
 			}
-			await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
-			await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
+			// Add the profile to settings if necessary
+			if (value.profile.isAutoDetected) {
+				const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
+				if (typeof profilesConfig === 'object') {
+					const newProfile: ITerminalProfileObject = {
+						path: value.profile.path
+					};
+					if (value.profile.args) {
+						newProfile.args = value.profile.args;
+					}
+					(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+				}
+				await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
+			}
+			// Set the default profile
+			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		}
 	}
 
