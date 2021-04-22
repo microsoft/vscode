@@ -18,12 +18,12 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 export enum CellKind {
 	Markdown = 1,
@@ -814,9 +814,7 @@ export interface INotebookCellStatusBarItem {
 	readonly alignment: CellStatusbarAlignment;
 	readonly priority?: number;
 	readonly text?: string;
-	readonly icon?: ThemeIcon;
 	readonly color?: string | ThemeColor;
-	readonly iconColor?: string | ThemeColor;
 	readonly backgroundColor?: string | ThemeColor;
 	readonly tooltip?: string;
 	readonly command?: string | Command;
