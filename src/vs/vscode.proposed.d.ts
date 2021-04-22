@@ -1560,7 +1560,13 @@ declare module 'vscode' {
 		 * documents of the type `notebook.test`, whereas `{ pattern: '/my/file/test.nb' }`
 		 * selects only the notebook with the path `/my/file/test.nb`.
 		 */
-		readonly selector: NotebookSelector;
+		readonly viewType: string;
+
+		/**
+		 * An array of language identifiers that are supported by this
+		 * controller. When falsy all languages are supported.
+		 */
+		supportedLanguages?: string[];
 
 		/**
 		 * The human-readable label of this notebook controller.
@@ -1576,21 +1582,6 @@ declare module 'vscode' {
 		 * The human-readable detail which is rendered less prominent.
 		 */
 		detail?: string;
-
-		/**
-		 * Marks this notebook controller as preferred.
-		 *
-		 * When multiple notebook controller apply to a single notebook then
-		 * users can select one - preferred controllers will be shows more
-		 * prominent then.
-		 */
-		isPreferred?: boolean;
-
-		/**
-		 * An array of language identifiers that are supported by this
-		 * controller. When falsy all languages are supported.
-		 */
-		supportedLanguages?: string[];
 
 		/**
 		 * Whether this controller supports execution order so that the
@@ -1660,6 +1651,20 @@ declare module 'vscode' {
 
 		//todo@API validate this works
 		asWebviewUri(localResource: Uri): Uri;
+
+		/**
+		 * A controller can set priorities for specific notebook documents. This allows a controller to be the
+		 * preferred controller for certain notebooks.
+		 *
+		 * @param notebook The notebook for which a priority is set.
+		 * @param priority A controller priority
+		 */
+		updateNotebookPriority(notebook: NotebookDocument, priority: NotebookControllerPriority): void;
+	}
+
+	export enum NotebookControllerPriority {
+		Default = 1,
+		Preferred = 2
 	}
 
 	export namespace notebook {
@@ -1673,7 +1678,7 @@ declare module 'vscode' {
 		 * @param handler
 		 * @param preloads
 		 */
-		export function createNotebookController(id: string, selector: NotebookSelector, label: string, handler?: NotebookExecuteHandler, preloads?: NotebookKernelPreload[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, preloads?: NotebookKernelPreload[]): NotebookController;
 	}
 
 	//#endregion

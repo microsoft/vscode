@@ -758,7 +758,6 @@ export interface INotebookKernelChangeEvent {
 	label?: true;
 	description?: true;
 	detail?: true;
-	isPreferred?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
 }
@@ -766,7 +765,7 @@ export interface INotebookKernelChangeEvent {
 export interface INotebookKernel {
 
 	readonly id: string;
-	readonly selector: NotebookSelector;
+	readonly viewType: string;
 	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
 	readonly extension: ExtensionIdentifier;
 
@@ -777,7 +776,6 @@ export interface INotebookKernel {
 	label: string;
 	description?: string;
 	detail?: string;
-	isPreferred?: boolean;
 	supportedLanguages: string[]
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
@@ -848,5 +846,3 @@ export interface INotebookDecorationRenderOptions {
 	borderColor?: string | ThemeColor;
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
-
-

@@ -36,7 +36,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createNotebookController(extension: IExtensionDescription, id: string, selector: vscode.NotebookSelector, label: string, handler?: vscode.NotebookExecuteHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
+	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: vscode.NotebookExecuteHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
 
 		for (let data of this._kernelData.values()) {
 			if (data.controller.id === id) {
@@ -56,8 +56,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id: id,
-			selector: selector,
+			id,
+			viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label: label || extension.identifier.value,
@@ -93,7 +93,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		const controller: vscode.NotebookController = {
 			get id() { return data.id; },
-			get selector() { return data.selector; },
+			get viewType() { return data.viewType; },
 			onDidChangeNotebookAssociation: onDidChangeSelection.event,
 			get label() {
 				return data.label;
@@ -114,13 +114,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			set description(value) {
 				data.description = value;
-				_update();
-			},
-			get isPreferred() {
-				return data.isPreferred ?? false;
-			},
-			set isPreferred(value) {
-				data.isPreferred = value;
 				_update();
 			},
 			get supportedLanguages() {
@@ -178,6 +171,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			asWebviewUri(uri: URI) {
 				return asWebviewUri(that._initData.environment, String(handle), uri);
+			},
+			// --- priority
+			updateNotebookPriority(notebook, priority) {
+				that._proxy.$updateNotebookPriority(handle, notebook.uri, priority);
 			}
 		};
 

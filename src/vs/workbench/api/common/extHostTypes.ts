@@ -3163,6 +3163,12 @@ export class NotebookCellStatusBarItem {
 		readonly accessibilityInformation?: vscode.AccessibilityInformation) { }
 }
 
+
+export enum NotebookControllerPriority {
+	Default = 1,
+	Preferred = 2
+}
+
 //#endregion
 
 //#region Timeline

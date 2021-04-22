@@ -133,13 +133,12 @@ suite('NotebookEditorKernelManager', () => {
 class TestNotebookKernel implements INotebookKernel {
 	id: string = 'test';
 	label: string = '';
-	selector = '*';
+	viewType = '*';
 	onDidChange = Event.None;
 	extension: ExtensionIdentifier = new ExtensionIdentifier('test');
 	localResourceRoot: URI = URI.file('/test');
 	description?: string | undefined;
 	detail?: string | undefined;
-	isPreferred?: boolean | undefined;
 	preloadUris: URI[] = [];
 	preloadProvides: string[] = [];
 	supportedLanguages: string[] = [];
