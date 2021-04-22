@@ -1656,7 +1656,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
 		const disposable = this._widgetManager.attachWidget(widget);
 		if (info.requiresAction) {
-			this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Warning, icon: Codicon.warning });
+			this.statusList.add({
+				id: TerminalStatus.RelaunchNeeded,
+				severity: Severity.Warning,
+				icon: Codicon.warning,
+				tooltip: 'Relaunch needed to update environment'
+			});
 		}
 		if (disposable) {
 			this._environmentInfo = { widget, disposable };

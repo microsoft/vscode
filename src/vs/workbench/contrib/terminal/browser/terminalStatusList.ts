@@ -31,6 +31,10 @@ export interface ITerminalStatus {
 	 * tab and will use the generic `info` icon when hovering.
 	 */
 	icon?: Codicon;
+	/**
+	 * What to show for this status in the terminal's hover.
+	 */
+	tooltip?: string | undefined;
 }
 
 export interface ITerminalStatusList {
