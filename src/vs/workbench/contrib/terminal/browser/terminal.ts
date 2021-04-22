@@ -246,6 +246,12 @@ export interface ITerminalInstance {
 	 * terminal instances within a window.
 	 */
 	readonly instanceId: number;
+	/**
+	 * A unique URI for this terminal instance with the following encoding:
+	 * path: Title
+	 * fragment: Instance ID
+	 */
+	readonly resource: URI;
 
 	readonly cols: number;
 	readonly rows: number;

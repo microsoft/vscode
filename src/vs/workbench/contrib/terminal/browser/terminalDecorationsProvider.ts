@@ -25,6 +25,7 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
+		this._terminalService.onInstancePrimaryStatusChanged(e => this._onDidChange.fire([e.resource]));
 	}
 
 	get onDidChange(): Event<URI[]> {

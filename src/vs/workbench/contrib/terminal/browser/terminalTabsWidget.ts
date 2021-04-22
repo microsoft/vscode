@@ -23,13 +23,11 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
-import { DEFAULT_LABELS_CONTAINER, IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
+import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 
 const $ = DOM.$;
 export const MIN_TABS_WIDGET_WIDTH = 46;
@@ -175,7 +173,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	}
 
 	renderElement(node: ITreeNode<ITerminalInstance>, index: number, template: ITerminalTabEntryTemplate): void {
-
 		let instance = node.element;
 
 		const tab = this._terminalService.getTabForInstance(instance);
@@ -221,13 +218,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			label = `${prefix}$(${instance.icon.id}) ${instance.title.replace(/^Task - /, '')}`;
 		}
 
-		template.label.setLabel(label, undefined, {
-			title: {
-				markdown: new MarkdownString(title),
-				markdownNotSupportedFallback: undefined
-			}
-		});
-
 		if (!template.elementDispoables) {
 			template.elementDispoables = new DisposableStore();
 		}
@@ -239,18 +229,19 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			}
 		}));
 
-		if (instance.statusList.statuses.length && hasText) {
-			const labelProps: IResourceLabelProps = {
-				resource: URI.from({
-					scheme: Schemas.vscodeTerminal,
-					path: instance.title,
-					fragment: instance.instanceId.toString(),
-				}),
-				name: label
-			};
-			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
-			template.label.setResource(labelProps, options);
-		}
+		template.label.setResource({
+			resource: instance.resource,
+			name: label
+		}, {
+			fileDecorations: {
+				colors: true,
+				badges: hasText
+			},
+			title: {
+				markdown: new MarkdownString(title),
+				markdownNotSupportedFallback: undefined
+			}
+		});
 	}
 
 	disposeElement(element: ITreeNode<ITerminalInstance, any>, index: number, templateData: ITerminalTabEntryTemplate): void {

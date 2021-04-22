@@ -55,6 +55,8 @@ import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/work
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -138,6 +140,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	public disableLayout: boolean;
 	public get instanceId(): number { return this._instanceId; }
+	public get resource(): URI {
+		return URI.from({
+			scheme: Schemas.vscodeTerminal,
+			path: this.title,
+			fragment: this.instanceId.toString(),
+		});
+	}
 	public get cols(): number {
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
 			if (this._dimensionsOverride.forceExactSize) {
@@ -1049,13 +1058,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				icon: Codicon.debugDisconnect,
 				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
 			});
-			this._onTitleChanged.fire(this);
 		});
 		this._processManager.onPtyReconnect(() => {
 			this._safeSetOption('disableStdin', false);
 			this.statusList.remove(TerminalStatus.Disconnected);
-			// TODO: Remove title change + (disconnected) from title
-			this._onTitleChanged.fire(this);
 		});
 	}
 
