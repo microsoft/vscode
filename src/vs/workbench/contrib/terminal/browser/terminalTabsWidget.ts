@@ -224,8 +224,10 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		}
 
 		// Kill terminal on middle click
-		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, () => {
-			instance.dispose();
+		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
+			if (e.button === 1/*middle*/) {
+				instance.dispose();
+			}
 		}));
 
 		if (instance.statusList.statuses.length && hasText) {
