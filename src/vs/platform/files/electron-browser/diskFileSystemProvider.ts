@@ -29,7 +29,7 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 		return this._capabilities;
 	}
 
-	protected async override doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
+	protected override async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
 		if (!opts.useTrash) {
 			return super.doDelete(filePath, opts);
 		}

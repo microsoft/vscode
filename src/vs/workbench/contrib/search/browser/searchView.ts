@@ -18,6 +18,7 @@ import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -44,11 +45,13 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Link } from 'vs/platform/opener/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -71,7 +74,7 @@ import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, ICha
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const $ = dom.$;
@@ -605,7 +608,7 @@ export class SearchView extends ViewPane {
 				this.viewModel.searchResult.replaceAll(progressReporter).then(() => {
 					progressComplete();
 					const messageEl = this.clearMessage();
-					dom.append(messageEl, $('p', undefined, afterReplaceAllMessage));
+					dom.append(messageEl, afterReplaceAllMessage);
 					this.reLayout();
 				}, (error) => {
 					progressComplete();
@@ -1446,13 +1449,6 @@ export class SearchView extends ViewPane {
 				return;
 			}
 
-			if (completed && completed.limitHit) {
-				this.searchWidget.searchInput.showMessage({
-					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results."),
-					type: MessageType.WARNING
-				});
-			}
-
 			if (!hasResults) {
 				const hasExcludes = !!excludePatternText;
 				const hasIncludes = !!includePatternText;
@@ -1486,26 +1482,26 @@ export class SearchView extends ViewPane {
 				aria.status(message);
 
 				const messageEl = this.clearMessage();
-				const p = dom.append(messageEl, $('p', undefined, message));
+				dom.append(messageEl, message);
 
 				if (!completed) {
 					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
 						nls.localize('rerunSearch.message', "Search again"),
 						() => this.triggerQueryChange({ preserveFocus: false })));
-					dom.append(p, searchAgainButton.element);
+					dom.append(messageEl, searchAgainButton.element);
 				} else if (hasIncludes || hasExcludes) {
 					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
-					dom.append(p, searchAgainButton.element);
+					dom.append(messageEl, searchAgainButton.element);
 				} else {
 					const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
-					dom.append(p, openSettingsButton.element);
+					dom.append(messageEl, openSettingsButton.element);
 				}
 
 				if (completed) {
-					dom.append(p, $('span', undefined, ' - '));
+					dom.append(messageEl, $('span', undefined, ' - '));
 
 					const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
-					dom.append(p, learnMoreButton.element);
+					dom.append(messageEl, learnMoreButton.element);
 				}
 
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -1517,6 +1513,30 @@ export class SearchView extends ViewPane {
 
 				// Indicate final search result count for ARIA
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
+			}
+
+			let warningMessage = '';
+
+			if (completed && completed.limitHit) {
+				warningMessage += nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.");
+			}
+
+			if (completed && completed.messages) {
+				for (const message of completed.messages) {
+					if (message.type === TextSearchCompleteMessageType.Information) {
+						this.addMessage(message.text);
+					}
+					else if (message.type === TextSearchCompleteMessageType.Warning) {
+						warningMessage += (warningMessage ? ' - ' : '') + message.text;
+					}
+				}
+			}
+
+			if (warningMessage) {
+				this.searchWidget.searchInput.showMessage({
+					content: warningMessage,
+					type: MessageType.WARNING
+				});
 			}
 		};
 
@@ -1618,6 +1638,32 @@ export class SearchView extends ViewPane {
 			this.reLayout();
 		} else if (!msgWasHidden) {
 			dom.hide(this.messagesElement);
+		}
+	}
+
+	private addMessage(message: string) {
+		const linkedText = parseLinkedText(message);
+
+		const messageBox = this.messagesElement.firstChild as HTMLDivElement;
+		if (!messageBox) {
+			return;
+		}
+
+		const span = dom.append(messageBox, $('span.providerMessage'));
+
+		if (messageBox.innerText) {
+			dom.append(span, document.createTextNode(' - '));
+		}
+
+		for (const node of linkedText.nodes) {
+			if (typeof node === 'string') {
+				dom.append(span, document.createTextNode(node));
+			} else {
+				const link = this.instantiationService.createInstance(Link, node);
+				dom.append(span, link.el);
+				this.messageDisposables.add(link);
+				this.messageDisposables.add(attachLinkStyler(link, this.themeService));
+			}
 		}
 	}
 

@@ -4,27 +4,156 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
+import { Event } from 'vs/base/common/event';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { EditorExtensions, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
 
 //#region Editor Associations
+
+// Static values for editor contributions
+
 export type EditorAssociation = {
 	readonly viewType: string;
 	readonly filenamePattern?: string;
 };
 
 export type EditorAssociations = readonly EditorAssociation[];
+
+export const editorsAssociationsSettingId = 'workbench.editorAssociations';
+
+export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
+	id: 'default',
+	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
+};
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+const editorTypeSchemaAddition: IJSONSchema = {
+	type: 'string',
+	enum: []
+};
+
+const editorAssociationsConfigurationNode: IConfigurationNode = {
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.editorAssociations': {
+			type: 'array',
+			markdownDescription: localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
+			items: {
+				type: 'object',
+				defaultSnippets: [{
+					body: {
+						'viewType': '$1',
+						'filenamePattern': '$2'
+					}
+				}],
+				properties: {
+					'viewType': {
+						anyOf: [
+							{
+								type: 'string',
+								description: localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
+							},
+							editorTypeSchemaAddition
+						]
+					},
+					'filenamePattern': {
+						type: 'string',
+						description: localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
+					}
+				}
+			}
+		}
+	}
+};
+
+export interface IEditorType {
+	readonly id: string;
+	readonly displayName: string;
+	readonly providerDisplayName: string;
+}
+
+export interface IEditorTypesHandler {
+	readonly onDidChangeEditorTypes: Event<void>;
+
+	getEditorTypes(): IEditorType[];
+}
+
+export interface IEditorAssociationsRegistry {
+
+	/**
+	 * Register handlers for editor types
+	 */
+	registerEditorTypesHandler(id: string, handler: IEditorTypesHandler): IDisposable;
+}
+
+class EditorAssociationsRegistry implements IEditorAssociationsRegistry {
+
+	private readonly editorTypesHandlers = new Map<string, IEditorTypesHandler>();
+
+	registerEditorTypesHandler(id: string, handler: IEditorTypesHandler): IDisposable {
+		if (this.editorTypesHandlers.has(id)) {
+			throw new Error(`An editor type handler with ${id} was already registered.`);
+		}
+
+		this.editorTypesHandlers.set(id, handler);
+		this.updateEditorAssociationsSchema();
+
+		const editorTypeChangeEvent = handler.onDidChangeEditorTypes(() => {
+			this.updateEditorAssociationsSchema();
+		});
+
+		return {
+			dispose: () => {
+				editorTypeChangeEvent.dispose();
+				this.editorTypesHandlers.delete(id);
+				this.updateEditorAssociationsSchema();
+			}
+		};
+	}
+
+	private updateEditorAssociationsSchema() {
+		const enumValues: string[] = [];
+		const enumDescriptions: string[] = [];
+
+		const editorTypes: IEditorType[] = [DEFAULT_EDITOR_ASSOCIATION];
+
+		for (const [, handler] of this.editorTypesHandlers) {
+			editorTypes.push(...handler.getEditorTypes());
+		}
+
+		for (const { id, providerDisplayName } of editorTypes) {
+			enumValues.push(id);
+			enumDescriptions.push(localize('editorAssociations.viewType.sourceDescription', "Source: {0}", providerDisplayName));
+		}
+
+		editorTypeSchemaAddition.enum = enumValues;
+		editorTypeSchemaAddition.enumDescriptions = enumDescriptions;
+
+		configurationRegistry.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
+	}
+}
+
+Registry.add(EditorExtensions.Associations, new EditorAssociationsRegistry());
+configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
 //#endregion
+
 //#region EditorOverrideService types
 export enum ContributedEditorPriority {
 	builtin = 'builtin',

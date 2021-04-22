@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.56.0",
-  "distro": "2b3ddbe7060316d8f0251c672e1bb0846443dbec",
+  "distro": "a8d8b8dca9053e20decf05481c262f54d8106902",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -191,12 +191,12 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.1",
     "tsec": "0.1.4",
-    "typescript": "^4.3.0-dev.20210412",
+    "typescript": "^4.3.0-dev.20210420",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
-    "vscode-debugprotocol": "1.46.0",
+    "vscode-debugprotocol": "1.47.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.7.0",
     "webpack": "^4.43.0",

@@ -1142,7 +1142,7 @@ export class SearchModel extends Disposable {
 		if (errors.isPromiseCanceledError(e)) {
 			this.onSearchCompleted(
 				this.searchCancelledForNewSearch
-					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [] }
+					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
 					: null,
 				duration);
 			this.searchCancelledForNewSearch = false;

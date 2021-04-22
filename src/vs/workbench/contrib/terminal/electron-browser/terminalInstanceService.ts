@@ -10,6 +10,7 @@ import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -20,6 +21,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	public _serviceBrand: undefined;
 
 	constructor(
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
 	) {
 		super();
 	}
@@ -52,7 +54,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return WebglAddon;
 	}
 
-	public getMainProcessParentEnv(): Promise<IProcessEnvironment> {
-		return getMainProcessParentEnv();
+	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
+		return getMainProcessParentEnv(await this._shellEnvironmentService.getShellEnv());
 	}
 }

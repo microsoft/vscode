@@ -206,6 +206,8 @@ class BrowserMain extends Disposable {
 		// TODO @lszomoru: Following two services shall be merged into single service
 		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+
+		// Update workspace trust so that configuration is updated accordingly
 		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
 

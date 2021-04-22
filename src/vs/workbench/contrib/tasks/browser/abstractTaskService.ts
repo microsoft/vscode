@@ -30,7 +30,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
@@ -248,7 +247,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IStorageService private readonly storageService: IStorageService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IHostService private readonly _hostService: IHostService,
 		@IDialogService protected readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -276,24 +274,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
-				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.notificationService.prompt(
-						Severity.Info,
-						nls.localize(
-							'TaskSystem.noHotSwap',
-							'Changing the task execution engine with an active task running requires to reload the Window'
-						),
-						[{
-							label: nls.localize('reloadWindow', "Reload Window"),
-							run: () => this._hostService.reload()
-						}],
-						{ sticky: true }
-					);
-					return;
-				} else {
-					this.disposeTaskSystemListeners();
-					this._taskSystem = undefined;
-				}
+				this.disposeTaskSystemListeners();
+				this._taskSystem = undefined;
 			}
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
@@ -3173,55 +3155,82 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
+	private async createTasksDotOld(folder: IWorkspaceFolder): Promise<[URI, URI] | undefined> {
+		const tasksFile = folder.toResource('.vscode/tasks.json');
+		if (await this.fileService.exists(tasksFile)) {
+			const oldFile = tasksFile.with({ path: `${tasksFile.path}.old` });
+			await this.fileService.copy(tasksFile, oldFile);
+			return [oldFile, tasksFile];
+		}
+		return undefined;
+	}
+
+	private upgradeTask(task: Task): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
+		if (!CustomTask.is(task)) {
+			return;
+		}
+		const configElement: any = {
+			label: task._label
+		};
+		const oldTaskTypes = new Set(['gulp', 'jake', 'grunt']);
+		if (Types.isString(task.command.name) && oldTaskTypes.has(task.command.name)) {
+			configElement.type = task.command.name;
+			configElement.task = task.command.args![0];
+		} else {
+			if (task.command.runtime === RuntimeType.Shell) {
+				configElement.type = RuntimeType.toString(RuntimeType.Shell);
+			}
+			if (task.command.name) {
+				configElement.command = task.command.name;
+			}
+			if (task.command.args) {
+				configElement.args = task.command.args;
+			}
+		}
+
+		if (task.configurationProperties.presentation) {
+			configElement.presentation = task.configurationProperties.presentation;
+		}
+		if (task.configurationProperties.isBackground) {
+			configElement.isBackground = task.configurationProperties.isBackground;
+		}
+		if (task.configurationProperties.problemMatchers) {
+			configElement.problemMatcher = task._source.config.element.problemMatcher;
+		}
+		if (task.configurationProperties.group) {
+			configElement.group = task.configurationProperties.group;
+		}
+
+		task._source.config.element = configElement;
+		const tempTask = new CustomTask(task._id, task._source, task._label, task.type, task.command, task.hasDefinedMatchers, task.runOptions, task.configurationProperties);
+		const configTask = this.createCustomizableTask(tempTask);
+		if (configTask) {
+			return configTask;
+		}
+		return;
+	}
+
 	private async upgrade(): Promise<void> {
 		if (this.executionEngine !== ExecutionEngine.Process) {
 			return;
 		}
+
 		const tasks = await this.getGroupedTasks();
-		const allTasks: (CustomTask | ConfiguringTask)[] = [];
+		const fileDiffs: [URI, URI][] = [];
 		for (const folder of this.workspaceFolders) {
+			const diff = await this.createTasksDotOld(folder);
+			if (diff) {
+				fileDiffs.push(diff);
+			}
+			if (!diff) {
+				continue;
+			}
+
 			const configTasks: (TaskConfig.CustomTask | TaskConfig.ConfiguringTask)[] = [];
 			tasks.get(folder).forEach(task => {
-				if (CustomTask.is(task)) {
-					const configElement: any = {
-						label: task._label
-					};
-					const oldTaskTypes = new Set(['gulp', 'jake', 'grunt']);
-					if (Types.isString(task.command.name) && oldTaskTypes.has(task.command.name)) {
-						configElement.type = task.command.name;
-						configElement.task = task.command.args![0];
-					} else {
-						if (task.command.runtime === RuntimeType.Shell) {
-							configElement.type = RuntimeType.toString(RuntimeType.Shell);
-						}
-						if (task.command.name) {
-							configElement.command = task.command.name;
-						}
-						if (task.command.args) {
-							configElement.args = task.command.args;
-						}
-					}
-
-					if (task.configurationProperties.presentation) {
-						configElement.presentation = task.configurationProperties.presentation;
-					}
-					if (task.configurationProperties.isBackground) {
-						configElement.isBackground = task.configurationProperties.isBackground;
-					}
-					if (task.configurationProperties.problemMatchers) {
-						configElement.problemMatcher = task._source.config.element.problemMatcher;
-					}
-					if (task.configurationProperties.group) {
-						configElement.group = task.configurationProperties.group;
-					}
-
-					task._source.config.element = configElement;
-					const tempTask = new CustomTask(task._id, task._source, task._label, task.type, task.command, task.hasDefinedMatchers, task.runOptions, task.configurationProperties);
-					allTasks.push(tempTask);
-					const configTask = this.createCustomizableTask(tempTask);
-					if (configTask) {
-						configTasks.push(configTask);
-					}
+				const configTask = this.upgradeTask(task);
+				if (configTask) {
+					configTasks.push(configTask);
 				}
 			});
 			this._taskSystem = undefined;
@@ -3237,16 +3246,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (this.configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri })) {
 				await this.configurationService.updateValue('tasks.suppressTaskName', undefined, { resource: folder.uri });
 			}
-			this.updateSetup();
 		}
+		this.updateSetup();
 
 		this.notificationService.prompt(Severity.Warning,
-			nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Please check for errors in your tasks.json."),
+			nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diffs to review the upgrade."),
 			[{
-				label: nls.localize('taskService.upgradeOpen', "Open tasks.json"),
-				run: () => {
-					this.openConfig(allTasks[0]);
+				label: nls.localize('taskService.openDiffs', "Open diffs"),
+				run: async () => {
+					for (const upgrade of fileDiffs) {
+						await this.editorService.openEditor({
+							leftResource: upgrade[0],
+							rightResource: upgrade[1],
+						});
+					}
 				}
-			}]);
+			}]
+		);
 	}
 }

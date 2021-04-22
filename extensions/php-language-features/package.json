@@ -17,9 +17,12 @@
   "categories": [
     "Programming Languages"
   ],
-  "workspaceTrust": {
-    "request": "onDemand",
-    "description": "The extension requires workspace trust when the `php.validate.executablePath` setting will load a version of PHP in the workspace."
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%"
+    }
   },
   "contributes": {
     "configuration": {

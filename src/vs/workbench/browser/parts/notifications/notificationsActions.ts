@@ -37,7 +37,7 @@ export class ClearNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(clearIcon));
 	}
 
-	async override run(notification: INotificationViewItem): Promise<void> {
+	override async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
 	}
 }
@@ -55,7 +55,7 @@ export class ClearAllNotificationsAction extends Action {
 		super(id, label, ThemeIcon.asClassName(clearAllIcon));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
 	}
 }
@@ -73,7 +73,7 @@ export class HideNotificationsCenterAction extends Action {
 		super(id, label, ThemeIcon.asClassName(hideIcon));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
 	}
 }
@@ -91,7 +91,7 @@ export class ExpandNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(expandIcon));
 	}
 
-	async override run(notification: INotificationViewItem): Promise<void> {
+	override async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
 	}
 }
@@ -109,7 +109,7 @@ export class CollapseNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(collapseIcon));
 	}
 
-	async override run(notification: INotificationViewItem): Promise<void> {
+	override async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
 	}
 }
@@ -149,12 +149,15 @@ export class CopyNotificationMessageAction extends Action {
 interface NotificationActionMetrics {
 	id: string;
 	actionLabel: string;
-	source: string | undefined;
+	source: string;
+	silent: boolean;
 }
+
 type NotificationActionMetricsClassification = {
 	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	actionLabel: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	silent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
 export class NotificationActionRunner extends ActionRunner {
@@ -166,11 +169,11 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected async override runAction(action: IAction, context: INotificationViewItem | undefined): Promise<void> {
+	protected override async runAction(action: IAction, context: INotificationViewItem | undefined): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
 		if (context) {
 			// If the context is not present it is a "global" notification action. Will be captured by other events
-			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()).toString(), actionLabel: action.label, source: context.sourceId });
+			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()).toString(), actionLabel: action.label, source: context.sourceId || 'core', silent: context.silent });
 		}
 
 		// Run and make sure to notify on any error again

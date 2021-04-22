@@ -50,7 +50,8 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, ProvidedPortAttributes } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, TransientCellMetadata, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto, TransientOptions, IImmediateCellEditOperation, INotebookCellStatusBarItem, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, TransientCellMetadata, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto, TransientOptions, IImmediateCellEditOperation, INotebookCellStatusBarItem, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
@@ -913,7 +914,7 @@ export interface INotebookKernelDto2 {
 	detail?: string;
 	description?: string;
 	isPreferred?: boolean;
-	supportedLanguages: string[];
+	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
 	hasExecutionOrder?: boolean;
 	preloads?: { uri: UriComponents; provides: string[] }[];

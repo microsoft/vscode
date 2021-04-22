@@ -140,7 +140,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
-	async override resolve(actionLabels = new Map<string, string>()): Promise<void> {
+	override async resolve(actionLabels = new Map<string, string>()): Promise<void> {
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		this._keybindingItemsSortedByPrecedence = [];

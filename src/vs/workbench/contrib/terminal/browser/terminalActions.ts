@@ -107,7 +107,7 @@ export class TerminalLaunchHelpAction extends Action {
 		super('workbench.action.terminal.launchHelp', localize('terminalLaunchHelp', "Open Help"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this._openerService.open('https://aka.ms/vscode-troubleshoot-terminal-launch');
 	}
 }
@@ -157,13 +157,20 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
 			if (profile) {
-				const instance = await terminalService.createTerminal(profile);
+				const instance = terminalService.createTerminal(profile);
 				terminalService.setActiveInstance(instance);
 				return terminalService.showPanel(true);
 			} else {
 				await terminalService.showProfileQuickPick('createInstance');
 			}
 		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetEmptyContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
+			title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile")
+		},
+		group: ContextMenuGroup.Create
 	});
 
 	registerAction2(class extends Action2 {
@@ -1382,6 +1389,13 @@ export function registerTerminalActions() {
 			await terminalService.showPanel(true);
 		}
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetEmptyContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.NEW,
+			title: localize('workbench.action.terminal.new.short', "New Terminal")
+		},
+		group: ContextMenuGroup.Create
+	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.NEW,
@@ -1519,7 +1533,7 @@ export function registerTerminalActions() {
 				}]
 			});
 		}
-		async run(accessor: ServicesAccessor, item?: string) {
+		async run(accessor: ServicesAccessor) {
 		}
 	});
 
@@ -1672,7 +1686,7 @@ export function registerTerminalActions() {
 				return commandService.executeCommand(customType.command);
 			}
 
-			const quickSelectProfiles = await terminalService.getAvailableProfiles();
+			const quickSelectProfiles = terminalService.availableProfiles;
 
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);

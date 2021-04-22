@@ -22,7 +22,6 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
@@ -561,17 +560,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private async _doHandleExtensionTests(): Promise<number> {
 		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
-		if (!extensionDevelopmentLocationURI || !extensionTestsLocationURI || extensionTestsLocationURI.scheme !== Schemas.file) {
+		if (!extensionDevelopmentLocationURI || !extensionTestsLocationURI) {
 			throw new Error(nls.localize('extensionTestError1', "Cannot load test runner."));
 		}
-
-		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
 		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
 
 		if (!testRunner || typeof testRunner.run !== 'function') {
-			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath));
+			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
 		}
 
 		// Execute the runner if it follows the old `run` spec
@@ -583,6 +580,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					resolve((typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
 				}
 			};
+
+			const extensionTestsPath = originalFSPath(extensionTestsLocationURI); // for the old test runner API
 
 			const runResult = testRunner.run(extensionTestsPath, oldTestRunnerCallback);
 

@@ -37,52 +37,43 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 	private _context: IVariableResolveContext;
 	private _labelService?: ILabelService;
-	private _envVariables?: IProcessEnvironment;
+	private _envVariablesPromise?: Promise<IProcessEnvironment>;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
-	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariables?: IProcessEnvironment, _envVariablesPromise?: Promise<IProcessEnvironment>) {
+	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariablesPromise?: Promise<IProcessEnvironment>) {
 		this._context = _context;
 		this._labelService = _labelService;
-		// TODO: delete _envVariables in favor of _envVariablesPromise https://github.com/microsoft/vscode/issues/108804
-		if (_envVariables) {
-			if (isWindows) {
-				// windows env variables are case insensitive
-				const ev: IProcessEnvironment = Object.create(null);
-				this._envVariables = ev;
-				Object.keys(_envVariables).forEach(key => {
-					ev[key.toLowerCase()] = _envVariables[key];
-				});
-			} else {
-				this._envVariables = _envVariables;
-			}
+		if (_envVariablesPromise) {
+			this._envVariablesPromise = _envVariablesPromise.then(envVariables => {
+				return this.prepareEnv(envVariables);
+			});
 		}
 	}
 
+	private prepareEnv(envVariables: IProcessEnvironment): IProcessEnvironment {
+		// windows env variables are case insensitive
+		if (isWindows) {
+			const ev: IProcessEnvironment = Object.create(null);
+			Object.keys(envVariables).forEach(key => {
+				ev[key.toLowerCase()] = envVariables[key];
+			});
+			return ev;
+		}
+		return envVariables;
+	}
+
 	public resolveWithEnvironment(environment: IProcessEnvironment, root: IWorkspaceFolder | undefined, value: string): string {
-		return this.recursiveResolve(environment, root ? root.uri : undefined, value);
+		return this.recursiveResolve(this.prepareEnv(environment), root ? root.uri : undefined, value);
 	}
 
 	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string): Promise<string>;
 	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;
 	public async resolveAsync(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
 	public async resolveAsync(root: IWorkspaceFolder | undefined, value: any): Promise<any> {
-		return this.recursiveResolve(this._envVariables, root ? root.uri : undefined, value);
+		return this.recursiveResolve(await this._envVariablesPromise, root ? root.uri : undefined, value);
 	}
 
-	/**
-	 * @deprecated Use the async version of `resolve` instead.
-	 */
-	public resolve(root: IWorkspaceFolder | undefined, value: string): string;
-	public resolve(root: IWorkspaceFolder | undefined, value: string[]): string[];
-	public resolve(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
-	public resolve(root: IWorkspaceFolder | undefined, value: any): any {
-		return this.recursiveResolve(this._envVariables, root ? root.uri : undefined, value);
-	}
-
-	/**
-	 * @deprecated Use the async version of `resolve` instead.
-	 */
-	public resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
+	private async resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
 
 		const result = objects.deepClone(config) as any;
 
@@ -101,20 +92,16 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		delete result.linux;
 
 		// substitute all variables recursively in string values
-		return this.recursiveResolve(this._envVariables, workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
-	}
-
-	public resolveAny(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any {
-		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
+		return this.recursiveResolve(await this._envVariablesPromise, workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
 	}
 
 	public async resolveAnyAsync(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any> {
 		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
 	}
 
-	public resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): { newConfig: any, resolvedVariables: Map<string, string> } {
+	protected async resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }> {
 		const resolvedVariables = new Map<string, string>();
-		const newConfig = this.resolveAnyBase(workspaceFolder, config, commandValueMapping, resolvedVariables);
+		const newConfig = await this.resolveAnyBase(workspaceFolder, config, commandValueMapping, resolvedVariables);
 		return { newConfig, resolvedVariables };
 	}
 
@@ -235,6 +222,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			case 'env':
 				if (argument) {
 					if (environment) {
+						// Depending on the source of the environment, on Windows, the values may all be lowercase.
 						const env = environment[isWindows ? argument.toLowerCase() : argument];
 						if (types.isString(env)) {
 							return env;

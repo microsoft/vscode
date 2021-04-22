@@ -220,10 +220,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 export function cloneMetadata(cell: NotebookCellTextModel) {
 	return {
-		editable: cell.metadata?.editable,
-		inputCollapsed: cell.metadata?.inputCollapsed,
-		outputCollapsed: cell.metadata?.outputCollapsed,
-		custom: cell.metadata?.custom
+		...cell.metadata
 	};
 }
 

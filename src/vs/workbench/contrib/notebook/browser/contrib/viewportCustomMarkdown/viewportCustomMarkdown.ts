@@ -9,7 +9,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellKind, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 class NotebookClipboardContribution extends Disposable implements INotebookEditorContribution {

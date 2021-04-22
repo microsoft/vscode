@@ -263,11 +263,11 @@ export type TerminalShellArgsSetting = (
 
 export type VariableResolver = (str: string) => string;
 
-export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | undefined, configurationResolverService: IConfigurationResolverService | undefined): VariableResolver | undefined {
+export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | undefined, env: IProcessEnvironment, configurationResolverService: IConfigurationResolverService | undefined): VariableResolver | undefined {
 	if (!configurationResolverService) {
 		return undefined;
 	}
-	return (str) => configurationResolverService.resolve(lastActiveWorkspace, str);
+	return (str) => configurationResolverService.resolveWithEnvironment(env, lastActiveWorkspace, str);
 }
 
 /**

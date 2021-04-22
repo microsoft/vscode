@@ -22,7 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
@@ -117,7 +117,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}));
 	}
 
-	async override setInput(input: WorkspaceTrustEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: WorkspaceTrustEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) { return; }
@@ -206,8 +206,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
-		const onDemandExtensionCount = this.getExtensionCountByTrustRequestType(installedExtensions, 'onDemand');
-		const onStartExtensionCount = this.getExtensionCountByTrustRequestType(installedExtensions, 'onStart');
+		const onDemandExtensionCount = this.getExtensionCountByUntrustedWorkspaceSupport(installedExtensions, 'limited');
+		const onStartExtensionCount = this.getExtensionCountByUntrustedWorkspaceSupport(installedExtensions, false);
 
 		this.renderAffectedFeatures(settingsRequiringTrustedWorkspaceCount, onDemandExtensionCount + onStartExtensionCount);
 
@@ -220,8 +220,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rendering = false;
 	}
 
-	private getExtensionCountByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): number {
-		const filtered = extensions.filter(ext => this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(ext.local.manifest) === trustRequestType);
+	private getExtensionCountByUntrustedWorkspaceSupport(extensions: IExtensionStatus[], trustRequestType: ExtensionUntrustedWorkpaceSupportType): number {
+		const filtered = extensions.filter(ext => this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(ext.local.manifest) === trustRequestType);
 		const set = new Set<string>();
 		for (const ext of filtered) {
 			set.add(ext.identifier.id);

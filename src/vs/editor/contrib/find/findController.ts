@@ -422,7 +422,7 @@ export class FindController extends CommonFindController implements IFindControl
 		this._findOptionsWidget = null;
 	}
 
-	protected async override _start(opts: IFindStartOptions): Promise<void> {
+	protected override async _start(opts: IFindStartOptions): Promise<void> {
 		if (!this._widget) {
 			this._createFindWidget();
 		}

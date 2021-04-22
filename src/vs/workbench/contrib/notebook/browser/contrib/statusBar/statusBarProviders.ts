@@ -105,8 +105,14 @@ class BuiltinCellStatusBarProviders extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService notebookCellStatusBarService: INotebookCellStatusBarService) {
 		super();
-		this._register(notebookCellStatusBarService.registerCellStatusBarItemProvider(instantiationService.createInstance(CellStatusBarPlaceholderProvider)));
-		this._register(notebookCellStatusBarService.registerCellStatusBarItemProvider(instantiationService.createInstance(CellStatusBarLanguagePickerProvider)));
+
+		const builtinProviders = [
+			CellStatusBarPlaceholderProvider,
+			CellStatusBarLanguagePickerProvider,
+		];
+		builtinProviders.forEach(p => {
+			this._register(notebookCellStatusBarService.registerCellStatusBarItemProvider(instantiationService.createInstance(p)));
+		});
 	}
 }
 

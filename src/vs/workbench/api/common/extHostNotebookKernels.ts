@@ -11,7 +11,6 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 
@@ -48,7 +47,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const handle = this._handlePool++;
 		const that = this;
 
-		const _defaultSupportedLanguages = ['plaintext'];
 		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
 
 		let isDisposed = false;
@@ -63,7 +61,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label: label || extension.identifier.value,
-			supportedLanguages: _defaultSupportedLanguages,
 			preloads: preloads ? preloads.map(extHostTypeConverters.NotebookKernelPreload.from) : []
 		};
 
@@ -127,10 +124,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			get supportedLanguages() {
-				return data.supportedLanguages;
+				return data.supportedLanguages ?? [];
 			},
 			set supportedLanguages(value) {
-				data.supportedLanguages = isNonEmptyArray(value) ? value : _defaultSupportedLanguages;
+				data.supportedLanguages = value;
 				_update();
 			},
 			get hasExecutionOrder() {
@@ -193,7 +190,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (obj) {
 			obj.onDidChangeSelection.fire({
 				selected: value,
-				notebook: this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!.notebookDocument
+				notebook: this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!.apiNotebook
 			});
 		}
 	}
@@ -213,7 +210,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		for (let cellHandle of handles) {
 			const cell = document.getCell(cellHandle);
 			if (cell) {
-				cells.push(cell.cell);
+				cells.push(cell.apiCell);
 			}
 		}
 

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff, CellUri, cellRangesToIndexes, cellIndexesToRanges } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangesToIndexes, cellIndexesToRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';

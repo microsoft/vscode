@@ -12,7 +12,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalInstance, Direction, ITerminalTab, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IShellLaunchConfig, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { localize } from 'vs/nls';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 
@@ -411,18 +410,14 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			// this is required when the tab is used as part of a tree.
 			return '';
 		}
-		let title = this._titleWithConnectionStatus(this.terminalInstances[0]);
+		let title = this.terminalInstances[0].title;
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			const instance = this.terminalInstances[i];
 			if (instance.title) {
-				title += `, ${this._titleWithConnectionStatus(instance)}`;
+				title += `, ${instance.title}}`;
 			}
 		}
 		return title;
-	}
-
-	private _titleWithConnectionStatus(instance: ITerminalInstance): string {
-		return instance.isDisconnected ? localize('ptyDisconnected', "{0} (disconnected)", instance.title) : instance.title;
 	}
 
 	public setVisible(visible: boolean): void {

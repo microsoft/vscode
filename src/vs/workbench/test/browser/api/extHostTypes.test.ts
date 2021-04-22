@@ -651,7 +651,6 @@ suite('ExtHostTypes', function () {
 
 	test('NotebookMetadata - defaults', function () {
 		const obj = new types.NotebookDocumentMetadata();
-		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
 		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
 	});
 
@@ -690,13 +689,13 @@ suite('ExtHostTypes', function () {
 
 	test('NotebookCellMetadata - with custom', function () {
 		const obj = new types.NotebookCellMetadata(true, true);
-		const newObj = obj.with({ inputCollapsed: false, mycustom: { display: 'hello' } });
+		const newObj = obj.with({ inputCollapsed: false, custom: { display: 'hello' } });
 		assert.ok(obj !== newObj);
 		const sameObj = newObj.with({ inputCollapsed: false });
 		assert.ok(newObj === sameObj);
 		assert.strictEqual(obj.inputCollapsed, true);
 		assert.strictEqual(newObj.inputCollapsed, false);
-		assert.deepStrictEqual(newObj.mycustom, { display: 'hello' });
+		assert.deepStrictEqual(newObj.custom, { display: 'hello' });
 
 		const newCustom = newObj.with({ anotherCustom: { display: 'hello2' } });
 		assert.strictEqual(newCustom.inputCollapsed, false);

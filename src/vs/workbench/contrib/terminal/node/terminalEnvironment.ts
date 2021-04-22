@@ -9,7 +9,7 @@ import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/co
 
 let mainProcessParentEnv: IProcessEnvironment | undefined;
 
-export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironment = process.env as IProcessEnvironment): Promise<IProcessEnvironment> {
+export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironment): Promise<IProcessEnvironment> {
 	if (mainProcessParentEnv) {
 		return mainProcessParentEnv;
 	}

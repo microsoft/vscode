@@ -38,6 +38,8 @@ import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { URI } from 'vs/base/common/uri';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -74,8 +76,14 @@ export class TerminalService implements ITerminalService {
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
+	public get connectionState(): TerminalConnectionState { return this._connectionState; }
+	private readonly _localTerminalService?: ILocalTerminalService;
 
 	private _availableProfiles: ITerminalProfile[] | undefined;
+	public get availableProfiles(): ITerminalProfile[] {
+		this._refreshAvailableProfiles();
+		return this._availableProfiles || [];
+	}
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
@@ -111,16 +119,15 @@ export class TerminalService implements ITerminalService {
 	public get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
-	public get connectionState(): TerminalConnectionState { return this._connectionState; }
-	private readonly _onProfilesConfigChanged = new Emitter<void>();
-	public get onProfilesConfigChanged(): Event<void> { return this._onProfilesConfigChanged.event; }
+	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
+	public get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
 	private readonly _onPanelMovedToSide = new Emitter<void>();
 	public get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
-	private readonly _localTerminalService?: ILocalTerminalService;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
+		@ILabelService labelService: ILabelService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -153,6 +160,9 @@ export class TerminalService implements ITerminalService {
 			const instance = this.getActiveInstance();
 			this._onActiveInstanceChanged.fire(instance ? instance : undefined);
 		});
+		// update detected profiles so for example we detect if you've installed a pwsh
+		// this avoids having poll routinely
+		this.onInstanceCreated(() => this._refreshAvailableProfiles());
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
@@ -162,8 +172,20 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
+				e.affectsConfiguration('terminal.integrated.defaultProfile.windows') ||
+				e.affectsConfiguration('terminal.integrated.defaultProfile.osx') ||
+				e.affectsConfiguration('terminal.integrated.defaultProfile.linux') ||
 				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
-				this._updateAvailableProfilesNow();
+				this._refreshAvailableProfiles();
+			}
+		});
+
+		// Register a resource formatter for terminal URIs
+		labelService.registerFormatter({
+			scheme: Schemas.vscodeTerminal,
+			formatting: {
+				label: '${path}',
+				separator: ''
 			}
 		});
 
@@ -172,7 +194,7 @@ export class TerminalService implements ITerminalService {
 		const conn = this._remoteAgentService.getConnection();
 		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
 		this._whenExtHostReady(remoteAuthority).then(() => {
-			this._updateAvailableProfiles();
+			this._refreshAvailableProfiles();
 		});
 
 		// Connect to the extension host if it's there, set the connection state to connected when
@@ -308,29 +330,13 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority]!.resolve();
 	}
 
-	public getAvailableProfiles(): ITerminalProfile[] {
-		this._updateAvailableProfiles();
-		return this._availableProfiles || [];
-	}
-
-	public async getAvailableProfilesAsync(): Promise<ITerminalProfile[]> {
-		await this._updateAvailableProfilesNow();
-		return this._availableProfiles || [];
-	}
-
-	// when relevant config changes, update without debouncing
-	private async _updateAvailableProfilesNow(): Promise<void> {
+	@throttle(10000)
+	private async _refreshAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles(true);
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
-			this._onProfilesConfigChanged.fire();
+			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 		}
-	}
-
-	// avoid checking this very often, every ten seconds shoulds suffice
-	@throttle(10000)
-	private _updateAvailableProfiles(): Promise<void> {
-		return this._updateAvailableProfilesNow();
 	}
 
 	private async _detectProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
@@ -699,7 +705,6 @@ export class TerminalService implements ITerminalService {
 				await instance.focusWhenReady(true);
 			}
 		}
-		this._onProfilesConfigChanged.fire();
 	}
 
 	private _getIndexFromId(terminalId: number): number {
@@ -894,8 +899,22 @@ export class TerminalService implements ITerminalService {
 			if ('command' in value.profile) {
 				return; // Should never happen
 			}
-			await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
-			await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
+			// Add the profile to settings if necessary
+			if (value.profile.isAutoDetected) {
+				const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
+				if (typeof profilesConfig === 'object') {
+					const newProfile: ITerminalProfileObject = {
+						path: value.profile.path
+					};
+					if (value.profile.args) {
+						newProfile.args = value.profile.args;
+					}
+					(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+				}
+				await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
+			}
+			// Set the default profile
+			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		}
 	}
 

@@ -13,8 +13,11 @@
   "categories": [
     "Other"
   ],
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "activationEvents": [
     "onStartupFinished"
