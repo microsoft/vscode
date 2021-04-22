@@ -12,8 +12,10 @@
   "activationEvents": [
     "onDebugResolve"
   ],
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "enableProposedApi": true,
   "main": "./out/extension",

@@ -23,8 +23,10 @@
     "jsonc-parser": "^2.2.1",
     "vscode-nls": "^4.1.1"
   },
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "languages": [

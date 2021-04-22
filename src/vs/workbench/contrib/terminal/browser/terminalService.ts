@@ -38,6 +38,8 @@ import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { URI } from 'vs/base/common/uri';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -125,6 +127,7 @@ export class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
+		@ILabelService labelService: ILabelService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -174,6 +177,15 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration('terminal.integrated.defaultProfile.linux') ||
 				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
 				this._refreshAvailableProfiles();
+			}
+		});
+
+		// Register a resource formatter for terminal URIs
+		labelService.registerFormatter({
+			scheme: Schemas.vscodeTerminal,
+			formatting: {
+				label: '${path}',
+				separator: ''
 			}
 		});
 

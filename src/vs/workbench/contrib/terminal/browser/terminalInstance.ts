@@ -488,7 +488,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
-		this._xterm.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning, icon: Codicon.bell }, 3000));
+		// Delay the creation of the bell listener to avoid showing the bell when the terminal
+		// starts up or reconnects
+		setTimeout(() => {
+			this._xterm?.onBell(() => {
+				if (this._configHelper.config.enableBell) {
+					this.statusList.add({
+						id: TerminalStatus.Bell,
+						severity: Severity.Warning,
+						icon: Codicon.bell,
+						tooltip: nls.localize('bellStatus', "Bell")
+					}, 3000);
+				}
+			});
+		}, 1000);
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
@@ -1030,7 +1043,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
-			this.statusList.add({ id: TerminalStatus.Disconnected, severity: Severity.Error, icon: Codicon.debugDisconnect });
+			this.statusList.add({
+				id: TerminalStatus.Disconnected,
+				severity: Severity.Error,
+				icon: Codicon.debugDisconnect,
+				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
+			});
 			this._onTitleChanged.fire(this);
 		});
 		this._processManager.onPtyReconnect(() => {
@@ -1321,7 +1339,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorWidth(config.cursorWidth);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
-		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
 		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
 		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
@@ -1428,20 +1445,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._skipTerminalCommands = DEFAULT_COMMANDS_TO_SKIP_SHELL.filter(defaultCommand => {
 			return excludeCommands.indexOf(defaultCommand) === -1;
 		}).concat(commands);
-	}
-
-	private _setEnableBell(isEnabled: boolean): void {
-		if (this._xterm) {
-			if (this._xterm.getOption('bellStyle') === 'sound') {
-				if (!this._configHelper.config.enableBell) {
-					this._xterm.setOption('bellStyle', 'none');
-				}
-			} else {
-				if (this._configHelper.config.enableBell) {
-					this._xterm.setOption('bellStyle', 'sound');
-				}
-			}
-		}
 	}
 
 	private _safeSetOption(key: string, value: any): void {
@@ -1663,7 +1666,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
 		const disposable = this._widgetManager.attachWidget(widget);
 		if (info.requiresAction) {
-			this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Warning, icon: Codicon.warning });
+			this.statusList.add({
+				id: TerminalStatus.RelaunchNeeded,
+				severity: Severity.Warning,
+				icon: Codicon.warning,
+				tooltip: nls.localize('relaunchNeededStatus', "Relaunch needed to update environment")
+			});
 		}
 		if (disposable) {
 			this._environmentInfo = { widget, disposable };

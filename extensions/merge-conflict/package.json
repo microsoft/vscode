@@ -13,8 +13,10 @@
   "categories": [
     "Other"
   ],
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "activationEvents": [
     "onStartupFinished"

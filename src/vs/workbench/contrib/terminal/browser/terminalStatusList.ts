@@ -31,6 +31,10 @@ export interface ITerminalStatus {
 	 * tab and will use the generic `info` icon when hovering.
 	 */
 	icon?: Codicon;
+	/**
+	 * What to show for this status in the terminal's hover.
+	 */
+	tooltip?: string | undefined;
 }
 
 export interface ITerminalStatusList {
@@ -104,7 +108,7 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		const status = typeof statusOrId === 'string' ? this._statuses.get(statusOrId) : statusOrId;
 		// Verify the status is the same as the one passed in
 		if (status && this._statuses.get(status.id)) {
-			const wasPrimary = this.primary === status;
+			const wasPrimary = this.primary?.id === status.id;
 			this._statuses.delete(status.id);
 			this._onDidRemoveStatus.fire(status);
 			if (wasPrimary) {

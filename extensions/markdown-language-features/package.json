@@ -29,12 +29,14 @@
     "onWebviewPanel:markdown.preview",
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
-  "workspaceTrust": {
-    "request": "onDemand",
-    "description": "%workspaceTrust%",
-    "requiredForConfigurations": [
-      "markdown.styles"
-    ]
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%",
+      "restrictedConfigurations": [
+        "markdown.styles"
+      ]
+    }
   },
   "contributes": {
     "notebookMarkdownRenderer": [
