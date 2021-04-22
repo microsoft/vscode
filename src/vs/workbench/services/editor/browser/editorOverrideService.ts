@@ -19,6 +19,7 @@ import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } fro
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IContributedEditorInput extends IEditorInput {
 	viewType?: string;
@@ -44,6 +45,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -103,6 +105,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 		// Add the group as we might've changed it with the quickpick
 		if (input) {
+			this.sendOverrideTelemtry(input.editor);
 			return { ...input, group };
 		}
 		return input;
@@ -455,5 +458,17 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		return undefined;
+	}
+
+	private sendOverrideTelemtry(chosenInput: IContributedEditorInput): void {
+		type editorOverrideClassification = {
+			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+		};
+		type editorOverrideEvent = {
+			viewType: string
+		};
+		if (chosenInput.viewType) {
+			this.telemetryService.publicLog2<editorOverrideEvent, editorOverrideClassification>('override.viewType', { viewType: chosenInput.viewType });
+		}
 	}
 }
