@@ -644,7 +644,10 @@ export {
 
 	// Env
 	IPerformanceMark,
-	env
+	env,
+
+	// Development
+	IDevelopmentOptions
 };
 
 //#endregion
