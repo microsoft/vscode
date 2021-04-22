@@ -92,6 +92,7 @@ export interface ITestItem {
 	uri: URI;
 	range: IRange | undefined;
 	description: string | undefined;
+	error: string | IMarkdownString | undefined;
 	runnable: boolean;
 	debuggable: boolean;
 }

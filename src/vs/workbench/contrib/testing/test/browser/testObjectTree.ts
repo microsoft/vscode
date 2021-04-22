@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspaceFolderData, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
+import { TestItemTreeElement, ITestTreeProjection, TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
@@ -84,7 +84,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	public readonly onFolderChange = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	public readonly c: TestSingleUseCollection = this._register(this.owned.createForHierarchy(d => this.c.setDiff(d /* don't clear during testing */)));
 	public readonly projection: T;
-	public readonly tree: TestObjectTree<ITestTreeElement>;
+	public readonly tree: TestObjectTree<TestExplorerTreeElement>;
 
 	constructor(folders: IWorkspaceFolderData[], makeTree: (listener: TestSubscriptionListener) => T) {
 		super();
@@ -100,9 +100,9 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 			onDiff: this.onDiff.event,
 			onFolderChange: this.onFolderChange.event,
 		} as any));
-		this.tree = this._register(new TestObjectTree(t => t.label));
+		this.tree = this._register(new TestObjectTree(t => 'label' in t ? t.label : t.message));
 		this._register(this.tree.onDidChangeCollapseState(evt => {
-			if (evt.node.element) {
+			if (evt.node.element instanceof TestItemTreeElement) {
 				this.projection.expandElement(evt.node.element, evt.deep ? Infinity : 0);
 			}
 		}));

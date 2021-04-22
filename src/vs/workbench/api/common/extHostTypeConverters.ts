@@ -1707,6 +1707,7 @@ export namespace TestItem {
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
+			error: item.error ? MarkdownString.fromStrict(item.error) : undefined,
 		};
 	}
 
@@ -1718,6 +1719,7 @@ export namespace TestItem {
 			range: Range.from(item.range),
 			debuggable: false,
 			description: item.description,
+			error: undefined,
 			runnable: true,
 		};
 	}
