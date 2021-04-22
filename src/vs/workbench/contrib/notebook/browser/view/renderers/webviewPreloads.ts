@@ -260,11 +260,6 @@ function webviewPreloads() {
 				id: outputId,
 				focusNext
 			});
-
-			setTimeout(() => { // Wait a tick to prevent the focus indicator blinking before webview blurs
-				// Move focus off the focus sink - single use
-				focusFirstFocusableInCell(cellId);
-			}, 50);
 		});
 
 		return element;
