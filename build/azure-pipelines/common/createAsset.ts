@@ -24,10 +24,10 @@ interface Asset {
 	supportsFastUpdate?: boolean;
 }
 
-if (process.argv.length !== 6) {
-	console.error('Usage: node createAsset.js PLATFORM TYPE NAME FILE');
-	process.exit(-1);
-}
+// if (process.argv.length !== 6) {
+// 	console.error('Usage: node createAsset.js PLATFORM TYPE NAME FILE');
+// 	process.exit(-1);
+// }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
 function getPlatform(product: string, os: string, arch: string): string | undefined {
