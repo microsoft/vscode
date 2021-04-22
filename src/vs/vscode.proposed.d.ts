@@ -876,7 +876,7 @@ declare module 'vscode' {
 		/**
 		* Whether the tree supports drag and drop.
 		*/
-		setParent(element: T, targetElement: T): Thenable<void>;
+		setParent?(element: T, targetElement: T): Thenable<void>;
 	}
 
 	//#endregion

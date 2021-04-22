@@ -183,6 +183,18 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				}));
 	}
 
+
+	setParent(treeItem?: ITreeItem): Promise<void> {
+		// return Promise.resolve(this._proxy.$setParent(this.treeViewId, treeItem ? treeItem.handle : undefined)
+		// 	.then(
+		// 		children => this.postGetChildren(children),
+		// 		err => {
+		// 			this.notificationService.error(err);
+		// 			return [];
+		// 		}));
+		return Promise.resolve();
+	}
+
 	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): ITreeItem[] {
 		const itemsToRefresh: ITreeItem[] = [];
 		if (itemsToRefreshByHandle) {
