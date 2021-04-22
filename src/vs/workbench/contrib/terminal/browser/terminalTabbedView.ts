@@ -428,8 +428,8 @@ export class TerminalTabbedView extends Disposable {
 
 		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
-		actions.push(new Separator());
 		if (menu === this._tabsWidgetMenu) {
+			actions.push(new Separator());
 			let action;
 			if (this._configurationService.inspect('terminal.integrated.tabsLocation').userValue === 'left') {
 				action = new Action('moveRight', 'Move Tabs Right', undefined, undefined, async () => {
