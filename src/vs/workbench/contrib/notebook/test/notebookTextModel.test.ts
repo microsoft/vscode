@@ -227,6 +227,45 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
+	test('multiple append output in one position', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.viewModel.notebookDocument;
+
+				// append
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [{ mime: 'text/markdown', value: 'append 1' }]
+						}]
+					},
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append2',
+							outputs: [{ mime: 'text/markdown', value: 'append 2' }]
+						}]
+					}
+				], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 2);
+				const [first, second] = textModel.cells[0].outputs;
+				assert.strictEqual(first.outputId, 'append1');
+				assert.strictEqual(second.outputId, 'append2');
+			}
+		);
+	});
+
 	test('metadata', async function () {
 		await withTestNotebook(
 			[
