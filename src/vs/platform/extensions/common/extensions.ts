@@ -165,7 +165,7 @@ export interface IExtensionContributions {
 
 export interface IExtensionCapabilities {
 	readonly virtualWorkspaces?: boolean;
-	untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
