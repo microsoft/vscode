@@ -707,6 +707,14 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	public async focusTabsView(): Promise<void> {
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+		if (!pane) {
+			await this._viewsService.openView(TERMINAL_VIEW_ID, false);
+		}
+		pane.focusTabsView();
+	}
+
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {

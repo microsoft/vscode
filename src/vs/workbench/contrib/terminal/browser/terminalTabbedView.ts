@@ -155,6 +155,16 @@ export class TerminalTabbedView extends Disposable {
 		});
 	}
 
+	public focusTabsView(): void {
+		this._terminalTabsFocusContextKey.set(true);
+		const focused = this._tabsWidget.getFocus();
+		if (!focused.length) {
+			this._tabsWidget.focusFirst();
+		}
+
+		this._tabsWidget.domFocus();
+	}
+
 	private _getLastWidgetWidth(): number {
 		const storedValue = this._storageService.get(TABS_WIDGET_WIDTH_KEY, StorageScope.WORKSPACE);
 		if (!storedValue || !parseInt(storedValue)) {

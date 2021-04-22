@@ -156,6 +156,7 @@ export interface ITerminalService {
 	getFindState(): FindReplaceState;
 	findNext(): void;
 	findPrevious(): void;
+	focusTabsView(): void;
 
 	registerProcessSupport(isSupported: boolean): void;
 	/**
