@@ -45,6 +45,7 @@
     "onView:npm"
   ],
   "capabilities": {
+    "virtualWorkspaces": false,
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "%workspaceTrust%"

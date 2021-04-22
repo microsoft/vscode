@@ -10,6 +10,7 @@
   },
   "icon": "media/icon.png",
   "capabilities": {
+    "virtualWorkspaces": false,
     "untrustedWorkspaces": {
       "supported": true
     }

@@ -27,6 +27,7 @@
     "onCommand:workbench.action.tasks.runTask"
   ],
   "capabilities": {
+    "virtualWorkspaces": false,
     "untrustedWorkspaces": {
       "supported": true
     }

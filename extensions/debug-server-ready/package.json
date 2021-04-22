@@ -13,6 +13,7 @@
     "onDebugResolve"
   ],
   "capabilities": {
+    "virtualWorkspaces": false,
     "untrustedWorkspaces": {
       "supported": true
     }
