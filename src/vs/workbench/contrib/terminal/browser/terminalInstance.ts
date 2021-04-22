@@ -493,7 +493,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		setTimeout(() => {
 			this._xterm?.onBell(() => {
 				if (this._configHelper.config.enableBell) {
-					this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning, icon: Codicon.bell }, 3000);
+					this.statusList.add({
+						id: TerminalStatus.Bell,
+						severity: Severity.Warning,
+						icon: Codicon.bell,
+						tooltip: nls.localize('bellStatus', "Bell")
+					}, 3000);
 				}
 			});
 		}, 1000);
@@ -1038,7 +1043,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
-			this.statusList.add({ id: TerminalStatus.Disconnected, severity: Severity.Error, icon: Codicon.debugDisconnect });
+			this.statusList.add({
+				id: TerminalStatus.Disconnected,
+				severity: Severity.Error,
+				icon: Codicon.debugDisconnect,
+				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
+			});
 			this._onTitleChanged.fire(this);
 		});
 		this._processManager.onPtyReconnect(() => {
@@ -1660,7 +1670,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				id: TerminalStatus.RelaunchNeeded,
 				severity: Severity.Warning,
 				icon: Codicon.warning,
-				tooltip: 'Relaunch needed to update environment'
+				tooltip: nls.localize('relaunchNeededStatus', "Relaunch needed to update environment")
 			});
 		}
 		if (disposable) {
