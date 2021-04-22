@@ -157,7 +157,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
 			if (profile) {
-				const instance = await terminalService.createTerminal(profile);
+				const instance = terminalService.createTerminal(profile);
 				terminalService.setActiveInstance(instance);
 				return terminalService.showPanel(true);
 			} else {
