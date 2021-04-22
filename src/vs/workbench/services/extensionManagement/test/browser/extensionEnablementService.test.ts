@@ -478,7 +478,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test extension does not support vitrual workspace is not enabled in virtual workspace', async () => {
-		const extension = aLocalExtension2('pub.a', { supportsVirtualWorkspace: false });
+		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(extension));
@@ -486,14 +486,14 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test canChangeEnablement return false when extension is disabled in virtual workspace', () => {
-		const extension = aLocalExtension2('pub.a', { supportsVirtualWorkspace: false });
+		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.canChangeEnablement(extension));
 	});
 
 	test('test extension does not support vitrual workspace is enabled in virtual workspace', async () => {
-		const extension = aLocalExtension2('pub.a', { supportsVirtualWorkspace: false });
+		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA') }] });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(extension));
@@ -501,7 +501,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test extension supports virtual workspace is enabled in virtual workspace', async () => {
-		const extension = aLocalExtension2('pub.a', { supportsVirtualWorkspace: true });
+		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: true } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(extension));
