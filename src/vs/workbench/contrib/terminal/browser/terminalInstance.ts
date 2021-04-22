@@ -491,7 +491,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
 		setTimeout(() => {
-			this._xterm?.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning, icon: Codicon.bell }, 3000));
+			this._xterm?.onBell(() => {
+				if (this._configHelper.config.enableBell) {
+					this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning, icon: Codicon.bell }, 3000);
+				}
+			});
 		}, 1000);
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
@@ -1325,7 +1329,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorWidth(config.cursorWidth);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
-		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
 		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
 		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
@@ -1432,20 +1435,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._skipTerminalCommands = DEFAULT_COMMANDS_TO_SKIP_SHELL.filter(defaultCommand => {
 			return excludeCommands.indexOf(defaultCommand) === -1;
 		}).concat(commands);
-	}
-
-	private _setEnableBell(isEnabled: boolean): void {
-		if (this._xterm) {
-			if (this._xterm.getOption('bellStyle') === 'sound') {
-				if (!this._configHelper.config.enableBell) {
-					this._xterm.setOption('bellStyle', 'none');
-				}
-			} else {
-				if (this._configHelper.config.enableBell) {
-					this._xterm.setOption('bellStyle', 'sound');
-				}
-			}
-		}
 	}
 
 	private _safeSetOption(key: string, value: any): void {
