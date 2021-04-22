@@ -91,7 +91,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		});
 
 		// Dobule click should create a new terminal
-		DOM.addDisposableListener(container, 'dblclick', e => {
+		DOM.addDisposableListener(container, DOM.EventType.DBLCLICK, e => {
 			if (this.getFocus().length === 0) {
 				this._terminalService.createTerminal();
 			}
