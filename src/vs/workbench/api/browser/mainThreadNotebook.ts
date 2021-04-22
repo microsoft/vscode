@@ -13,7 +13,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { INotebookCellStatusBarItemProvider, INotebookExclusiveDocumentFilter, NotebookDataDto, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
@@ -22,7 +22,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
+	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider, disposable: IDisposable }>();
 	private readonly _notebookSerializer = new Map<number, IDisposable>();
 	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
 
@@ -51,7 +51,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	}): Promise<void> {
 		let contentOptions = { transientOutputs: options.transientOutputs, transientCellMetadata: options.transientCellMetadata, transientDocumentMetadata: options.transientDocumentMetadata };
 
-		const controller: IMainNotebookController = {
+		const controller: INotebookContentProvider = {
 			get options() {
 				return contentOptions;
 			},

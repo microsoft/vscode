@@ -86,7 +86,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		}
 	}
 
-	async override openExtensionDevelopmentHostWindow(args: string[], _env: INullableProcessEnvironment | undefined, _debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+	override async openExtensionDevelopmentHostWindow(args: string[], _env: INullableProcessEnvironment | undefined, _debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 
 		// Add environment parameters required for debug to work
 		const environment = new Map<string, string>();

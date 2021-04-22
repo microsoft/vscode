@@ -15,16 +15,40 @@ import { runWhenIdle } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual } from 'vs/base/common/resources';
 
-interface IKernelInfo {
-	kernel: INotebookKernel;
-	score: number;
+class KernelInfo {
+
+	private static _logicClock = 0;
+
+	readonly kernel: INotebookKernel;
+	public score: number;
+	readonly time: number;
+
+	constructor(kernel: INotebookKernel) {
+		this.kernel = kernel;
+		this.score = -1;
+		this.time = KernelInfo._logicClock++;
+	}
 }
 
 class ScoreInfo {
-	constructor(private readonly _anchor: INotebookTextModelLike) { }
 
-	equals(candidate: INotebookTextModelLike): boolean {
-		return this._anchor.viewType === candidate.viewType && isEqual(this._anchor.uri, candidate.uri);
+	private _anchor?: INotebookTextModelLike;
+
+	constructor() { }
+
+	matches(candidate: INotebookTextModelLike): boolean {
+		if (!this._anchor) {
+			return false;
+		}
+		if (this._anchor.viewType === candidate.viewType && isEqual(this._anchor.uri, candidate.uri)) {
+			return true;
+		}
+		this._anchor = candidate;
+		return false;
+	}
+
+	reset(): void {
+		this._anchor = undefined;
 	}
 }
 
@@ -34,9 +58,9 @@ export class NotebookKernelService implements INotebookKernelService {
 
 	private static _storageKey = 'notebook.kernelBindings';
 
-	private readonly _kernels = new Map<string, IKernelInfo>();
+	private readonly _kernels = new Map<string, KernelInfo>();
 	private readonly _kernelBindings = new LRUCache<string, string>(1000, 0.7);
-	private _scoreInfo?: ScoreInfo;
+	private readonly _scoreInfo = new ScoreInfo();
 
 	private readonly _onDidChangeNotebookKernelBinding = new Emitter<INotebookKernelBindEvent>();
 	private readonly _onDidAddKernel = new Emitter<INotebookKernel>();
@@ -79,12 +103,12 @@ export class NotebookKernelService implements INotebookKernelService {
 			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
 		}
 
-		this._scoreInfo = undefined;
-		this._kernels.set(kernel.id, { kernel, score: -1 });
+		this._kernels.set(kernel.id, new KernelInfo(kernel));
+		this._scoreInfo.reset();
 		this._onDidAddKernel.fire(kernel);
 
 		return toDisposable(() => {
-			this._scoreInfo = undefined;
+			this._scoreInfo.reset();
 			if (this._kernels.delete(kernel.id)) {
 				this._onDidRemoveKernel.fire(kernel);
 			}
@@ -100,11 +124,10 @@ export class NotebookKernelService implements INotebookKernelService {
 	getNotebookKernels(notebook: INotebookTextModelLike): { bound: INotebookKernel | undefined, all: INotebookKernel[] } {
 
 		// update score if needed
-		if (!this._scoreInfo?.equals(notebook)) {
-			for (let item of this._kernels.values()) {
+		if (!this._scoreInfo.matches(notebook)) {
+			for (const item of this._kernels.values()) {
 				item.score = score(item.kernel.selector, notebook.uri, notebook.viewType);
 			}
-			this._scoreInfo = new ScoreInfo(notebook);
 		}
 
 		// all applicable kernels
@@ -123,8 +146,8 @@ export class NotebookKernelService implements INotebookKernelService {
 				if (b.score !== a.score) {
 					return b.score - a.score;
 				}
-				// (3) sort by name
-				return a.kernel.label.localeCompare(b.kernel.label);
+				// (3) sort by time
+				return a.time - b.time;
 			})
 			.map(item => item.kernel);
 

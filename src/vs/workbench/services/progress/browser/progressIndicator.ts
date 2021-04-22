@@ -93,7 +93,7 @@ export class EditorProgressIndicator extends ProgressBarIndicator {
 		return super.show(infiniteOrTotal, delay);
 	}
 
-	async override showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+	override async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
 
 		// No editor open: ignore any progress reporting
 		if (this.group.isEmpty) {

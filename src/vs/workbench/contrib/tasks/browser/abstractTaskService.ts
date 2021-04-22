@@ -30,7 +30,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
@@ -248,7 +247,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IStorageService private readonly storageService: IStorageService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IHostService private readonly _hostService: IHostService,
 		@IDialogService protected readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -276,24 +274,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
-				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.notificationService.prompt(
-						Severity.Info,
-						nls.localize(
-							'TaskSystem.noHotSwap',
-							'Changing the task execution engine with an active task running requires to reload the Window'
-						),
-						[{
-							label: nls.localize('reloadWindow', "Reload Window"),
-							run: () => this._hostService.reload()
-						}],
-						{ sticky: true }
-					);
-					return;
-				} else {
-					this.disposeTaskSystemListeners();
-					this._taskSystem = undefined;
-				}
+				this.disposeTaskSystemListeners();
+				this._taskSystem = undefined;
 			}
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();

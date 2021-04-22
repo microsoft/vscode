@@ -311,7 +311,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupId = this.model.id;
 		const containerToolbar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('ariaLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
-				async override run(action: IAction) {
+				override async run(action: IAction) {
 					await action.run(groupId);
 				}
 			})

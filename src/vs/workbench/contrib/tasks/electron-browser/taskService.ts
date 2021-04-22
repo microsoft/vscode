@@ -36,7 +36,6 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -72,7 +71,6 @@ export class TaskService extends AbstractTaskService {
 		@IStorageService storageService: IStorageService,
 		@IProgressService progressService: IProgressService,
 		@IOpenerService openerService: IOpenerService,
-		@IHostService _hostService: IHostService,
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -103,7 +101,6 @@ export class TaskService extends AbstractTaskService {
 			storageService,
 			progressService,
 			openerService,
-			_hostService,
 			dialogService,
 			notificationService,
 			contextKeyService,

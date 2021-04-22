@@ -416,9 +416,14 @@ export const schema: IJSONSchema = {
 			]
 		},
 		capabilities: {
-			description: nls.localize('vscode.extension.capabilities', 'Declare set of supported scenarios by the extension'),
+			description: nls.localize('vscode.extension.capabilities', "Declare the set of supported capabilities by the extension."),
 			type: 'object',
 			properties: {
+				virtualWorkspaces: {
+					description: nls.localize('vscode.extension.capabilities.virtualWorkspaces', "Declare the support for virtual workspace. Default is to support."),
+					type: 'boolean',
+					default: true
+				},
 				untrustedWorkspaces: {
 					description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces', 'Declares how the extension should be handled in untrusted workspaces.'),
 					type: 'object',
@@ -442,11 +447,6 @@ export const schema: IJSONSchema = {
 					}
 				}
 			}
-		},
-		supportsVirtualWorkspace: {
-			description: nls.localize('supportsVirtualWorkspace', "When disabled the extension is not enabled in the workspace that has all folders using custom scheme. Default is `true`."),
-			type: 'boolean',
-			default: true
 		},
 		scripts: {
 			type: 'object',

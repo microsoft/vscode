@@ -516,7 +516,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, items: IGettingStartedTask[]): void {
 		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
 		if (oldCategory) {
-			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor})`);
+			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor.id})`);
 			return;
 		}
 

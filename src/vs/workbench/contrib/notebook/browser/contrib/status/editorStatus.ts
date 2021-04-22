@@ -13,7 +13,7 @@ import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_ED
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,7 +22,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -145,7 +145,7 @@ registerAction2(class extends Action2 {
 export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly _editorDisposables = this._register(new DisposableStore());
-	private readonly _kernelInfoElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly _kernelInfoElement = this._register(new MutableDisposable());
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -169,8 +169,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		const updateStatus = () => {
 			const notebook = activeEditor.viewModel?.notebookDocument;
 			if (notebook) {
-				const info = this._notebookKernelService.getNotebookKernels(notebook);
-				this._showKernelStatus(info.bound, info.all);
+				this._showKernelStatus(notebook);
 			} else {
 				this._kernelInfoElement.clear();
 			}
@@ -182,29 +181,33 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		updateStatus();
 	}
 
-	private _showKernelStatus(boundKernel: INotebookKernel | undefined, availableKernels: INotebookKernel[]) {
+	private _showKernelStatus(notebook: INotebookTextModel) {
 
-		if (availableKernels.length === 0) {
+		let { bound, all } = this._notebookKernelService.getNotebookKernels(notebook);
+
+		if (all.length === 0) {
 			this._kernelInfoElement.clear();
 			return;
 		}
 
-		if (!boundKernel) {
-			boundKernel = availableKernels[0];
+		if (!bound) {
+			bound = all[0];
 		}
 
-		this._kernelInfoElement.value = this._statusbarService.addEntry(
+		const registration = this._statusbarService.addEntry(
 			{
-				text: `$(notebook-kernel-select) ${boundKernel.label}`,
-				ariaLabel: boundKernel.label,
-				tooltip: boundKernel.description ?? boundKernel.detail ?? boundKernel.label,
-				command: availableKernels.length > 1 ? 'notebook.selectKernel' : undefined,
+				text: `$(notebook-kernel-select) ${bound.label}`,
+				ariaLabel: bound.label,
+				tooltip: bound.description ?? bound.detail ?? bound.label,
+				command: all.length > 1 ? 'notebook.selectKernel' : undefined,
 			},
 			'notebook.selectKernel',
 			nls.localize('notebook.info', "Notebook Kernel Info"),
 			StatusbarAlignment.RIGHT,
 			100
 		);
+		const listener = bound.onDidChange(() => this._showKernelStatus(notebook));
+		this._kernelInfoElement.value = combinedDisposable(listener, registration);
 	}
 }
 

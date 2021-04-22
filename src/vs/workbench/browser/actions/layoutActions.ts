@@ -244,7 +244,7 @@ export class ToggleEditorVisibilityAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.layoutService.toggleMaximizedPanel();
 	}
 }
@@ -405,7 +405,7 @@ class ToggleZenMode extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.layoutService.toggleZenMode();
 	}
 }
@@ -448,7 +448,7 @@ export class ToggleMenuBarAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.layoutService.toggleMenuBar();
 	}
 }
@@ -482,7 +482,7 @@ export class ResetViewLocationsAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.viewDescriptorService.reset();
 	}
 }
@@ -585,7 +585,7 @@ export class MoveViewAction extends Action {
 		});
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
 		let viewId: string;
 
@@ -624,7 +624,7 @@ export class MoveFocusedViewAction extends Action {
 		super(id, label);
 	}
 
-	async override run(viewId: string): Promise<void> {
+	override async run(viewId: string): Promise<void> {
 		const focusedViewId = viewId || FocusedViewContext.getValue(this.contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
@@ -744,7 +744,7 @@ export class ResetFocusedViewLocationAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
 
 		let viewDescriptor: IViewDescriptor | null = null;

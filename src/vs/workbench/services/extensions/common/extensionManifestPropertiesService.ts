@@ -163,7 +163,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			return userConfiguredVirtualWorkspaceSupport;
 		}
 
-		const productConfiguredWorkspaceSchemes = this.getProductWorkspaceSchemes(manifest);
+		const productConfiguredWorkspaceSchemes = this.getProductVirtualWorkspaceSupport(manifest);
 
 		// check override from product
 		if (productConfiguredWorkspaceSchemes?.override !== undefined) {
@@ -171,8 +171,8 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 
 		// check the manifest
-		if (manifest.supportsVirtualWorkspace !== undefined) {
-			return manifest.supportsVirtualWorkspace;
+		if (manifest.capabilities?.virtualWorkspaces !== undefined) {
+			return manifest.capabilities?.virtualWorkspaces;
 		}
 
 		// check default from product
@@ -254,12 +254,12 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		return this._configuredExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionId));
 	}
 
-	private getProductWorkspaceSchemes(manifest: IExtensionManifest): { default?: boolean, override?: boolean } | undefined {
+	private getProductVirtualWorkspaceSupport(manifest: IExtensionManifest): { default?: boolean, override?: boolean } | undefined {
 		if (this._productVirtualWorkspaceSupportMap === null) {
 			const productWorkspaceSchemesMap = new Map<string, { default?: boolean, override?: boolean }>();
-			if (this.productService.extensionSupportsVirtualWorkspace) {
-				for (const id of Object.keys(this.productService.extensionSupportsVirtualWorkspace)) {
-					productWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionSupportsVirtualWorkspace[id]);
+			if (this.productService.extensionVirtualWorkspacesSupport) {
+				for (const id of Object.keys(this.productService.extensionVirtualWorkspacesSupport)) {
+					productWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionVirtualWorkspacesSupport[id]);
 				}
 			}
 			this._productVirtualWorkspaceSupportMap = productWorkspaceSchemesMap;
@@ -272,7 +272,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	private getConfiguredVirtualWorkspaceSupport(manifest: IExtensionManifest): boolean | undefined {
 		if (this._configuredVirtualWorkspaceSupportMap === null) {
 			const configuredWorkspaceSchemesMap = new Map<string, boolean>();
-			const configuredWorkspaceSchemes = this.configurationService.getValue<{ [key: string]: boolean }>('extensions.supportsVirtualWorkspace') || {};
+			const configuredWorkspaceSchemes = this.configurationService.getValue<{ [key: string]: boolean }>('extensions.supportVirtualWorkspaces') || {};
 			for (const id of Object.keys(configuredWorkspaceSchemes)) {
 				if (configuredWorkspaceSchemes[id] !== undefined) {
 					configuredWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), configuredWorkspaceSchemes[id]);

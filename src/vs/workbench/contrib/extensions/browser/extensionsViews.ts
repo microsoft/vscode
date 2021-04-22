@@ -1039,7 +1039,7 @@ export class ExtensionsListView extends ViewPane {
 
 export class ServerInstalledExtensionsView extends ExtensionsListView {
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query ? query : '@installed';
 		if (!ExtensionsListView.isLocalExtensionsQuery(query)) {
 			query = query += ' @installed';
@@ -1051,7 +1051,7 @@ export class ServerInstalledExtensionsView extends ExtensionsListView {
 
 export class EnabledExtensionsView extends ExtensionsListView {
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@enabled';
 		return ExtensionsListView.isEnabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
@@ -1059,38 +1059,38 @@ export class EnabledExtensionsView extends ExtensionsListView {
 
 export class DisabledExtensionsView extends ExtensionsListView {
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@disabled';
 		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
 }
 
 export class BuiltInFeatureExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:features');
 	}
 }
 
 export class BuiltInThemesExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:themes');
 	}
 }
 
 export class BuiltInProgrammingLanguageExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:basics');
 	}
 }
 
 export class TrustRequiredOnStartExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@trustRequired') ? this.showEmptyModel() : super.show('@trustRequired:onStart');
 	}
 }
 
 export class TrustRequiredOnDemandExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@trustRequired') ? this.showEmptyModel() : super.show('@trustRequired:onDemand');
 	}
 }
@@ -1106,7 +1106,7 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 		}));
 	}
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		if (query && query.trim() !== this.recommendedExtensionsQuery) {
 			return this.showEmptyModel();
 		}
@@ -1131,7 +1131,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 		}));
 	}
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== this.recommendedExtensionsQuery) ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery);
 	}
 }
@@ -1146,7 +1146,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.show(this.recommendedExtensionsQuery)));
 	}
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
 		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);

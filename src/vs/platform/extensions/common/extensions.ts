@@ -164,6 +164,7 @@ export interface IExtensionContributions {
 }
 
 export interface IExtensionCapabilities {
+	readonly virtualWorkspaces?: boolean;
 	untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
 }
 
@@ -227,7 +228,6 @@ export interface IExtensionManifest {
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
 	readonly capabilities?: IExtensionCapabilities;
-	readonly supportsVirtualWorkspace?: boolean;
 }
 
 export const enum ExtensionType {
@@ -327,6 +327,7 @@ export interface IScannedExtension {
 	readonly packageNLSUrl?: URI;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isUnderDevelopment: boolean;
 }
 
 export interface ITranslatedScannedExtension {
@@ -336,6 +337,7 @@ export interface ITranslatedScannedExtension {
 	readonly packageJSON: IExtensionManifest;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isUnderDevelopment: boolean;
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');

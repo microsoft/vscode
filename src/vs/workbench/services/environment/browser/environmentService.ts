@@ -233,7 +233,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	@memoize
 	get webviewExternalEndpoint(): string {
-		return (this.webviewEndpoint).replace('{{commit}}', this.productService.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
+		return (this.webviewEndpoint).replace('{{commit}}', this.productService.commit || '23a2409675bc1bde94f3532bc7c5826a6e99e4b6');
 	}
 
 	@memoize
@@ -282,13 +282,26 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			extensionDevelopmentLocationURI: undefined,
 			extensionDevelopmentKind: undefined
 		};
+		const developmentOptions = this.options.developmentOptions;
+		if (developmentOptions) {
+			if (developmentOptions.extensions?.length) {
+				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e.extensionLocation));
+				extensionHostDebugEnvironment.isExtensionDevelopment = true;
+			}
+			if (developmentOptions) {
+				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
+			}
+		}
 
 		// Fill in selected extra environmental properties
 		if (this.payload) {
 			for (const [key, value] of this.payload) {
 				switch (key) {
 					case 'extensionDevelopmentPath':
-						extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(value)];
+						if (!extensionHostDebugEnvironment.extensionDevelopmentLocationURI) {
+							extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [];
+						}
+						extensionHostDebugEnvironment.extensionDevelopmentLocationURI.push(URI.parse(value));
 						extensionHostDebugEnvironment.isExtensionDevelopment = true;
 						break;
 					case 'extensionDevelopmentKind':

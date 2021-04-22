@@ -28,7 +28,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
 			const description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));

@@ -462,7 +462,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.showMenu();
 	}
 }
@@ -752,7 +752,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = !!this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	async override run(context: string): Promise<void> {
+	override async run(context: string): Promise<void> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {
