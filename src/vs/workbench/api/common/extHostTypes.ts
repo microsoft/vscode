@@ -3164,7 +3164,7 @@ export class NotebookCellStatusBarItem {
 }
 
 
-export enum NotebookControllerPriority {
+export enum NotebookControllerAffinity {
 	Default = 1,
 	Preferred = 2
 }

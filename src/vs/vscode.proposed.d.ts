@@ -1653,17 +1653,17 @@ declare module 'vscode' {
 		asWebviewUri(localResource: Uri): Uri;
 
 		/**
-		 * A controller can set priorities for specific notebook documents. This allows a controller to be the
-		 * preferred controller for certain notebooks.
+		 * A controller can set affinities for specific notebook documents. This allows a controller
+		 * to be more important for some notebooks.
 		 *
 		 * @param notebook The notebook for which a priority is set.
-		 * @param priority A controller priority
+		 * @param affinity A controller affinity
 		 */
 		// todo@API maybe Affinity instead of Priority
-		updateNotebookPriority(notebook: NotebookDocument, priority: NotebookControllerPriority): void;
+		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity): void;
 	}
 
-	export enum NotebookControllerPriority {
+	export enum NotebookControllerAffinity {
 		Default = 1,
 		Preferred = 2
 	}
