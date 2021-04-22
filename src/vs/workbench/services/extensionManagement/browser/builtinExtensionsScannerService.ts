@@ -68,7 +68,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
 			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;
 		} else {
-			enableBuiltinExtensions = environmentService.remoteAuthority ? false : true;
+			enableBuiltinExtensions = true;
 		}
 		if (enableBuiltinExtensions) {
 			return FileAccess.asBrowserUri('../../../../../../extensions', require);
