@@ -19,7 +19,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -70,7 +70,7 @@ export class TerminalTabbedView extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
@@ -106,7 +106,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
 
-		configurationService.onDidChangeConfiguration(e => {
+		_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
 				this._showTabs = this._terminalService.configHelper.config.showTabs;
 				if (this._showTabs) {
@@ -121,11 +121,14 @@ export class TerminalTabbedView extends Disposable {
 					this._removeSashListener();
 				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
-				this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-				this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
-				if (this._showTabs) {
-					this._splitView.swapViews(0, 1);
-					this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
+				// if this hasn't already been changed via the context menu action
+				if (this._terminalService.configHelper.config.tabsLocation === 'left' && this._tabTreeIndex === 1) {
+					this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+					this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+					if (this._showTabs) {
+						this._splitView.swapViews(0, 1);
+						this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
+					}
 				}
 			}
 		});
@@ -427,6 +430,29 @@ export class TerminalTabbedView extends Disposable {
 		const menu = parent === this._terminalContainer ? this._instanceMenu : this._tabsWidgetMenu;
 
 		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
+
+		actions.push(new Separator());
+		if (menu === this._tabsWidgetMenu) {
+			let action;
+			if (this._configurationService.inspect('terminal.integrated.tabsLocation').userValue === 'left') {
+				action = new Action('moveRight', 'Move Tabs Right', undefined, undefined, async () => {
+					this._tabTreeIndex = 1;
+					this._terminalContainerIndex = 0;
+					this._splitView.swapViews(0, 1);
+					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'right');
+					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
+				});
+			} else {
+				action = new Action('moveLeft', 'Move Tabs Left', undefined, undefined, async () => {
+					this._tabTreeIndex = 0;
+					this._terminalContainerIndex = 1;
+					this._splitView.swapViews(0, 1);
+					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'left');
+					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
+				});
+			}
+			actions.push(action);
+		}
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
