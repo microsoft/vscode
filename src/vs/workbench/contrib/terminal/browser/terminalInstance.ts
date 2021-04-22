@@ -1676,7 +1676,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				id: TerminalStatus.RelaunchNeeded,
 				severity: Severity.Warning,
 				icon: Codicon.warning,
-				tooltip: nls.localize('relaunchNeededStatus', "Relaunch needed to update environment")
+				tooltip: info.getInfo()
 			});
 		}
 		if (disposable) {

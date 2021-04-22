@@ -198,8 +198,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		let title = instance.title;
 		const statuses = instance.statusList.statuses;
 		if (statuses.length) {
-			title += `\n\n---\n\nStatuses:`;
-			title += statuses.map(e => `\n- ${e.id}`);
+			title += `\n\n---\n\n`;
+			title += statuses.map(e => `${e.tooltip || e.id}`);
 		}
 
 		let label: string;
@@ -228,7 +228,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 				instance.dispose();
 			}
 		}));
-
 		template.label.setResource({
 			resource: instance.resource,
 			name: label
