@@ -128,7 +128,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
 			};
-		} else if (runState === NotebookCellExecutionState.Idle && !lastRunSuccess) {
+		} else if (runState === NotebookCellExecutionState.Idle && lastRunSuccess === false) {
 			return <INotebookCellStatusBarItem>{
 				text: '$(notebook-state-error)',
 				color: themeColorFromId(cellStatusIconError),
