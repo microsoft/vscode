@@ -170,15 +170,9 @@ export function registerTerminalActions() {
 
 			if (terminalService.isProcessSupportRegistered) {
 				let instance: ITerminalInstance | undefined;
-				if (folders.length <= 1) {
-					// Allow terminal service to handle the path when there is only a
-					// single root
-					if (profile) {
-						instance = terminalService.createTerminal(profile);
-					} else {
-						instance = await terminalService.showProfileQuickPick('createInstance');
-					}
-				} else {
+				let cwd: string | URI | undefined;
+				if (folders.length > 1) {
+					// multi-root workspace, create root picker
 					const options: IPickOptions<IQuickPickItem> = {
 						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 					};
@@ -187,12 +181,15 @@ export function registerTerminalActions() {
 						// Don't create the instance if the workspace picker was canceled
 						return;
 					}
-					if (profile) {
-						instance = terminalService.createTerminal(profile, workspace.uri);
-					} else {
-						instance = await terminalService.showProfileQuickPick('createInstance', workspace.uri);
-					}
+					cwd = workspace.uri;
 				}
+
+				if (profile) {
+					instance = terminalService.createTerminal(profile, cwd);
+				} else {
+					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
+				}
+
 				if (instance) {
 					terminalService.setActiveInstance(instance);
 				}
