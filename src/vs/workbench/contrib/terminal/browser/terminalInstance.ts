@@ -1676,7 +1676,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				id: TerminalStatus.RelaunchNeeded,
 				severity: Severity.Warning,
 				icon: Codicon.warning,
-				tooltip: info.getInfo()
+				tooltip: info.getInfo(),
+				hoverActions: info.getActions ? info.getActions() : undefined
 			});
 		}
 		if (disposable) {

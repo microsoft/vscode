@@ -25,7 +25,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
@@ -141,14 +141,19 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = DOM.append(container, $('.terminal-tabs-entry'));
-
+		const context: { hoverActions?: IHoverAction[] } = {};
 		const label = this._labels.create(element, {
 			supportHighlights: true,
 			supportDescriptionHighlights: true,
 			supportIcons: true,
 			hoverDelegate: {
 				delay: this._configurationService.getValue<number>('workbench.hover.delay'),
-				showHover: e => this._hoverService.showHover(e)
+				showHover: options => {
+					return this._hoverService.showHover({
+						...options,
+						actions: context.hoverActions
+					});
+				}
 			}
 		});
 
@@ -164,7 +169,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		return {
 			element,
 			label,
-			actionBar
+			actionBar,
+			context
 		};
 	}
 
@@ -197,9 +203,12 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 
 		let title = instance.title;
 		const statuses = instance.statusList.statuses;
-		if (statuses.length) {
-			title += `\n\n---\n\n`;
-			title += statuses.map(e => `${e.tooltip || e.id}`);
+		template.context.hoverActions = [];
+		for (const status of statuses) {
+			title += `\n\n---\n\n${status.tooltip || status.id}`;
+			if (status.hoverActions) {
+				template.context.hoverActions.push(...status.hoverActions);
+			}
 		}
 
 		let label: string;
@@ -265,5 +274,8 @@ interface ITerminalTabEntryTemplate {
 	element: HTMLElement;
 	label: IResourceLabel;
 	actionBar: ActionBar;
+	context: {
+		hoverActions?: IHoverAction[];
+	};
 	elementDispoables?: DisposableStore;
 }
