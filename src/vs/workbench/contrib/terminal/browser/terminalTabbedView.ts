@@ -121,14 +121,11 @@ export class TerminalTabbedView extends Disposable {
 					this._removeSashListener();
 				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
-				// if this hasn't already been changed via the context menu action
-				if (this._terminalService.configHelper.config.tabsLocation === 'left' && this._tabTreeIndex === 1) {
-					this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-					this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
-					if (this._showTabs) {
-						this._splitView.swapViews(0, 1);
-						this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
-					}
+				this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+				this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+				if (this._showTabs) {
+					this._splitView.swapViews(0, 1);
+					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 				}
 			}
 		});
@@ -436,22 +433,20 @@ export class TerminalTabbedView extends Disposable {
 			let action;
 			if (this._configurationService.inspect('terminal.integrated.tabsLocation').userValue === 'left') {
 				action = new Action('moveRight', 'Move Tabs Right', undefined, undefined, async () => {
-					this._tabTreeIndex = 1;
-					this._terminalContainerIndex = 0;
-					this._splitView.swapViews(0, 1);
+
 					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'right');
-					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 				});
 			} else {
 				action = new Action('moveLeft', 'Move Tabs Left', undefined, undefined, async () => {
-					this._tabTreeIndex = 0;
-					this._terminalContainerIndex = 1;
-					this._splitView.swapViews(0, 1);
+
 					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'left');
-					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 				});
 			}
 			actions.push(action);
+			const hideAction = new Action('hideTabs', 'Hide View', undefined, undefined, async () => {
+				this._configurationService.updateValue('terminal.integrated.showTabs', false);
+			});
+			actions.push(hideAction);
 		}
 
 		this._contextMenuService.showContextMenu({
