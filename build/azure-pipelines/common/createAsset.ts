@@ -29,6 +29,57 @@ if (process.argv.length !== 6) {
 	process.exit(-1);
 }
 
+// Contains all of the logic for mapping details to our actual product names in CosmosDB
+function getPlatform(product: string, os: string, arch: string): string | undefined {
+	switch (os) {
+		case 'win32':
+			switch (product) {
+				case 'client':
+					break;
+				case 'server':
+					break;
+				case 'web':
+					break;
+				default:
+					throw `found an unrecognized product: ${product}`;
+			}
+			break;
+		case 'linux':
+			switch (product) {
+				case 'client':
+					break;
+				case 'server':
+					break;
+				case 'web':
+					break;
+				default:
+					throw `found an unrecognized product: ${product}`;
+			}
+			break;
+		case 'darwin':
+			switch (product) {
+				case 'client':
+					if (arch === 'x64') {
+						return 'darwin'
+					}
+					return `darwin-${arch}`;
+				case 'server':
+					return 'server-darwin'
+				case 'web':
+					if (arch !== 'x64') {
+						throw `What should the platform be?: ${product} ${os} ${arch}`
+					}
+					return 'server-darwin-web'
+				default:
+					throw `found an unrecognized product: ${product}`;
+			}
+			break;
+		default:
+			// standalone
+			break;
+	}
+}
+
 function hashStream(hashName: string, stream: Readable): Promise<string> {
 	return new Promise<string>((c, e) => {
 		const shasum = crypto.createHash(hashName);
@@ -68,7 +119,13 @@ function getEnv(name: string): string {
 }
 
 async function main(): Promise<void> {
-	const [, , platform, type, fileName, filePath] = process.argv;
+	let platform: string, product: string, os: string, arch: string, type: string, fileName: string, filePath: string;
+	if (process.argv.length === 6) {
+		[, , platform, type, fileName, filePath] = process.argv;
+	} else {
+		[, , product, os, arch, type, fileName, filePath] = process.argv;
+		platform = getPlatform(product, os, arch)!;
+	}
 	const quality = getEnv('VSCODE_QUALITY');
 	const commit = getEnv('BUILD_SOURCEVERSION');
 
