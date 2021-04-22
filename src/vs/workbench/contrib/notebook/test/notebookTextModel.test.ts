@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
 import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -369,8 +368,8 @@ suite('NotebookTextModel', () => {
 	});
 
 
-	test('Updating appending/updating output in Notebooks does not work as expected #117273', function () {
-		withTestNotebook([
+	test('Updating appending/updating output in Notebooks does not work as expected #117273', async function () {
+		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}]
 		], (editor) => {
 			const model = editor.viewModel.notebookDocument;
@@ -404,8 +403,8 @@ suite('NotebookTextModel', () => {
 		});
 	});
 
-	test('Clearing output of an empty notebook makes it dirty #119608', function () {
-		withTestNotebook([
+	test('Clearing output of an empty notebook makes it dirty #119608', async function () {
+		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
 		], (editor) => {
@@ -474,16 +473,51 @@ suite('NotebookTextModel', () => {
 		});
 	});
 
-	test('Cell text model update increases notebook model version id #119561', function () {
-		withTestNotebook([
+	test('Cell metadata/output change should update version id and alternative id #121807', async function () {
+		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
 		], async (editor) => {
-			const textModel = await editor.viewModel.cellAt(0)!.resolveTextModel();
-			assert.ok(textModel !== undefined);
 			assert.strictEqual(editor.viewModel.getVersionId(), 0);
-			textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'x' }], true);
+			assert.strictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
+			editor.viewModel.notebookDocument.applyEdits([
+				{
+					index: 0,
+					editType: CellEditType.Metadata,
+					metadata: {
+						inputCollapsed: true
+					}
+				}
+			], true, undefined, () => undefined, undefined, true);
 			assert.strictEqual(editor.viewModel.getVersionId(), 1);
+			assert.notStrictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
+			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+
+			await editor.viewModel.undo();
+			assert.strictEqual(editor.viewModel.getVersionId(), 2);
+			assert.strictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
+
+			await editor.viewModel.redo();
+			assert.strictEqual(editor.viewModel.getVersionId(), 3);
+			assert.notStrictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
+			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+
+			editor.viewModel.notebookDocument.applyEdits([
+				{
+					index: 1,
+					editType: CellEditType.Metadata,
+					metadata: {
+						inputCollapsed: true
+					}
+				}
+			], true, undefined, () => undefined, undefined, true);
+			assert.strictEqual(editor.viewModel.getVersionId(), 4);
+			assert.strictEqual(editor.viewModel.getAlternativeId(), '4_0,1;1,1');
+
+			await editor.viewModel.undo();
+			assert.strictEqual(editor.viewModel.getVersionId(), 5);
+			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+
 		});
 	});
 });

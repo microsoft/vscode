@@ -94,6 +94,10 @@ export class NotebookOperationManager {
 	) {
 	}
 
+	isUndoStackEmpty(): boolean {
+		return this._pendingStackOperation === null || this._pendingStackOperation.isEmpty;
+	}
+
 	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: string) {
 		if (this._pendingStackOperation) {
 			this._pendingStackOperation.pushEndState(alternativeVersionId, selectionState);
@@ -197,6 +201,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _versionId = 0;
 
 	/**
+	 * This alternative id is only for non-cell-content changes.
+	 */
+	private _notebookSpecificAlternativeId = 0;
+
+	/**
 	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
 	 */
 	private _alternativeVersionId: string = '1';
@@ -260,7 +269,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			uri,
 			this._eventEmitter,
 			(alternativeVersionId: string) => {
-				this._increaseVersionId();
+				this._increaseVersionId(true);
 				this._overwriteAlternativeVersionId(alternativeVersionId);
 			}
 		);
@@ -269,6 +278,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _initialize(cells: ICellDto2[]) {
 		this._cells = [];
 		this._versionId = 0;
+		this._notebookSpecificAlternativeId = 0;
 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
@@ -278,7 +288,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		for (let i = 0; i < mainCells.length; i++) {
 			const dirtyStateListener = mainCells[i].onDidChangeContent(() => {
-				this._increaseVersionId();
+				this._increaseVersionIdForCellContentChange();
 				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
 			});
 
@@ -290,7 +300,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _generateAlternativeId() {
-		return this.cells.map(cell => cell.handle + ',' + cell.alternativeId).join(';');
+		return `${this._notebookSpecificAlternativeId}_` + this.cells.map(cell => cell.handle + ',' + cell.alternativeId).join(';');
 	}
 
 	override dispose() {
@@ -337,7 +347,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		} finally {
 			// Update selection and versionId after applying edits.
 			const endSelections = endSelectionsComputer();
-			this._increaseVersionId();
+			this._increaseVersionId(this._operationManager.isUndoStackEmpty());
 
 			// Finalize undo element
 			this.pushStackElement('edit', endSelections, undefined);
@@ -465,7 +475,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				cell.language = cellDto.language;
 			}
 			const dirtyStateListener = cell.onDidChangeContent(() => {
-				this._increaseVersionId();
+				this._increaseVersionIdForCellContentChange();
 				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
 			});
 			this._cellListeners.set(cell.handle, dirtyStateListener);
@@ -502,13 +512,22 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}, synchronous);
 	}
 
-	private _increaseVersionId(): void {
+	private _increaseVersionIdForCellContentChange(): void {
 		this._versionId = this._versionId + 1;
+		this._alternativeVersionId = this._generateAlternativeId();
+	}
+
+	private _increaseVersionId(undoStackEmpty: boolean): void {
+		this._versionId = this._versionId + 1;
+		if (!undoStackEmpty) {
+			this._notebookSpecificAlternativeId = this._versionId;
+		}
 		this._alternativeVersionId = this._generateAlternativeId();
 	}
 
 	private _overwriteAlternativeVersionId(newAlternativeVersionId: string): void {
 		this._alternativeVersionId = newAlternativeVersionId;
+		this._notebookSpecificAlternativeId = Number(newAlternativeVersionId.substr(0, newAlternativeVersionId.indexOf('_')));
 	}
 
 	private _isDocumentMetadataChangeTransient(a: NotebookDocumentMetadata, b: NotebookDocumentMetadata) {
@@ -552,7 +571,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | undefined): void {
 		for (let i = 0; i < cells.length; i++) {
 			const dirtyStateListener = cells[i].onDidChangeContent(() => {
-				this._increaseVersionId();
+				this._increaseVersionIdForCellContentChange();
 				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
 			});
 
@@ -593,7 +612,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		for (let i = 0; i < cells.length; i++) {
 			const dirtyStateListener = cells[i].onDidChangeContent(() => {
-				this._increaseVersionId();
+				this._increaseVersionIdForCellContentChange();
 				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
 			});
 
@@ -611,7 +630,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			if (key === 'custom') {
 				if (!this._customMetadataEqual(a[key], b[key])
 					&&
-					!(this.transientOptions.transientCellMetadata[key as keyof NotebookCellMetadata])
+					!(this.transientOptions.transientDocumentMetadata[key as keyof NotebookDocumentMetadata])
 				) {
 					return true;
 				}
