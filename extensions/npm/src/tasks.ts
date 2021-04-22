@@ -370,7 +370,23 @@ export async function hasPackageJson(): Promise<boolean> {
 	const timeout = setTimeout(() => token.cancel(), 1000);
 	const files = await workspace.findFiles('**/package.json', undefined, 1, token.token);
 	clearTimeout(timeout);
-	return files.length > 0;
+	return files.length > 0 || await hasRootPackageJson();
+}
+
+async function hasRootPackageJson(): Promise<boolean> {
+	let folders = workspace.workspaceFolders;
+	if (!folders) {
+		return false;
+	}
+	for (const folder of folders) {
+		if (folder.uri.scheme === 'file') {
+			let packageJson = path.join(folder.uri.fsPath, 'package.json');
+			if (await exists(packageJson)) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 async function exists(file: string): Promise<boolean> {
