@@ -429,24 +429,7 @@ export class TerminalTabbedView extends Disposable {
 		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		if (menu === this._tabsWidgetMenu) {
-			actions.push(new Separator());
-			let action;
-			if (this._configurationService.inspect('terminal.integrated.tabsLocation').userValue === 'left') {
-				action = new Action('moveRight', 'Move Tabs Right', undefined, undefined, async () => {
-
-					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'right');
-				});
-			} else {
-				action = new Action('moveLeft', 'Move Tabs Left', undefined, undefined, async () => {
-
-					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'left');
-				});
-			}
-			actions.push(action);
-			const hideAction = new Action('hideTabs', 'Hide View', undefined, undefined, async () => {
-				this._configurationService.updateValue('terminal.integrated.showTabs', false);
-			});
-			actions.push(hideAction);
+			actions.push(...this._getTabActions());
 		}
 
 		this._contextMenuService.showContextMenu({
@@ -455,6 +438,22 @@ export class TerminalTabbedView extends Disposable {
 			getActionsContext: () => this._parentElement,
 			onHide: () => actionsDisposable.dispose()
 		});
+	}
+
+	private _getTabActions(): Action[] {
+		return [
+			new Separator(),
+			this._configurationService.inspect('terminal.integrated.tabsLocation').userValue === 'left' ?
+				new Action('moveRight', 'Move Tabs Right', undefined, undefined, async () => {
+					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'right');
+				}) :
+				new Action('moveLeft', 'Move Tabs Left', undefined, undefined, async () => {
+					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'left');
+				}),
+			new Action('hideTabs', 'Hide View', undefined, undefined, async () => {
+				this._configurationService.updateValue('terminal.integrated.showTabs', false);
+			})
+		];
 	}
 
 	public focusFindWidget() {
