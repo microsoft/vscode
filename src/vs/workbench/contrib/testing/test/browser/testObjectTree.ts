@@ -108,7 +108,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 		}));
 	}
 
-	public flush(folder?: IWorkspaceFolderData) {
+	public flush(folder: IWorkspaceFolderData) {
 		this.onDiff.fire([folder!, this.c.collectDiff()]);
 		this.projection.applyTo(this.tree);
 		return this.tree.getRendered();
