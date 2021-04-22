@@ -810,7 +810,7 @@ export class TerminalService implements ITerminalService {
 		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 	}
 
-	public async showProfileQuickPick(type: 'setDefault' | 'createInstance'): Promise<void> {
+	public async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
 		let keyMods: IKeyMods | undefined;
 		const profiles = await this._detectProfiles(false);
 		const platformKey = await this._getPlatformKey();
@@ -886,14 +886,15 @@ export class TerminalService implements ITerminalService {
 			if (keyMods?.alt && activeInstance) {
 				// create split, only valid if there's an active instance
 				if (activeInstance) {
-					instance = this.splitInstance(activeInstance, value.profile);
+					instance = this.splitInstance(activeInstance, value.profile, cwd);
 				}
 			} else {
-				instance = this.createTerminal(value.profile);
+				instance = this.createTerminal(value.profile, cwd);
 			}
 			if (instance) {
 				this.showPanel(true);
 				this.setActiveInstance(instance);
+				return instance;
 			}
 		} else { // setDefault
 			if ('command' in value.profile) {
@@ -916,6 +917,7 @@ export class TerminalService implements ITerminalService {
 			// Set the default profile
 			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		}
+		return undefined;
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
@@ -977,9 +979,13 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	public createTerminal(profile: ITerminalProfile): ITerminalInstance;
-	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile): ITerminalInstance {
+	public createTerminal(profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance;
+	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): ITerminalInstance {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+
+		if (cwd) {
+			shellLaunchConfig.cwd = cwd;
+		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
