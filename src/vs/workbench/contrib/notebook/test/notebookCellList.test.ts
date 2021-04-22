@@ -261,4 +261,40 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 			});
 	});
+
+	test('updateElementHeight of cells out of viewport should not trigger scroll #121140', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['# header c', 'markdown', CellKind.Markdown, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.restoreEditorViewState({
+					editingCells: [false, false, false, false, false],
+					editorViewStates: [null, null, null, null, null],
+					cellTotalHeights: [50, 100, 50, 100, 50]
+				});
+
+				const cellList = createNotebookCellList(instantiationService);
+				cellList.attachViewModel(viewModel);
+
+				// render height 210, it can render 3 full cells and 1 partial cell
+				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+
+				// init scrollTop and scrollBottom
+				assert.deepStrictEqual(cellList.scrollTop, 0);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+
+				cellList.setFocus([1]);
+				cellList.scrollTop = 80;
+				assert.deepStrictEqual(cellList.scrollTop, 80);
+
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 30);
+				assert.deepStrictEqual(cellList.scrollTop, 60);
+			});
+	});
 });
