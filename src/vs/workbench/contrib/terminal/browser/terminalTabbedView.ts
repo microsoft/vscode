@@ -62,6 +62,7 @@ export class TerminalTabbedView extends Disposable {
 	private _cancelContextMenu: boolean = false;
 	private _instanceMenu: IMenu;
 	private _tabsWidgetMenu: IMenu;
+	private _tabsWidgetEmptyMenu: IMenu;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -88,6 +89,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContainerContext, contextKeyService));
 		this._tabsWidgetMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetContext, contextKeyService));
+		this._tabsWidgetEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetEmptyContext, contextKeyService));
 
 		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
@@ -419,16 +421,23 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 	}
+
 	private _openContextMenu(event: MouseEvent, parent: HTMLElement): void {
 		const standardEvent = new StandardMouseEvent(event);
 
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 		const actions: IAction[] = [];
-		const menu = parent === this._terminalContainer ? this._instanceMenu : this._tabsWidgetMenu;
+		let menu: IMenu;
+		if (parent === this._terminalContainer) {
+			menu = this._instanceMenu;
+		} else {
+			menu = this._tabsWidget.getFocus().length === 0 ? this._tabsWidgetEmptyMenu : this._tabsWidgetMenu;
+		}
 
 		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
-		if (menu === this._tabsWidgetMenu) {
+		// TODO: Convert to command?
+		if (menu === this._tabsWidgetEmptyMenu) {
 			actions.push(...this._getTabActions());
 		}
 

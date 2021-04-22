@@ -165,6 +165,13 @@ export function registerTerminalActions() {
 			}
 		}
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetEmptyContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
+			title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile")
+		},
+		group: ContextMenuGroup.Create
+	});
 
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1381,6 +1388,13 @@ export function registerTerminalActions() {
 			}
 			await terminalService.showPanel(true);
 		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetEmptyContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.NEW,
+			title: localize('workbench.action.terminal.new.short', "New Terminal")
+		},
+		group: ContextMenuGroup.Create
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 		command: {
