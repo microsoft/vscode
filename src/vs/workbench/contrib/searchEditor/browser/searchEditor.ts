@@ -49,11 +49,12 @@ import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contri
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Link } from 'vs/platform/opener/browser/link';
+import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -535,11 +536,31 @@ export class SearchEditor extends BaseTextEditor {
 		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.filesToInclude, config.filesToExclude, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
 		const { body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
-		if (exit.messages) {
+
+		let warningMessage = '';
+
+		if (exit && exit.limitHit) {
+			warningMessage += localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.");
+		}
+
+		if (exit && exit.messages) {
 			for (const message of exit.messages) {
-				this.addMessage(message);
+				if (message.type === TextSearchCompleteMessageType.Information) {
+					this.addMessage(message.text);
+				}
+				else if (message.type === TextSearchCompleteMessageType.Warning) {
+					warningMessage += (warningMessage ? ' - ' : '') + message.text;
+				}
 			}
 		}
+
+		if (warningMessage) {
+			this.queryEditorWidget.searchInput.showMessage({
+				content: warningMessage,
+				type: MessageType.WARNING
+			});
+		}
+
 		input.config = config;
 
 		input.setDirty(!input.isUntitled());

@@ -74,7 +74,7 @@ import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, ICha
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const $ = dom.$;
@@ -608,7 +608,7 @@ export class SearchView extends ViewPane {
 				this.viewModel.searchResult.replaceAll(progressReporter).then(() => {
 					progressComplete();
 					const messageEl = this.clearMessage();
-					dom.append(messageEl, $('p', undefined, afterReplaceAllMessage));
+					dom.append(messageEl, afterReplaceAllMessage);
 					this.reLayout();
 				}, (error) => {
 					progressComplete();
@@ -1449,19 +1449,6 @@ export class SearchView extends ViewPane {
 				return;
 			}
 
-			if (completed && completed.limitHit) {
-				this.searchWidget.searchInput.showMessage({
-					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results."),
-					type: MessageType.WARNING
-				});
-			}
-
-			if (completed && completed.messages) {
-				for (const message of completed.messages) {
-					this.addMessage(message);
-				}
-			}
-
 			if (!hasResults) {
 				const hasExcludes = !!excludePatternText;
 				const hasIncludes = !!includePatternText;
@@ -1495,26 +1482,26 @@ export class SearchView extends ViewPane {
 				aria.status(message);
 
 				const messageEl = this.clearMessage();
-				const p = dom.append(messageEl, $('p', undefined, message));
+				dom.append(messageEl, message);
 
 				if (!completed) {
 					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
 						nls.localize('rerunSearch.message', "Search again"),
 						() => this.triggerQueryChange({ preserveFocus: false })));
-					dom.append(p, searchAgainButton.element);
+					dom.append(messageEl, searchAgainButton.element);
 				} else if (hasIncludes || hasExcludes) {
 					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
-					dom.append(p, searchAgainButton.element);
+					dom.append(messageEl, searchAgainButton.element);
 				} else {
 					const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
-					dom.append(p, openSettingsButton.element);
+					dom.append(messageEl, openSettingsButton.element);
 				}
 
 				if (completed) {
-					dom.append(p, $('span', undefined, ' - '));
+					dom.append(messageEl, $('span', undefined, ' - '));
 
 					const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
-					dom.append(p, learnMoreButton.element);
+					dom.append(messageEl, learnMoreButton.element);
 				}
 
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -1526,6 +1513,30 @@ export class SearchView extends ViewPane {
 
 				// Indicate final search result count for ARIA
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
+			}
+
+			let warningMessage = '';
+
+			if (completed && completed.limitHit) {
+				warningMessage += nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.");
+			}
+
+			if (completed && completed.messages) {
+				for (const message of completed.messages) {
+					if (message.type === TextSearchCompleteMessageType.Information) {
+						this.addMessage(message.text);
+					}
+					else if (message.type === TextSearchCompleteMessageType.Warning) {
+						warningMessage += (warningMessage ? ' - ' : '') + message.text;
+					}
+				}
+			}
+
+			if (warningMessage) {
+				this.searchWidget.searchInput.showMessage({
+					content: warningMessage,
+					type: MessageType.WARNING
+				});
 			}
 		};
 

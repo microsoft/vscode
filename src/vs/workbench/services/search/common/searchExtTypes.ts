@@ -217,6 +217,14 @@ export interface TextSearchOptions extends SearchOptions {
 }
 
 /**
+ * Represents the severiry of a TextSearchComplete message.
+ */
+export enum TextSearchCompleteMessageType {
+	Information = 1,
+	Warning = 2,
+}
+
+/**
  * Information collected when text search is complete.
  */
 export interface TextSearchComplete {
@@ -236,7 +244,7 @@ export interface TextSearchComplete {
 	 * - Click to [run a command](command:workbench.action.OpenQuickPick)
 	 * - Click to [open a website](https://aka.ms)
 	 */
-	message?: string;
+	message?: { text: string, type: TextSearchCompleteMessageType } | { text: string, type: TextSearchCompleteMessageType }[];
 }
 
 /**
