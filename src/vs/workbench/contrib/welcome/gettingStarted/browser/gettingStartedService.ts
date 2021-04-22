@@ -52,7 +52,9 @@ export interface IGettingStartedTask {
 	when: ContextKeyExpression
 	order: number
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
-	media: { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
+	media:
+	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
+	| { type: 'markdown', path: string }
 }
 
 export interface IGettingStartedWalkthroughDescriptor {
@@ -222,11 +224,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						category: category.id,
 						order: index,
 						when: ContextKeyExpr.deserialize(item.when) ?? ContextKeyExpr.true(),
-						media: {
-							type: item.media.type,
-							altText: item.media.altText,
-							path: convertPaths(item.media.path)
-						}
+						media: item.media.type === 'image'
+							? { type: 'image', altText: item.media.altText, path: convertPaths(item.media.path) }
+							: { type: 'markdown', path: item.media.path },
 					});
 				}));
 		});
@@ -265,10 +265,11 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private registerExtensionContributions(extension: IExtensionDescription) {
+		const convertPath = (path: string) => path.startsWith('https://')
+			? URI.parse(path, true)
+			: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
+
 		const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
-			const convertPath = (path: string) => path.startsWith('https://')
-				? URI.parse(path, true)
-				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
 
 			if (typeof path === 'string') {
 				const converted = convertPath(path);
@@ -353,7 +354,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + task.id;
 					return ({
 						description: description,
-						media: { type: 'image', altText: task.media.altText, path: convertPaths(task.media.path) },
+						media: task.media.type === 'image'
+							? { type: 'image', altText: task.media.altText, path: convertPaths(task.media.path) }
+							: { type: 'markdown', path: task.media.path /*convertPath(task.media.path)*/ }
+						,
 						doneOn: task.doneOn?.command
 							? { commandExecuted: task.doneOn.command }
 							: { eventFired: 'markDone:' + fullyQualifiedID },

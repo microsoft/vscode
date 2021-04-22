@@ -1379,6 +1379,27 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	node.innerHTML = html as string;
 }
 
+export function removeEmbeddedSVGs(documentContent: string): string {
+	return insane(documentContent, {
+		allowedTags: [
+			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
+			'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
+			'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
+			'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr'
+		],
+		allowedAttributes: {
+			'*': [
+				'align',
+			],
+			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height'],
+		},
+		allowedSchemes: ['http', 'https', 'command',],
+		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
+			return token.tag !== 'svg';
+		}
+	});
+}
+
 /**
  * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
  *

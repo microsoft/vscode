@@ -21,7 +21,9 @@ export type BuiltinGettingStartedItem = {
 	description: string,
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	when?: string,
-	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
+	media:
+	| { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string }
+	| { type: 'markdown', path: string },
 };
 
 export type BuiltinGettingStartedCategory = {
@@ -178,6 +180,13 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'items',
 			items: [
+				{
+					id: 'Example Markdown',
+					title: localize('gettingStarted.examplemd.title', "Example Markdown"),
+					description: localize('gettingStarted.examplemd.description', "Here's some markdown"),
+					doneOn: { commandExecuted: 'workbench.action.selectTheme' },
+					media: { type: 'markdown', path: '# Hello Markdown\nThis *is* __markdown__!', }
+				},
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Customize the look with themes"),
