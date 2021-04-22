@@ -513,7 +513,7 @@ abstract class AbstractLaunch {
 
 	async getInitialConfigurationContent(folderUri?: uri, type?: string, token?: CancellationToken): Promise<string> {
 		let content = '';
-		const adapter = await this.adapterManager.guessDebugger(type);
+		const adapter = await this.adapterManager.guessDebugger(true, type);
 		if (adapter) {
 			const initialConfigs = await this.configurationManager.provideDebugConfigurations(folderUri, adapter.type, token || CancellationToken.None);
 			content = await adapter.getInitialConfigurationContent(initialConfigs);
