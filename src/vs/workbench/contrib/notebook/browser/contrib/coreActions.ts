@@ -1759,7 +1759,7 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 		label: provider.label,
 		description: provider.description,
 		detail: provider.detail,
-		isPreferred: provider.isPreferred,
+		isPreferred: false, // todo@jrieken,@rebornix
 		preloads: provider.preloadUris,
 	}));
 });

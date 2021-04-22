@@ -60,11 +60,10 @@ export function activate(context: vscode.ExtensionContext): any {
 
 	const controller = vscode.notebook.createNotebookController(
 		'notebookSmokeTest',
-		{ pattern: '*.smoke-nb' },
+		'notebookSmokeTest',
 		'notebookSmokeTest'
 	);
 
-	controller.isPreferred = true;
 	controller.executeHandler = (cells) => {
 		for (const cell of cells) {
 			const task = controller.createNotebookCellExecutionTask(cell);

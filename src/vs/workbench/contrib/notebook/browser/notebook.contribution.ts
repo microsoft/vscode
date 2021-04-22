@@ -56,6 +56,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
+import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
@@ -440,9 +441,15 @@ configurationRegistry.registerConfiguration({
 		},
 		[CellToolbarLocKey]: {
 			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
-			type: 'string',
-			enum: ['left', 'right', 'hidden'],
-			default: 'right'
+			type: 'object',
+			additionalProperties: {
+				markdownDescription: nls.localize('notebook.cellToolbarLocation.viewType', "Configure the cell toolbar position for for specific file types"),
+				type: 'string',
+				enum: ['left', 'right', 'hidden']
+			},
+			default: {
+				'default': 'right'
+			}
 		},
 		[ShowCellStatusBarKey]: {
 			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),

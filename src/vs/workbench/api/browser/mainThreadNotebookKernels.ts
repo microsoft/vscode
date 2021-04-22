@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { disposableTimeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -14,7 +15,6 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
@@ -24,14 +24,13 @@ abstract class MainThreadKernel implements INotebookKernel {
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
-	readonly selector: NotebookSelector;
+	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
 
 	implementsInterrupt: boolean;
 	label: string;
 	description?: string;
 	detail?: string;
-	isPreferred?: boolean;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
 	localResourceRoot: URI;
@@ -46,14 +45,13 @@ abstract class MainThreadKernel implements INotebookKernel {
 
 	constructor(data: INotebookKernelDto2, private _modeService: IModeService) {
 		this.id = data.id;
-		this.selector = data.selector;
+		this.viewType = data.viewType;
 		this.extension = data.extensionId;
 
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
 		this.description = data.description;
 		this.detail = data.detail;
-		this.isPreferred = data.isPreferred;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _modeService.getRegisteredModes();
 		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
@@ -75,10 +73,6 @@ abstract class MainThreadKernel implements INotebookKernel {
 		if (data.detail !== undefined) {
 			this.detail = data.detail;
 			event.detail = true;
-		}
-		if (data.isPreferred !== undefined) {
-			this.isPreferred = data.isPreferred;
-			event.isPreferred = true;
 		}
 		if (data.supportedLanguages !== undefined) {
 			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._modeService.getRegisteredModes();
@@ -197,15 +191,23 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		}(data, this._modeService);
 		const registration = this._notebookKernelService.registerKernel(kernel);
 
+		let timeoutHandle = new MutableDisposable();
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
-			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, false);
-			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, true);
-			}
+			// todo@jrieken this is smelly... the onDidChangeNotebookKernelBinding event
+			// can happen in the same tick as notebook creation. We cannot send an IPC
+			// messages immediately because the ext host hasn't received the "new notebook"
+			// message yet. It requires some onWillAddNotebook or onDidCreateNotebook event
+			// to make sure that ext-host-sync'ing is first
+			timeoutHandle.value = disposableTimeout(() => {
+				if (e.oldKernel === kernel.id) {
+					this._proxy.$acceptSelection(handle, e.notebook, false);
+				} else if (e.newKernel === kernel.id) {
+					this._proxy.$acceptSelection(handle, e.notebook, true);
+				}
+			}, 0);
 		});
 
-		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
+		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration, timeoutHandle)]);
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {
@@ -220,6 +222,13 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		if (tuple) {
 			tuple[1].dispose();
 			this._kernels.delete(handle);
+		}
+	}
+
+	$updateNotebookPriority(handle: number, notebook: UriComponents, value: number | undefined): void {
+		const tuple = this._kernels.get(handle);
+		if (tuple) {
+			this._notebookKernelService.updateKernelNotebookPriority(tuple[0], URI.revive(notebook), value);
 		}
 	}
 }

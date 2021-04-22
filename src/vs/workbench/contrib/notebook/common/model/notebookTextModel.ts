@@ -372,6 +372,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				throw new Error('Invalid cell edit');
 			}
 
+			const cell = this._cells[cellIndex];
 			return {
 				edit,
 				cellIndex,
@@ -380,6 +381,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						? undefined
 						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : cellIndex),
 				originalIndex: index,
+				originalCellOutputsLength: cell?.outputs.length ?? 0
 			};
 		}).sort((a, b) => {
 			if (a.end === undefined) {
@@ -393,7 +395,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return b.end - a.end || b.originalIndex - a.originalIndex;
 		});
 
-		for (const { edit, cellIndex } of edits) {
+		for (const { edit, cellIndex, originalCellOutputsLength } of edits) {
 			switch (edit.editType) {
 				case CellEditType.Replace:
 					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
@@ -402,7 +404,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._assertIndex(cellIndex);
 					const cell = this._cells[cellIndex];
 					if (edit.append) {
-						this._spliceNotebookCellOutputs(cell, [[cell.outputs.length, 0, edit.outputs.map(op => new NotebookCellOutputTextModel(op))]], computeUndoRedo);
+						this._spliceNotebookCellOutputs(cell, [[originalCellOutputsLength, 0, edit.outputs.map(op => new NotebookCellOutputTextModel(op))]], computeUndoRedo);
 					} else {
 						this._spliceNotebookCellOutputs2(cell, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
 					}
