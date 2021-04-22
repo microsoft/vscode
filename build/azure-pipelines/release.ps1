@@ -6,9 +6,9 @@ $set = [System.Collections.Generic.HashSet[string]]::new()
 
 # Determine which stages we need to watch
 $stages = @(
-	if ('$(VSCODE_BUILD_STAGE_WINDOWS)' -eq 'True') { 'Windows' }
-	if ('$(VSCODE_BUILD_STAGE_LINUX)' -eq 'True') { 'Linux' }
-	if ('$(VSCODE_BUILD_STAGE_MACOS)' -eq 'True') { 'macOS' }
+	if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
+	if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
+	if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
 )
 
 do
@@ -17,7 +17,7 @@ do
 
 	try
 	{
-		$res = Invoke-RestMethod "$(BUILDS_API_URL)artifacts?api-version=6.0" -Headers @{
+		$res = Invoke-RestMethod "$($env:BUILDS_API_URL)artifacts?api-version=6.0" -Headers @{
 			Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
 		} -MaximumRetryCount 5 -RetryIntervalSec 1
 	} catch {
@@ -35,7 +35,7 @@ do
 
 				try
 				{
-					Invoke-RestMethod $_.resource.downloadUrl -OutFile "$(Agent.TempDirectory)/$artifactName.zip" -Headers @{
+					Invoke-RestMethod $_.resource.downloadUrl -OutFile "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -Headers @{
 						Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
 					} -MaximumRetryCount 5 -RetryIntervalSec 1
 				} catch
@@ -47,7 +47,7 @@ do
 
 				try
 				{
-					Expand-Archive -Path "$(Agent.TempDirectory)/$artifactName.zip" -DestinationPath "$(Agent.TempDirectory)"
+					Expand-Archive -Path "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -DestinationPath $env:AGENT_TEMPDIRECTORY
 				} catch
 				{
 					Write-Warning $_
@@ -57,7 +57,7 @@ do
 
 				Write-Host "Expanding variables:"
 				$null,$product,$os,$arch,$type = $artifactName -split '_'
-				$asset = Get-ChildItem -rec "$(Agent.TempDirectory)/$artifactName"
+				$asset = Get-ChildItem -rec "$env:AGENT_TEMPDIRECTORY/$artifactName"
 				# turning in into an object just to log nicely
 				@{
 					product = $product
@@ -66,12 +66,6 @@ do
 					type = $type
 					asset = $asset.Name
 				}
-
-				$ErrorActionPreference = "Stop"
-				$env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-				$env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
-				$env:AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)"
-				$env:AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)"
 
 				if ($os -eq 'darwin' -and $product -eq 'client') {
 					exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
@@ -83,7 +77,7 @@ do
 	# Get the timeline and see if it says the other stage completed
 	try
 	{
-		$timeline = Invoke-RestMethod "$(BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
+		$timeline = Invoke-RestMethod "$($env:BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
 			Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
 		}  -MaximumRetryCount 5 -RetryIntervalSec 1
 	} catch
