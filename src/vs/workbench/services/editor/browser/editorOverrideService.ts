@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorOverride, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorOptions, EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -234,19 +234,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			this.closeExistingEditorsForResource(resource, selectedContribution.editorInfo.id, group);
 		}
 
-		// If an existing editor for a resource exists within the group and we're reopening it, replace it.
-		const existing = firstOrDefault(group.findEditors(resource));
-		if (existing) {
-			if (!input.matches(existing)) {
-				await group.replaceEditors([{
-					editor: existing,
-					replacement: input,
-					forceReplaceDirty: existing.resource?.scheme === Schemas.untitled,
-					options: options ? EditorOptions.create(options) : undefined,
-				}]);
-				return;
-			}
-		}
 		return { editor: input };
 	}
 
