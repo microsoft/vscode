@@ -233,7 +233,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			throw new Error('MISSING notebook');
 		}
 		if (obj.controller.interruptHandler) {
-			await obj.controller.interruptHandler.call(obj.controller);
+			await obj.controller.interruptHandler.call(obj.controller, document.apiNotebook);
 		}
 
 		// we do both? interrupt and cancellation or should we be selective?

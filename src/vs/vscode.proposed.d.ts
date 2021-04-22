@@ -1539,7 +1539,10 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookInterruptHandler {
-		(this: NotebookController): void | Thenable<void>;
+		/**
+		 * @param notebook The notebook for which the interrupt handler is being called.
+		 */
+		(this: NotebookController, notebook: NotebookDocument): void | Thenable<void>;
 	}
 
 	export interface NotebookController {
