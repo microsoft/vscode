@@ -108,25 +108,28 @@ steps:
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
-      set -e
-
       # For legacy purposes, arch for x64 is just 'darwin'
       case $VSCODE_ARCH in
         x64) ASSET_ID="darwin" ;;
         arm64) ASSET_ID="darwin-arm64" ;;
         universal) ASSET_ID="darwin-universal" ;;
       esac
+      echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
+    displayName: Set asset id variable
+
+  - script: |
+      set -e
 
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
       AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
       node build/azure-pipelines/common/createAsset.js \
-        "$ASSET_ID" \
+        "$(ASSET_ID)" \
         archive \
-        "VSCode-$ASSET_ID.zip" \
+        "VSCode-$(ASSET_ID).zip" \
         $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Publish Clients
 
-  - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+  - publish: $(Agent.BuildDirectory)/VSCode-$(ASSET_ID).zip
     artifact: vscode_client_darwin_$(VSCODE_ARCH)_archive

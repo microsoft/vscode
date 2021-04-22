@@ -27,9 +27,18 @@ $Version = $PackageJson.version
 
 $AssetPlatform = if ("$Arch" -eq "ia32") { "win32" } else { "win32-$Arch" }
 
-exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-archive" archive "VSCode-win32-$Arch-$Version.zip" $Zip }
-exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup "VSCodeSetup-$Arch-$Version.exe" $SystemExe }
-exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup "VSCodeUserSetup-$Arch-$Version.exe" $UserExe }
+$ARCHIVE_NAME = "VSCode-win32-$Arch-$Version.zip"
+$SYSTEM_SETUP_NAME = "VSCodeSetup-$Arch-$Version.exe"
+$USER_SETUP_NAME = "VSCodeUserSetup-$Arch-$Version.exe"
+
+exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-archive" archive $ARCHIVE_NAME $Zip }
+exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup $SYSTEM_SETUP_NAME $SystemExe }
+exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup $USER_SETUP_NAME $UserExe }
+
+# Set variables for upload
+Write-Host "##vso[task.setvariable variable=ARCHIVE_NAME]$ARCHIVE_NAME"
+Write-Host "##vso[task.setvariable variable=SYSTEM_SETUP_NAME]$SYSTEM_SETUP_NAME"
+Write-Host "##vso[task.setvariable variable=USER_SETUP_NAME]$USER_SETUP_NAME"
 
 if ("$Arch" -ne "arm64") {
 	exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform" archive "vscode-server-win32-$Arch.zip" $ServerZip }
