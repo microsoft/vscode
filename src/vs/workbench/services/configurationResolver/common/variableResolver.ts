@@ -235,7 +235,8 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			case 'env':
 				if (argument) {
 					if (environment) {
-						const env = environment[isWindows ? argument.toLowerCase() : argument];
+						// Depending on the source of the environment, on Windows, the values may all be lowercase.
+						const env = isWindows ? (environment[argument.toLowerCase()] ?? environment[argument]) : environment[argument];
 						if (types.isString(env)) {
 							return env;
 						}
