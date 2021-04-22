@@ -488,7 +488,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
-		this._xterm.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning, icon: Codicon.bell }, 3000));
+		// Delay the creation of the bell listener to avoid showing the bell when the terminal
+		// starts up or reconnects
+		setTimeout(() => {
+			this._xterm?.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning, icon: Codicon.bell }, 3000));
+		}, 1000);
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
