@@ -122,9 +122,10 @@ export class CellEditorStatusBar extends Disposable {
 			return;
 		}
 
-		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
+		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => this.layout()));
 		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
-		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(e => this.layout()));
+		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
+		this.layout();
 		this.updateActiveCell();
 		this.updateRenderedItems();
 	}
