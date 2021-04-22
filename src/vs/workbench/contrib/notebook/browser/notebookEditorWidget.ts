@@ -478,13 +478,37 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		const cellToolbarLocation = this.configurationService.getValue<string>(CellToolbarLocKey);
+		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
 		this._overlayContainer.classList.remove('cell-title-toolbar-left');
 		this._overlayContainer.classList.remove('cell-title-toolbar-right');
 		this._overlayContainer.classList.remove('cell-title-toolbar-hidden');
 
-		if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right' || cellToolbarLocation === 'hidden') {
-			this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
+		if (typeof cellToolbarLocation === 'string') {
+			if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right' || cellToolbarLocation === 'hidden') {
+				this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
+			}
+		} else {
+			if (this.viewModel) {
+				const notebookSpecificSetting = cellToolbarLocation[this.viewModel.viewType] ?? cellToolbarLocation['default'];
+				let cellToolbarLocationForCurrentView = 'right';
+
+				switch (notebookSpecificSetting) {
+					case 'left':
+						cellToolbarLocationForCurrentView = 'left';
+						break;
+					case 'right':
+						cellToolbarLocationForCurrentView = 'right';
+					case 'hidden':
+						cellToolbarLocationForCurrentView = 'hidden';
+					default:
+						cellToolbarLocationForCurrentView = 'right';
+						break;
+				}
+
+				this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocationForCurrentView}`);
+			} else {
+				this._overlayContainer.classList.add(`cell-title-toolbar-right`);
+			}
 		}
 
 		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
@@ -1036,6 +1060,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
 		this._updateForOptions();
+		this._updateForNotebookConfiguration();
+
 		// restore view states, including contributions
 
 		{
