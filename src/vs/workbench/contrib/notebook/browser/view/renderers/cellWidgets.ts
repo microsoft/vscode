@@ -243,7 +243,7 @@ class CellStatusBarItem extends Disposable {
 			this._register(DOM.addDisposableListener(this.container, DOM.EventType.CLICK, _e => {
 				this.executeCommand();
 			}));
-			this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, e => {
+			this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, e => {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
 					this.executeCommand();
