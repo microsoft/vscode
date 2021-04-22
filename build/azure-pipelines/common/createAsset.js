@@ -15,16 +15,30 @@ const retry_1 = require("./retry");
 // 	process.exit(-1);
 // }
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product, os, arch) {
+function getPlatform(product, os, arch, type) {
     switch (os) {
         case 'win32':
             switch (product) {
                 case 'client':
-                    break;
+                    const asset = arch === 'ia32' ? 'win32' : `win32-${arch}`;
+                    switch (type) {
+                        case 'archive':
+                            return `${asset}-archive`;
+                        case 'setup':
+                            return asset;
+                        case 'user-setup':
+                            return `${asset}-user`;
+                    }
                 case 'server':
-                    break;
+                    if (arch !== 'arm64') {
+                        throw `What should the platform be?: ${product} ${os} ${arch} ${type}`;
+                    }
+                    return `server-${arch}`;
                 case 'web':
-                    break;
+                    if (arch !== 'arm64') {
+                        throw `What should the platform be?: ${product} ${os} ${arch} ${type}`;
+                    }
+                    return `server-${arch}-web`;
                 default:
                     throw `found an unrecognized product: ${product}`;
             }
@@ -52,17 +66,22 @@ function getPlatform(product, os, arch) {
                     return 'server-darwin';
                 case 'web':
                     if (arch !== 'x64') {
-                        throw `What should the platform be?: ${product} ${os} ${arch}`;
+                        throw `What should the platform be?: ${product} ${os} ${arch} ${type}`;
                     }
                     return 'server-darwin-web';
                 default:
                     throw `found an unrecognized product: ${product}`;
             }
-            break;
         default:
             // standalone
             break;
     }
+}
+function getRealType(type) {
+    if (type === 'user-setup') {
+        return 'setup';
+    }
+    return type;
 }
 function hashStream(hashName, stream) {
     return new Promise((c, e) => {
@@ -101,7 +120,8 @@ async function main() {
     }
     else {
         [, , product, os, arch, type, fileName, filePath] = process.argv;
-        platform = getPlatform(product, os, arch);
+        platform = getPlatform(product, os, arch, type);
+        type = getRealType(type);
     }
     const quality = getEnv('VSCODE_QUALITY');
     const commit = getEnv('BUILD_SOURCEVERSION');
