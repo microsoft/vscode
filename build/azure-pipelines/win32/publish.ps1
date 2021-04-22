@@ -31,9 +31,9 @@ $ARCHIVE_NAME = "VSCode-win32-$Arch-$Version.zip"
 $SYSTEM_SETUP_NAME = "VSCodeSetup-$Arch-$Version.exe"
 $USER_SETUP_NAME = "VSCodeUserSetup-$Arch-$Version.exe"
 
-exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-archive" archive $ARCHIVE_NAME $Zip }
-exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup $SYSTEM_SETUP_NAME $SystemExe }
-exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup $USER_SETUP_NAME $UserExe }
+# exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-archive" archive $ARCHIVE_NAME $Zip }
+# exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup $SYSTEM_SETUP_NAME $SystemExe }
+# exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup $USER_SETUP_NAME $UserExe }
 
 # Set variables for upload
 Move-Item $Zip "$Repo\.build\win32-$Arch\archive\$ARCHIVE_NAME"
