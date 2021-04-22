@@ -154,15 +154,50 @@ export function registerTerminalActions() {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
+		async run(accessor: ServicesAccessor, event: unknown, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
-			if (profile) {
-				const instance = terminalService.createTerminal(profile);
-				terminalService.setActiveInstance(instance);
-				return terminalService.showPanel(true);
-			} else {
-				await terminalService.showProfileQuickPick('createInstance');
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const commandService = accessor.get(ICommandService);
+			const folders = workspaceContextService.getWorkspace().folders;
+			if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
+				const activeInstance = terminalService.getActiveInstance();
+				if (activeInstance) {
+					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
+					terminalService.splitInstance(activeInstance, profile, cwd);
+					return;
+				}
 			}
+
+			if (terminalService.isProcessSupportRegistered) {
+				let instance: ITerminalInstance | undefined;
+				if (folders.length <= 1) {
+					// Allow terminal service to handle the path when there is only a
+					// single root
+					if (profile) {
+						instance = terminalService.createTerminal(profile);
+					} else {
+						instance = await terminalService.showProfileQuickPick('createInstance');
+					}
+				} else {
+					const options: IPickOptions<IQuickPickItem> = {
+						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+					};
+					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+					if (!workspace) {
+						// Don't create the instance if the workspace picker was canceled
+						return;
+					}
+					if (profile) {
+						instance = terminalService.createTerminal(profile, workspace.uri);
+					} else {
+						instance = await terminalService.showProfileQuickPick('createInstance', workspace.uri);
+					}
+				}
+				if (instance) {
+					terminalService.setActiveInstance(instance);
+				}
+			}
+			await terminalService.showPanel(true);
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetEmptyContext, {
