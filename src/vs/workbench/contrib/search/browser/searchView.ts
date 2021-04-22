@@ -1649,16 +1649,18 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
+		const span = dom.append(messageBox, $('span.providerMessage'));
+
 		if (messageBox.innerText) {
-			dom.append(messageBox, document.createTextNode(' - '));
+			dom.append(span, document.createTextNode(' - '));
 		}
 
 		for (const node of linkedText.nodes) {
 			if (typeof node === 'string') {
-				dom.append(messageBox, document.createTextNode(node));
+				dom.append(span, document.createTextNode(node));
 			} else {
 				const link = this.instantiationService.createInstance(Link, node);
-				dom.append(messageBox, link.el);
+				dom.append(span, link.el);
 				this.messageDisposables.add(link);
 				this.messageDisposables.add(attachLinkStyler(link, this.themeService));
 			}
