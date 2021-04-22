@@ -424,7 +424,7 @@ interface IDevelopmentOptions {
 	/**
 	 * Location of a module containing extension tests to run once the workbench is open.
 	 */
-	readonly extensionTestsPath?: URI;
+	readonly extensionTestsPath?: UriComponents;
 
 	/**
 	 * Add extensions under development.
