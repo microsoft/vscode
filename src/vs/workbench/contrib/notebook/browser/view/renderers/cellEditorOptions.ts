@@ -175,7 +175,7 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [{
 				id: MenuId.NotebookCellTitle,
-				group: 'LineNumber',
+				group: 'View',
 				order: 1
 			}],
 			toggled: ContextKeyExpr.or(
