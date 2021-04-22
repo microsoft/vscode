@@ -198,12 +198,13 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container {
-	max-height: 100%;
+	height: 100%;
 	display: flex;
 	flex-direction: column;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget-container {
+	height: 100%;
 	overflow: hidden;
 }
 
@@ -218,6 +219,10 @@
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
 	text-align: left;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget {
+	height: 100%;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry {
