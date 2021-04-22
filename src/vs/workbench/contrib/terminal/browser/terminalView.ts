@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -23,17 +22,16 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfile, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import { DropdownWithPrimaryActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownWithPrimaryActionViewItem';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -325,48 +323,4 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 function getProfileSelectOptionItems(terminalService: ITerminalService): ISelectOptionItem[] {
 	const detectedProfiles = terminalService.availableProfiles;
 	return detectedProfiles.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
-}
-
-export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
-	private _primaryAction: ActionViewItem;
-	private _dropdown: DropdownMenuActionViewItem;
-	private _container: HTMLElement | null = null;
-
-	constructor(
-		primaryAction: IAction,
-		dropdownAction: IAction,
-		dropdownMenuActions: IAction[],
-		private readonly _className: string,
-		private readonly _contextMenuProvider: IContextMenuProvider
-	) {
-		super(null, primaryAction);
-		this._primaryAction = new ActionViewItem(undefined, primaryAction, {
-			icon: true,
-			label: false
-		});
-		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true
-		});
-	}
-
-	override render(container: HTMLElement): void {
-		this._container = container;
-		super.render(this._container);
-		this.element = DOM.append(this._container, DOM.$(''));
-		this.element.className = this._className;
-		this.element.classList.add('monaco-dropdown-with-primary');
-		this._primaryAction.render(this.element);
-		this._dropdown.render(this.element);
-	}
-
-	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
-		this._dropdown?.dispose();
-		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true,
-			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down']
-		});
-		if (this.element) {
-			this._dropdown.render(this.element);
-		}
-	}
 }
