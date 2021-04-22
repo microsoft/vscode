@@ -325,8 +325,11 @@ export class SingleUseTestCollection implements IDisposable {
 					case 'range':
 						this.pushDiff([TestDiffOpType.Update, { extId, item: { range: Convert.Range.from(value) }, }]);
 						break;
+					case 'error':
+						this.pushDiff([TestDiffOpType.Update, { extId, item: { error: Convert.MarkdownString.fromStrict(value) || null }, }]);
+						break;
 					default:
-						this.pushDiff([TestDiffOpType.Update, { extId, item: { [key]: value } }]);
+						this.pushDiff([TestDiffOpType.Update, { extId, item: { [key]: value ?? null } }]);
 						break;
 				}
 				break;

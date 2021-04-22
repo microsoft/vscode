@@ -1703,11 +1703,11 @@ export namespace TestItem {
 			extId: item.id,
 			label: item.label,
 			uri: item.uri,
-			range: Range.from(item.range),
+			range: Range.from(item.range) || null,
 			debuggable: item.debuggable ?? false,
-			description: item.description,
+			description: item.description || null,
 			runnable: item.runnable ?? true,
-			error: item.error ? MarkdownString.fromStrict(item.error) : undefined,
+			error: item.error ? (MarkdownString.fromStrict(item.error) || null) : null,
 		};
 	}
 
@@ -1716,10 +1716,10 @@ export namespace TestItem {
 			extId: item.id,
 			label: item.label,
 			uri: item.uri,
-			range: Range.from(item.range),
+			range: Range.from(item.range) || null,
 			debuggable: false,
-			description: item.description,
-			error: undefined,
+			description: item.description || null,
+			error: null,
 			runnable: true,
 		};
 	}
@@ -1729,22 +1729,22 @@ export namespace TestItem {
 			id: item.extId,
 			label: item.label,
 			uri: URI.revive(item.uri),
-			range: Range.to(item.range),
+			range: Range.to(item.range || undefined),
 			addChild: () => undefined,
 			dispose: () => undefined,
 			status: types.TestItemStatus.Pending,
 			data: undefined as never,
 			debuggable: item.debuggable,
-			description: item.description,
+			description: item.description || undefined,
 			runnable: item.runnable,
 		};
 	}
 
 	export function to(item: ITestItem): types.TestItemImpl {
 		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined);
-		testItem.range = Range.to(item.range);
+		testItem.range = Range.to(item.range || undefined);
 		testItem.debuggable = item.debuggable;
-		testItem.description = item.description;
+		testItem.description = item.description || undefined;
 		testItem.runnable = item.runnable;
 		return testItem;
 	}

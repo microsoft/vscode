@@ -73,11 +73,11 @@ export class NodeChangeList<T extends (TestItemTreeElement | TestTreeWorkspaceFo
 	private omittedNodes = new WeakSet<TestExplorerTreeElement>();
 	private isFirstApply = true;
 
-	public updated(node: T) {
+	public updated(node: TestExplorerTreeElement) {
 		this.updatedNodes.add(node);
 	}
 
-	public addedOrRemoved(node: T) {
+	public addedOrRemoved(node: TestExplorerTreeElement) {
 		this.changedParents.add(this.getNearestNotOmittedParent(node));
 	}
 
@@ -116,9 +116,9 @@ export class NodeChangeList<T extends (TestItemTreeElement | TestTreeWorkspaceFo
 		this.updatedNodes.clear();
 	}
 
-	private getNearestNotOmittedParent(node: T | null) {
+	private getNearestNotOmittedParent(node: TestExplorerTreeElement | null) {
 		let parent = node && node.parent;
-		while (parent && this.omittedNodes.has(parent as TestExplorerTreeElement)) {
+		while (parent && this.omittedNodes.has(parent)) {
 			parent = parent.parent;
 		}
 

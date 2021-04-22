@@ -22,6 +22,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -45,9 +46,9 @@ import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLab
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
+import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
@@ -300,6 +301,7 @@ export class TestingExplorerViewModel extends Disposable {
 			[
 				instantiationService.createInstance(TestItemRenderer, labels),
 				instantiationService.createInstance(WorkspaceFolderRenderer, labels),
+				instantiationService.createInstance(ErrorRenderer),
 			],
 			{
 				simpleKeyboardNavigation: true,
@@ -737,7 +739,9 @@ class ListAccessibilityProvider implements IListAccessibilityProvider<TestExplor
 	}
 
 	getAriaLabel(element: TestExplorerTreeElement): string {
-		return element instanceof TestTreeErrorMessage ? element.message : getLabelForTestTreeElement(element);
+		return element instanceof TestTreeErrorMessage
+			? element.description
+			: getLabelForTestTreeElement(element);
 	}
 }
 
@@ -757,6 +761,10 @@ class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement> {
 			return WorkspaceFolderRenderer.ID;
 		}
 
+		if (element instanceof TestTreeErrorMessage) {
+			return ErrorRenderer.ID;
+		}
+
 		return TestItemRenderer.ID;
 	}
 }
@@ -767,6 +775,43 @@ class IdentityProvider implements IIdentityProvider<TestExplorerTreeElement> {
 	}
 }
 
+interface IErrorTemplateData {
+	label: HTMLElement;
+}
+
+class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, IErrorTemplateData> {
+	static readonly ID = 'error';
+
+	private readonly renderer: MarkdownRenderer;
+
+	constructor(@IInstantiationService instantionService: IInstantiationService) {
+		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
+	}
+
+	get templateId(): string {
+		return ErrorRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IErrorTemplateData {
+		const label = dom.append(container, dom.$('.error'));
+		return { label };
+	}
+
+	renderElement({ element }: ITreeNode<TestTreeErrorMessage, FuzzyScore>, _: number, data: IErrorTemplateData): void {
+		if (typeof element.message === 'string') {
+			data.label.innerText = element.message;
+		} else {
+			const result = this.renderer.render(element.message, { inline: true });
+			data.label.appendChild(result.element);
+		}
+
+		data.label.title = element.description;
+	}
+
+	disposeTemplate(): void {
+		// noop
+	}
+}
 
 interface IActionableElementTemplateData {
 	label: IResourceLabel;
@@ -888,7 +933,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		label.resource = node.element.test.item.uri;
 		options.title = getLabelForTestTreeElement(node.element);
 		options.fileKind = FileKind.FILE;
-		label.description = node.element.description;
+		label.description = node.element.description || undefined;
 		data.label.setResource(label, options);
 	}
 }
