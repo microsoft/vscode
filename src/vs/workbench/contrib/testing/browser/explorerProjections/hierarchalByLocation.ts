@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { TestItemTreeElement, ITestTreeProjection, IActionableTestTreeElement, TestExplorerTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { TestItemTreeElement, ITestTreeProjection, IActionableTestTreeElement, TestExplorerTreeElement, TestTreeErrorMessage, isActionableTestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { ByLocationTestItemElement, ByLocationFolderElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
@@ -26,7 +26,7 @@ const computedStateAccessor: IComputedStateAccessor<IActionableTestTreeElement> 
 	getOwnState: i => i instanceof TestItemTreeElement ? i.ownState : TestResultState.Unset,
 	getCurrentComputedState: i => i.state,
 	setComputedState: (i, s) => i.state = s,
-	getChildren: i => i.children.values(),
+	getChildren: i => Iterable.filter(i.children.values(), isActionableTestTreeElement),
 	*getParents(i) {
 		for (let parent = i.parent; parent; parent = parent.parent) {
 			yield parent;
@@ -195,10 +195,12 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 					this.changes.addedOrRemoved(toRemove);
 
-					const queue: Iterable<ByLocationTestItemElement>[] = [[toRemove]];
+					const queue: Iterable<TestExplorerTreeElement>[] = [[toRemove]];
 					while (queue.length) {
 						for (const item of queue.pop()!) {
-							queue.push(this.unstoreItem(items, item));
+							if (item instanceof ByLocationTestItemElement) {
+								queue.push(this.unstoreItem(items, item));
+							}
 						}
 					}
 				}
@@ -237,7 +239,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	protected createItem(item: InternalTestItem, folder: IWorkspaceFolder): ByLocationTestItemElement {
 		const { items, root } = this.getOrCreateFolderElement(folder);
 		const parent = item.parent ? items.get(item.parent)! : root;
-		return new ByLocationTestItemElement(item, parent);
+		return new ByLocationTestItemElement(item, parent, n => this.changes.addedOrRemoved(n));
 	}
 
 	protected getOrCreateFolderElement(folder: IWorkspaceFolder) {
@@ -271,10 +273,14 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			return NodeRenderDirective.Omit;
 		}
 
+		if (!(node instanceof ByLocationTestItemElement)) {
+			return { element: node, children: recurse(node.children) };
+		}
+
 		return {
 			element: node,
-			collapsible: node instanceof ByLocationTestItemElement && node.test.expand !== TestItemExpandState.NotExpandable,
-			collapsed: node instanceof ByLocationTestItemElement && node.test.expand === TestItemExpandState.Expandable ? true : undefined,
+			collapsible: node.test.expand !== TestItemExpandState.NotExpandable,
+			collapsed: node.test.expand === TestItemExpandState.Expandable ? true : undefined,
 			children: recurse(node.children),
 		};
 	};

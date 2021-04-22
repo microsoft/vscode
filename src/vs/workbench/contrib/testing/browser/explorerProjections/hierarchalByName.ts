@@ -5,6 +5,7 @@
 
 import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByLocationTestItemElement, ByLocationFolderElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
@@ -35,7 +36,7 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 	public readonly actualChildren = new Set<ByNameTestItemElement>();
 
 	public override get description() {
-		let description: string | undefined;
+		let description: string | null = null;
 		for (let parent = this.actualParent; parent && !parent.isTestRoot; parent = parent.actualParent) {
 			description = description ? `${parent.label} › ${description}` : parent.label;
 		}
@@ -49,10 +50,10 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 	constructor(
 		internal: InternalTestItem,
 		parentItem: ByLocationFolderElement | ByLocationTestItemElement,
-		private readonly addedOrRemoved: (n: ByNameTestItemElement) => void,
+		addedOrRemoved: (n: TestExplorerTreeElement) => void,
 		private readonly actualParent?: ByNameTestItemElement,
 	) {
-		super(internal, parentItem);
+		super(internal, parentItem, addedOrRemoved);
 		actualParent?.addChild(this);
 		this.updateLeafTestState();
 	}

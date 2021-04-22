@@ -194,14 +194,15 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		const collection = disposable.add(this.ownedTests.createForHierarchy(
 			diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
 		disposable.add(toDisposable(() => cancellation.dispose(true)));
+		const subscribes: Promise<void>[] = [];
 		for (const [id, controller] of this.controllers) {
-			subscribeFn(id, controller.instance);
+			subscribes.push(subscribeFn(id, controller.instance));
 		}
 
-		// note: we don't increment the root count initially -- this is done by the
+		// note: we don't increment the count initially -- this is done by the
 		// main thread, incrementing once per extension host. We just push the
 		// diff to signal that roots have been discovered.
-		collection.pushDiff([TestDiffOpType.DeltaRootsComplete, -1]);
+		Promise.all(subscribes).then(() => collection.pushDiff([TestDiffOpType.IncrementPendingExtHosts, -1]));
 		this.testControllers.set(subscriptionKey, { store: disposable, collection, subscribeFn });
 	}
 
