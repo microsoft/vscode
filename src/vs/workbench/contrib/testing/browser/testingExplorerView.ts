@@ -913,7 +913,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 	/**
 	 * @inheritdoc
 	 */
-	public renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, depth: number, data: IActionableElementTemplateData): void {
+	public override renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, depth: number, data: IActionableElementTemplateData): void {
 		super.renderElement(node, depth, data);
 
 		const label: IResourceLabelProps = { name: node.element.label };
@@ -960,7 +960,7 @@ class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspa
 	/**
 	 * @inheritdoc
 	 */
-	public renderElement(node: ITreeNode<TestTreeWorkspaceFolder, FuzzyScore>, depth: number, data: IActionableElementTemplateData): void {
+	public override renderElement(node: ITreeNode<TestTreeWorkspaceFolder, FuzzyScore>, depth: number, data: IActionableElementTemplateData): void {
 		super.renderElement(node, depth, data);
 
 		const label: IResourceLabelProps = { name: node.element.label };

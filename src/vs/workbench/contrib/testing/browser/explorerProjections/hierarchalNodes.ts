@@ -12,12 +12,15 @@ import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workb
 export class ByLocationTestItemElement extends TestItemTreeElement {
 	private errorChild?: TestTreeErrorMessage;
 
+	public override readonly parent: ByLocationFolderElement | ByLocationTestItemElement;
+
 	constructor(
 		test: InternalTestItem,
-		public readonly parent: ByLocationFolderElement | ByLocationTestItemElement,
+		parent: ByLocationFolderElement | ByLocationTestItemElement,
 		protected readonly addedOrRemoved: (n: TestExplorerTreeElement) => void,
 	) {
 		super({ ...test, item: { ...test.item } }, parent);
+		this.parent = parent;
 		this.updateErrorVisiblity();
 	}
 
@@ -43,5 +46,5 @@ export class ByLocationTestItemElement extends TestItemTreeElement {
  * Workspace folder in the location view.
  */
 export class ByLocationFolderElement extends TestTreeWorkspaceFolder {
-	public readonly children = new Set<ByLocationTestItemElement>();
+	public override readonly children = new Set<ByLocationTestItemElement>();
 }

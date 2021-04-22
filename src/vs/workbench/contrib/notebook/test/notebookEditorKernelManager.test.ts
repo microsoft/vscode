@@ -34,8 +34,8 @@ suite('NotebookEditorKernelManager', () => {
 		instantiationService = setupInstantiationService();
 
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-			onDidAddNotebookDocument = Event.None;
-			getNotebookTextModels() { return []; }
+			override onDidAddNotebookDocument = Event.None;
+			override getNotebookTextModels() { return []; }
 		});
 
 		kernelService = instantiationService.createInstance(NotebookKernelService);
@@ -107,7 +107,7 @@ suite('NotebookEditorKernelManager', () => {
 					this.id = 'mySpecialId';
 				}
 
-				async executeNotebookCellsRequest() {
+				override async executeNotebookCellsRequest() {
 					didExecute = true;
 					return;
 				}

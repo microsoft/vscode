@@ -26,8 +26,8 @@ suite('NotebookKernelService', () => {
 		dispoables.clear();
 		instantiationService = setupInstantiationService();
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-			onDidAddNotebookDocument = Event.None;
-			getNotebookTextModels() { return []; }
+			override onDidAddNotebookDocument = Event.None;
+			override getNotebookTextModels() { return []; }
 		});
 		kernelService = instantiationService.createInstance(NotebookKernelService);
 		instantiationService.set(INotebookKernelService, kernelService);
