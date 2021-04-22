@@ -202,7 +202,7 @@ suite('SearchModel', () => {
 
 		instantiationService.stub(ISearchService, searchServiceWithResults(
 			[aRawMatch('file://c:/1', new TextSearchMatch('some preview', lineOneRange))],
-			{ results: [], stats: testSearchStats }));
+			{ results: [], stats: testSearchStats, messages: [] }));
 
 		const testObject = instantiationService.createInstance(SearchModel);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
