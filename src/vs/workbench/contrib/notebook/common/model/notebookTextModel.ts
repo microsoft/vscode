@@ -381,7 +381,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						? undefined
 						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : cellIndex),
 				originalIndex: index,
-				originalCellOutputsLength: cell.outputs.length
+				originalCellOutputsLength: cell?.outputs.length ?? 0
 			};
 		}).sort((a, b) => {
 			if (a.end === undefined) {
