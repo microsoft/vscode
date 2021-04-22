@@ -20,7 +20,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "The extension requires workspace trust when the `php.validate.executablePath` setting will load a version of PHP in the workspace."
+      "description": "%workspaceTrust%"
     }
   },
   "contributes": {

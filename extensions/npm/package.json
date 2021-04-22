@@ -47,7 +47,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "This extension calls the `tasks.executeTask()` API, which requires trust to run."
+      "description": "%workspaceTrust%"
     }
   },
   "contributes": {
