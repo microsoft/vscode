@@ -27,6 +27,7 @@ import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -38,12 +39,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
-	private readonly remoteMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService));
+	private readonly windowIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
+	private readonly remoteIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarRemoteIndicatorMenu, this.contextKeyService));
+
 	private hasRemoteActions = false;
 
 	private readonly remoteAuthority = this.environmentService.remoteAuthority;
 	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
+
+	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -57,7 +62,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IHostService private readonly hostService: IHostService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -88,7 +94,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					f1: true,
 				});
 			}
-			run = () => that.showRemoteMenu(that.remoteMenu);
+			run = () => that.showRemoteMenu(that.remoteIndicatorMenu, that.windowIndicatorMenu);
 		});
 
 		// Close Remote Connection
@@ -119,7 +125,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private registerListeners(): void {
 
 		// Menu changes
-		this._register(this.remoteMenu.onDidChange(() => this.updateRemoteActions()));
+		this._register(this.windowIndicatorMenu.onDidChange(() => this.updateRemoteActions()));
 
 		// Update indicator when formatter changes as it may have an impact on the remote label
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateRemoteStatusIndicator()));
@@ -192,7 +198,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private updateRemoteActions() {
-		const newHasWindowActions = this.remoteMenu.getActions().length > 0;
+		const newHasWindowActions = this.windowIndicatorMenu.getActions().length > 0;
 		if (newHasWindowActions !== this.hasRemoteActions) {
 			this.hasRemoteActions = newHasWindowActions;
 
@@ -236,7 +242,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 
 		// Remote actions: offer menu
-		if (this.remoteMenu.getActions().length > 0) {
+		if (this.windowIndicatorMenu.getActions().length > 0) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
 			return;
 		}
@@ -257,7 +263,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string, showProgress?: boolean): void {
 		const name = nls.localize('remoteHost', "Remote Host");
-		if (typeof command !== 'string' && this.remoteMenu.getActions().length > 0) {
+		if (typeof command !== 'string' && this.windowIndicatorMenu.getActions().length > 0) {
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
 		}
 
@@ -279,7 +285,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private showRemoteMenu(menu: IMenu) {
+	private showRemoteMenu(menu: IMenu, legacyMenu: IMenu) {
 		const getCategoryLabel = (action: MenuItemAction) => {
 			if (action.item.category) {
 				return typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
@@ -287,13 +293,25 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			return undefined;
 		};
 
+		const validatedGroup = (group: string) => {
+			if (!group.match(/^(remote|virtualfs)_(\d)_(([a-z][a-z0-9+\-.]*)_(.*))$/)) {
+				if (!this.loggedInvalidGroupNames[group]) {
+					this.loggedInvalidGroupNames[group] = true;
+					this.logService.warn(`Invalid group name used in "statusBar/remoteIndicator" menu contribution: ${group}. Entries ignored. Expected format: 'remote_$ORDER_$REMOTENAME_$GROUPING or 'virtualfs_$ORDER_$FILESCHEME_$GROUPING.`);
+				}
+				return false;
+			}
+			return true;
+		};
+
 		const computeItems = () => {
-			const actions = menu.getActions();
+			const actionGroups = menu.getActions().filter(a => validatedGroup(a[0])).concat(legacyMenu.getActions());
+
 			const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 
 			let lastCategoryName: string | undefined = undefined;
 
-			for (let actionGroup of actions) {
+			for (let actionGroup of actionGroups) {
 				let hasGroupCategory = false;
 				for (let action of actionGroup[1]) {
 					if (action instanceof MenuItemAction) {
@@ -342,6 +360,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			quickPick.hide();
 		}));
 		// refresh the items when actions change
+		const legacyItemUpdater = legacyMenu.onDidChange(() => quickPick.items = computeItems());
+		quickPick.onDidHide(legacyItemUpdater.dispose);
+
 		const itemUpdater = menu.onDidChange(() => quickPick.items = computeItems());
 		quickPick.onDidHide(itemUpdater.dispose);
 
