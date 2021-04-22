@@ -518,7 +518,8 @@ suite('NotebookTextModel', () => {
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
 		], async (editor) => {
 			assert.strictEqual(editor.viewModel.getVersionId(), 0);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
+			const firstAltVersion = '0_0,1;1,1';
+			assert.strictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
 			editor.viewModel.notebookDocument.applyEdits([
 				{
 					index: 0,
@@ -529,17 +530,18 @@ suite('NotebookTextModel', () => {
 				}
 			], true, undefined, () => undefined, undefined, true);
 			assert.strictEqual(editor.viewModel.getVersionId(), 1);
-			assert.notStrictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+			assert.notStrictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
+			const secondAltVersion = '1_0,1;1,1';
+			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
 
 			await editor.viewModel.undo();
 			assert.strictEqual(editor.viewModel.getVersionId(), 2);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
+			assert.strictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
 
 			await editor.viewModel.redo();
 			assert.strictEqual(editor.viewModel.getVersionId(), 3);
-			assert.notStrictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+			assert.notStrictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
+			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
 
 			editor.viewModel.notebookDocument.applyEdits([
 				{
@@ -555,7 +557,7 @@ suite('NotebookTextModel', () => {
 
 			await editor.viewModel.undo();
 			assert.strictEqual(editor.viewModel.getVersionId(), 5);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
 
 		});
 	});
