@@ -53,22 +53,37 @@ steps:
 
         if ($res) {
           $res.value | Where-Object { $_.name -Like 'vscode_*' } | ForEach-Object {
-            if($set.Add($_.name)) {
-              Write-Host "Processing artifact: '$($_.name). Downloading from: $($_.resource.downloadUrl)"
-              Invoke-RestMethod $_.resource.downloadUrl -OutFile "$(Agent.TempDirectory)/$($_.name).zip" -Headers @{
-                Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-              } -MaximumRetryCount 5 -RetryIntervalSec 1
-              Expand-Archive -Path "$(Agent.TempDirectory)/$($_.name).zip" -DestinationPath "$(Agent.TempDirectory)"
+            $artifactName = $_.name
+            if($set.Add($artifactName)) {
+              Write-Host "Processing artifact: '$artifactName. Downloading from: $($_.resource.downloadUrl)"
+
+              try {
+                Invoke-RestMethod $_.resource.downloadUrl -OutFile "$(Agent.TempDirectory)/$artifactName.zip" -Headers @{
+                  Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
+                } -MaximumRetryCount 5 -RetryIntervalSec 1
+              } catch {
+                Write-Warning $_
+                $set.Remove($artifactName)
+                continue
+              }
+
+              try {
+                Expand-Archive -Path "$(Agent.TempDirectory)/$artifactName.zip" -DestinationPath "$(Agent.TempDirectory)"
+              } catch {
+                Write-Warning $_
+                $set.Remove($artifactName)
+                continue
+              }
 
               Write-Host "Expanding variables:"
-              $null,$product,$platform,$arch,$type = $_.name -split '_'
+              $null,$product,$platform,$arch,$type = $artifactName -split '_'
               # turning in into an object just to log nicely
               @{
                 product = $product
                 platform = $platform
                 arch = $arch
                 type = $type
-                asset = gci -rec "$(Agent.TempDirectory)/$($_.name)" | ForEach-Object Name
+                asset = gci -rec "$(Agent.TempDirectory)/$artifactName" | ForEach-Object Name
               }
             }
           }
