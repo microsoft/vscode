@@ -144,6 +144,7 @@ export class GettingStartedPage extends EditorPane {
 				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
 			});
 		this.taskMediaComponent = $('.getting-started-media');
+		this.taskMediaComponent.id = generateUuid();
 
 
 		this.tasExperimentService = tasExperimentService;
