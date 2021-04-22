@@ -239,6 +239,11 @@
 	padding-right: 0
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-entry .codicon {
+	/* Force inherit when no text is showing as the regular icon gets replaced by the status icon */
+	color: inherit;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .codicon {
 	vertical-align: text-bottom;
 }
