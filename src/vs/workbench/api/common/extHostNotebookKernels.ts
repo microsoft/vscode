@@ -212,7 +212,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		try {
-			await obj.controller.executeHandler.call(obj.controller, cells, obj.controller);
+			await obj.controller.executeHandler.call(obj.controller, cells, document.apiNotebook, obj.controller);
 		} catch (err) {
 			//
 			console.error(err);

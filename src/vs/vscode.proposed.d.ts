@@ -1532,10 +1532,11 @@ declare module 'vscode' {
 
 	export interface NotebookExecuteHandler {
 		/**
-		 * @param cells The notebook cells to execute
+		 * @param cells The notebook cells to execute.
+		 * @param notebook The notebook for which the execute handler is being called.
 		 * @param controller The controller that the handler is attached to
 		 */
-		(this: NotebookController, cells: NotebookCell[], controller: NotebookController): void | Thenable<void>
+		(this: NotebookController, cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
 	}
 
 	export interface NotebookInterruptHandler {
