@@ -116,12 +116,10 @@ export async function configureOpenerTrustedDomainsHandler(
 		switch (pickedResult.id) {
 			case 'manage':
 				await editorService.openEditor({
-					resource: TRUSTED_DOMAINS_URI,
+					resource: TRUSTED_DOMAINS_URI.with({ fragment: resource.toString() }),
 					mode: 'jsonc',
 					options: { pinned: true }
 				});
-				notificationService.prompt(Severity.Info, localize('configuringURL', "Configuring trust for: {0}", resource.toString()),
-					[{ label: 'Copy', run: () => clipboardService.writeText(resource.toString()) }]);
 				return trustedDomains;
 			case 'trust':
 				const itemToTrust = pickedResult.toTrust;
