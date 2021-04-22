@@ -1513,7 +1513,7 @@ declare module 'vscode' {
 
 	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
-	export interface NotebookExecutionHandler {
+	export interface NotebookExecuteHandler {
 		/**
 		 * @param cells The notebook cells to execute
 		 * @param controller The controller that the handler is attached to
@@ -1583,7 +1583,7 @@ declare module 'vscode' {
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
 		 * Run Selection etc.
 		 */
-		executeHandler: NotebookExecutionHandler;
+		executeHandler: NotebookExecuteHandler;
 
 		/**
 		 * The interrupt handler is invoked the interrupt all execution. This is contrary to cancellation (available via
@@ -1652,7 +1652,7 @@ declare module 'vscode' {
 		 * @param handler
 		 * @param preloads
 		 */
-		export function createNotebookController(id: string, selector: NotebookSelector, label: string, handler?: NotebookExecutionHandler, preloads?: NotebookKernelPreload[]): NotebookController;
+		export function createNotebookController(id: string, selector: NotebookSelector, label: string, handler?: NotebookExecuteHandler, preloads?: NotebookKernelPreload[]): NotebookController;
 	}
 
 	//#endregion

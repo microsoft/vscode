@@ -36,7 +36,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createNotebookController(extension: IExtensionDescription, id: string, selector: vscode.NotebookSelector, label: string, handler?: vscode.NotebookExecutionHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
+	createNotebookController(extension: IExtensionDescription, id: string, selector: vscode.NotebookSelector, label: string, handler?: vscode.NotebookExecuteHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
 
 		for (let data of this._kernelData.values()) {
 			if (data.controller.id === id) {
@@ -65,7 +65,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		};
 
 		//
-		let _executeHandler: vscode.NotebookExecutionHandler = handler ?? _defaultExecutHandler;
+		let _executeHandler: vscode.NotebookExecuteHandler = handler ?? _defaultExecutHandler;
 		let _interruptHandler: vscode.NotebookInterruptHandler | undefined;
 
 		// todo@jrieken the selector needs to be massaged
