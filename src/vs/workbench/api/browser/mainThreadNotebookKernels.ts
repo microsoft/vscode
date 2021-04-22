@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -197,15 +198,21 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		}(data, this._modeService);
 		const registration = this._notebookKernelService.registerKernel(kernel);
 
+		let idleHandle = new MutableDisposable();
+
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
-			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, false);
-			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, true);
-			}
+
+			idleHandle.value = runWhenIdle(() => {
+
+				if (e.oldKernel === kernel.id) {
+					this._proxy.$acceptSelection(handle, e.notebook, false);
+				} else if (e.newKernel === kernel.id) {
+					this._proxy.$acceptSelection(handle, e.notebook, true);
+				}
+			}, 100);
 		});
 
-		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
+		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration, idleHandle)]);
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {
