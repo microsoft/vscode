@@ -42,7 +42,7 @@ export function parseScannedExtension(extension: ITranslatedScannedExtension): I
 		identifier: new ExtensionIdentifier(`${extension.packageJSON.publisher}.${extension.packageJSON.name}`),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: false,
-		isUnderDevelopment: false,
+		isUnderDevelopment: extension.isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.packageJSON,
 	};

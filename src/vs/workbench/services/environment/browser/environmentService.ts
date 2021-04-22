@@ -282,13 +282,26 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			extensionDevelopmentLocationURI: undefined,
 			extensionDevelopmentKind: undefined
 		};
+		const developmentOptions = this.options.developmentOptions;
+		if (developmentOptions) {
+			if (developmentOptions.extensions?.length) {
+				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e.extensionLocation));
+				extensionHostDebugEnvironment.isExtensionDevelopment = true;
+			}
+			if (developmentOptions) {
+				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
+			}
+		}
 
 		// Fill in selected extra environmental properties
 		if (this.payload) {
 			for (const [key, value] of this.payload) {
 				switch (key) {
 					case 'extensionDevelopmentPath':
-						extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(value)];
+						if (!extensionHostDebugEnvironment.extensionDevelopmentLocationURI) {
+							extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [];
+						}
+						extensionHostDebugEnvironment.extensionDevelopmentLocationURI.push(URI.parse(value));
 						extensionHostDebugEnvironment.isExtensionDevelopment = true;
 						break;
 					case 'extensionDevelopmentKind':
