@@ -1588,9 +1588,9 @@ declare module 'vscode' {
 
 		/**
 		 * An array of language identifiers that are supported by this
-		 * controller.
+		 * controller. When falsy all languages are supported.
 		 */
-		supportedLanguages: string[];
+		supportedLanguages?: string[];
 
 		/**
 		 * Whether this controller supports execution order so that the
@@ -1636,6 +1636,7 @@ declare module 'vscode' {
 		 */
 		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 
+		// todo@API find a better name than "preloads"
 		// todo@API allow add, not remove
 		// ipc
 		readonly preloads: NotebookKernelPreload[];

@@ -124,7 +124,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			get supportedLanguages() {
-				return data.supportedLanguages ?? [];
+				return data.supportedLanguages;
 			},
 			set supportedLanguages(value) {
 				data.supportedLanguages = value;
