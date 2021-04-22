@@ -24,11 +24,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { isWorkspaceTrustEnabled, WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_EXTENSION_REQUEST } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';

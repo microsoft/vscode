@@ -26,7 +26,7 @@ interface IResourceUriProvider {
 
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
-	extensionLocation: URI;
+	extensionLocation: UriComponents;
 	isBuiltin?: boolean;
 }
 
@@ -410,12 +410,31 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly logLevel?: LogLevel;
 
+	//#endregion
+
+	//#region development options
+
+	readonly developmentOptions?: IDevelopmentOptions;
+
+	//#endregion
+
+}
+
+interface IDevelopmentOptions {
+	/**
+	 * Location of a module containing extension tests to run once the workbench is open.
+	 */
+	readonly extensionTestsPath?: UriComponents;
+
+	/**
+	 * Add extensions under development.
+	 */
+	readonly extensions?: ReadonlyArray<IStaticExtension>;
+
 	/**
 	 * Whether to enable the smoke test driver.
 	 */
-	readonly driver?: boolean;
-
-	//#endregion
+	readonly enableSmokeTestDriver?: boolean;
 }
 
 interface IPerformanceMark {
@@ -625,7 +644,10 @@ export {
 
 	// Env
 	IPerformanceMark,
-	env
+	env,
+
+	// Development
+	IDevelopmentOptions
 };
 
 //#endregion

@@ -10,8 +10,8 @@ import { TestItemImpl, TestItemStatus, TestResultState } from 'vs/workbench/api/
 export { TestItemImpl, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 export * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 
-export const stubTest = (label: string, idPrefix = 'id-', children: TestItemImpl[] = []): TestItemImpl => {
-	const item = new TestItemImpl(idPrefix + label, label, URI.file('/'), undefined);
+export const stubTest = (label: string, idPrefix = 'id-', children: TestItemImpl[] = [], uri = URI.file('/')): TestItemImpl => {
+	const item = new TestItemImpl(idPrefix + label, label, uri, undefined);
 	if (children.length) {
 		item.status = TestItemStatus.Pending;
 		item.resolveHandler = () => {

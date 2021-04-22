@@ -3,7 +3,6 @@
   "description": "%description%",
   "displayName": "%displayName%",
   "version": "1.0.0",
-  "icon": "icon.png",
   "author": "vscode",
   "publisher": "vscode",
   "license": "MIT",
@@ -11,11 +10,17 @@
   "enableProposedApi": true,
   "workspaceTrust": {
     "request": "onDemand",
-    "description": "The extension requires workspace trust when the workspace version is used because it executes code specified by the workspace."
+    "description": "%workspaceTrust%",
+    "requiredForConfigurations": [
+      "typescript.tsdk",
+      "typescript.tsserver.pluginPaths",
+      "typescript.npm"
+    ]
   },
   "engines": {
     "vscode": "^1.30.0"
   },
+  "icon": "media/icon.png",
   "categories": [
     "Programming Languages"
   ],

@@ -109,12 +109,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getOsKey(os)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
 			if (sync) {
-				const profiles = this._terminalService.getAvailableProfiles();
+				const profiles = this._terminalService.availableProfiles;
 				return profiles.find(e => e.profileName === defaultProfileName);
 			} else {
-				return this._terminalService.getAvailableProfilesAsync().then(profiles => {
-					return profiles.find(e => e.profileName === defaultProfileName);
-				});
+				return this._terminalService.availableProfiles.find(e => e.profileName === defaultProfileName);
 			}
 		}
 		return undefined;

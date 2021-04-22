@@ -360,7 +360,7 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 		this.checked = !model.isHidden(id);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (this.model.isHidden(this.id)) {
 			this.model.show(this.id);
 		} else {
@@ -375,7 +375,7 @@ class HideStatusbarEntryAction extends Action {
 		super(id, localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.model.hide(this.id);
 	}
 }

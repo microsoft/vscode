@@ -300,7 +300,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#region Resolve
 
-	async override resolve(): Promise<void> {
+	override async resolve(): Promise<void> {
 
 		// Create text editor model if not yet done
 		let createdUntitledModel = false;

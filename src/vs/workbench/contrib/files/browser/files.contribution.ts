@@ -8,7 +8,7 @@ import { sep } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { SortOrder, FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import * as platform from 'vs/base/common/platform';
 import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -66,6 +66,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register default file input factory
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileEditorInputFactory({
+
+	typeId: FILE_EDITOR_INPUT_ID,
 
 	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, instantiationService): IFileEditorInput => {
 		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode);

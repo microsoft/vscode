@@ -58,17 +58,16 @@ export function activate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	const kernel: vscode.NotebookKernel = {
-		id: 'notebookSmokeTest',
-		label: 'notebookSmokeTest',
-		isPreferred: true,
-		executeCellsRequest: async (document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) => {
-			const idx = ranges[0].start;
-			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'notebookSmokeTest');
-			if (!task) {
-				return;
-			}
+	const controller = vscode.notebook.createNotebookController(
+		'notebookSmokeTest',
+		{ pattern: '*.smoke-nb' },
+		'notebookSmokeTest'
+	);
 
+	controller.isPreferred = true;
+	controller.executeHandler = (cells) => {
+		for (const cell of cells) {
+			const task = controller.createNotebookCellExecutionTask(cell);
 			task.start();
 			task.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
@@ -77,11 +76,7 @@ export function activate(context: vscode.ExtensionContext): any {
 		}
 	};
 
-	context.subscriptions.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.smoke-nb' }, {
-		provideKernels: async () => {
-			return [kernel];
-		}
-	}));
+	context.subscriptions.push(controller);
 
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-notebook-tests.debugAction', async (cell: vscode.NotebookCell) => {
 		if (cell) {

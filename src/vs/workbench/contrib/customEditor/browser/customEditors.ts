@@ -16,14 +16,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Extensions as EditorExtensions, IEditorAssociationsRegistry, IEditorType, IEditorTypesHandler } from 'vs/workbench/browser/editor';
-import { EditorInput, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInput, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
-import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority, IEditorAssociationsRegistry, IEditorOverrideService, IEditorType, IEditorTypesHandler } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
@@ -111,23 +109,21 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				}
 				this._register(this.extensionContributedEditorService.registerContributionPoint(
 					globPattern.filenamePattern,
-					priorityToRank(contributedEditor.priority),
 					{
 						id: contributedEditor.id,
 						label: contributedEditor.displayName,
 						detail: contributedEditor.providerDisplayName,
-						active: (currentEditor) => currentEditor instanceof CustomEditorInput && currentEditor.viewType === contributedEditor.id,
-						instanceOf: (editorInput) => editorInput instanceof CustomEditorInput,
+						describes: (currentEditor) => currentEditor instanceof CustomEditorInput && currentEditor.viewType === contributedEditor.id,
 						priority: contributedEditor.priority,
 					},
 					{
 						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
 					},
-					(resource, editorID, options, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, resource, editorID, group.id) };
+					(resource, options, group) => {
+						return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
 					},
-					(diffEditorInput, editorID, options, group) => {
-						return { editor: this.createDiffEditorInput(diffEditorInput, editorID, group) };
+					(diffEditorInput, options, group) => {
+						return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
 					}
 				));
 			}

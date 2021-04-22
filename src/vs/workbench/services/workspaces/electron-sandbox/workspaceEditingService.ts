@@ -137,7 +137,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 	}
 
-	async override isValidTargetWorkspacePath(path: URI): Promise<boolean> {
+	override async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
 		const windows = await this.nativeHostService.getWindows();
 
 		// Prevent overwriting a workspace that is currently opened in another window

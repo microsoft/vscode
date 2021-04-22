@@ -8,8 +8,17 @@
 export const SCROLLABLE_ELEMENT_PADDING_TOP = 20;
 // export const SCROLLABLE_ELEMENT_PADDING_TOP_WITH_TOOLBAR = 8;
 
+// Code cell layout:
+// [CODE_CELL_LEFT_MARGIN][CELL_RUN_GUTTER][editorWidth][CELL_RIGHT_MARGIN]
+
+// Markdown cell layout:
+// [CELL_MARGIN][content][CELL_RIGHT_MARGIN]
+
+// Markdown editor cell layout:
+// [CODE_CELL_LEFT_MARGIN][content][CELL_RIGHT_MARGIN]
+
 // Cell sizing related
-export const CELL_MARGIN = 8;
+export const CELL_RIGHT_MARGIN = 16;
 export const CELL_RUN_GUTTER = 28;
 export const CODE_CELL_LEFT_MARGIN = 32;
 

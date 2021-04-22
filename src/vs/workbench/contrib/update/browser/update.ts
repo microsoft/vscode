@@ -54,7 +54,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (this.productService.releaseNotesUrl) {
 			const uri = URI.parse(this.productService.releaseNotesUrl);
 			await this.openerService.open(uri);
@@ -75,7 +75,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.enabled) {
 			return;
 		}

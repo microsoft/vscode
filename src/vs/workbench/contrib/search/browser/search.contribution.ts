@@ -608,7 +608,7 @@ class ShowAllSymbolsAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.quickInputService.quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
 }
@@ -822,7 +822,6 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
-			requireTrust: true, // This will be passed to various CLI processes, better safe than sorry.
 			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in fulltext searches and quick open. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
 			additionalProperties: {

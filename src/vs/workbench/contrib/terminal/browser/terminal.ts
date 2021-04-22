@@ -84,6 +84,7 @@ export interface ITerminalService {
 	terminalTabs: ITerminalTab[];
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
+	readonly availableProfiles: ITerminalProfile[];
 
 	initializeTerminals(): Promise<void>;
 	onActiveTabChanged: Event<void>;
@@ -101,7 +102,8 @@ export interface ITerminalService {
 	onRequestAvailableProfiles: Event<IAvailableProfilesRequest>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
-	onProfilesConfigChanged: Event<void>;
+	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
+	onPanelMovedToSide: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -126,7 +128,7 @@ export interface ITerminalService {
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
-	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
+	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
 
 	/**
@@ -165,17 +167,6 @@ export interface ITerminalService {
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance'): Promise<void>;
-
-	/**
-	 * Gets the detected terminal profiles for the platform, this will queue an update of the
-	 * available profiles but will not wait for it to complete.
-	 */
-	getAvailableProfiles(): ITerminalProfile[];
-
-	/**
-	 * Gets the detected terminal profiles for the platform.
-	 */
-	getAvailableProfilesAsync(): Promise<ITerminalProfile[]>;
 
 	getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined;
 
@@ -458,11 +449,6 @@ export interface ITerminalInstance {
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
-	 * Notifies the terminal to refresh its focus state based on the active document elemnet in DOM
-	 */
-	refreshFocusState(): void;
-
-	/**
 	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
 	 *
 	 * @param focus Force focus even if there is a selection.
@@ -581,9 +567,4 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to rename this terminal.
 	 */
 	changeIcon(): Promise<void>;
-
-	/**
-	 * Allows the user to configure this terminal.
-	 */
-	configure(): Promise<void>;
 }

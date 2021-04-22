@@ -102,7 +102,7 @@ export class FocusNextInputAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -127,7 +127,7 @@ export class FocusPreviousInputAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -344,7 +344,7 @@ export class FocusNextSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -370,7 +370,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -546,7 +546,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceIcon));
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		this.enabled = false;
 
 		await this.element.parent().replace(this.element);

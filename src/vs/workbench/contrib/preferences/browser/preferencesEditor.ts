@@ -38,10 +38,10 @@ import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { IEditorRegistry } from 'vs/workbench/browser/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorInput, EditorOptions, IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInput, EditorOptions, IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { DefaultSettingsRenderer, FolderSettingsRenderer, IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/contrib/preferences/browser/preferencesRenderers';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
@@ -1025,7 +1025,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	async override setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		const editorModel = await this.input!.resolve();
 		if (!editorModel) {

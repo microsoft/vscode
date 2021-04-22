@@ -165,7 +165,8 @@ export interface IExtensionContributions {
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 export type ExtensionWorkspaceTrustRequestType = 'never' | 'onStart' | 'onDemand';
-export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart', description: string } | { request: 'onDemand', description: string, requiredForConfigurations?: string[] };
+export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart', description: string } | { request: 'onDemand', description: string };
+export type UntrustedWorkspaces = { supported: true; } | { supported: false, description: string } | { supported: 'limited', description: string, restrictedConfigurations?: string[] };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -222,8 +223,11 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
+	readonly capabilities?: {
+		readonly virtualWorkspaces?: boolean;
+		readonly untrustedWorkspaces?: UntrustedWorkspaces;
+	};
 	readonly workspaceTrust?: ExtensionWorkspaceTrust;
-	readonly supportsVirtualWorkspace?: boolean;
 }
 
 export const enum ExtensionType {
@@ -323,6 +327,7 @@ export interface IScannedExtension {
 	readonly packageNLSUrl?: URI;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isUnderDevelopment: boolean;
 }
 
 export interface ITranslatedScannedExtension {
@@ -332,6 +337,7 @@ export interface ITranslatedScannedExtension {
 	readonly packageJSON: IExtensionManifest;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isUnderDevelopment: boolean;
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');

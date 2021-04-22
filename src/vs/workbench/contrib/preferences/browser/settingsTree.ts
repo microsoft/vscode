@@ -2066,7 +2066,7 @@ class CopySettingIdAction extends Action {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
 
-	async override run(context: SettingsTreeSettingElement): Promise<void> {
+	override async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			await this.clipboardService.writeText(context.setting.key);
 		}
@@ -2085,7 +2085,7 @@ class CopySettingAsJSONAction extends Action {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}
 
-	async override run(context: SettingsTreeSettingElement): Promise<void> {
+	override async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
 			await this.clipboardService.writeText(jsonResult);
@@ -2113,7 +2113,7 @@ class SyncSettingAction extends Action {
 		this.checked = !ignoredSettings.includes(this.setting.key);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		// first remove the current setting completely from ignored settings
 		let currentValue = [...this.configService.getValue<string[]>('settingsSync.ignoredSettings')];
 		currentValue = currentValue.filter(v => v !== this.setting.key && v !== `-${this.setting.key}`);

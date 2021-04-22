@@ -9,6 +9,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "enableProposedApi": true,
   "activationEvents": [
     "onLanguage:php"
   ],
@@ -16,6 +17,10 @@
   "categories": [
     "Programming Languages"
   ],
+  "workspaceTrust": {
+    "request": "onDemand",
+    "description": "The extension requires workspace trust when the `php.validate.executablePath` setting will load a version of PHP in the workspace."
+  },
   "contributes": {
     "configuration": {
       "title": "%configuration.title%",

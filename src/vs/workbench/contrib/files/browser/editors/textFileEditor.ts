@@ -104,7 +104,7 @@ export class TextFileEditor extends BaseTextEditor {
 		return this._input as FileEditorInput;
 	}
 
-	async override setInput(input: FileEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: FileEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -259,7 +259,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
-		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.isOpened(input))) {
+		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input))) {
 			this.clearTextEditorViewState([input.resource], this.group);
 		}
 

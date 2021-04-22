@@ -60,7 +60,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			});
 	}
 
-	protected async override doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		// Use the download URL if available as we don't currently detect the package type that was
 		// installed and the website download page is more useful than the tarball generally.
 		if (this.productService.downloadUrl && this.productService.downloadUrl.length > 0) {

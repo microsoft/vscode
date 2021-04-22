@@ -6,8 +6,8 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { EditorInput, IEditorInputSerializer, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext } from 'vs/workbench/common/editor';
+import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { EditorInput, IEditorInputSerializer, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext, EditorExtensions } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';

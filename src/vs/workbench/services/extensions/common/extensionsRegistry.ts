@@ -415,10 +415,36 @@ export const schema: IJSONSchema = {
 				}
 			]
 		},
-		supportsVirtualWorkspace: {
-			description: nls.localize('supportsVirtualWorkspace', "When disabled the extension is not enabled in the workspace that has all folders using custom scheme. Default is `true`."),
-			type: 'boolean',
-			default: true
+		capabilities: {
+			description: nls.localize('capabilities', "Define the capabilities the extension can support"),
+			type: 'object',
+			properties: {
+				virtualWorkspaces: {
+					description: nls.localize('virtualWorkspaces', "Support for virtual workspaces. Default is to support."),
+					type: 'boolean',
+					default: true
+				},
+				untrustedWorkspaces: {
+					description: nls.localize('untrustedWorkspaces', "Support for untrusted workspaces. Default is not to support."),
+					type: 'object',
+					properties: {
+						supported: {
+							description: nls.localize('untrustedWorkspaces.supported', ""),
+							type: ['boolean', 'string'],
+							enum: [true, false, 'limited'],
+							default: true
+						},
+						description: {
+							description: nls.localize('untrustedWorkspaces.description', ""),
+							type: 'string',
+						},
+						restrictedConfigurations: {
+							description: nls.localize('description.restrictedConfigurations', "List of restricted configuration keys in untrusted workspaces. Workspace values of these configurations will not be applied in an untrusted workspace."),
+							type: 'array',
+						}
+					},
+				}
+			},
 		},
 		scripts: {
 			type: 'object',

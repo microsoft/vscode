@@ -27,6 +27,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -49,6 +50,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
@@ -70,8 +72,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
-		// Initialize only after workbench is ready
-		this._lifecycleService.when(LifecyclePhase.Ready).then(() => this._initialize());
+		// Initialize installed extensions first and do it only after workbench is ready
+		this._lifecycleService.when(LifecyclePhase.Ready).then(async () => {
+			await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
+			this._initialize();
+		});
 
 		this._initFetchFileSystem();
 	}

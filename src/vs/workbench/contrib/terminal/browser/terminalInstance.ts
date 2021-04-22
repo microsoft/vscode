@@ -822,10 +822,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
-	public refreshFocusState() {
-		this.notifyFindWidgetFocusChanged(false);
-	}
-
 	private _refreshAltBufferContextKey() {
 		this._terminalAltBufferActiveContextKey.set(!!(this._xterm && this._xterm.buffer.active === this._xterm.buffer.alternate));
 	}
