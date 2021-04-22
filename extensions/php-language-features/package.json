@@ -21,7 +21,10 @@
     "virtualWorkspaces": false,
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "%workspaceTrust%"
+      "description": "%workspaceTrust%",
+      "restrictedConfigurations": [
+        "php.validate.executablePath"
+      ]
     }
   },
   "contributes": {
