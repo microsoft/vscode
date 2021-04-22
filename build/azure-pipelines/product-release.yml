@@ -28,7 +28,12 @@ steps:
   - pwsh: Start-Sleep -Seconds 600
     displayName: Delay start
 
-  - pwsh: build/azure-pipelines/release.ps1
+  - pwsh: |
+      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+      $env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
+      $env:AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)"
+      $env:AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)"
+      build/azure-pipelines/release.ps1
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Process artifacts
