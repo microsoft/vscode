@@ -220,7 +220,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 		return undefined;
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
 		if (this.isCellActionContext(context)) {
 			const telemetryService = accessor.get(ITelemetryService);
 			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellToolbar' });
@@ -814,7 +814,7 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
 		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
@@ -839,7 +839,7 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
 		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);

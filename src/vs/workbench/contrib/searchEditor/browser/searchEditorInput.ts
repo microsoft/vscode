@@ -137,7 +137,7 @@ export class SearchEditorInput extends EditorInput {
 		this._register(this.workingCopyService.registerWorkingCopy(workingCopyAdapter));
 	}
 
-	async override save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		if ((await this.model).isDisposed()) { return; }
 
 		if (this.backingUri) {
@@ -157,7 +157,7 @@ export class SearchEditorInput extends EditorInput {
 		return { config: this.config, body: await this.model };
 	}
 
-	async override saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
 			this.telemetryService.publicLog2('searchEditor/saveSearchResults');
@@ -245,7 +245,7 @@ export class SearchEditorInput extends EditorInput {
 			({ range, options: { className: SearchEditorFindMatchClass, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	}
 
-	async override revert(group: GroupIdentifier, options?: IRevertOptions) {
+	override async revert(group: GroupIdentifier, options?: IRevertOptions) {
 		if (options?.soft) {
 			this.setDirty(false);
 			return;

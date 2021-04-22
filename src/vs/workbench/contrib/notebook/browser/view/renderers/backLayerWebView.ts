@@ -481,9 +481,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 							font-size: 26px;
 							padding-bottom: 8px;
 							line-height: 31px;
-							border-bottom-width: 1px;
-							border-bottom-style: solid;
-							border-color: var(--vscode-foreground);
 							margin: 0;
 							margin-bottom: 13px;
 						}

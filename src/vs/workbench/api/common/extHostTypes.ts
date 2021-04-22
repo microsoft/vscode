@@ -3318,6 +3318,7 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
 			debuggable: testItemPropAccessor(api, 'debuggable', true, strictEqualComparator),
 			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved, strictEqualComparator),
+			error: testItemPropAccessor(api, 'error', undefined, strictEqualComparator),
 		});
 	}
 

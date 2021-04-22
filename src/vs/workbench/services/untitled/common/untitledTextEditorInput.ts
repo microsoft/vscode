@@ -109,7 +109,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model.getMode();
 	}
 
-	async override resolve(): Promise<IUntitledTextEditorModel> {
+	override async resolve(): Promise<IUntitledTextEditorModel> {
 		if (!this.modelResolve) {
 			this.modelResolve = this.model.resolve();
 		}

@@ -24,6 +24,12 @@ import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
+// Static values for editor contributions
+export const EditorExtensions = {
+	Editors: 'workbench.contributions.editors',
+	Associations: 'workbench.editors.associations'
+};
+
 // Editor State Context Keys
 export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
@@ -174,6 +180,11 @@ export interface ITextDiffEditorPane extends IEditorPane {
 export interface IEditorControl extends ICompositeControl { }
 
 export interface IFileEditorInputFactory {
+
+	/**
+	 * The type identifier of the file editor input.
+	 */
+	typeId: string;
 
 	/**
 	 * Creates new new editor input capable of showing files.
@@ -879,6 +890,10 @@ export class EditorModel extends Disposable implements IEditorModel {
 export interface IEditorInputWithOptions {
 	editor: IEditorInput;
 	options?: IEditorOptions | ITextEditorOptions;
+}
+
+export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
+	group?: IEditorGroup;
 }
 
 export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {

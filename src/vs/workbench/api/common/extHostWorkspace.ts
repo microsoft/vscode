@@ -168,8 +168,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
-	private readonly _onDidReceieveWorkspaceTrust = new Emitter<void>();
-	readonly onDidReceiveWorkspaceTrust: Event<void> = this._onDidReceieveWorkspaceTrust.event;
+	private readonly _onDidGrantWorkspaceTrust = new Emitter<void>();
+	readonly onDidGrantWorkspaceTrust: Event<void> = this._onDidGrantWorkspaceTrust.event;
 
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
@@ -567,10 +567,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return options?.modal ? promise : Promise.resolve(this._trusted);
 	}
 
-	$onDidReceiveWorkspaceTrust(): void {
+	$onDidGrantWorkspaceTrust(): void {
 		if (!this._trusted) {
 			this._trusted = true;
-			this._onDidReceieveWorkspaceTrust.fire();
+			this._onDidGrantWorkspaceTrust.fire();
 		}
 	}
 }

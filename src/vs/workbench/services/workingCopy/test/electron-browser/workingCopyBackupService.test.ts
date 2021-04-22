@@ -74,7 +74,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
 
-	async override backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	override async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		const p = super.backup(identifier, content, versionId, meta, token);
 		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
 
@@ -93,7 +93,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async override discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
+	override async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
 		await super.discardBackup(identifier);
 		this.discardedBackups.push(identifier);
 

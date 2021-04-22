@@ -293,6 +293,14 @@ export namespace RuntimeType {
 				return RuntimeType.Process;
 		}
 	}
+	export function toString(value: RuntimeType): string {
+		switch (value) {
+			case RuntimeType.Shell: return 'shell';
+			case RuntimeType.Process: return 'process';
+			case RuntimeType.CustomExecution: return 'customExecution';
+			default: return 'process';
+		}
+	}
 }
 
 export interface QuotedString {

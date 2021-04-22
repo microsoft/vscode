@@ -770,7 +770,7 @@ suite('Notebook API tests', function () {
 				this.controller.isPreferred = false;
 			}
 
-			async override _execute(cells: vscode.NotebookCell[]) {
+			override async _execute(cells: vscode.NotebookCell[]) {
 				for (const cell of cells) {
 					const task = this.controller.createNotebookCellExecutionTask(cell);
 					task.start();
@@ -819,7 +819,7 @@ suite('Notebook API tests', function () {
 
 			private _task: vscode.NotebookCellExecutionTask | undefined;
 
-			async override _execute(cells: vscode.NotebookCell[]) {
+			override async _execute(cells: vscode.NotebookCell[]) {
 				this._task = this.controller.createNotebookCellExecutionTask(cells[0]);
 				this._task.start();
 			}

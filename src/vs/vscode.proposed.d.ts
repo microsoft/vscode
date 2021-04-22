@@ -385,6 +385,14 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the severiry of a TextSearchComplete message.
+	 */
+	export enum TextSearchCompleteMessageType {
+		Information = 1,
+		Warning = 2,
+	}
+
+	/**
 	 * Information collected when text search is complete.
 	 */
 	export interface TextSearchComplete {
@@ -396,6 +404,15 @@ declare module 'vscode' {
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
 		 */
 		limitHit?: boolean;
+
+		/**
+		 * Additional information regarding the state of the completed search.
+		 *
+		 * Messages with "Information" tyle support links in markdown syntax:
+		 * - Click to [run a command](command:workbench.action.OpenQuickPick)
+		 * - Click to [open a website](https://aka.ms)
+		 */
+		message?: { text: string, type: TextSearchCompleteMessageType } | { text: string, type: TextSearchCompleteMessageType }[];
 	}
 
 	/**
@@ -3003,24 +3020,14 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * When true, the user has explicitly trusted the contents of the workspace.
-		 */
-		export const isTrusted: boolean;
-
-		/**
 		 * Prompt the user to chose whether to trust the current workspace
 		 * @param options Optional object describing the properties of the
 		 * workspace trust request. Defaults to { modal: false }
 		 * When using a non-modal request, the promise will return immediately.
 		 * Any time trust is not given, it is recommended to use the
-		 * `onDidReceiveWorkspaceTrust` event to listen for trust changes.
+		* `onDidGrantWorkspaceTrust` event to listen for trust changes.
 		 */
 		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean>;
-
-		/**
-		 * Event that fires when the current workspace has been trusted.
-		 */
-		export const onDidReceiveWorkspaceTrust: Event<void>;
 	}
 
 	//#endregion

@@ -19,7 +19,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -70,7 +70,7 @@ export class TerminalTabbedView extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
@@ -106,12 +106,13 @@ export class TerminalTabbedView extends Disposable {
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
 
-		configurationService.onDidChangeConfiguration(e => {
+		_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
 				this._showTabs = this._terminalService.configHelper.config.showTabs;
 				if (this._showTabs) {
 					this._addTabTree();
 					this._addSashListener();
+					this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
 				} else {
 					this._splitView.removeView(this._tabTreeIndex);
 					if (this._plusButton) {
@@ -124,7 +125,7 @@ export class TerminalTabbedView extends Disposable {
 				this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 				if (this._showTabs) {
 					this._splitView.swapViews(0, 1);
-					this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
+					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 				}
 			}
 		});
@@ -301,7 +302,6 @@ export class TerminalTabbedView extends Disposable {
 
 	private _refreshHasTextClass() {
 		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH);
-		console.log('has text', this._tabTreeContainer.classList.contains('has-text'));
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
@@ -428,12 +428,32 @@ export class TerminalTabbedView extends Disposable {
 
 		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
+		if (menu === this._tabsWidgetMenu) {
+			actions.push(...this._getTabActions());
+		}
+
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			getActionsContext: () => this._parentElement,
 			onHide: () => actionsDisposable.dispose()
 		});
+	}
+
+	private _getTabActions(): Action[] {
+		return [
+			new Separator(),
+			this._configurationService.inspect('terminal.integrated.tabsLocation').userValue === 'left' ?
+				new Action('moveRight', 'Move Tabs Right', undefined, undefined, async () => {
+					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'right');
+				}) :
+				new Action('moveLeft', 'Move Tabs Left', undefined, undefined, async () => {
+					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'left');
+				}),
+			new Action('hideTabs', 'Hide View', undefined, undefined, async () => {
+				this._configurationService.updateValue('terminal.integrated.showTabs', false);
+			})
+		];
 	}
 
 	public focusFindWidget() {

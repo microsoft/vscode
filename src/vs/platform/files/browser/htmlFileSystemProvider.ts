@@ -186,6 +186,10 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		this.files.set(uuid, handle);
 	}
 
+	registerDirectoryHandle(uuid: string, handle: FileSystemDirectoryHandle): void {
+		this.directories.set(uuid, handle);
+	}
+
 	dispose(): void {
 		this._onDidChangeFile.dispose();
 	}

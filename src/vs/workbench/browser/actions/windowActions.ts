@@ -78,7 +78,7 @@ abstract class BaseOpenRecentAction extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const recentlyOpened = await this.workspacesService.getRecentlyOpened();
 		const dirtyWorkspacesAndFolders = await this.workspacesService.getDirtyWorkspaces();
 
@@ -304,7 +304,7 @@ export class ReloadWindowAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		await this.hostService.reload();
 	}
 }

@@ -640,7 +640,8 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error | null, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,
-				stats: this.walker.getStats()
+				stats: this.walker.getStats(),
+				messages: [],
 			});
 		});
 	}
