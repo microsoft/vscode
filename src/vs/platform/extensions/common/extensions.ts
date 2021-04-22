@@ -166,7 +166,7 @@ export interface IExtensionContributions {
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 export type ExtensionWorkspaceTrustRequestType = 'never' | 'onStart' | 'onDemand';
 export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart', description: string } | { request: 'onDemand', description: string };
-export type UntrustedWorkspaces = { supported: true; } | { supported: false, description: string } | { supported: boolean | 'limited', description: string, restrictedConfigurations?: string[] };
+export type UntrustedWorkspaces = { supported: true; } | { supported: false, description: string } | { supported: 'limited', description: string, restrictedConfigurations?: string[] };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
