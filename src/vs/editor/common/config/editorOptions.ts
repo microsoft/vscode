@@ -1643,6 +1643,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
 			]
 		};
+		const alternativeCommandOptions = ['', 'editor.action.referenceSearch.trigger', 'editor.action.goToReferences', 'editor.action.peekImplementation', 'editor.action.goToImplementation', 'editor.action.peekTypeDefinition', 'editor.action.goToTypeDefinition', 'editor.action.peekDeclaration', 'editor.action.revealDeclaration', 'editor.action.peekDefinition', 'editor.action.revealDefinitionAside', 'editor.action.revealDefinition'];
 		super(
 			EditorOption.gotoLocation, 'gotoLocation', defaults,
 			{
@@ -1672,26 +1673,31 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 				'editor.gotoLocation.alternativeDefinitionCommand': {
 					type: 'string',
 					default: defaults.alternativeDefinitionCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Definition' is the current location.")
 				},
 				'editor.gotoLocation.alternativeTypeDefinitionCommand': {
 					type: 'string',
 					default: defaults.alternativeTypeDefinitionCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeTypeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Type Definition' is the current location.")
 				},
 				'editor.gotoLocation.alternativeDeclarationCommand': {
 					type: 'string',
 					default: defaults.alternativeDeclarationCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeDeclarationCommand', "Alternative command id that is being executed when the result of 'Go to Declaration' is the current location.")
 				},
 				'editor.gotoLocation.alternativeImplementationCommand': {
 					type: 'string',
 					default: defaults.alternativeImplementationCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeImplementationCommand', "Alternative command id that is being executed when the result of 'Go to Implementation' is the current location.")
 				},
 				'editor.gotoLocation.alternativeReferenceCommand': {
 					type: 'string',
 					default: defaults.alternativeReferenceCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeReferenceCommand', "Alternative command id that is being executed when the result of 'Go to Reference' is the current location.")
 				},
 			}

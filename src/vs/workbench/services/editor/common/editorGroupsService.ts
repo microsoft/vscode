@@ -11,6 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -493,6 +494,16 @@ export interface IEditorGroup {
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorInput>;
 
 	/**
+	 * Finds all editors for the given resource that are currently
+	 * opened in the group. This method will return an entry for
+	 * each editor that reports a `resource` that matches the
+	 * provided one.
+	 *
+	 * @param resource The resource of the editor to find
+	 */
+	findEditors(resource: URI): ReadonlyArray<IEditorInput>;
+
+	/**
 	 * Returns the editor at a specific index of the group.
 	 */
 	getEditorByIndex(index: number): IEditorInput | undefined;
@@ -521,13 +532,6 @@ export interface IEditorGroup {
 	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditorPane | null>;
 
 	/**
-	 * Find out if the provided editor is opened in the group.
-	 *
-	 * Note: An editor can be opened but not actively visible.
-	 */
-	isOpened(editor: IEditorInput): boolean;
-
-	/**
 	 * Find out if the provided editor is pinned in the group.
 	 */
 	isPinned(editor: IEditorInput): boolean;
@@ -544,8 +548,10 @@ export interface IEditorGroup {
 
 	/**
 	 * Find out if a certain editor is included in the group.
+	 *
+	 * @param candidate the editor to find
 	 */
-	contains(candidate: IEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean;
+	contains(candidate: IEditorInput): boolean;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.

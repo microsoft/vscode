@@ -24,7 +24,7 @@ class RawContentChangeEvent {
 				start: event.start,
 				deletedCount: event.deletedCount,
 				deletedItems: event.deletedItems,
-				items: event.items.map(data => data.cell)
+				items: event.items.map(data => data.apiCell)
 			};
 		});
 	}
@@ -73,7 +73,7 @@ export class ExtHostCell {
 		return this._internalMetadata;
 	}
 
-	get cell(): vscode.NotebookCell {
+	get apiCell(): vscode.NotebookCell {
 		if (!this._cell) {
 			const that = this;
 			const data = this._extHostDocument.getDocument(this.uri);
@@ -82,7 +82,7 @@ export class ExtHostCell {
 			}
 			this._cell = Object.freeze<vscode.NotebookCell>({
 				get index() { return that._notebook.getCellIndex(that); },
-				notebook: that._notebook.notebookDocument,
+				notebook: that._notebook.apiNotebook,
 				kind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
 				document: data.document,
 				get outputs() { return that._outputs.slice(0); },
@@ -150,7 +150,7 @@ export class ExtHostNotebookDocument {
 		this._disposed = true;
 	}
 
-	get notebookDocument(): vscode.NotebookDocument {
+	get apiNotebook(): vscode.NotebookDocument {
 		if (!this._notebook) {
 			const that = this;
 			this._notebook = {
@@ -164,11 +164,11 @@ export class ExtHostNotebookDocument {
 				get cellCount() { return that._cells.length; },
 				cellAt(index) {
 					index = that._validateIndex(index);
-					return that._cells[index].cell;
+					return that._cells[index].apiCell;
 				},
 				getCells(range) {
 					const cells = range ? that._getCells(range) : that._cells;
-					return cells.map(cell => cell.cell);
+					return cells.map(cell => cell.apiCell);
 				},
 				save() {
 					return that._save();
@@ -268,7 +268,7 @@ export class ExtHostNotebookDocument {
 
 				const extCell = new ExtHostCell(this, this._textDocumentsAndEditors, cell);
 				if (!initialization) {
-					addedCellDocuments.push(ExtHostCell.asModelAddData(this.notebookDocument, cell));
+					addedCellDocuments.push(ExtHostCell.asModelAddData(this.apiNotebook, cell));
 				}
 				return extCell;
 			});
@@ -277,7 +277,7 @@ export class ExtHostNotebookDocument {
 			const deletedItems = this._cells.splice(splice[0], splice[1], ...newCells);
 			for (let cell of deletedItems) {
 				removedCellDocuments.push(cell.uri);
-				changeEvent.deletedItems.push(cell.cell);
+				changeEvent.deletedItems.push(cell.apiCell);
 			}
 
 			contentChangeEvents.push(changeEvent);
@@ -290,7 +290,7 @@ export class ExtHostNotebookDocument {
 
 		if (!initialization) {
 			this._emitter.emitModelChange(deepFreeze({
-				document: this.notebookDocument,
+				document: this.apiNotebook,
 				changes: RawContentChangeEvent.asApiEvents(contentChangeEvents)
 			}));
 		}
@@ -300,11 +300,11 @@ export class ExtHostNotebookDocument {
 		const cells = this._cells.splice(index, 1);
 		this._cells.splice(newIdx, 0, ...cells);
 		const changes = [
-			new RawContentChangeEvent(index, 1, cells.map(c => c.cell), []),
+			new RawContentChangeEvent(index, 1, cells.map(c => c.apiCell), []),
 			new RawContentChangeEvent(newIdx, 0, [], cells)
 		];
 		this._emitter.emitModelChange(deepFreeze({
-			document: this.notebookDocument,
+			document: this.apiNotebook,
 			changes: RawContentChangeEvent.asApiEvents(changes)
 		}));
 	}
@@ -312,18 +312,18 @@ export class ExtHostNotebookDocument {
 	private _setCellOutputs(index: number, outputs: IOutputDto[]): void {
 		const cell = this._cells[index];
 		cell.setOutputs(outputs);
-		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.notebookDocument, cells: [cell.cell] }));
+		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.apiNotebook, cells: [cell.apiCell] }));
 	}
 
 	private _setCellOutputItems(index: number, outputId: string, append: boolean, outputItems: IOutputItemDto[]): void {
 		const cell = this._cells[index];
 		cell.setOutputItems(outputId, append, outputItems);
-		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.notebookDocument, cells: [cell.cell] }));
+		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.apiNotebook, cells: [cell.apiCell] }));
 	}
 
 	private _changeCellLanguage(index: number, newModeId: string): void {
 		const cell = this._cells[index];
-		if (cell.cell.document.languageId !== newModeId) {
+		if (cell.apiCell.document.languageId !== newModeId) {
 			this._textDocuments.$acceptModelModeChanged(cell.uri, newModeId);
 		}
 	}
@@ -332,17 +332,17 @@ export class ExtHostNotebookDocument {
 		const cell = this._cells[index];
 
 		const originalInternalMetadata = cell.internalMetadata;
-		const originalExtMetadata = cell.cell.metadata;
+		const originalExtMetadata = cell.apiCell.metadata;
 		cell.setMetadata(newMetadata);
-		const newExtMetadata = cell.cell.metadata;
+		const newExtMetadata = cell.apiCell.metadata;
 
 		if (!equals(originalExtMetadata, newExtMetadata)) {
-			this._emitter.emitCellMetadataChange(deepFreeze({ document: this.notebookDocument, cell: cell.cell }));
+			this._emitter.emitCellMetadataChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell }));
 		}
 
 		if (originalInternalMetadata.runState !== newMetadata.runState) {
 			const executionState = newMetadata.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
-			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.notebookDocument, cell: cell.cell, executionState }));
+			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, executionState }));
 		}
 	}
 

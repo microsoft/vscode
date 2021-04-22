@@ -348,7 +348,7 @@ const newCommands: ApiCommand[] = [
 		}[], {
 			viewType: string;
 			displayName: string;
-			filenamePattern: vscode.NotebookFilenamePattern[];
+			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern; })[];
 			options: vscode.NotebookDocumentContentOptions;
 		}[] | undefined>('A promise that resolves to an array of NotebookContentProvider static info objects.', tryMapWith(item => {
 			return {
@@ -356,7 +356,6 @@ const newCommands: ApiCommand[] = [
 				displayName: item.displayName,
 				options: {
 					transientOutputs: item.options.transientOutputs,
-					transientMetadata: item.options.transientCellMetadata,
 					transientCellMetadata: item.options.transientCellMetadata,
 					transientDocumentMetadata: item.options.transientDocumentMetadata
 				},

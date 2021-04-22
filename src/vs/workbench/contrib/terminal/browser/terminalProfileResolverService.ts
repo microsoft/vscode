@@ -109,12 +109,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getOsKey(os)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
 			if (sync) {
-				const profiles = this._terminalService.getAvailableProfiles();
+				const profiles = this._terminalService.availableProfiles;
 				return profiles.find(e => e.profileName === defaultProfileName);
 			} else {
-				return this._terminalService.getAvailableProfilesAsync().then(profiles => {
-					return profiles.find(e => e.profileName === defaultProfileName);
-				});
+				return this._terminalService.availableProfiles.find(e => e.profileName === defaultProfileName);
 			}
 		}
 		return undefined;
@@ -128,10 +126,20 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			executable = shellSetting;
 			const shellArgsSetting = this._configurationService.getValue(`terminal.integrated.shellArgs.${this._getOsKey(options.os)}`);
 			if (this._isValidShellArgs(shellArgsSetting, options.os)) {
-				args = shellArgsSetting || [];
+				args = shellArgsSetting;
 			}
 		} else {
 			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
+		}
+
+		if (args === undefined) {
+			if (options.os === OperatingSystem.Macintosh && args === undefined) {
+				// macOS should launch a login shell by default
+				args = ['--login'];
+			} else {
+				// Resolve undefined to []
+				args = [];
+			}
 		}
 
 		const icon = this._guessProfileIcon(executable);

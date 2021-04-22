@@ -769,7 +769,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Deserialize and open editor unless already opened
 		const restoredEditor = this.editorInputFactory.getEditorInputSerializer(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
 		let editorPane: IEditorPane | undefined = undefined;
-		if (restoredEditor && !this.editorGroupService.activeGroup.isOpened(restoredEditor)) {
+		if (restoredEditor && !this.editorGroupService.activeGroup.contains(restoredEditor)) {
 			// Fix for https://github.com/microsoft/vscode/issues/107850
 			// If opening an editor fails, it is possible that we get
 			// another editor-close event as a result. But we really do

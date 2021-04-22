@@ -106,7 +106,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
-	async override setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -323,7 +323,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		}
 
 		// Clear view state if input is disposed or we are configured to not storing any state
-		if (input.isDisposed() || (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.isOpened(input)))) {
+		if (input.isDisposed() || (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input)))) {
 			super.clearTextEditorViewState([resource], this.group);
 		}
 

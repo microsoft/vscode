@@ -9,7 +9,6 @@ import { localize } from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TERMINAL_DECORATIONS_SCHEME } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -34,19 +33,17 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
 		if (resource.scheme !== TERMINAL_DECORATIONS_SCHEME || !parseInt(resource.path)) {
-			return;
+			return undefined;
 		}
 
 		const instance = this._terminalService.getInstanceFromId(parseInt(resource.path));
 		if (!instance?.statusList?.primary?.icon) {
-			return;
+			return undefined;
 		}
 
 		return {
 			color: this.getColorForSeverity(instance.statusList.primary.severity),
-			letter: this.getStatusIcon(instance.statusList.primary.icon, instance.statusList.statuses.length),
-			// Commenting out this line to unblock build
-			// tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id)
+			letter: instance.statusList.primary.icon
 		};
 	}
 
@@ -59,25 +56,6 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 			default:
 				return '';
 		}
-	}
-
-	getStatusIcon(icon: Codicon, statusCount: number): string {
-		let statusIcon;
-		switch (icon) {
-			case Codicon.warning:
-				statusIcon = '⚠';
-				break;
-			case Codicon.bell:
-				statusIcon = 'B';
-				break;
-			case Codicon.debugDisconnect:
-				statusIcon = 'D';
-				break;
-			default:
-				statusIcon = '';
-				break;
-		}
-		return statusCount > 1 ? `${statusCount}, ${statusIcon}` : statusIcon;
 	}
 
 	dispose(): void {

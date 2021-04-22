@@ -105,7 +105,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		}, labelService, envVariables, envVariablesPromise);
 	}
 
-	public async override resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
+	public override async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
 		// resolve any non-interactive variables and any contributed variables
 		config = this.resolveAny(folder, config);
 
@@ -122,7 +122,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		});
 	}
 
-	public async override resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+	public override async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
 		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;

@@ -19,10 +19,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, cellRangesToIndexes, reduceRanges, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookKernel, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -63,7 +63,6 @@ export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCel
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 // Kernels
-export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 
@@ -264,7 +263,6 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;
 	resolveTextModel(): Promise<ITextModel>;
-	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 	getSelectionsStartPosition(): IPosition[] | undefined;
 	getCellDecorations(): INotebookCellDecorationOptions[];
 	getCellStatusBarItems(): INotebookCellStatusBarItem[];
@@ -374,11 +372,8 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
-	activeKernel: INotebookKernel | undefined;
-	readonly availableKernelCount: number;
 	readonly onDidScroll: Event<void>;
-	readonly onDidChangeAvailableKernels: Event<void>;
-	readonly onDidChangeKernel: Event<void>;
+
 	readonly onDidChangeActiveCell: Event<void>;
 	isDisposed: boolean;
 	dispose(): void;
@@ -418,11 +413,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	getOutputRenderer(): OutputRenderer;
 
 	/**
-	 * Fetch the contributed kernels for this notebook
-	 */
-	beginComputeContributedKernels(): Promise<INotebookKernel[]>;
-
-	/**
 	 * Insert a new cell around `cell`
 	 */
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string, ui?: boolean): CellViewModel | null;
@@ -459,25 +449,17 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
-	/**
-	 * Execute the given notebook cell
-	 */
-	executeNotebookCell(cell: ICellViewModel): Promise<void>;
+	readonly activeKernel: INotebookKernel | undefined;
 
 	/**
-	 * Cancel the cell execution
+	 * Execute the given notebook cells
 	 */
-	cancelNotebookCellExecution(cell: ICellViewModel): void;
+	executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>
 
 	/**
-	 * Executes all notebook cells in order
+	 * Cancel the given notebook cells
 	 */
-	executeNotebook(): Promise<void>;
-
-	/**
-	 * Cancel the notebook execution
-	 */
-	cancelNotebookExecution(): void;
+	cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>
 
 	/**
 	 * Get current active cell
@@ -747,7 +729,6 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	cellRunState: RunStateRenderer;
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
@@ -756,7 +737,6 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
-	timer: TimerRenderer;
 	focusIndicatorRight: HTMLElement;
 	focusIndicatorBottom: HTMLElement;
 	dragHandle: HTMLElement;

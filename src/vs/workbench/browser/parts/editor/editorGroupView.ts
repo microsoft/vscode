@@ -43,7 +43,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
-import { extname } from 'vs/base/common/resources';
+import { extname, isEqual } from 'vs/base/common/resources';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
@@ -51,6 +51,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -139,7 +141,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(themeService);
 
@@ -308,7 +311,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupId = this.model.id;
 		const containerToolbar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('ariaLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
-				async override run(action: IAction) {
+				override async run(action: IAction) {
 					await action.run(groupId);
 				}
 			})
@@ -550,10 +553,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// (including being visible in side by side / diff editors) and as such we
 		// only dispose when they are not opened elsewhere.
 		for (const editor of editorsToClose) {
-			if (!this.accessor.groups.some(groupView => groupView.contains(editor, {
-				strictEquals: true,		// only if this input is not shared across editor groups
-				supportSideBySide: true // include side by side editor primary & secondary
-			}))) {
+			if (this.canDispose(editor)) {
 				editor.dispose();
 			}
 		}
@@ -573,6 +573,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Event
 		this._onDidCloseEditor.fire(event);
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
+	}
+
+	private canDispose(editor: EditorInput): boolean {
+		for (const groupView of this.accessor.groups) {
+			if (groupView instanceof EditorGroupView && groupView.model.contains(editor, {
+				strictEquals: true,		// only if this input is not shared across editor groups
+				supportSideBySide: true // include side by side editor primary & secondary
+			})) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {
@@ -796,12 +809,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.isActive(editor);
 	}
 
-	contains(candidate: EditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
-		return this.model.contains(candidate, options);
+	contains(candidate: EditorInput): boolean {
+		return this.model.contains(candidate);
 	}
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
 		return this.model.getEditors(order, options);
+	}
+
+	findEditors(resource: URI): EditorInput[] {
+		const canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
+		return this.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
+			return editor.resource && isEqual(editor.resource, canonicalResource);
+		});
 	}
 
 	getEditorByIndex(index: number): EditorInput | undefined {
@@ -810,10 +830,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	getIndexOfEditor(editor: EditorInput): number {
 		return this.model.indexOf(editor);
-	}
-
-	isOpened(editor: EditorInput): boolean {
-		return this.model.contains(editor);
 	}
 
 	focus(): void {

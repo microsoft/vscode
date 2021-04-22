@@ -23,7 +23,7 @@ export class WebRemoteExtensionManagementService extends ExtensionManagementChan
 		super(channel);
 	}
 
-	async override canInstall(extension: IGalleryExtension): Promise<boolean> {
+	override async canInstall(extension: IGalleryExtension): Promise<boolean> {
 		const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
 		return !!manifest && this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest);
 	}

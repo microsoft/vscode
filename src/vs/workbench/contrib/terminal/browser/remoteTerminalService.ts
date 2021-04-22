@@ -50,7 +50,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel = channel;
 
 			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			channel.onProcessBinary(e => this._ptys.get(e.id)?.processBinary(e.event));
 			channel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {

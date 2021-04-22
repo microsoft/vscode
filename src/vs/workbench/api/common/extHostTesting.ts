@@ -552,7 +552,9 @@ export const createDefaultDocumentTestRoot = async <T>(
 		TestItemFilteredWrapper.removeFilter(document);
 	});
 
-	return TestItemFilteredWrapper.getWrapperForTestItem(root, document);
+	const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(root, document);
+	wrapper.refreshMatch();
+	return wrapper;
 };
 
 /*
@@ -623,6 +625,8 @@ export class TestItemFilteredWrapper extends TestItemImpl {
 		this.description = actual.description;
 		this.error = actual.error;
 		this.status = actual.status;
+		this.range = actual.range;
+		this.resolveHandler = actual.resolveHandler;
 
 		const wrapperApi = getPrivateApiFor(this);
 		const actualApi = getPrivateApiFor(actual);
@@ -647,17 +651,17 @@ export class TestItemFilteredWrapper extends TestItemImpl {
 	 * if the test itself has a location that matches, or if any of its
 	 * children do.
 	 */
-	private refreshMatch() {
+	public refreshMatch() {
 		const didMatch = this._cachedMatchesFilter;
 
 		// The `children` of the wrapper only include the children who match the
 		// filter. Synchronize them.
 		for (const rawChild of this.actual.children.values()) {
 			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(rawChild, this.filterDocument, this);
-			if (wrapper.hasNodeMatchingFilter) {
-				this.addChild(wrapper);
-			} else {
+			if (!wrapper.hasNodeMatchingFilter) {
 				wrapper.dispose();
+			} else if (!this.children.has(wrapper.id)) {
+				this.addChild(wrapper);
 			}
 		}
 
@@ -669,6 +673,14 @@ export class TestItemFilteredWrapper extends TestItemImpl {
 		}
 
 		return this._cachedMatchesFilter;
+	}
+
+	public override dispose() {
+		if (this.actualParent) {
+			getPrivateApiFor(this.actualParent).children.delete(this.id);
+		}
+
+		getPrivateApiFor(this).bus.fire([ExtHostTestItemEventType.Disposed]);
 	}
 }
 

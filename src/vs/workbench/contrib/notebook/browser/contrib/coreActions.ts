@@ -19,18 +19,20 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { Iterable } from 'vs/base/common/iterator';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -94,25 +96,24 @@ export interface INotebookActionContext {
 	readonly cell?: ICellViewModel;
 	readonly notebookEditor: IActiveNotebookEditor;
 	readonly ui?: boolean;
+	readonly selectedCells?: ICellViewModel[];
 }
 
 export interface INotebookCellActionContext extends INotebookActionContext {
 	cell: ICellViewModel;
 }
 
-function getContextFromActiveEditor(editorService: IEditorService) {
+function getContextFromActiveEditor(editorService: IEditorService): INotebookActionContext | undefined {
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-	if (!editor) {
-		return;
-	}
-
-	if (!editor.hasModel()) {
+	if (!editor || !editor.hasModel()) {
 		return;
 	}
 
 	const activeCell = editor.getActiveCell();
+	const selectedCells = editor.getSelectionViewModels();
 	return {
 		cell: activeCell,
+		selectedCells,
 		notebookEditor: editor
 	};
 }
@@ -219,7 +220,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 		return undefined;
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
 		if (this.isCellActionContext(context)) {
 			const telemetryService = accessor.get(ITelemetryService);
 			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellToolbar' });
@@ -427,7 +428,7 @@ registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		return context.notebookEditor.cancelNotebookCellExecution(context.cell);
+		return context.notebookEditor.cancelNotebookCells(Iterable.single(context.cell));
 	}
 });
 
@@ -569,7 +570,7 @@ registerAction2(class extends NotebookAction {
 			group?.pinEditor(editor.editor);
 		}
 
-		return context.notebookEditor.executeNotebook();
+		return context.notebookEditor.executeNotebookCells();
 	}
 });
 
@@ -611,7 +612,7 @@ registerAction2(class CancelNotebook extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		return context.notebookEditor.cancelNotebookExecution();
+		return context.notebookEditor.cancelNotebookCells();
 	}
 });
 
@@ -691,7 +692,12 @@ async function runCell(accessor: ServicesAccessor, context: INotebookCellActionC
 		}
 	}
 
-	return context.notebookEditor.executeNotebookCell(context.cell);
+	if (context.cell.cellKind === CellKind.Markdown) {
+		context.notebookEditor.focusNotebookCell(context.cell, 'container');
+		return;
+	} else {
+		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
+	}
 }
 
 export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string): Promise<ICellViewModel | null> {
@@ -808,7 +814,7 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
 		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
@@ -833,7 +839,7 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
 		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
@@ -1410,10 +1416,11 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const modelService = accessor.get(IModelService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const providerLanguages = [
+		const providerLanguages = new Set([
 			...(context.notebookEditor.activeKernel?.supportedLanguages ?? modeService.getRegisteredModes()),
 			'markdown'
-		];
+		]);
+
 		providerLanguages.forEach(languageId => {
 			let description: string;
 			if (context.cell.cellKind === CellKind.Markdown ? (languageId === 'markdown') : (languageId === context.cell.language)) {
@@ -1566,19 +1573,21 @@ registerAction2(class extends NotebookCellAction {
 
 abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const cell = context.cell;
 		const textModel = context.notebookEditor.viewModel.notebookDocument;
 		if (!textModel) {
 			return;
 		}
 
-		const index = textModel.cells.indexOf(cell.model);
-
-		if (index < 0) {
-			return;
+		const metadataDelta = this.getMetadataDelta();
+		const edits: ICellEditOperation[] = [];
+		for (const cell of context.selectedCells || []) {
+			const index = textModel.cells.indexOf(cell.model);
+			if (index >= 0) {
+				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...metadataDelta } });
+			}
 		}
 
-		textModel.applyEdits([{ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...this.getMetadataDelta() } }], true, undefined, () => undefined, undefined);
+		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
 	}
 
 	abstract getMetadataDelta(): NotebookCellMetadata;
@@ -1730,20 +1739,6 @@ CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, a
 	});
 });
 
-CommandsRegistry.registerCommand('_resolveNotebookKernelProviders', async (accessor, args): Promise<{
-	extensionId: string;
-	description?: string;
-	selector: INotebookDocumentFilter;
-}[]> => {
-	const notebookService = accessor.get<INotebookService>(INotebookService);
-	const providers = await notebookService.getContributedNotebookKernelProviders();
-	return providers.map(provider => ({
-		extensionId: provider.providerExtensionId,
-		description: provider.providerDescription,
-		selector: provider.selector
-	}));
-});
-
 CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, args: {
 	viewType: string;
 	uri: UriComponents;
@@ -1755,14 +1750,12 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 	isPreferred?: boolean;
 	preloads?: URI[];
 }[]> => {
-	const notebookService = accessor.get<INotebookService>(INotebookService);
+	const notebookKernelService = accessor.get(INotebookKernelService);
 	const uri = URI.revive(args.uri as UriComponents);
-	const source = new CancellationTokenSource();
-	const kernels = await notebookService.getNotebookKernels(args.viewType, uri, source.token);
-	source.dispose();
+	const kernels = notebookKernelService.getNotebookKernels({ uri, viewType: args.viewType });
 
-	return kernels.map(provider => ({
-		id: provider.friendlyId,
+	return kernels.all.map(provider => ({
+		id: provider.id,
 		label: provider.label,
 		description: provider.description,
 		detail: provider.detail,

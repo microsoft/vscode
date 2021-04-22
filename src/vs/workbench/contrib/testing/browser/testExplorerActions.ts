@@ -27,6 +27,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
@@ -167,7 +168,7 @@ abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> 
 			}
 		} else {
 			for (const treeElement of selected) {
-				if (treeElement?.test && this.filter(treeElement.test)) {
+				if (treeElement instanceof TestItemTreeElement && this.filter(treeElement.test)) {
 					tests.push({ testId: treeElement.test.item.extId, src: treeElement.test.src });
 				}
 			}
@@ -545,7 +546,7 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		});
 	}
 
-	public async override run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
+	public override async run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
 		if (test) {
 			await this.runForTest(accessor, test, preserveFocus);
 		} else {
@@ -558,7 +559,7 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView) {
 		const selected = view.viewModel.tree.getFocus().find(isDefined);
-		if (selected?.test) {
+		if (selected instanceof TestItemTreeElement) {
 			this.runForTest(accessor, selected.test.item, false);
 		}
 	}
