@@ -605,8 +605,10 @@ export abstract class ViewPane extends Pane implements IView {
 }
 
 export abstract class ViewAction<T extends IView> extends Action2 {
-	constructor(readonly desc: Readonly<IAction2Options> & { viewId: string }) {
+	override readonly desc: Readonly<IAction2Options> & { viewId: string };
+	constructor(desc: Readonly<IAction2Options> & { viewId: string }) {
 		super(desc);
+		this.desc = desc;
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
