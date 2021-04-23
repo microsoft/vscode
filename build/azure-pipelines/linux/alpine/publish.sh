@@ -14,7 +14,7 @@ SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
 rm -rf $ROOT/vscode-server-*.tar.*
 (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
 
-node build/azure-pipelines/common/createAsset.js "server-$PLATFORM_LINUX" archive-unsigned "$SERVER_TARBALL_FILENAME" "$SERVER_TARBALL_PATH"
+# node build/azure-pipelines/common/createAsset.js "server-$PLATFORM_LINUX" archive-unsigned "$SERVER_TARBALL_FILENAME" "$SERVER_TARBALL_PATH"
 
 # Publish Remote Extension Host (Web)
 LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$PLATFORM_LINUX"
@@ -25,4 +25,4 @@ SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
 rm -rf $ROOT/vscode-server-*-web.tar.*
 (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
 
-node build/azure-pipelines/common/createAsset.js "server-$PLATFORM_LINUX-web" archive-unsigned "$SERVER_TARBALL_FILENAME" "$SERVER_TARBALL_PATH"
+# node build/azure-pipelines/common/createAsset.js "server-$PLATFORM_LINUX-web" archive-unsigned "$SERVER_TARBALL_FILENAME" "$SERVER_TARBALL_PATH"

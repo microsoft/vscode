@@ -43,6 +43,7 @@ Write-Host "##vso[task.setvariable variable=SYSTEM_SETUP_NAME]$SYSTEM_SETUP_NAME
 Move-Item $UserExe "$Repo\.build\win32-$Arch\user-setup\$USER_SETUP_NAME"
 Write-Host "##vso[task.setvariable variable=USER_SETUP_NAME]$USER_SETUP_NAME"
 
-if ("$Arch" -ne "arm64") {
-	exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform" archive "vscode-server-win32-$Arch.zip" $ServerZip }
-}
+# if ("$Arch" -ne "arm64") {
+# 	exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform" archive "vscode-server-win32-$Arch.zip" $ServerZip }
+# 	exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform-web" archive "vscode-server-win32-$Arch-web.zip" $ServerZipWeb }
+# }
