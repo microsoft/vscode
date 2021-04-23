@@ -1148,10 +1148,12 @@ var requirejs = (function() {
 			purpose: WebviewContentPurpose.NotebookRenderer,
 			enableFindWidget: false,
 			transformCssVariables: transformWebviewThemeVars,
+			serviceWorkerFetchIgnoreSubdomain: true
 		}, {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
-			localResourceRoots: this.localResourceRootsCache
+			localResourceRoots: this.localResourceRootsCache,
+			alwaysFetchFromRemote: true
 		}, undefined);
 
 		let resolveFunc: () => void;
