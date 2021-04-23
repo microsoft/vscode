@@ -69,7 +69,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							},
 							media: {
 								type: 'object',
-								description: localize('walkthroughs.tasks.media', "Media to show alongside this task."),
+								description: localize('walkthroughs.tasks.media', "Media to show alongside this task, either an image or markdown content."),
 								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
 								oneOf: [
 									{
@@ -81,7 +81,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 												type: 'string',
 											},
 											path: {
-												description: localize('walkthroughs.tasks.media.image.path', "Path to the image, relative to extension directory."),
+												description: localize('walkthroughs.tasks.media.image.path', "Path to the image, relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
 												type: 'string',
 											},
 											altText: {
