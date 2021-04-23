@@ -461,6 +461,11 @@
 	height: inherit;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media.image {
+	height: inherit;
+	width: inherit;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right {
 	display: flex;
 	align-items: flex-start;
