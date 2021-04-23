@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -30,11 +29,10 @@ import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browse
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -69,44 +67,28 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 //#region Startup Contribution
 class SearchEditorContribution implements IWorkbenchContribution {
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
+		@IEditorOverrideService protected readonly editorOverrideService: IEditorOverrideService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
 
-		this.editorService.overrideOpenEditor({
-			getEditorOverrides: (resource: URI) => {
-				return extname(resource) === SEARCH_EDITOR_EXT ? [{
-					id: SearchEditorInput.ID,
-					label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
-					detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-					active: isEqual(this.editorService.activeEditor?.resource, resource) && this.editorService.activeEditor instanceof SearchEditorInput
-				}] : [];
+		this.editorOverrideService.registerContributionPoint(
+			'*' + SEARCH_EDITOR_EXT,
+			{
+				id: SearchEditorInput.ID,
+				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
+				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+				describes: (current) => current instanceof SearchEditorInput,
+				priority: ContributedEditorPriority.exclusive,
 			},
-			open: (editor, options, group) => {
-				const resource = editor.resource;
-				if (!resource) { return undefined; }
-
-				if (extname(resource) !== SEARCH_EDITOR_EXT) {
-					return undefined;
-				}
-
-				if (editor instanceof SearchEditorInput && group.contains(editor)) {
-					return undefined;
-				}
-
+			{ singlePerResource: true },
+			(resource) => {
 				this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
-
-				return {
-					override: (async () => {
-						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
-						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-						return editorService.openEditor(input, { ...options, override: EditorOverride.DISABLED }, group);
-					})()
-				};
+				const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource });
+				return { editor: input };
 			}
-		});
+		);
 	}
 }
 
