@@ -113,7 +113,8 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalTabsFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS.bindTo(contextKeyService);
 
 		_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated.tabs.enable')) {
+			if (e.affectsConfiguration('terminal.integrated.tabs.enable') ||
+				e.affectsConfiguration('terminal.integrated.tabs.hideForSingle')) {
 				this._refreshShowTabs();
 			} else if (e.affectsConfiguration('terminal.integrated.tabs.location')) {
 				this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
