@@ -34,7 +34,14 @@ export interface INotebookKernelService {
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */
-	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel | undefined): void;
+	updateNotebookInstanceKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel | undefined): void;
+
+	/**
+	 * Bind a notebook type to a kernel.
+	 * @param viewType
+	 * @param kernel
+	 */
+	updateNotebookTypeKernelBinding(viewType: string, kernel: INotebookKernel): void;
 
 	/**
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference

@@ -15,8 +15,6 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
-import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -62,7 +60,6 @@ registerAction2(class extends Action2 {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const configurationService = accessor.get(IConfigurationService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.hasModel()) {
@@ -96,7 +93,7 @@ registerAction2(class extends Action2 {
 			type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 			const configButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
-				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel.viewType)
+				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel for '{0}' notebooks", editor.viewModel.viewType)
 			};
 			const picks = all.map(kernel => {
 				return <KernelPick>{
@@ -110,24 +107,7 @@ registerAction2(class extends Action2 {
 			});
 			const pick = await quickInputService.pick(picks, {
 				onDidTriggerItemButton: (context) => {
-					newKernel = context.item.kernel;
-
-					const newAssociation: NotebookKernelProviderAssociation = { viewType: notebook.viewType, kernelProvider: context.item.kernel.extension.value };
-					const currentAssociations = [...configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId)];
-
-					// First try updating existing association
-					for (let i = 0; i < currentAssociations.length; ++i) {
-						const existing = currentAssociations[i];
-						if (existing.viewType === newAssociation.viewType) {
-							currentAssociations.splice(i, 1, newAssociation);
-							configurationService.updateValue(notebookKernelProviderAssociationsSettingId, currentAssociations);
-							return;
-						}
-					}
-
-					// Otherwise, create a new one
-					currentAssociations.unshift(newAssociation);
-					configurationService.updateValue(notebookKernelProviderAssociationsSettingId, currentAssociations);
+					notebookKernelService.updateNotebookTypeKernelBinding(notebook.viewType, context.item.kernel);
 				}
 			});
 
@@ -137,7 +117,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (newKernel) {
-			notebookKernelService.updateNotebookKernelBinding(notebook, newKernel);
+			notebookKernelService.updateNotebookInstanceKernelBinding(notebook, newKernel);
 		}
 	}
 });

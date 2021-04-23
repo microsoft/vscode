@@ -50,7 +50,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		if (cellHandles.length > 0) {
-			this._notebookKernelService.updateNotebookKernelBinding(notebook, kernel);
+			this._notebookKernelService.updateNotebookInstanceKernelBinding(notebook, kernel);
 			await kernel.executeNotebookCellsRequest(notebook.uri, cellHandles);
 		}
 	}
