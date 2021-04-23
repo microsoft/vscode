@@ -266,7 +266,8 @@ export class TestServiceAccessor {
 		@ILabelService public labelService: ILabelService,
 		@ILogService public logService: ILogService,
 		@IUriIdentityService public uriIdentityService: IUriIdentityService,
-		@IInstantiationService public instantitionService: IInstantiationService
+		@IInstantiationService public instantitionService: IInstantiationService,
+		@INotificationService public notificationService: INotificationService
 	) { }
 }
 
