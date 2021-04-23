@@ -13,7 +13,7 @@ TARBALL_PATH="$ROOT/$TARBALL_FILENAME"
 rm -rf $ROOT/code-*.tar.*
 (cd $ROOT && tar -czf $TARBALL_PATH $BUILDNAME)
 
-node build/azure-pipelines/common/createAsset.js "$PLATFORM_LINUX" archive-unsigned "$TARBALL_FILENAME" "$TARBALL_PATH"
+# node build/azure-pipelines/common/createAsset.js "$PLATFORM_LINUX" archive-unsigned "$TARBALL_FILENAME" "$TARBALL_PATH"
 
 # Publish Remote Extension Host
 LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX"
@@ -47,7 +47,7 @@ PLATFORM_DEB="linux-deb-$VSCODE_ARCH"
 DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
 DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
 
-node build/azure-pipelines/common/createAsset.js "$PLATFORM_DEB" package "$DEB_FILENAME" "$DEB_PATH"
+# node build/azure-pipelines/common/createAsset.js "$PLATFORM_DEB" package "$DEB_FILENAME" "$DEB_PATH"
 
 # Publish RPM
 case $VSCODE_ARCH in
@@ -61,7 +61,7 @@ PLATFORM_RPM="linux-rpm-$VSCODE_ARCH"
 RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
 RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 
-node build/azure-pipelines/common/createAsset.js "$PLATFORM_RPM" package "$RPM_FILENAME" "$RPM_PATH"
+# node build/azure-pipelines/common/createAsset.js "$PLATFORM_RPM" package "$RPM_FILENAME" "$RPM_PATH"
 
 # Publish Snap
 # Pack snap tarball artifact, in order to preserve file perms

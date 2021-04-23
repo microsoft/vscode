@@ -30,7 +30,7 @@ interface Asset {
 // }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string | undefined {
+function getPlatform(product: string, os: string, arch: string, type: string): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -43,33 +43,44 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 							return asset;
 						case 'user-setup':
 							return `${asset}-user`;
+						default:
+							throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
 					}
 				case 'server':
-					if (arch !== 'arm64') {
-						throw `What should the platform be?: ${product} ${os} ${arch} ${type}`;
+					if (arch === 'arm64') {
+						throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
 					}
 					return `server-${arch}`;
 				case 'web':
-					if (arch !== 'arm64') {
-						throw `What should the platform be?: ${product} ${os} ${arch} ${type}`;
+					if (arch === 'arm64') {
+						throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
 					}
 					return `server-${arch}-web`;
 				default:
-					throw `found an unrecognized product: ${product}`;
+					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
 			}
-			break;
 		case 'linux':
-			switch (product) {
-				case 'client':
-					break;
-				case 'server':
-					break;
-				case 'web':
-					break;
+			switch (type) {
+				case 'snap':
+					return `linux-snap-${arch}`;
+				case 'archive-unsigned':
+					switch (product) {
+						case 'client':
+							return `linux-${arch}`;
+						case 'server':
+							return `server-linux-${arch}`;
+						case 'web':
+							return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
+						default:
+							throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					}
+				case 'deb-package':
+					return `linux-deb-${arch}`;
+				case 'rpm-package':
+					return `linux-rpm-${arch}`;
 				default:
-					throw `found an unrecognized product: ${product}`;
+					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
 			}
-			break;
 		case 'darwin':
 			switch (product) {
 				case 'client':
@@ -85,19 +96,24 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					}
 					return 'server-darwin-web';
 				default:
-					throw `found an unrecognized product: ${product}`;
+					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
 			}
 		default:
-			// standalone
-			break;
+			throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
 	}
 }
 
+// Contains all of the logic for mapping types to our actual types in CosmosDB
 function getRealType(type: string) {
-	if (type === 'user-setup') {
-		return 'setup';
+	switch (type) {
+		case 'user-setup':
+			return 'setup';
+		case 'deb-package':
+		case 'rpm-package':
+			return 'package';
+		default:
+			return type;
 	}
-	return type;
 }
 
 function hashStream(hashName: string, stream: Readable): Promise<string> {
@@ -144,7 +160,7 @@ async function main(): Promise<void> {
 		[, , platform, type, fileName, filePath] = process.argv;
 	} else {
 		[, , product, os, arch, type, fileName, filePath] = process.argv;
-		platform = getPlatform(product, os, arch, type)!;
+		platform = getPlatform(product, os, arch, type);
 		type = getRealType(type);
 	}
 	const quality = getEnv('VSCODE_QUALITY');
