@@ -54,7 +54,6 @@ export class TerminalTabbedView extends Disposable {
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
 
-	private _showTabs: boolean;
 	private _findWidgetVisible: IContextKey<boolean>;
 
 	private _height: number | undefined;
@@ -103,8 +102,6 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalContainer.classList.add('terminal-outer-container');
 		this._terminalContainer.style.display = 'block';
 
-		this._showTabs = this._terminalService.configHelper.config.showTabs;
-
 		this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
 		this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 
@@ -117,32 +114,17 @@ export class TerminalTabbedView extends Disposable {
 
 		_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
-				this._showTabs = this._terminalService.configHelper.config.showTabs;
-				if (this._showTabs) {
-					if (this._splitView.length === 1) {
-						this._addTabTree();
-						this._addSashListener();
-						this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
-					}
-				} else {
-					if (this._splitView.length === 2) {
-						this._splitView.removeView(this._tabTreeIndex);
-						if (this._plusButton) {
-							this._tabTreeContainer.removeChild(this._plusButton);
-						}
-						this._removeSashListener();
-					}
-				}
+				this._refreshShowTabs();
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
 				this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
 				this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
-				if (this._showTabs) {
+				if (this._shouldShowTabs()) {
 					this._splitView.swapViews(0, 1);
 					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 				}
 			}
 		});
-
+		this._register(this._terminalService.onInstancesChanged(() => this._refreshShowTabs()));
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._updateTheme();
 
@@ -160,6 +142,30 @@ export class TerminalTabbedView extends Disposable {
 			} catch (e) {
 			}
 		});
+	}
+
+	private _shouldShowTabs(): boolean {
+		const showTabs = this._terminalService.configHelper.config.showTabs;
+		return showTabs === 'on' ||
+			(showTabs === 'multipleTerminals' && this._terminalService.terminalInstances.length > 1);
+	}
+
+	private _refreshShowTabs() {
+		if (this._shouldShowTabs()) {
+			if (this._splitView.length === 1) {
+				this._addTabTree();
+				this._addSashListener();
+				this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
+			}
+		} else {
+			if (this._splitView.length === 2) {
+				this._splitView.removeView(this._tabTreeIndex);
+				if (this._plusButton) {
+					this._tabTreeContainer.removeChild(this._plusButton);
+				}
+				this._removeSashListener();
+			}
+		}
 	}
 
 	private _getLastWidgetWidth(): number {
@@ -240,7 +246,7 @@ export class TerminalTabbedView extends Disposable {
 		this._register(this._splitView.onDidSashReset(() => this._handleOnDidSashReset()));
 		this._register(this._splitView.onDidSashChange(() => this._handleOnDidSashChange()));
 
-		if (this._showTabs) {
+		if (this._shouldShowTabs()) {
 			this._addTabTree();
 		}
 		this._splitView.addView({
@@ -252,7 +258,7 @@ export class TerminalTabbedView extends Disposable {
 			priority: LayoutPriority.High
 		}, Sizing.Distribute, this._terminalContainerIndex);
 
-		if (this._showTabs) {
+		if (this._shouldShowTabs()) {
 			this._addSashListener();
 		}
 	}
@@ -308,7 +314,7 @@ export class TerminalTabbedView extends Disposable {
 		this._width = width;
 		this._refreshHasTextClass();
 		this._splitView.layout(width);
-		if (this._showTabs) {
+		if (this._shouldShowTabs()) {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 		}
 	}

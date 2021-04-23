@@ -137,7 +137,7 @@ export interface ITerminalConfiguration {
 		windows: string | null;
 	};
 	useWslProfiles: boolean;
-	showTabs: boolean;
+	showTabs: 'on' | 'multipleTerminals' | 'off';
 	tabsLocation: 'left' | 'right';
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
