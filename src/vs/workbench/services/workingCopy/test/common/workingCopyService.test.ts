@@ -6,12 +6,13 @@
 import * as assert from 'assert';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/base/common/uri';
-import { TestWorkingCopy, TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 suite('WorkingCopyService', () => {
 
 	test('registry - basics', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const onDidChangeDirty: IWorkingCopy[] = [];
 		service.onDidChangeDirty(copy => onDidChangeDirty.push(copy));
@@ -105,7 +106,7 @@ suite('WorkingCopyService', () => {
 	});
 
 	test('registry - multiple copies on same resource throws (same type ID)', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const resource = URI.parse('custom://some/folder/custom.txt');
 
@@ -118,7 +119,7 @@ suite('WorkingCopyService', () => {
 	});
 
 	test('registry - multiple copies on same resource is supported (different type ID)', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const resource = URI.parse('custom://some/folder/custom.txt');
 

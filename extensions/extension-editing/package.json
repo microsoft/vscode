@@ -17,6 +17,7 @@
   "main": "./out/extensionEditingMain",
   "browser": "./dist/browser/extensionEditingBrowserMain",
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }

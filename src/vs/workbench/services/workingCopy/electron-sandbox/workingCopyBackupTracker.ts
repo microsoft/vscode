@@ -58,7 +58,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		return this.onBeforeShutdownWithoutDirty();
 	}
 
-	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, dirtyWorkingCopies: IWorkingCopy[]): Promise<boolean> {
+	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, dirtyWorkingCopies: ReadonlyArray<IWorkingCopy>): Promise<boolean> {
 
 		// If auto save is enabled, save all non-untitled working copies
 		// and then check again for dirty copies
@@ -84,7 +84,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		return this.handleDirtyBeforeShutdown(dirtyWorkingCopies, reason);
 	}
 
-	private async handleDirtyBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
+	private async handleDirtyBeforeShutdown(dirtyWorkingCopies: ReadonlyArray<IWorkingCopy>, reason: ShutdownReason): Promise<boolean> {
 
 		// Trigger backup if configured
 		let backups: IWorkingCopy[] = [];
@@ -143,7 +143,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
 
-	private async backupBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<IWorkingCopy[]> {
+	private async backupBeforeShutdown(dirtyWorkingCopies: ReadonlyArray<IWorkingCopy>, reason: ShutdownReason): Promise<IWorkingCopy[]> {
 
 		// When quit is requested skip the confirm callback and attempt to backup all workspaces.
 		// When quit is not requested the confirm callback should be shown when the window being
@@ -190,7 +190,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		return this.doBackupBeforeShutdown(dirtyWorkingCopies);
 	}
 
-	private async doBackupBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[]): Promise<IWorkingCopy[]> {
+	private async doBackupBeforeShutdown(dirtyWorkingCopies: ReadonlyArray<IWorkingCopy>): Promise<IWorkingCopy[]> {
 		const backups: IWorkingCopy[] = [];
 
 		await this.withProgressAndCancellation(async token => {

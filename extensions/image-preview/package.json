@@ -27,6 +27,7 @@
     "onCommand:imagePreview.zoomOut"
   ],
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }
