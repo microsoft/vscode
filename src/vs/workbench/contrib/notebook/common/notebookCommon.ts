@@ -844,3 +844,5 @@ export interface INotebookDecorationRenderOptions {
 	borderColor?: string | ThemeColor;
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
+
+export const NOTEBOOK_WORKING_COPY_TYPE_PREFIX = 'notebook/';

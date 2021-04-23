@@ -203,8 +203,7 @@ class BrowserMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
-		// TODO @lszomoru: Following two services shall be merged into single service
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, configurationService, environmentService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, environmentService, storageService, uriIdentityService, configurationService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly

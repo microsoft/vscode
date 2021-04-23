@@ -71,6 +71,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { Promises } from 'vs/base/common/async';
 import { EditorExtensions } from 'vs/workbench/common/editor';
+import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -178,7 +179,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.supportVirtualWorkspaces': {
 				type: 'object',
-				markdownDescription: localize('extensions.supportVirtualWorkspaces', "Override the virtual workspaces support of an extension"),
+				markdownDescription: localize('extensions.supportVirtualWorkspaces', "Override the virtual workspaces support of an extension."),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
 						type: 'boolean',
@@ -187,6 +188,31 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				},
 				default: {
 					'pub.name': false
+				}
+			},
+			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
+				type: 'object',
+				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "Override the untrusted workpace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						type: 'object',
+						properties: {
+							'supported': {
+								type: ['boolean', 'string'],
+								enum: [true, false, 'limited'],
+								enumDescriptions: [
+									localize('extensions.supportUntrustedWorkspaces.true', "Extension will always be enabled."),
+									localize('extensions.supportUntrustedWorkspaces.false', "Extension will only be enabled only when the workspace is trusted."),
+									localize('extensions.supportUntrustedWorkspaces.limited', "Extension will always be enabled, and the extension will hide functionality requiring trust."),
+								],
+								description: localize('extensions.supportUntrustedWorkspaces.supported', "Defines the untrusted workspace support setting for the extension."),
+							},
+							'version': {
+								type: 'string',
+								description: localize('extensions.supportUntrustedWorkspaces.version', "Defines the version of the extension for which the override should be applied. If not specified, the override will be applied independent of the extension version."),
+							}
+						}
+					}
 				}
 			}
 		}

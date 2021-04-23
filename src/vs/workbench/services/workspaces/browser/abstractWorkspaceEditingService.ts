@@ -14,7 +14,7 @@ import { ConfigurationScope, IConfigurationRegistry, Extensions as Configuration
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isEqual, isEqualAuthority } from 'vs/base/common/resources';
+import { dirname, isEqual, isEqualAuthority } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,6 +26,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 const UNTITLED_WORKSPACE_FILENAME = `workspace.${WORKSPACE_EXTENSION}`;
 
@@ -46,7 +47,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService protected readonly dialogService: IDialogService,
 		@IHostService protected readonly hostService: IHostService,
-		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) { }
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
@@ -254,6 +256,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const raw = await this.fileService.readFile(configPathURI);
 		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI, this.uriIdentityService.extUri);
 		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
+
+		// Set trust for the workspace file
+		this.trustWorkspaceConfiguration(targetConfigPathURI);
 	}
 
 	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -352,6 +357,12 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		return this.jsonEditingService.write(toWorkspace.configPath, [{ path: ['settings'], value: targetWorkspaceConfiguration }], true);
+	}
+
+	private trustWorkspaceConfiguration(configPathURI: URI): void {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+			this.workspaceTrustManagementService.setFoldersTrust([dirname(configPathURI)], true);
+		}
 	}
 
 	protected getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {

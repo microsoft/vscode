@@ -19,7 +19,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
-export class WorkingCopyBackupRestorer implements IWorkbenchContribution {
+/**
+ * @deprecated TODO@bpasero remove me once all backups are handled properly
+ */
+export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
@@ -34,17 +37,17 @@ export class WorkingCopyBackupRestorer implements IWorkbenchContribution {
 		@IPathService private readonly pathService: IPathService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.restoreBackups();
+		this.restoreLegacyBackups();
 	}
 
-	private restoreBackups(): void {
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
+	private restoreLegacyBackups(): void {
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreLegacyBackups());
 	}
 
-	protected async doRestoreBackups(): Promise<void> {
+	protected async doRestoreLegacyBackups(): Promise<void> {
 
-		// Resolve all backup resources that exist for this window
-		const backups = await this.workingCopyBackupService.getBackups();
+		// Resolve all backup resources that exist for this window (only those without `typeId`)
+		const backups = (await this.workingCopyBackupService.getBackups()).filter(backup => backup.typeId.length === 0);
 
 		// Trigger `resolve` in each opened editor that can be found
 		// for the given resource and keep track of backups that are
@@ -109,7 +112,7 @@ export class WorkingCopyBackupRestorer implements IWorkbenchContribution {
 		// This is a (weak) strategy to find out if the untitled input had
 		// an associated file path or not by just looking at the path. and
 		// if so, we must ensure to restore the local resource it had.
-		if (backup.resource.scheme === Schemas.untitled && !WorkingCopyBackupRestorer.UNTITLED_REGEX.test(backup.resource.path)) {
+		if (backup.resource.scheme === Schemas.untitled && !LegacyWorkingCopyBackupRestorer.UNTITLED_REGEX.test(backup.resource.path)) {
 			return { resource: toLocalResource(backup.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme), options, forceUntitled: true };
 		}
 

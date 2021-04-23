@@ -105,7 +105,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 		// Add the group as we might've changed it with the quickpick
 		if (input) {
-			this.sendOverrideTelemtry(input.editor);
+			this.sendOverrideTelemetry(input.editor);
 			return { ...input, group };
 		}
 		return input;
@@ -460,7 +460,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return undefined;
 	}
 
-	private sendOverrideTelemtry(chosenInput: IContributedEditorInput): void {
+	private sendOverrideTelemetry(chosenInput: IContributedEditorInput): void {
 		type editorOverrideClassification = {
 			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 		};
