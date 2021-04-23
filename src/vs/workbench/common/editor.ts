@@ -535,6 +535,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * Returns a copy of the current editor input. Used when we can't just reuse the input
+	 */
+	copy?(): IEditorInput;
 }
 
 /**
@@ -636,6 +641,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	matches(otherInput: unknown): boolean {
 		return this === otherInput;
+	}
+
+	copy(): IEditorInput {
+		return this;
 	}
 
 	isDisposed(): boolean {
