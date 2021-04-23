@@ -728,7 +728,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: {
+					id: MenuId.TerminalSingleTabContext,
+					group: ContextMenuGroup.Edit
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -760,7 +764,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.rename', "Rename"), original: 'Rename' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: {
+					id: MenuId.TerminalSingleTabContext,
+					group: ContextMenuGroup.Edit
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1317,15 +1325,20 @@ export function registerTerminalActions() {
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
 				}],
 				icon: Codicon.splitHorizontal,
-				menu: [{
-					id: MenuId.ViewTitle,
-					group: 'navigation',
-					order: 2,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
-					]),
-				}],
+				menu: [
+					{
+						id: MenuId.ViewTitle,
+						group: 'navigation',
+						order: 2,
+						when: ContextKeyAndExpr.create([
+							ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+							ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
+						]),
+					}, {
+						id: MenuId.TerminalSingleTabContext,
+						group: ContextMenuGroup.Create
+					}
+				],
 				description: {
 					description: 'workbench.action.terminal.split',
 					args: [{
@@ -1508,7 +1521,7 @@ export function registerTerminalActions() {
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
-					]),
+					])
 				}
 			});
 		}
@@ -1523,6 +1536,13 @@ export function registerTerminalActions() {
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.KILL,
+			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
+		},
+		group: ContextMenuGroup.Kill
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalSingleTabContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.KILL,
 			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
