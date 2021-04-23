@@ -183,7 +183,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
-	public get icon(): Codicon { return this._getIcon(); }
+	public get icon(): Codicon | undefined { return this._getIcon(); }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -317,13 +317,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	private _getIcon(): Codicon {
+	private _getIcon(): Codicon | undefined {
 		if (this.shellLaunchConfig.icon) {
-			return iconRegistry.get(this.shellLaunchConfig.icon) || Codicon.terminal;
+			return iconRegistry.get(this.shellLaunchConfig.icon);
 		} else if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
-			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon) || Codicon.terminal;
+			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon);
 		}
-		return Codicon.terminal;
+		return undefined;
 	}
 
 	public addDisposable(disposable: IDisposable): void {

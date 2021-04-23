@@ -221,15 +221,15 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			template.actionBar.clear();
 			const primaryStatus = instance.statusList.primary;
 			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
-				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon.id})`;
+				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
 			} else {
-				label = `${prefix}$(${instance.icon.id})`;
+				label = `${prefix}$(${instance.icon?.id})`;
 			}
 		} else {
 			this.fillActionBar(instance, template);
 			// Remove "Task - " from only tabs to give more horizontal space as it's obvious from
 			// the tab icon
-			label = `${prefix}$(${instance.icon.id}) ${instance.title.replace(/^Task - /, '')}`;
+			label = `${prefix}$(${instance.icon?.id}) ${instance.title.replace(/^Task - /, '')}`;
 		}
 
 		if (!template.elementDispoables) {
