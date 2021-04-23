@@ -84,8 +84,30 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 												type: 'string',
 											},
 											path: {
-												description: localize('walkthroughs.steps.media.image.path', "Path to the image, relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
-												type: 'string',
+												description: localize('walkthroughs.steps.media.image.path.string', "Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
+												oneOf: [
+													{
+														type: 'string',
+													},
+													{
+														type: 'object',
+														required: ['dark', 'light', 'hc'],
+														properties: {
+															dark: {
+																description: localize('walkthroughs.steps.media.image.path.dark.string', "Path to the image for dark themes, relative to extension directory."),
+																type: 'string',
+															},
+															light: {
+																description: localize('walkthroughs.steps.media.image.path.light.string', "Path to the image for light themes, relative to extension directory."),
+																type: 'string',
+															},
+															hc: {
+																description: localize('walkthroughs.steps.media.image.path.hc.string', "Path to the image for hc themes, relative to extension directory."),
+																type: 'string',
+															}
+														}
+													}
+												]
 											},
 											altText: {
 												type: 'string',
