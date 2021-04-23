@@ -54,7 +54,7 @@ export interface IGettingStartedTask {
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
 	media:
 	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
-	| { type: 'markdown', path: string }
+	| { type: 'markdown', path: URI, base: URI, }
 }
 
 export interface IGettingStartedWalkthroughDescriptor {
@@ -225,8 +225,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						order: index,
 						when: ContextKeyExpr.deserialize(item.when) ?? ContextKeyExpr.true(),
 						media: item.media.type === 'image'
-							? { type: 'image', altText: item.media.altText, path: convertPaths(item.media.path) }
-							: { type: 'markdown', path: item.media.path },
+							? { type: 'image', altText: item.media.altText, path: convertInternalMediaPathsToBrowserURIs(item.media.path) }
+							: { type: 'markdown', path: convertInternalMediaPathToFileURI(item.media.path), base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require) },
 					});
 				}));
 		});
@@ -260,16 +260,19 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const existingItem = assertIsDefined(existingCategory.content.items.find(_item => _item.id === item.id));
 		existingItem.title = title ?? existingItem.title;
 		existingItem.description = description ? parseDescription(description) : existingItem.description;
-		existingItem.media.path = media ? convertPaths(media) : existingItem.media.path;
+		existingItem.media.path = media ? convertInternalMediaPathsToBrowserURIs(media) : existingItem.media.path;
 		this._onDidChangeTask.fire(this.getTaskProgress(existingItem));
 	}
 
 	private registerExtensionContributions(extension: IExtensionDescription) {
-		const convertPath = (path: string) => path.startsWith('https://')
+		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
 			? URI.parse(path, true)
-			: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
+			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
 
-		const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
+		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
+			const convertPath = (path: string) => path.startsWith('https://')
+				? URI.parse(path, true)
+				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
 
 			if (typeof path === 'string') {
 				const converted = convertPath(path);
@@ -355,8 +358,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					return ({
 						description: description,
 						media: task.media.type === 'image'
-							? { type: 'image', altText: task.media.altText, path: convertPaths(task.media.path) }
-							: { type: 'markdown', path: task.media.path /*convertPath(task.media.path)*/ }
+							? { type: 'image', altText: task.media.altText, path: convertExtensionRelativePathsToBrowserURIs(task.media.path) }
+							: { type: 'markdown', path: convertExtensionPathToFileURI(task.media.path), base: extension.extensionLocation }
 						,
 						doneOn: task.doneOn?.command
 							? { commandExecuted: task.doneOn.command }
@@ -545,18 +548,23 @@ const idForStartEntry = (entry: IStartEntry): string => `${entry.title}#${entry.
 
 const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
 
-const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
-	const convertPath = (path: string) => path.startsWith('https://')
+
+const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
+	? URI.parse(path, true)
+	: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
+
+const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
+	const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
 		? URI.parse(path, true)
 		: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 	if (typeof path === 'string') {
-		const converted = convertPath(path);
+		const converted = convertInternalMediaPathToBrowserURI(path);
 		return { hc: converted, dark: converted, light: converted };
 	} else {
 		return {
-			hc: convertPath(path.hc),
-			light: convertPath(path.light),
-			dark: convertPath(path.dark)
+			hc: convertInternalMediaPathToBrowserURI(path.hc),
+			light: convertInternalMediaPathToBrowserURI(path.light),
+			dark: convertInternalMediaPathToBrowserURI(path.dark)
 		};
 	}
 };

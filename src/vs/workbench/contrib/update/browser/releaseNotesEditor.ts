@@ -206,7 +206,7 @@ export class ReleaseNotesManager {
 
 	private async renderBody(text: string) {
 		const nonce = generateUuid();
-		const content = await renderMarkdownDocument(text, this._extensionService, this._modeService);
+		const content = await renderMarkdownDocument(text, this._extensionService, this._modeService, false);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		return `<!DOCTYPE html>
