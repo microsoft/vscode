@@ -127,12 +127,12 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getChildren(treeItemHandle);
 	}
 
-	$setParent(treeViewId: string, treeItemHandle?: string, parentItemHandle?: string): Promise<void> {
+	$setParent(treeViewId: string, treeItemHandle: string, newParentItemHandle: string): Promise<void> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
 		}
-		return treeView.setParent(treeItemHandle, parentItemHandle);
+		return treeView.setParent(treeItemHandle, newParentItemHandle);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {
@@ -377,25 +377,13 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	setParent(treeItemHandle: TreeItemHandle | Root, parentHandle: TreeItemHandle | Root): Promise<void> {
-		let parentNode: TreeNode | undefined;
-		let elementNode: TreeNode | undefined;
-		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
-		if (parentHandle && !parentElement) {
-			this.logService.error(`No tree item with id \'${parentHandle}\' found.`);
-		}
-		const element = treeItemHandle ? this.getExtensionElement(treeItemHandle) : undefined;
-		parentNode = parentElement ? this.nodes.get(parentElement) : undefined;
-		elementNode = element ? this.nodes.get(element) : undefined;
-		if (elementNode?.parent && elementNode.parent !== parentNode) {
+	setParent(treeItemHandleOrNode: TreeItemHandle | TreeNode | Root, newParentHandleOrNode: TreeItemHandle | TreeNode | Root): Promise<void> {
+		let elementNode = this.getTreeNode(treeItemHandleOrNode);
+		let newParentNode = this.getTreeNode(newParentHandleOrNode);
+		if (elementNode?.parent && elementNode.parent !== newParentNode) {
 			// if it's not a direct child from parent node then we can move
-			if (parentNode?.children) {
-				// if element node is part of parentNode childrens then no need to expand nodes
-			} else {
-				// we need to expand the target node
-			}
-		}
 
+		}
 		return Promise.resolve(undefined);
 	}
 
@@ -777,6 +765,20 @@ class ExtHostTreeView<T> extends Disposable {
 		this.elements.clear();
 		this.nodes.forEach(node => node.dispose());
 		this.nodes.clear();
+	}
+
+	private getTreeNode(itemNodeOrHandle: TreeNode | TreeItemHandle | Root): TreeNode | undefined {
+		if (itemNodeOrHandle) {
+			let treeNode: TreeNode | undefined;
+			if (typeof itemNodeOrHandle === 'string') {
+				const element = this.getExtensionElement(itemNodeOrHandle);
+				treeNode = element ? this.nodes.get(element) : undefined;
+			} else {
+				treeNode = itemNodeOrHandle;
+			}
+			return treeNode;
+		}
+		return undefined;
 	}
 
 	override dispose() {

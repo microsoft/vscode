@@ -38,7 +38,7 @@ import { textLinkForeground, textCodeBlockBackground, focusBorder, listFilterMat
 import { isString } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
@@ -798,6 +798,11 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		}
 		return result;
 	}
+
+	async setParent(element1?: ITreeItem, elemenet2?: ITreeItem): Promise<void> {
+		console.log('hello');
+		return Promise.resolve();
+	}
 }
 
 // todo@jrieken,sandy make this proper and contributable from extensions
@@ -1191,7 +1196,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	constructor() { }
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		return false;
+		return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: true };
 	}
 
 	getDragURI(element: ITreeItem): string | null {
@@ -1202,11 +1207,11 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
-
 		const element = elements[0];
 		return element.label ? element.label.label : undefined;
 	}
 
-	drop(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): void {
+	drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+		//TODO
 	}
 }
