@@ -358,6 +358,25 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TERMINAL_COMMAND_ID.FOCUS_TABS_VIEW,
+				title: { value: localize('workbench.action.terminal.focus.tabsView', "Focus Terminal Tabs View"), original: 'Focus Terminal Tabs View' },
+				f1: true,
+				category,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FOCUS),
+				},
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).focusTabsView();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TERMINAL_COMMAND_ID.FOCUS_NEXT,
 				title: { value: localize('workbench.action.terminal.focusNext', "Focus Next Terminal"), original: 'Focus Next Terminal' },
 				f1: true,

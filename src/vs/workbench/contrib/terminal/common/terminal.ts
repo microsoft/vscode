@@ -434,6 +434,7 @@ export const enum TERMINAL_COMMAND_ID {
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',
 	FOCUS_PREVIOUS_PANE = 'workbench.action.terminal.focusPreviousPane',
+	FOCUS_TABS_VIEW = 'workbench.action.terminal.focusTabsView',
 	FOCUS_NEXT_PANE = 'workbench.action.terminal.focusNextPane',
 	RESIZE_PANE_LEFT = 'workbench.action.terminal.resizePaneLeft',
 	RESIZE_PANE_RIGHT = 'workbench.action.terminal.resizePaneRight',

@@ -472,6 +472,11 @@ export class TerminalTabbedView extends Disposable {
 		];
 	}
 
+	public focusTabsView(): void {
+		this._terminalTabsFocusContextKey.set(true);
+		this._tabsWidget.domFocus();
+	}
+
 	public focusFindWidget() {
 		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalService.getActiveInstance();
