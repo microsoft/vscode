@@ -165,7 +165,6 @@ export class TerminalService implements ITerminalService {
 		// update detected profiles so for example we detect if you've installed a pwsh
 		// this avoids having poll routinely
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
-		// TODO: This also includes background terminals
 		this.onInstancesChanged(() => this._terminalCountContextKey.set(this._terminalInstances.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 		this._handleInstanceContextKeys();
