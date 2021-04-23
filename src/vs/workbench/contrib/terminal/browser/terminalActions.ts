@@ -154,7 +154,14 @@ export function registerTerminalActions() {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, event: unknown, profile?: ITerminalProfile) {
+		async run(accessor: ServicesAccessor, eventOrProfile: unknown | ITerminalProfile, profile?: ITerminalProfile) {
+			let event: MouseEvent | undefined;
+			if (eventOrProfile && typeof eventOrProfile === 'object' && 'profileName' in eventOrProfile) {
+				profile = eventOrProfile as ITerminalProfile;
+			} else {
+				event = eventOrProfile as MouseEvent;
+			}
+			console.log('arguments', arguments);
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
