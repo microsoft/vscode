@@ -114,7 +114,7 @@ export class CloseWorkspaceAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."));
 			return;
@@ -140,7 +140,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 		this.enabled = !!this.workspaceContextService.getWorkspace().configuration;
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const configuration = this.workspaceContextService.getWorkspace().configuration;
 		if (configuration) {
 			await this.editorService.openEditor({ resource: configuration, options: { pinned: true } });
@@ -181,7 +181,7 @@ export class GlobalRemoveRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
 
 		// Workspace / Folder
@@ -209,7 +209,7 @@ export class SaveWorkspaceAsAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const configPathUri = await this.workspaceEditingService.pickNewWorkspacePath();
 		if (configPathUri && hasWorkspaceFileExtension(configPathUri)) {
 			switch (this.contextService.getWorkbenchState()) {
@@ -241,7 +241,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 		const remoteAuthority = this.environmentService.remoteAuthority;
 

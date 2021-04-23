@@ -212,7 +212,8 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'bash': {
-					path: 'bash'
+					path: 'bash',
+					icon: 'terminal-bash'
 				},
 				'zsh': {
 					path: 'zsh'
@@ -476,7 +477,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.enableBell': {
-			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled."),
+			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
 			type: 'boolean',
 			default: false
 		},

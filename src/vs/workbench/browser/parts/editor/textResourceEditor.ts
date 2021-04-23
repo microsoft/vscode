@@ -53,7 +53,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return localize('textEditor', "Text Editor");
 	}
 
-	async override setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);

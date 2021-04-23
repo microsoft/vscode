@@ -100,7 +100,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 					const info = model.getWordAtPosition(pos);
 					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
 				}
-			} else if (referenceCount === 1 && altAction) {
+			} else if (referenceCount === 1 && altAction instanceof SymbolNavigationAction) {
 				// already at the only result, run alternative
 				altAction.run();
 

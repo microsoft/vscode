@@ -14,7 +14,7 @@ import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions, getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookSearchOptions, ShowCellStatusBarKey, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -479,17 +479,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		return cellMatches;
-	}
-
-	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
-		const editable = this.metadata?.editable ?? true;
-
-		return {
-			...(this.metadata || {}),
-			...{
-				editable,
-			}
-		};
 	}
 
 	override dispose() {

@@ -16,12 +16,10 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceMap } from 'vs/base/common/map';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
-	private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>;
+	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel>>();
 	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
 
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
@@ -38,29 +36,13 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-
-		this._workingCopyManager = <any>_instantiationService.createInstance(
-			FileWorkingCopyManager,
-			// TODO@jrieken TODO@rebornix consider to enable a `typeId` that is
-			// specific for custom editors. Using a distinct `typeId` allows the
-			// working copy to have any resource (including file based resources)
-			// even if other working copies exist with the same resource.
-			//
-			// IMPORTANT: changing the `typeId` has an impact on backups for this
-			// working copy. Any value that is not the empty string will be used
-			// as seed to the backup. Only change the `typeId` if you have implemented
-			// a fallback solution to resolve any existing backups that do not have
-			// this seed.
-			NO_TYPE_ID,
-			new NotebookFileWorkingCopyModelFactory(_notebookService)
-		);
 	}
 
 	dispose(): void {
 		this._onDidSaveNotebook.dispose();
 		this._onDidChangeDirty.dispose();
 		dispose(this._modelListener.values());
-		this._workingCopyManager.dispose();
+		dispose(this._workingCopyManagers.values());
 	}
 
 	isDirty(resource: URI): boolean {
@@ -78,7 +60,16 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			result = await model.load();
 
 		} else if (info instanceof SimpleNotebookProviderInfo) {
-			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, viewType, this._workingCopyManager);
+			const workingCopyTypeId = `notebook/${viewType}`;
+			let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
+			if (!workingCopyManager) {
+				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
+					FileWorkingCopyManager,
+					workingCopyTypeId,
+					new NotebookFileWorkingCopyModelFactory(this._notebookService)
+				);
+			}
+			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, viewType, workingCopyManager);
 			result = await model.load();
 
 		} else {

@@ -278,7 +278,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
-		return this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.manifest) === 'onStart';
+		return this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.manifest) === false;
 	}
 
 	private _getEnablementState(identifier: IExtensionIdentifier): EnablementState {
@@ -430,7 +430,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private async _getExtensionsByWorkspaceTrustRequirement(): Promise<IExtension[]> {
 		const extensions = await this.extensionManagementService.getInstalled();
-		return extensions.filter(e => this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(e.manifest) === 'onStart');
+		return extensions.filter(e => this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(e.manifest) === false);
 	}
 
 	public async updateEnablementByWorkspaceTrustRequirement(): Promise<void> {

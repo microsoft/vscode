@@ -79,7 +79,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 	}
 
-	async override read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+	override async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 
 		// ensure size & memory limits
 		options = this.ensureLimits(options);
@@ -87,7 +87,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		return super.read(resource, options);
 	}
 
-	async override readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 
 		// ensure size & memory limits
 		options = this.ensureLimits(options);
@@ -123,7 +123,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		return ensuredOptions;
 	}
 
-	async override write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+	override async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
 
 		// check for `writeElevated property` to write elevated
 		// (file:// only: https://github.com/microsoft/vscode/issues/48659)

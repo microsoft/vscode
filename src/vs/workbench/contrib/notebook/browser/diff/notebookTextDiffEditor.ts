@@ -285,7 +285,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	async override setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
 		const model = await input.resolve();
@@ -371,7 +371,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		outputNodeLeftPadding: 32,
 		previewNodePadding: MARKDOWN_PREVIEW_PADDING,
 		leftMargin: 0,
-		cellMargin: 0,
+		rightMargin: 0,
 		runGutter: 0
 	};
 

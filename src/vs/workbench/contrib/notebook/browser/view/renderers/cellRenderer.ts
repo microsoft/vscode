@@ -14,7 +14,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -215,8 +215,10 @@ abstract class AbstractCellRenderer {
 
 			updateActions();
 		}));
+		templateData.container.classList.toggle('cell-toolbar-dropdown-active', false);
 		disposables.add(templateData.toolbar.onDidChangeDropdownVisibility(visible => {
 			dropdownIsVisible = visible;
+			templateData.container.classList.toggle('cell-toolbar-dropdown-active', visible);
 
 			if (deferredUpdate && !visible) {
 				setTimeout(() => {
@@ -343,8 +345,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
 
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
-		DOM.hide(statusBar.durationContainer);
-		DOM.hide(statusBar.cellRunStatusContainer);
 
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
@@ -458,7 +458,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			}
 		}));
 
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel.notebookDocument!, element));
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
@@ -717,8 +717,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		disposables.add(progressBar);
 
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
-		const timer = new TimerRenderer(statusBar.durationContainer);
-		const cellRunState = new RunStateRenderer(statusBar.cellRunStatusContainer);
 
 		const outputContainer = DOM.append(container, $('.output'));
 		const outputShowMoreContainer = DOM.append(container, $('.output-show-more-container'));
@@ -742,7 +740,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			container,
 			decorationContainer,
 			cellContainer,
-			cellRunState,
 			progressBar,
 			statusBar,
 			focusIndicatorLeft: focusIndicator,
@@ -761,7 +758,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			disposables,
 			elementDisposables: new DisposableStore(),
 			bottomCellContainer,
-			timer,
 			titleMenu,
 			dragHandle,
 			toJSON: () => { return {}; }
@@ -782,7 +778,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private addDoubleClickCollapseHandler(templateData: CodeCellRenderTemplate): IDisposable {
-		return DOM.addDisposableListener(templateData.dragHandle, DOM.EventType.DBLCLICK, e => {
+		const dragHandleListener = DOM.addDisposableListener(templateData.dragHandle, DOM.EventType.DBLCLICK, e => {
 			const cell = templateData.currentRenderedCell;
 			if (!cell) {
 				return;
@@ -801,6 +797,27 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				}
 			], true, undefined, () => undefined, undefined);
 		});
+
+		const collapsedPartListener = DOM.addDisposableListener(templateData.collapsedPart, DOM.EventType.DBLCLICK, e => {
+			const cell = templateData.currentRenderedCell;
+			if (!cell) {
+				return;
+			}
+
+			const metadata: Partial<NotebookCellMetadata> = cell.metadata?.inputCollapsed ?
+				{ inputCollapsed: false } :
+				{ outputCollapsed: false };
+			const viewModel = this.notebookEditor.viewModel!;
+			viewModel.notebookDocument.applyEdits([
+				{
+					editType: CellEditType.PartialMetadata,
+					index: viewModel.getCellIndex(cell),
+					metadata
+				}
+			], true, undefined, () => undefined, undefined);
+		});
+
+		return combinedDisposable(dragHandleListener, collapsedPartListener);
 	}
 
 	private setupRunToolbar(runButtonContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
@@ -830,32 +847,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			return;
 		}
 
-		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel.notebookDocument.metadata);
+		const metadata = element.metadata;
 		this.updateExecutionOrder(metadata, templateData);
-
-		templateData.cellRunState.renderState(element.metadata?.runState, () => {
-			if (!this.notebookEditor.viewModel) {
-				return -1;
-			}
-
-			return this.notebookEditor.viewModel.getCellIndex(element);
-		}, element.metadata?.lastRunSuccess);
-
-		if (metadata.runState === NotebookCellExecutionState.Executing) {
-			if (metadata.runStartTime) {
-				templateData.elementDisposables.add(templateData.timer.start(metadata.runStartTime, metadata.runStartTimeAdjustment ?? 0));
-			} else {
-				templateData.timer.clear();
-			}
-		} else if (metadata.runState !== NotebookCellExecutionState.Pending && metadata.runStartTime && metadata.runEndTime) {
-			templateData.timer.show(metadata.runEndTime - metadata.runStartTime);
-		} else {
-			templateData.timer.clear();
-		}
-
-		if (typeof metadata.breakpointMargin === 'boolean') {
-			editorOptions.setGlyphMargin(metadata.breakpointMargin);
-		}
 
 		if (metadata.runState === NotebookCellExecutionState.Executing) {
 			templateData.progressBar.infinite().show(500);
@@ -948,14 +941,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(cellEditorOptions.onDidChange(newValue => templateData.editor.updateOptions(newValue)));
 		templateData.editor.updateOptions(cellEditorOptions.value);
 
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel.notebookDocument!, element));
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
 			this.updateForLayout(element, templateData);
 		}));
 
-		templateData.cellRunState.clear();
 		this.updateForMetadata(element, templateData, cellEditorOptions);
 		this.updateForHover(element, templateData);
 		this.updateForFocus(element, templateData);

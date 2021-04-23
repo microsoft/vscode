@@ -1074,8 +1074,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 }
 
 export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> extends Action2 {
-	constructor(readonly desc: Readonly<IAction2Options> & { viewPaneContainerId: string }) {
+	override readonly desc: Readonly<IAction2Options> & { viewPaneContainerId: string };
+	constructor(desc: Readonly<IAction2Options> & { viewPaneContainerId: string }) {
 		super(desc);
+		this.desc = desc;
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {

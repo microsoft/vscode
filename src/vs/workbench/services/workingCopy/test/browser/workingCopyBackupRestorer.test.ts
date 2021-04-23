@@ -21,7 +21,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 suite('WorkingCopyBackupRestorer', () => {
 
 	class TestBackupRestorer extends WorkingCopyBackupRestorer {
-		async override doRestoreBackups(): Promise<void> {
+		override async doRestoreBackups(): Promise<void> {
 			return super.doRestoreBackups();
 		}
 	}

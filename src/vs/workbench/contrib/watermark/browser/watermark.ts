@@ -5,7 +5,7 @@
 
 import 'vs/css!./watermark';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, OS } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -131,7 +131,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		const box = dom.append(this.watermark, $('.watermark-box'));
 		const folder = this.workbenchState !== WorkbenchState.EMPTY;
 		const selected = folder ? folderEntries : noFolderEntries
-			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh)
+			.filter(entry => !('mac' in entry) || entry.mac === (isMacintosh && !isWeb))
 			.filter(entry => !!CommandsRegistry.getCommand(entry.id));
 
 		const keybindingLabelStylers = this.watermarkDisposable.add(new DisposableStore());

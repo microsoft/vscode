@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, IEditorOptions, ITextEditorOptions, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -214,21 +214,20 @@ export interface IEditorService {
 	 *
 	 * Note: An editor can be opened but not actively visible.
 	 *
-	 * @param editor the editor to check for being opened. If a
-	 * `IResourceEditorInput` is passed in, the resource is checked on
-	 * all opened editors. In case of a side by side editor, the
-	 * right hand side resource is considered only.
+	 * Note: This method will return `true` if a side by side editor
+	 * is opened where the `primary` editor matches too.
 	 */
-	isOpen(editor: IResourceEditorInput): boolean;
-	isOpen(editor: IEditorInput): boolean;
+	isOpened(editor: IResourceEditorInputIdentifier): boolean;
 
 	/**
-	 * Find the existing editors for a given resource. It is possible
-	 * that multiple editors are returned in case the same resource
-	 * is opened in different editors. To find the specific editor,
-	 * either check on the `typeId` or do an `instanceof` check.
+	 * This method will return an entry for each editor that reports
+	 * a `resource` that matches the provided one in the group.
+	 *
+	 * It is possible that multiple editors are returned in case the
+	 * same resource is opened in different editors. To find the specific
+	 * editor, either check on the `typeId` or do an `instanceof` check.
 	 */
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): IEditorInput[];
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput>;
 
 	/**
 	 * Get all available editor overrides for the editor input.

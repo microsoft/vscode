@@ -4,15 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
 import * as semver from 'vs/base/common/semver/semver';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { WorkbenchState, IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { ExecutionEngine, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
 import * as TaskConfig from '../common/taskConfiguration';
-import { ProcessTaskSystem } from 'vs/workbench/contrib/tasks/node/processTaskSystem';
-import { ProcessRunnerDetector } from 'vs/workbench/contrib/tasks/node/processRunnerDetector';
 import { AbstractTaskService } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { TaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -40,7 +36,6 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -56,7 +51,6 @@ interface WorkspaceFolderConfigurationResult {
 }
 
 export class TaskService extends AbstractTaskService {
-	private _configHasErrors: boolean = false;
 	constructor(@IConfigurationService configurationService: IConfigurationService,
 		@IMarkerService markerService: IMarkerService,
 		@IOutputService outputService: IOutputService,
@@ -77,7 +71,6 @@ export class TaskService extends AbstractTaskService {
 		@IStorageService storageService: IStorageService,
 		@IProgressService progressService: IProgressService,
 		@IOpenerService openerService: IOpenerService,
-		@IHostService _hostService: IHostService,
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -109,7 +102,6 @@ export class TaskService extends AbstractTaskService {
 			storageService,
 			progressService,
 			openerService,
-			_hostService,
 			dialogService,
 			notificationService,
 			contextKeyService,
@@ -129,43 +121,14 @@ export class TaskService extends AbstractTaskService {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
-		if (this.executionEngine === ExecutionEngine.Terminal) {
-			this._taskSystem = this.createTerminalTaskSystem();
-		} else {
-			let system = new ProcessTaskSystem(
-				this.markerService, this.modelService, this.telemetryService, this.outputService,
-				this.configurationResolverService, TaskService.OutputChannelId,
-			);
-			system.hasErrors(this._configHasErrors);
-			this._taskSystem = system;
-		}
+		this._taskSystem = this.createTerminalTaskSystem();
 		this._taskSystemListener = this._taskSystem!.onDidStateChange((event) => {
 			if (this._taskSystem) {
 				this._taskRunningState.set(this._taskSystem.isActiveSync());
 			}
 			this._onDidStateChange.fire(event);
 		});
-		return this._taskSystem!;
-	}
-
-	protected updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): void {
-		this._workspaceTasksPromise = this.computeWorkspaceTasks(runSource).then(value => {
-			if (this.executionEngine === ExecutionEngine.Process && this._taskSystem instanceof ProcessTaskSystem) {
-				// We can only have a process engine if we have one folder.
-				value.forEach((value) => {
-					this._configHasErrors = value.hasErrors;
-					(this._taskSystem as ProcessTaskSystem).hasErrors(this._configHasErrors);
-				});
-			}
-			return value;
-		});
-	}
-
-	private hasDetectorSupport(config: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
-		if (!config.command || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return false;
-		}
-		return ProcessRunnerDetector.supports(TaskConfig.CommandString.value(config.command));
+		return this._taskSystem;
 	}
 
 	protected computeLegacyConfiguration(workspaceFolder: IWorkspaceFolder): Promise<WorkspaceFolderConfigurationResult> {
@@ -174,44 +137,9 @@ export class TaskService extends AbstractTaskService {
 			return Promise.resolve({ workspaceFolder: workspaceFolder, hasErrors: true, config: undefined });
 		}
 		if (config) {
-			if (this.hasDetectorSupport(config)) {
-				return new ProcessRunnerDetector(workspaceFolder, this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceFolderConfigurationResult => {
-					let hasErrors = this.printStderr(value.stderr);
-					let detectedConfig = value.config;
-					if (!detectedConfig) {
-						return { workspaceFolder, config, hasErrors };
-					}
-					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.deepClone(config)!;
-					let configuredTasks: IStringDictionary<TaskConfig.CustomTask> = Object.create(null);
-					const resultTasks = result.tasks;
-					if (!resultTasks) {
-						if (detectedConfig.tasks) {
-							result.tasks = detectedConfig.tasks;
-						}
-					} else {
-						resultTasks.forEach(task => {
-							if (task.taskName) {
-								configuredTasks[task.taskName] = task;
-							}
-						});
-						if (detectedConfig.tasks) {
-							detectedConfig.tasks.forEach((task) => {
-								if (task.taskName && !configuredTasks[task.taskName]) {
-									resultTasks.push(task);
-								}
-							});
-						}
-					}
-					return { workspaceFolder, config: result, hasErrors };
-				});
-			} else {
-				return Promise.resolve({ workspaceFolder, config, hasErrors: false });
-			}
+			return Promise.resolve({ workspaceFolder, config, hasErrors: false });
 		} else {
-			return new ProcessRunnerDetector(workspaceFolder, this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
-				let hasErrors = this.printStderr(value.stderr);
-				return { workspaceFolder, config: value.config!, hasErrors };
-			});
+			return Promise.resolve({ workspaceFolder: workspaceFolder, hasErrors: true, config: undefined });
 		}
 	}
 
@@ -220,18 +148,6 @@ export class TaskService extends AbstractTaskService {
 		let engine = this.executionEngine;
 
 		return (range === undefined) || ((semver.satisfies('0.1.0', range) && engine === ExecutionEngine.Process) || (semver.satisfies('2.0.0', range) && engine === ExecutionEngine.Terminal));
-	}
-
-	private printStderr(stderr: string[]): boolean {
-		let result = false;
-		if (stderr && stderr.length > 0) {
-			stderr.forEach((line) => {
-				result = true;
-				this._outputChannel.append(line + '\n');
-			});
-			this.showOutput();
-		}
-		return result;
 	}
 
 	public beforeShutdown(): boolean | Promise<boolean> {

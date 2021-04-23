@@ -15,6 +15,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainThreadNotebookDocumentsShape } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 
@@ -136,9 +137,15 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 	async $applyEdits(resource: UriComponents, cellEdits: IImmediateCellEditOperation[], computeUndoRedo = true): Promise<void> {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		if (!textModel) {
-			throw new Error(`Can't apply edits to unknown notebook model: ${resource}`);
+			throw new Error(`Can't apply edits to unknown notebook model: ${URI.revive(resource).toString()}`);
 		}
 
-		textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
+		try {
+			textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
+		} catch (e) {
+			// Clearing outputs at the same time as the EH calling append/replaceOutputItems is an expected race, and it should be a no-op.
+			// And any other failure should not throw back to the extension.
+			onUnexpectedError(e);
+		}
 	}
 }

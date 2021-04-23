@@ -152,7 +152,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private mouseUpTimeout: any;
-	private title: string = '';
+	private keybindingLabel: string | undefined | null;
 
 	private readonly hoverDisposables = this._register(new DisposableStore());
 	private readonly hover = this._register(new MutableDisposable<IDisposable>());
@@ -164,6 +164,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		@IThemeService protected readonly themeService: IThemeService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 	) {
 		super(null, action, options);
 
@@ -171,6 +172,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
 		this._register(action.onDidChangeActivity(this.updateActivity, this));
+		this._register(Event.filter(keybindingService.onDidUpdateKeybindings, () => this.keybindingLabel !== this.computeKeybindingLabel())(() => this.updateTitle()));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.experimental.useCustomHover'))(() => this.updateHover()));
 		this._register(action.onDidChangeBadge(this.updateBadge, this));
 		this._register(toDisposable(() => this.showHoverScheduler.cancel()));
@@ -277,7 +279,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 	protected updateActivity(): void {
 		this.updateLabel();
-		this.updateTitle(this.activity.name);
+		this.updateTitle();
 		this.updateBadge();
 		this.updateStyles();
 	}
@@ -341,19 +343,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		// Title
-		let title: string;
-		if (badge?.getDescription()) {
-			if (this.activity.name) {
-				title = localize('badgeTitle', "{0} - {1}", this.activity.name, badge.getDescription());
-			} else {
-				title = badge.getDescription();
-			}
-		} else {
-			title = this.activity.name;
-		}
-
-		this.updateTitle(title);
+		this.updateTitle();
 	}
 
 	protected override updateLabel(): void {
@@ -373,8 +363,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	private updateTitle(title: string): void {
-		this.title = title;
+	private updateTitle(): void {
+		// Title
+		const title = this.computeTitle();
 		[this.label, this.badge, this.container].forEach(element => {
 			if (element) {
 				element.setAttribute('aria-label', title);
@@ -388,10 +379,25 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		});
 	}
 
+	private computeTitle(): string {
+		this.keybindingLabel = this.computeKeybindingLabel();
+		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.activity.name, this.keybindingLabel) : this.activity.name;
+		const badge = (this.getAction() as ActivityAction).getBadge();
+		if (badge?.getDescription()) {
+			title = localize('badgeTitle', "{0} - {1}", title, badge.getDescription());
+		}
+		return title;
+	}
+
+	private computeKeybindingLabel(): string | undefined | null {
+		const keybinding = this.activity.keybindingId ? this.keybindingService.lookupKeybinding(this.activity.keybindingId) : null;
+		return keybinding?.getLabel();
+	}
+
 	private updateHover(): void {
 		this.hoverDisposables.clear();
 
-		this.updateTitle(this.title);
+		this.updateTitle();
 		if (this.useCustomHover) {
 			this.hoverDisposables.add(domEvent(this.container, EventType.MOUSE_OVER, true)(() => {
 				if (!this.showHoverScheduler.isScheduled()) {
@@ -425,7 +431,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.hover.value = this.hoverService.showHover({
 			target,
 			anchorPosition,
-			text: this.title,
+			text: this.computeTitle(),
 		});
 	}
 
@@ -456,7 +462,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.showMenu();
 	}
 }
@@ -476,8 +482,9 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, themeService, hoverService, configurationService);
+		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, themeService, hoverService, configurationService, keybindingService);
 	}
 
 	showMenu(): void {
@@ -544,8 +551,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 
-	private compositeActivity: IActivity | undefined;
-
 	constructor(
 		options: IActivityActionViewItemOptions,
 		private readonly compositeActivityAction: ActivityAction,
@@ -555,51 +560,17 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		private readonly dndHandler: ICompositeDragAndDrop,
 		private readonly compositeBar: ICompositeBar,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(compositeActivityAction, options, themeService, hoverService, configurationService);
+		super(compositeActivityAction, options, themeService, hoverService, configurationService, keybindingService);
 
 		if (!CompositeActionViewItem.manageExtensionAction) {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
-
-		this._register(compositeActivityAction.onDidChangeActivity(() => {
-			this.compositeActivity = undefined;
-			this.updateActivity();
-		}, this));
-		this._register(Event.any(
-			compositeActivityAction.onDidChangeActivity,
-			Event.filter(keybindingService.onDidUpdateKeybindings, () => this.compositeActivity!.name !== this.getActivtyName())
-		)(() => {
-			if (this.compositeActivity && this.compositeActivity.name !== this.getActivtyName()) {
-				this.compositeActivity = undefined;
-				this.updateActivity();
-			}
-		}));
-	}
-
-	protected override get activity(): IActivity {
-		if (!this.compositeActivity) {
-			this.compositeActivity = {
-				...this.compositeActivityAction.activity,
-				... { name: this.getActivtyName() }
-			};
-		}
-		return this.compositeActivity;
-	}
-
-	private getActivtyName(skipKeybinding = false): string {
-		let name = this.compositeActivityAction.activity.name;
-		if (skipKeybinding) {
-			return name;
-		}
-
-		const keybinding = this.compositeActivityAction.activity.keybindingId ? this.keybindingService.lookupKeybinding(this.compositeActivityAction.activity.keybindingId) : null;
-		return keybinding ? localize('titleKeybinding', "{0} ({1})", name, keybinding.getLabel()) : name;
 	}
 
 	override render(container: HTMLElement): void {
@@ -712,10 +683,10 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		const isPinned = this.compositeBar.isPinned(this.activity.id);
 		if (isPinned) {
-			this.toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.getActivtyName(true));
+			this.toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.activity.name);
 			this.toggleCompositePinnedAction.checked = false;
 		} else {
-			this.toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.getActivtyName(true));
+			this.toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.activity.name);
 		}
 
 		const otherActions = this.contextMenuActionsProvider();
@@ -781,7 +752,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = !!this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	async override run(context: string): Promise<void> {
+	override async run(context: string): Promise<void> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {

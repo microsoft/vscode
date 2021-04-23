@@ -257,7 +257,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Resolve
 
-	async override resolve(options?: ITextFileResolveOptions): Promise<void> {
+	override async resolve(options?: ITextFileResolveOptions): Promise<void> {
 		this.logService.trace('[text file model] resolve() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed

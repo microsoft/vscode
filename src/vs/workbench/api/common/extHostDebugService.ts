@@ -990,7 +990,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		}, undefined, process.env);
+		}, undefined, Promise.resolve(process.env));
 	}
 }
 

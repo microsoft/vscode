@@ -26,7 +26,6 @@ import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorD
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -59,7 +58,6 @@ export class NotebookEditor extends EditorPane {
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly fileService: IFileService,
@@ -189,8 +187,7 @@ export class NotebookEditor extends EditorPane {
 			return;
 		}
 
-		await this._notebookService.resolveNotebookEditor(model.viewType, model.resource, this._widget.value!.getId());
-		mark(input.resource, 'webviewCommLoaded');
+
 
 		const viewState = this._loadNotebookEditorViewState(input);
 

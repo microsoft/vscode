@@ -198,12 +198,13 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container {
-	max-height: 100%;
+	height: 100%;
 	display: flex;
 	flex-direction: column;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget-container {
+	height: 100%;
 	overflow: hidden;
 }
 
@@ -220,6 +221,10 @@
 	text-align: left;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget {
+	height: 100%;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry {
 	text-align: center;
 }
@@ -232,6 +237,11 @@
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-widget .terminal-tabs-entry .monaco-icon-label::after {
 	padding-right: 0
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-entry .codicon {
+	/* Force inherit when no text is showing as the regular icon gets replaced by the status icon */
+	color: inherit;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .codicon {

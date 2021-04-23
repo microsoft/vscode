@@ -25,7 +25,7 @@ export class DiffEditorModel extends EditorModel {
 		this._modifiedModel = modifiedModel;
 	}
 
-	async override resolve(): Promise<void> {
+	override async resolve(): Promise<void> {
 		await Promise.all([
 			this._originalModel?.resolve(),
 			this._modifiedModel?.resolve()

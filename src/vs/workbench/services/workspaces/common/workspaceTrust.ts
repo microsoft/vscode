@@ -7,6 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -18,12 +19,12 @@ import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/pla
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
-export const WORKSPACE_TRUST_EXTENSION_REQUEST = 'security.workspace.trust.extensionRequest';
+export const WORKSPACE_TRUST_EXTENSION_UNTRUSTED_SUPPORT = 'security.workspace.trust.extensionUntrustedSupport';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 
 export const WorkspaceTrustContext = {
 	PendingRequest: new RawContextKey<boolean>('workspaceTrustPendingRequest', false),
-	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false)
+	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false, localize('workspaceTrustCtx', "Whether the current workspace has been trusted by the user."))
 };
 
 export function isWorkspaceTrustEnabled(configurationService: IConfigurationService): boolean {

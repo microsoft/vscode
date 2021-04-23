@@ -38,7 +38,7 @@ export class TogglePanelAction extends Action {
 		super(id, name, layoutService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.layoutService.setPanelHidden(this.layoutService.isVisible(Parts.PANEL_PART));
 	}
 }
@@ -57,7 +57,7 @@ class FocusPanelAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 
 		// Show panel
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
@@ -113,7 +113,7 @@ export class SetPanelPositionAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const position = positionByActionId.get(this.id);
 		this.layoutService.setPanelPosition(position === undefined ? Position.BOTTOM : position);
 	}
@@ -128,7 +128,7 @@ export class PanelActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		await this.panelService.openPanel(this.activity.id, true);
 		this.activate();
 	}
@@ -169,7 +169,7 @@ export class SwitchPanelViewAction extends Action {
 		super(id, name);
 	}
 
-	async override run(offset: number): Promise<void> {
+	override async run(offset: number): Promise<void> {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		const activePanel = this.panelService.getActivePanel();
 		if (!activePanel) {
