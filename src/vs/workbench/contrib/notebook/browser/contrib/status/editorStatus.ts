@@ -164,6 +164,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	private _showKernelStatus(notebook: INotebookTextModel) {
 
 		let { bound, all } = this._notebookKernelService.getNotebookKernels(notebook);
+		let isSuggested = false;
 
 		if (all.length === 0) {
 			this._kernelInfoElement.clear();
@@ -172,13 +173,16 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 		if (!bound) {
 			bound = all[0];
+			isSuggested = true;
 		}
 
+		const text = `$(notebook-kernel-select) ${bound.label}`;
+		const tooltip = bound.description ?? bound.detail ?? bound.label;
 		const registration = this._statusbarService.addEntry(
 			{
-				text: `$(notebook-kernel-select) ${bound.label}`,
+				text,
 				ariaLabel: bound.label,
-				tooltip: bound.description ?? bound.detail ?? bound.label,
+				tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 				command: all.length > 1 ? 'notebook.selectKernel' : undefined,
 			},
 			'notebook.selectKernel',
