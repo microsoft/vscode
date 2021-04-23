@@ -15,9 +15,7 @@ import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustRequestOptions, workspaceTrustToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -41,18 +39,14 @@ import { FileAccess } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 
-const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
-
 /*
  * Trust Request UX Handler
  */
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
-	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private shouldShowIntroduction = true;
 
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
-		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -65,17 +59,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		if (isWorkspaceTrustEnabled(configurationService)) {
 			this.registerListeners();
 			this.showIntroductionModal();
-		}
-	}
-
-	private toggleRequestBadge(visible: boolean): void {
-		this.badgeDisposable.clear();
-
-		if (visible) {
-			this.badgeDisposable.value = this.activityService.showGlobalActivity({
-				badge: new IconBadge(workspaceTrustIcon, () => localize('requestTrustIconText', "Some features require workspace trust.")),
-				priority: 10
-			});
 		}
 	}
 
@@ -142,8 +125,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private registerListeners(): void {
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
-			this.toggleRequestBadge(true);
-
 			if (requestOptions.modal) {
 				// Message
 				const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
@@ -187,19 +168,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						this.workspaceTrustRequestService.cancelRequest();
 						break;
 				}
-			}
-		}));
-
-		this._register(this.workspaceTrustRequestService.onDidCompleteWorkspaceTrustRequest(trusted => {
-			if (trusted) {
-				this.toggleRequestBadge(false);
-			}
-		}));
-
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(async (trusted) => {
-			// Hide soft request badge
-			if (trusted) {
-				this.toggleRequestBadge(false);
 			}
 		}));
 
