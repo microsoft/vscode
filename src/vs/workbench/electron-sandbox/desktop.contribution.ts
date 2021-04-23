@@ -44,7 +44,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			id: CloseCurrentWindowAction.ID, // close the window when the last editor is closed by reusing the same keybinding
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 			handler: accessor => {
 				const nativeHostService = accessor.get(INativeHostService);
 				nativeHostService.closeWindow();
