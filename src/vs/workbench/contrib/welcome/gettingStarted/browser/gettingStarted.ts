@@ -9,7 +9,7 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { EditorOptions, IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, append, clearNode, Dimension, reset, setParentFlowTo } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategory, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
@@ -53,7 +53,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { generateUuid } from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { insert } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
@@ -82,8 +81,6 @@ export class GettingStartedPage extends EditorPane {
 
 	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
-
-	private layoutParticipants: { layout: () => void }[] = [];
 
 	private dispatchListeners: DisposableStore = new DisposableStore();
 	private taskDisposables: DisposableStore = new DisposableStore();
@@ -403,7 +400,6 @@ export class GettingStartedPage extends EditorPane {
 				mediaElement.setAttribute('alt', media.altText);
 				this.updateMediaSourceForColorMode(mediaElement, media.path);
 
-				this.taskDisposables.add(addDisposableListener(mediaElement, 'load', () => mediaElement.width = mediaElement.naturalWidth * 2 / 3));
 				this.taskDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
 
 			} else if (taskToExpand.media.type === 'markdown') {
@@ -413,20 +409,9 @@ export class GettingStartedPage extends EditorPane {
 
 				const media = taskToExpand.media;
 
-				const webview = this.taskDisposables.add(this.webviewService.createWebviewOverlay(this.webviewID, {}, {
-					localResourceRoots: [media.base]
-				}, undefined));
-				webview.claim(this, this.scopedContextKeyService);
-				setParentFlowTo(webview.container, this.taskMediaComponent);
-				webview.layoutWebviewOverElement(this.taskMediaComponent);
+				const webview = this.taskDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.base] }, undefined));
+				webview.mountTo(this.taskMediaComponent);
 				webview.html = await this.renderMarkdown(media.path, media.base);
-
-				const removeLayoutParticipant = insert(this.layoutParticipants, {
-					layout: () => {
-						webview.layoutWebviewOverElement(this.taskMediaComponent);
-					}
-				});
-				this.taskDisposables.add(toDisposable(removeLayoutParticipant));
 
 				let isDisposed = false;
 				this.taskDisposables.add(toDisposable(() => { isDisposed = true; }));
@@ -455,7 +440,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
-		element.src = sources[themeType].toString(true);
+		element.srcset = sources[themeType].toString(true) + ' 1.5x';
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
@@ -463,7 +448,7 @@ export class GettingStartedPage extends EditorPane {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 
-		const uriTranformedContent = content.replace(/src="([^"]*)"/, (_, src) => {
+		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src) => {
 			const path = joinPath(base, src);
 			const transformed = asWebviewUri(this.environmentService, this.webviewID, path).toString();
 			return `src="${transformed}"`;
@@ -757,8 +742,6 @@ export class GettingStartedPage extends EditorPane {
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
 
-		this.layoutParticipants.forEach(lp => lp.layout());
-
 		this.startList?.layout(size);
 		this.gettingStartedList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
@@ -805,9 +788,6 @@ export class GettingStartedPage extends EditorPane {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === categoryID);
 			this.buildCategorySlide(categoryID);
 			this.setSlide('details');
-			setTimeout(() => {
-				this.layoutParticipants.forEach(lp => lp.layout());
-			}, 250 /* slide transition time */);
 		});
 	}
 

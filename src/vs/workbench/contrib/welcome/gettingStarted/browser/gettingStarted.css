@@ -407,7 +407,6 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
 	max-width: 1200px;
-	max-height: 1000px;
 	margin: 0 auto;
 	padding: 0 12px;
 	display: grid;
