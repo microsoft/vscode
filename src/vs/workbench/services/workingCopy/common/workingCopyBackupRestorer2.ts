@@ -70,7 +70,7 @@ export class WorkingCopyBackupRestorer extends Disposable implements IWorkbenchC
 			// Collect already opened editors for backup
 			let hasOpenedEditorForBackup = false;
 			for (const editor of this.editorService.editors) {
-				if (handler.isOpen(unrestoredBackup, editor)) {
+				if (await handler.isOpen(unrestoredBackup, editor)) {
 					openedEditorsForBackups.push(editor);
 					hasOpenedEditorForBackup = true;
 				}
