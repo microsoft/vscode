@@ -155,7 +155,7 @@ export class TerminalTabbedView extends Disposable {
 			if (this._splitView.length === 1) {
 				this._addTabTree();
 				this._addSashListener();
-				this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
+				this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 			}
 		} else {
 			if (this._splitView.length === 2) {
