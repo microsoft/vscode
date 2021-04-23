@@ -27,7 +27,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { isWorkspaceTrustEnabled, WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_EXTENSION_UNTRUSTED_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isWorkspaceTrustEnabled, WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -402,31 +402,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: false,
 				included: !isWeb,
 				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
-			},
-			[WORKSPACE_TRUST_EXTENSION_UNTRUSTED_SUPPORT]: {
-				type: 'object',
-				markdownDescription: localize('security.workspace.trust.extensionUntrustedSupport', "Override the untrusted workpace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
-						type: 'object',
-						properties: {
-							'request': {
-								type: 'string',
-								enum: ['never', 'onDemand', 'onStart'],
-								enumDescriptions: [
-									localize('security.workspace.trust.extensionUntrustedSupport.supported.true', "Extension will always be enabled."),
-									localize('security.workspace.trust.extensionUntrustedSupport.supported.limited', "Extension will always be enabled, and the extension will hide functionality requiring trust."),
-									localize('security.workspace.trust.extensionUntrustedSupport.supported.false', "Extension will only be enabled only when the workspace is trusted."),
-								],
-								description: localize('security.workspace.trust.extensionUntrustedSupport.supported', "Defines the untrusted workspace support setting for the extension."),
-							},
-							'version': {
-								type: 'string',
-								description: localize('security.workspace.trust.extensionUntrustedSupport.version', "Defines the version of the extension for which the override should be applied. If not specified, the override will be applied independent of the extension version."),
-							}
-						}
-					}
-				}
 			}
 		}
 	});
