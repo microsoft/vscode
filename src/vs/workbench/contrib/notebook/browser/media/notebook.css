@@ -457,6 +457,7 @@
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .codicon {
 	font-size: 14px;
+	color: unset; /* Inherit from parent cell-status-item */
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item-show-when-active {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -559,6 +559,41 @@ suite('NotebookTextModel', () => {
 			assert.strictEqual(editor.viewModel.getVersionId(), 5);
 			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
 
+		});
+	});
+
+	test('Destructive sorting in _doApplyEdits #121994', async function () {
+
+		if (1) {
+			this.skip();
+		}
+
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', value: 'test' }] }], {}]
+		], async (editor) => {
+
+			const notebook = editor.viewModel.notebookDocument;
+
+			assert.strictEqual(notebook.cells[0].outputs.length, 1);
+			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 1);
+			assert.strictEqual(notebook.cells[0].outputs[0].outputs[0].value, 'test');
+
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.Output, handle: 0, outputs: []
+				},
+				{
+					editType: CellEditType.Output, handle: 0, append: true, outputs: [{
+						outputId: 'newOutput',
+						outputs: [{ mime: 'text/plain', value: 'cba' }, { mime: 'application/foo', value: 'cba' }]
+					}]
+				}
+			];
+
+			editor.viewModel.notebookDocument.applyEdits(edits, true, undefined, () => undefined, undefined);
+
+			assert.strictEqual(notebook.cells[0].outputs.length, 1);
+			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 2);
 		});
 	});
 });
