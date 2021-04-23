@@ -122,16 +122,20 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			return;
 		}
 
+		// let currCell;
 		if (!this._findMatchesStarts) {
 			this.set(this._findMatches, true);
 		} else {
+			// const currIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
+			// currCell = this._findMatches[currIndex.index].cell;
+
 			const totalVal = this._findMatchesStarts.getTotalValue();
 			const nextVal = (this._currentMatch + (previous ? -1 : 1) + totalVal) % totalVal;
 			this._currentMatch = nextVal;
 		}
 
-
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
+		// const newFocusedCell = this._findMatches[nextIndex.index].cell;
 		this.setCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 		this.revealCellRange(nextIndex.index, nextIndex.remainder);
 
@@ -140,6 +144,10 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this._findMatches.reduce((p, c) => p + c.matches.length, 0),
 			undefined
 		);
+
+		// if (currCell && currCell !== newFocusedCell && currCell.getEditState() === CellEditState.Editing && currCell.editStateSource === 'find') {
+		// 	currCell.updateEditState(CellEditState.Preview, 'find');
+		// }
 		// this._updateMatchesCount();
 	}
 
@@ -172,7 +180,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 	}
 
 	private revealCellRange(cellIndex: number, matchIndex: number) {
-		this._findMatches[cellIndex].cell.editState = CellEditState.Editing;
+		this._findMatches[cellIndex].cell.updateEditState(CellEditState.Editing, 'find');
 		this._notebookEditor.focusElement(this._findMatches[cellIndex].cell);
 		this._notebookEditor.setCellEditorSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 		this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
@@ -376,7 +384,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			if (this._state.matchesCount >= MATCHES_LIMIT) {
 				matchesCount += '+';
 			}
-			let matchesPosition: string = this._currentMatch < 0 ? '?' : String(this._currentMatch);
+			let matchesPosition: string = this._currentMatch < 0 ? '?' : String((this._currentMatch + 1));
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 		} else {
 			label = NLS_NO_RESULTS;

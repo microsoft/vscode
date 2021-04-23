@@ -829,7 +829,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			applyFocusChange();
 
 			const newFocusedCell = this._list.getFocusedElements()[0];
-			if (newFocusedCell.cellKind === CellKind.Code || newFocusedCell.editState === CellEditState.Editing) {
+			if (newFocusedCell.cellKind === CellKind.Code || newFocusedCell.getEditState() === CellEditState.Editing) {
 				this.focusNotebookCell(newFocusedCell, 'editor');
 			} else {
 				// Reset to "Editor", the state has not been consumed
@@ -1337,7 +1337,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				const element = this.viewModel.cellAt(focusRange.start);
 				if (element) {
 					const itemDOM = this._list.domElementOfElement(element);
-					const editorFocused = element.editState === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
+					const editorFocused = element.getEditState() === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
 
 					state.editorFocused = editorFocused;
 					state.focus = focusRange.start;
@@ -1418,7 +1418,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				const element = this.viewModel.cellAt(focusRange.start);
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
-					element.editState = CellEditState.Editing;
+					element.updateEditState(CellEditState.Editing, 'editorWidget.focus');
 					element.focusMode = CellFocusMode.Editor;
 					this._onDidFocusEditorWidget.fire();
 					return;
@@ -2006,7 +2006,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._cellFocusAria(cell, focusItem);
 			this._list.focusView();
 
-			cell.editState = CellEditState.Editing;
+			cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Editor;
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
@@ -2021,7 +2021,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 			this._webview.focusOutput(cell.id);
 
-			cell.editState = CellEditState.Preview;
+			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Container;
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
@@ -2032,7 +2032,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				(document.activeElement as HTMLElement).blur();
 			}
 
-			cell.editState = CellEditState.Preview;
+			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Container;
 
 			this.focusElement(cell);
@@ -2352,7 +2352,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
 		const cell = this.getCellById(cellId);
 		if (cell instanceof MarkdownCellViewModel) {
-			cell.editState = editState;
+			cell.updateEditState(editState, 'setMarkdownCellEditState');
 		}
 	}
 

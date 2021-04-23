@@ -577,7 +577,7 @@ registerAction2(class extends NotebookAction {
 function renderAllMarkdownCells(context: INotebookActionContext): void {
 	context.notebookEditor.viewModel.viewCells.forEach(cell => {
 		if (cell.cellKind === CellKind.Markdown) {
-			cell.editState = CellEditState.Preview;
+			cell.updateEditState(CellEditState.Preview, 'renderAllMarkdownCells');
 		}
 	});
 }
@@ -743,7 +743,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		return null;
 	}
 
-	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing ? 'editor' : 'container');
+	notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
 
 	return newCell;
 }
@@ -991,7 +991,7 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		if (context.cell.cellKind === CellKind.Markdown) {
-			context.cell.editState = CellEditState.Preview;
+			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
 		}
 
 		return context.notebookEditor.focusNotebookCell(context.cell, 'container');
@@ -1134,7 +1134,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.editState === CellEditState.Preview ? 'container' : 'editor';
+		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
 		editor.focusNotebookCell(newCell, newFocusMode);
 		editor.cursorNavigationMode = true;
 	}
@@ -1178,7 +1178,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.editState === CellEditState.Preview ? 'container' : 'editor';
+		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
 		editor.focusNotebookCell(newCell, newFocusMode);
 		editor.cursorNavigationMode = true;
 	}

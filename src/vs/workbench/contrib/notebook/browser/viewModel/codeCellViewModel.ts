@@ -276,14 +276,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	protected onDidChangeTextModelContent(): void {
-		if (this.editState !== CellEditState.Editing) {
-			this.editState = CellEditState.Editing;
+		if (this.getEditState() !== CellEditState.Editing) {
+			this.updateEditState(CellEditState.Editing, 'onDidChangeTextModelContent');
 			this._onDidChangeState.fire({ contentChanged: true });
 		}
 	}
 
 	onDeselect() {
-		this.editState = CellEditState.Preview;
+		this.updateEditState(CellEditState.Preview, 'onDeselect');
 	}
 
 	updateOutputShowMoreContainerHeight(height: number) {

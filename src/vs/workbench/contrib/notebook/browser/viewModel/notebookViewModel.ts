@@ -500,14 +500,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._hiddenRanges;
 	}
 
-	hide() {
-		this._viewCells.forEach(cell => {
-			if (cell.getText() !== '') {
-				cell.editState = CellEditState.Preview;
-			}
-		});
-	}
-
 	getCellByHandle(handle: number) {
 		return this._handleToViewCellMapping.get(handle);
 	}
@@ -963,7 +955,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	getEditorViewState(): INotebookEditorViewState {
 		const editingCells: { [key: number]: boolean } = {};
 		this._viewCells.forEach((cell, i) => {
-			if (cell.editState === CellEditState.Editing) {
+			if (cell.getEditState() === CellEditState.Editing) {
 				editingCells[i] = true;
 			}
 		});
@@ -989,7 +981,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			const isEditing = viewState.editingCells && viewState.editingCells[index];
 			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[index];
 
-			cell.editState = isEditing ? CellEditState.Editing : CellEditState.Preview;
+			cell.updateEditState(isEditing ? CellEditState.Editing : CellEditState.Preview, 'viewState');
 			const cellHeight = viewState.cellTotalHeights ? viewState.cellTotalHeights[index] : undefined;
 			cell.restoreEditorViewState(editorViewState, cellHeight);
 		});

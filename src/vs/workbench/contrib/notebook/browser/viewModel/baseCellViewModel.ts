@@ -47,21 +47,21 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _editState: CellEditState = CellEditState.Preview;
 
-	get editState(): CellEditState {
-		return this._editState;
-	}
+	// get editState(): CellEditState {
+	// 	return this._editState;
+	// }
 
-	set editState(newState: CellEditState) {
-		if (newState === this._editState) {
-			return;
-		}
+	// set editState(newState: CellEditState) {
+	// 	if (newState === this._editState) {
+	// 		return;
+	// 	}
 
-		this._editState = newState;
-		this._onDidChangeState.fire({ editStateChanged: true });
-		if (this._editState === CellEditState.Preview) {
-			this.focusMode = CellFocusMode.Container;
-		}
-	}
+	// 	this._editState = newState;
+	// 	this._onDidChangeState.fire({ editStateChanged: true });
+	// 	if (this._editState === CellEditState.Preview) {
+	// 		this.focusMode = CellFocusMode.Container;
+	// 	}
+	// }
 
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
 	get lineNumbers(): 'on' | 'off' | 'inherit' {
@@ -430,6 +430,29 @@ export abstract class BaseCellViewModel extends Disposable {
 				return CursorAtBoundary.None;
 			}
 		}
+	}
+
+	private _editStateSource: string = '';
+
+	get editStateSource(): string {
+		return this._editStateSource;
+	}
+
+	updateEditState(newState: CellEditState, source: string) {
+		this._editStateSource = source;
+		if (newState === this._editState) {
+			return;
+		}
+
+		this._editState = newState;
+		this._onDidChangeState.fire({ editStateChanged: true });
+		if (this._editState === CellEditState.Preview) {
+			this.focusMode = CellFocusMode.Container;
+		}
+	}
+
+	getEditState() {
+		return this._editState;
 	}
 
 	get textBuffer() {

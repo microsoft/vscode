@@ -139,7 +139,7 @@ export class CellContextKeyManager extends Disposable {
 
 	private updateForEditState() {
 		if (this.element instanceof MarkdownCellViewModel) {
-			this.markdownEditMode.set(this.element.editState === CellEditState.Editing);
+			this.markdownEditMode.set(this.element.getEditState() === CellEditState.Editing);
 		} else {
 			this.markdownEditMode.set(false);
 		}

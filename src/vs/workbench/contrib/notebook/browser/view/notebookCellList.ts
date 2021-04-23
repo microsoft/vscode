@@ -178,7 +178,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const focus = this.getFocusedElements()[0];
 
 			if (focus && focus.cellKind === CellKind.Markdown && !focus.metadata?.inputCollapsed) {
-				focus.editState = CellEditState.Editing;
+				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}
 		}));
@@ -1057,7 +1057,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const element = this.view.element(viewIndex);
 
 		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
-		if (element.editState === CellEditState.Editing && !element.editorAttached) {
+		if (element.getEditState() === CellEditState.Editing && !element.editorAttached) {
 			return getEditorAttachedPromise(element);
 		}
 

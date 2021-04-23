@@ -252,7 +252,6 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	uri: URI;
 	language: string;
 	cellKind: CellKind;
-	editState: CellEditState;
 	lineNumbers: 'on' | 'off' | 'inherit';
 	focusMode: CellFocusMode;
 	outputIsHovered: boolean;
@@ -266,6 +265,8 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	getSelectionsStartPosition(): IPosition[] | undefined;
 	getCellDecorations(): INotebookCellDecorationOptions[];
 	getCellStatusBarItems(): INotebookCellStatusBarItem[];
+	getEditState(): CellEditState;
+	updateEditState(state: CellEditState, source: string): void;
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {

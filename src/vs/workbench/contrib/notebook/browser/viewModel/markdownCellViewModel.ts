@@ -28,7 +28,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	set renderedMarkdownHeight(newHeight: number) {
-		if (this.editState === CellEditState.Preview) {
+		if (this.getEditState() === CellEditState.Preview) {
 			const newTotalHeight = newHeight + BOTTOM_CELL_TOOLBAR_GAP;
 			this.totalHeight = newTotalHeight;
 		}
