@@ -781,7 +781,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	constructor(private editorGroupService?: IEditorGroupsService) { }
 	getEditors() { return []; }
-	findEditors() { return []; }
+	findEditors() { return [] as any; }
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
 	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable { return toDisposable(() => undefined); }
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;

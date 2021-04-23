@@ -24,7 +24,7 @@ import { coalesce, distinct, firstOrDefault, insert } from 'vs/base/common/array
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { isUndefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
@@ -856,17 +856,80 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region findEditors()
 
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput> {
+	findEditors(resource: URI): ReadonlyArray<IEditorIdentifier>;
+	findEditors(editor: IResourceEditorInputIdentifier): ReadonlyArray<IEditorIdentifier>;
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput>;
+	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+	findEditors(arg1: URI | IResourceEditorInputIdentifier, arg2?: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorIdentifier> | ReadonlyArray<IEditorInput> | IEditorInput | undefined;
+	findEditors(arg1: URI | IResourceEditorInputIdentifier, arg2?: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorIdentifier> | ReadonlyArray<IEditorInput> | IEditorInput | undefined {
+		const resource = URI.isUri(arg1) ? arg1 : arg1.resource;
+		const typeId = URI.isUri(arg1) ? undefined : arg1.typeId;
+
+		// Do a quick check for the resource via the editor observer
+		// which is a very efficient way to find an editor by resource
 		if (!this.editorsObserver.hasEditors(resource)) {
-			return []; // this is a very fast efficient check via editor observer
+			if (URI.isUri(arg1) || isUndefined(arg2)) {
+				return [];
+			}
+
+			return undefined;
 		}
 
-		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
-		if (!targetGroup) {
-			return [];
+		// Search only in specific group
+		if (!isUndefined(arg2)) {
+			const targetGroup = typeof arg2 === 'number' ? this.editorGroupService.getGroup(arg2) : arg2;
+
+			// Resource provided: result is an array
+			if (URI.isUri(arg1)) {
+				if (!targetGroup) {
+					return [];
+				}
+
+				return targetGroup.findEditors(resource);
+			}
+
+			// Editor identifier provided, result is single
+			else {
+				if (!targetGroup) {
+					return undefined;
+				}
+
+				const editors = targetGroup.findEditors(resource);
+				for (const editor of editors) {
+					if (editor.typeId === typeId) {
+						return editor;
+					}
+				}
+
+				return undefined;
+			}
 		}
 
-		return targetGroup.findEditors(resource);
+		// Search across all groups in MRU order
+		else {
+			const result: IEditorIdentifier[] = [];
+
+			for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				const editors: IEditorInput[] = [];
+
+				// Resource provided: result is an array
+				if (URI.isUri(arg1)) {
+					editors.push(...this.findEditors(arg1, group));
+				}
+
+				// Editor identifier provided, result is single
+				else {
+					const editor = this.findEditors(arg1, group);
+					if (editor) {
+						editors.push(editor);
+					}
+				}
+
+				result.push(...editors.map(editor => ({ editor, groupId: group.id })));
+			}
+
+			return result;
+		}
 	}
 
 	//#endregion
@@ -1321,7 +1384,11 @@ export class DelegatingEditorService implements IEditorService {
 
 	isOpened(editor: IResourceEditorInputIdentifier): boolean { return this.editorService.isOpened(editor); }
 
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput> { return this.editorService.findEditors(resource, group); }
+	findEditors(resource: URI): ReadonlyArray<IEditorIdentifier>;
+	findEditors(resource: IResourceEditorInputIdentifier): ReadonlyArray<IEditorIdentifier>;
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput>;
+	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+	findEditors(arg1: URI | IResourceEditorInputIdentifier, arg2?: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorIdentifier> | ReadonlyArray<IEditorInput> | IEditorInput | undefined { return this.editorService.findEditors(arg1, arg2); }
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable { return this.editorService.overrideOpenEditor(handler); }
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) { return this.editorService.getEditorOverrides(resource, options, group); }

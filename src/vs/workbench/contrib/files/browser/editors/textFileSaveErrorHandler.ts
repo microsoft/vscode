@@ -30,7 +30,6 @@ import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
-import { GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { hash } from 'vs/base/common/hash';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
@@ -321,8 +320,7 @@ class SaveModelAsAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorService private editorService: IEditorService
 	) {
 		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
 	}
@@ -338,25 +336,22 @@ class SaveModelAsAction extends Action {
 
 	private findEditor(): IEditorIdentifier | undefined {
 		let preferredMatchingEditor: IEditorIdentifier | undefined;
-		let otherMatchingEditors: IEditorIdentifier[] = [];
 
-		FindEditorLoop: for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			const editors = this.editorService.findEditors(this.model.resource, group);
-			for (const editor of editors) {
-				if (editor instanceof FileEditorInput) {
-					// We prefer a `FileEditorInput` for "Save As", but it is possible
-					// that a custom editor is leveraging the text file model and as
-					// such we need to fallback to any other editor having the resource
-					// opened for running the save.
-					preferredMatchingEditor = { editor, groupId: group.id };
-					break FindEditorLoop;
-				}
-
-				otherMatchingEditors.push({ editor, groupId: group.id });
+		const editors = this.editorService.findEditors(this.model.resource);
+		for (const identifier of editors) {
+			if (identifier.editor instanceof FileEditorInput) {
+				// We prefer a `FileEditorInput` for "Save As", but it is possible
+				// that a custom editor is leveraging the text file model and as
+				// such we need to fallback to any other editor having the resource
+				// opened for running the save.
+				preferredMatchingEditor = identifier;
+				break;
+			} else if (!preferredMatchingEditor) {
+				preferredMatchingEditor = identifier;
 			}
 		}
 
-		return preferredMatchingEditor || otherMatchingEditors[0];
+		return preferredMatchingEditor;
 	}
 }
 
