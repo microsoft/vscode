@@ -26,6 +26,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -463,13 +464,13 @@ export class TerminalTabbedView extends Disposable {
 		return [
 			new Separator(),
 			this._configurationService.inspect('terminal.integrated.tabsLocation').userValue === 'left' ?
-				new Action('moveRight', 'Move Tabs Right', undefined, undefined, async () => {
+				new Action('moveRight', localize('moveTabsRight', "Move Tabs Right"), undefined, undefined, async () => {
 					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'right');
 				}) :
-				new Action('moveLeft', 'Move Tabs Left', undefined, undefined, async () => {
+				new Action('moveLeft', localize('moveTabsLeft', "Move Tabs Left"), undefined, undefined, async () => {
 					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'left');
 				}),
-			new Action('hideTabs', 'Hide Tabs', undefined, undefined, async () => {
+			new Action('hideTabs', localize('hideTabs', "Hide Tabs"), undefined, undefined, async () => {
 				this._configurationService.updateValue('terminal.integrated.showTabs', false);
 			})
 		];
