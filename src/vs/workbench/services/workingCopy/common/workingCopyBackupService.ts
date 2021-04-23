@@ -20,7 +20,8 @@ import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { WorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
+import { LegacyWorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
+import { WorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer2';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -555,4 +556,5 @@ function hashString(str: string): string {
 }
 
 // Register Backup Restorer
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyWorkingCopyBackupRestorer, LifecyclePhase.Starting);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkingCopyBackupRestorer, LifecyclePhase.Starting);

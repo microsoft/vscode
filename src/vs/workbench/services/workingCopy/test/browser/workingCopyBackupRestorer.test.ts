@@ -14,15 +14,15 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toUntypedWorkingCopyId, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { WorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
+import { LegacyWorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
 import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('WorkingCopyBackupRestorer', () => {
 
-	class TestBackupRestorer extends WorkingCopyBackupRestorer {
-		override async doRestoreBackups(): Promise<void> {
-			return super.doRestoreBackups();
+	class TestBackupRestorer extends LegacyWorkingCopyBackupRestorer {
+		override async doRestoreLegacyBackups(): Promise<void> {
+			return super.doRestoreLegacyBackups();
 		}
 	}
 
@@ -66,7 +66,7 @@ suite('WorkingCopyBackupRestorer', () => {
 		await workingCopyBackupService.backup(toUntypedWorkingCopyId(barFile), bufferToReadable(VSBuffer.fromString('barFile')));
 
 		// Verify backups restored and opened as dirty
-		await restorer.doRestoreBackups();
+		await restorer.doRestoreLegacyBackups();
 		assert.strictEqual(editorService.count, 4);
 		assert.ok(editorService.editors.every(editor => editor.isDirty()));
 
