@@ -14,7 +14,6 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -131,8 +130,6 @@ export class TestStorageService extends InMemoryStorageService {
 		super.emitWillSaveState(reason);
 	}
 }
-
-export class TestWorkingCopyService extends WorkingCopyService { }
 
 export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
