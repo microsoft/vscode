@@ -413,7 +413,7 @@ export class ExtensionEditor extends EditorPane {
 			this.transientDisposables.add(this.onClick(template.publisher, () => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
+					.then(viewlet => viewlet.search(`publisher:${extension.publisherDisplayName}`));
 			}));
 
 			if (extension.licenseUrl) {
