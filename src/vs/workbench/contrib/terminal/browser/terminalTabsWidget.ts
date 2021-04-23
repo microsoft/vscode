@@ -97,6 +97,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			}
 		});
 
+		this.onMouseClick(e => {
+			e.element?.focus(true);
+		});
+
 		this.onDidOpen(async e => {
 			const instance = e.element;
 			if (!instance) {
