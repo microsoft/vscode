@@ -117,15 +117,19 @@ export class TerminalTabbedView extends Disposable {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
 				this._showTabs = this._terminalService.configHelper.config.showTabs;
 				if (this._showTabs) {
-					this._addTabTree();
-					this._addSashListener();
-					this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
-				} else {
-					this._splitView.removeView(this._tabTreeIndex);
-					if (this._plusButton) {
-						this._tabTreeContainer.removeChild(this._plusButton);
+					if (this._splitView.length === 1) {
+						this._addTabTree();
+						this._addSashListener();
+						this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH);
 					}
-					this._removeSashListener();
+				} else {
+					if (this._splitView.length === 2) {
+						this._splitView.removeView(this._tabTreeIndex);
+						if (this._plusButton) {
+							this._tabTreeContainer.removeChild(this._plusButton);
+						}
+						this._removeSashListener();
+					}
 				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
 				this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
