@@ -193,7 +193,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		}
 	}
 
-	updateKernelNotebookPriority(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
+	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
 		const info = this._kernels.get(kernel.id);
 		if (!info) {
 			throw new Error(`UNKNOWN kernel '${kernel.id}'`);

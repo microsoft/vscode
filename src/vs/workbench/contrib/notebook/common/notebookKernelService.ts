@@ -46,6 +46,6 @@ export interface INotebookKernelService {
 	/**
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference
 	 */
-	updateKernelNotebookPriority(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
+	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
 
 }

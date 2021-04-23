@@ -51,8 +51,8 @@ suite('NotebookKernelService', () => {
 		assert.ok(info.all[1] === k1);
 
 		// update priorities for u1 notebook
-		kernelService.updateKernelNotebookPriority(k2, u1, 2);
-		kernelService.updateKernelNotebookPriority(k2, u2, 1);
+		kernelService.updateKernelNotebookAffinity(k2, u1, 2);
+		kernelService.updateKernelNotebookAffinity(k2, u2, 1);
 
 		// updated
 		info = kernelService.getNotebookKernels({ uri: u1, viewType: 'foo' });
@@ -65,10 +65,33 @@ suite('NotebookKernelService', () => {
 		assert.ok(info.all[1] === k1);
 
 		// reset
-		kernelService.updateKernelNotebookPriority(k2, u1, undefined);
+		kernelService.updateKernelNotebookAffinity(k2, u1, undefined);
 		info = kernelService.getNotebookKernels({ uri: u1, viewType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
+	});
+
+	test('new kernel with higher affinity wins, https://github.com/microsoft/vscode/issues/122028', function () {
+		const notebook = URI.parse('foo:///one');
+
+		const kernel = new TestNotebookKernel();
+		kernelService.registerKernel(kernel);
+
+		let info = kernelService.getNotebookKernels({ uri: notebook, viewType: 'foo' });
+		assert.strictEqual(info.all.length, 1);
+		assert.ok(info.all[0] === kernel);
+
+		const betterKernel = new TestNotebookKernel();
+		kernelService.registerKernel(betterKernel);
+
+		info = kernelService.getNotebookKernels({ uri: notebook, viewType: 'foo' });
+		assert.strictEqual(info.all.length, 2);
+
+		kernelService.updateKernelNotebookAffinity(betterKernel, notebook, 2);
+		info = kernelService.getNotebookKernels({ uri: notebook, viewType: 'foo' });
+		assert.strictEqual(info.all.length, 2);
+		assert.ok(info.all[0] === betterKernel);
+		assert.ok(info.all[1] === kernel);
 	});
 });
 

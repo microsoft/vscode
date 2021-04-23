@@ -219,7 +219,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$updateNotebookPriority(handle: number, notebook: UriComponents, value: number | undefined): void {
 		const tuple = this._kernels.get(handle);
 		if (tuple) {
-			this._notebookKernelService.updateKernelNotebookPriority(tuple[0], URI.revive(notebook), value);
+			this._notebookKernelService.updateKernelNotebookAffinity(tuple[0], URI.revive(notebook), value);
 		}
 	}
 }
