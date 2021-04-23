@@ -27,7 +27,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.selectKernel',
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
+			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Controller"), original: 'Select Notebook Controller' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
@@ -93,10 +93,10 @@ registerAction2(class extends Action2 {
 			type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 			const configButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
-				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel for '{0}' notebooks", editor.viewModel.viewType)
+				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.viewModel.viewType)
 			};
 			const picks = all.map(kernel => {
-				return <KernelPick>{
+				const res = <KernelPick>{
 					kernel,
 					picked: kernel.id === bound?.id,
 					label: kernel.label,
@@ -104,6 +104,14 @@ registerAction2(class extends Action2 {
 					detail: kernel.detail,
 					buttons: [configButton]
 				};
+				if (kernel.id === bound?.id) {
+					if (!res.description) {
+						res.description = nls.localize('current1', "Currently Selected");
+					} else {
+						res.description = nls.localize('current2', "{0} - Currently Selected", res.description);
+					}
+				}
+				{ return res; }
 			});
 			const pick = await quickInputService.pick(picks, {
 				onDidTriggerItemButton: (context) => {
@@ -186,7 +194,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 				command: all.length > 1 ? 'notebook.selectKernel' : undefined,
 			},
 			'notebook.selectKernel',
-			nls.localize('notebook.info', "Notebook Kernel Info"),
+			nls.localize('notebook.info', "Notebook Controller Info"),
 			StatusbarAlignment.RIGHT,
 			100
 		);
