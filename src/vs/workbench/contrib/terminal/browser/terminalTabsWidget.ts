@@ -30,6 +30,7 @@ import Severity from 'vs/base/common/severity';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const $ = DOM.$;
+const TAB_HEIGHT = 22;
 export const MIN_TABS_WIDGET_WIDTH = 46;
 export const DEFAULT_TABS_WIDGET_WIDTH = 80;
 export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
@@ -51,7 +52,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 	) {
 		super('TerminalTabsTree', container,
 			{
-				getHeight: () => 22,
+				getHeight: () => TAB_HEIGHT,
 				getTemplateId: () => 'terminal.tabs'
 			},
 			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER))],
@@ -70,7 +71,8 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
 				expandOnlyOnTwistieClick: true,
-				selectionNavigation: true
+				selectionNavigation: true,
+				additionalScrollHeight: TAB_HEIGHT
 			},
 			contextKeyService,
 			listService,
@@ -89,8 +91,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			}
 		});
 
-		// Dobule click should create a new terminal
-		DOM.addDisposableListener(container, DOM.EventType.DBLCLICK, e => {
+		this.onMouseDblClick(e => {
 			if (this.getFocus().length === 0) {
 				this._terminalService.createTerminal();
 			}
