@@ -342,7 +342,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.focus', "Focus Terminal"), original: 'Focus Terminal' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -368,10 +368,20 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FOCUS),
 				},
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				// This command is used to show instead of tabs when there is only a single terminal
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.has('config.terminal.integrated.showTabs')
+					]),
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).focusTabsView();
+			accessor.get(ITerminalService).focusTabsView();
 		}
 	});
 	registerAction2(class extends Action2 {

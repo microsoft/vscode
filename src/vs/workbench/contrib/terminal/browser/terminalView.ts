@@ -13,7 +13,7 @@ import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollec
 import { ContextMenuTabsGroup, switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,16 +22,19 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfile, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { listErrorForeground, listWarningForeground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { DropdownWithPrimaryActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownWithPrimaryActionViewItem';
+import { reset } from 'vs/base/browser/dom';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -164,16 +167,22 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	public override getActionViewItem(action: Action): IActionViewItem | undefined {
-		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
-			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
-		} else if (action.id === TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON) {
-			if (this._tabButtons) {
-				this._tabButtons.dispose();
+		switch (action.id) {
+			case TERMINAL_COMMAND_ID.SWITCH_TERMINAL: {
+				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 			}
-			const actions = this._getTabActionBarArgs(this._terminalService.availableProfiles);
-			this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService);
-			this._updateTabActionBar(this._terminalService.availableProfiles);
-			return this._tabButtons;
+			case TERMINAL_COMMAND_ID.FOCUS_TABS_VIEW: {
+				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action);
+			}
+			case TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON: {
+				if (this._tabButtons) {
+					this._tabButtons.dispose();
+				}
+				const actions = this._getTabActionBarArgs(this._terminalService.availableProfiles);
+				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService);
+				this._updateTabActionBar(this._terminalService.availableProfiles);
+				return this._tabButtons;
+			}
 		}
 		return super.getActionViewItem(action);
 	}
@@ -310,4 +319,61 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
 	items.push({ text: switchTerminalShowTabsTitle });
 	return items;
+}
+
+class SingleTerminalTabActionViewItem extends ActionViewItem {
+	constructor(
+		action: IAction,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IThemeService private readonly _themeService: IThemeService
+	) {
+		super(undefined, {
+			...action,
+			dispose: () => action.dispose(),
+			run: (e) => action.run(e),
+			label: getSingleTabLabel(_terminalService.getActiveInstance())
+		});
+		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
+		this._register(this._terminalService.onActiveInstanceChanged(() => this.updateLabel()));
+		this._register(this._terminalService.onInstanceTitleChanged(e => {
+			if (e === this._terminalService.getActiveInstance()) {
+				this.updateLabel();
+			}
+		}));
+	}
+
+	override updateLabel(): void {
+		if (this.label) {
+			const instance = this._terminalService.getActiveInstance();
+			if (!instance) {
+				reset(this.label, '');
+				return;
+			}
+			this.label.classList.add('single-terminal-tab');
+			let colorStyle = '';
+			const primaryStatus = instance.statusList.primary;
+			if (primaryStatus) {
+				const colorKey = getColorForSeverity(primaryStatus.severity);
+				this._themeService.getColorTheme();
+				const foundColor = this._themeService.getColorTheme().getColor(colorKey);
+				if (foundColor) {
+					colorStyle = foundColor.toString();
+				}
+			}
+			this.label.style.color = colorStyle;
+			reset(this.label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
+		}
+	}
+}
+
+function getSingleTabLabel(instance: ITerminalInstance | null) {
+	if (!instance) {
+		return '';
+	}
+	const primaryStatus = instance.statusList.primary;
+	const baseLabel = `$(${instance.icon.id}) ${instance.title}`;
+	if (primaryStatus?.icon) {
+		return `${baseLabel} $(${primaryStatus.icon.id})`;
+	}
+	return baseLabel;
 }
