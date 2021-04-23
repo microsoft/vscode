@@ -799,9 +799,9 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		return result;
 	}
 
-	async setParent(element1?: ITreeItem, elemenet2?: ITreeItem): Promise<void> {
-		console.log('hello');
-		return Promise.resolve();
+	async setParent(element: ITreeItem, newParentElement: ITreeItem): Promise<void> {
+		newParentElement.children?.push(element);
+		await this.treeView.refresh([element, newParentElement]);
 	}
 }
 
