@@ -32,11 +32,9 @@ import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/termin
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { DropdownWithPrimaryActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownWithPrimaryActionViewItem';
-import { addDisposableListener, EventType, reset } from 'vs/base/browser/dom';
+import { reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class TerminalViewPane extends ViewPane {
@@ -50,7 +48,8 @@ export class TerminalViewPane extends ViewPane {
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
 	private _tabButtons: DropdownWithPrimaryActionViewItem | undefined;
-	private _dropdownMenu: IMenu;
+	private readonly _dropdownMenu: IMenu;
+	private readonly _singleTabMenu: IMenu;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -90,8 +89,9 @@ export class TerminalViewPane extends ViewPane {
 			}
 		});
 
-		this._dropdownMenu = this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService);
-		this._terminalService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles));
+		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalToolbarContext, this._contextKeyService));
+		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalSingleTabContext, this._contextKeyService));
+		this._register(this._terminalService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 	}
 
 	public override renderBody(container: HTMLElement): void {
@@ -175,7 +175,9 @@ export class TerminalViewPane extends ViewPane {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 			}
 			case TERMINAL_COMMAND_ID.FOCUS: {
-				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action);
+				const actions: IAction[] = [];
+				createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
+				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 			}
 			case TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON: {
 				if (this._tabButtons) {
@@ -325,24 +327,19 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 }
 
 class SingleTerminalTabActionViewItem extends ActionViewItem {
-	private _contextMenuDisposable?: IDisposable;
-	private _singleTabMenu: IMenu;
-
 	constructor(
 		action: IAction,
+		private readonly _actions: IAction[],
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super(undefined, {
 			...action,
 			dispose: () => action.dispose(),
-			run: (e) => action.run(e),
+			run: async () => this._run(),
 			label: getSingleTabLabel(_terminalService.getActiveInstance())
 		});
-		this._singleTabMenu = this._register(menuService.createMenu(MenuId.TerminalSingleTabContext, contextKeyService));
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onActiveInstanceChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
@@ -373,27 +370,14 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 			}
 			label.style.color = colorStyle;
 			reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
-
-			this._contextMenuDisposable?.dispose();
-			this._contextMenuDisposable = addDisposableListener(label, EventType.AUXCLICK, e => {
-				this._openContextMenu(e, label);
-			});
 		}
 	}
 
-	private _openContextMenu(event: MouseEvent, parent: HTMLElement): void {
-		const standardEvent = new StandardMouseEvent(event);
-
-		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-		const actions: IAction[] = [];
-
-		const actionsDisposable = createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
-
+	private _run() {
 		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			getActionsContext: () => this.label,
-			onHide: () => actionsDisposable.dispose()
+			getAnchor: () => this.element!,
+			getActions: () => this._actions,
+			getActionsContext: () => this.label
 		});
 	}
 }
