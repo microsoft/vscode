@@ -174,7 +174,7 @@ export class TerminalViewPane extends ViewPane {
 			case TERMINAL_COMMAND_ID.SWITCH_TERMINAL: {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 			}
-			case TERMINAL_COMMAND_ID.FOCUS_TABS_VIEW: {
+			case TERMINAL_COMMAND_ID.FOCUS: {
 				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action);
 			}
 			case TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON: {
