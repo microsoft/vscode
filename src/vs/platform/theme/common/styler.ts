@@ -347,6 +347,8 @@ export const defaultDialogStyles = <IDialogStyleOverrides>{
 	dialogBorder: contrastBorder,
 	buttonForeground: buttonForeground,
 	buttonBackground: buttonBackground,
+	buttonSecondaryBackground: buttonSecondaryBackground,
+	buttonSecondaryForeground: buttonSecondaryForeground,
 	buttonHoverBackground: buttonHoverBackground,
 	buttonBorder: buttonBorder,
 	checkboxBorder: simpleCheckboxBorder,

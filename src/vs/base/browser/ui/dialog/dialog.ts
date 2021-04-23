@@ -195,7 +195,8 @@ export class Dialog extends Disposable {
 
 			// Handle button clicks
 			buttonMap.forEach((entry, index) => {
-				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ title: true })) : this._register(buttonBar.addButton({ title: true }));
+				const primary = buttonMap[index].index === 0;
+				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ title: true, secondary: !primary })) : this._register(buttonBar.addButton({ title: true, secondary: !primary }));
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
 					button.description = this.options.buttonDetails![buttonMap[index].index];
