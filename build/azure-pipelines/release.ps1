@@ -67,7 +67,7 @@ do
 					asset = $asset.Name
 				}
 
-				if (($os -eq 'darwin' -or $os -eq 'win32') -and $product -eq 'client') {
+				if ($product -eq 'client') {
 					exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
 				}
 			}
