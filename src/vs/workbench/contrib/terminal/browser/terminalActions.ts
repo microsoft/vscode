@@ -17,6 +17,7 @@ import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, ICommandActionTitle, ILocalizedString, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -39,8 +40,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const switchTerminalActionViewItemSeparator = '─────────';
-export const selectDefaultProfileTitle = localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile");
-export const configureTerminalSettingsTitle = localize('workbench.action.terminal.openSettings', "Configure Terminal Settings");
+export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -154,7 +154,13 @@ export function registerTerminalActions() {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, event: unknown, profile?: ITerminalProfile) {
+		async run(accessor: ServicesAccessor, eventOrProfile: unknown | ITerminalProfile, profile?: ITerminalProfile) {
+			let event: MouseEvent | undefined;
+			if (eventOrProfile && typeof eventOrProfile === 'object' && 'profileName' in eventOrProfile) {
+				profile = eventOrProfile as ITerminalProfile;
+			} else {
+				event = eventOrProfile as MouseEvent;
+			}
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
@@ -342,7 +348,31 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.focus', "Focus Terminal"), original: 'Focus Terminal' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				// This command is used to show instead of tabs when there is only a single terminal
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.has('config.terminal.integrated.tabs.enable'),
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('config.terminal.integrated.tabs.showActiveTerminal', 'singleTerminal'),
+								ContextKeyExpr.equals('terminalCount', 1)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('config.terminal.integrated.tabs.showActiveTerminal', 'singleTerminalOrNarrow'),
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals('terminalCount', 1),
+									ContextKeyExpr.has('isTerminalTabsNarrow')
+								)
+							),
+							ContextKeyExpr.equals('config.terminal.integrated.tabs.showActiveTerminal', 'always')
+						)
+					]),
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -367,11 +397,11 @@ export function registerTerminalActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FOCUS),
 				},
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).focusTabsView();
+			accessor.get(ITerminalService).focusTabsView();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -698,7 +728,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: {
+					id: MenuId.TerminalSingleTabContext,
+					group: ContextMenuGroup.Edit
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -730,7 +764,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.rename', "Rename"), original: 'Rename' },
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				menu: {
+					id: MenuId.TerminalSingleTabContext,
+					group: ContextMenuGroup.Edit
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1287,15 +1325,20 @@ export function registerTerminalActions() {
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
 				}],
 				icon: Codicon.splitHorizontal,
-				menu: [{
-					id: MenuId.ViewTitle,
-					group: 'navigation',
-					order: 2,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not('config.terminal.integrated.showTabs')
-					]),
-				}],
+				menu: [
+					{
+						id: MenuId.ViewTitle,
+						group: 'navigation',
+						order: 2,
+						when: ContextKeyAndExpr.create([
+							ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+							ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
+						]),
+					}, {
+						id: MenuId.TerminalSingleTabContext,
+						group: ContextMenuGroup.Create
+					}
+				],
 				description: {
 					description: 'workbench.action.terminal.split',
 					args: [{
@@ -1477,8 +1520,8 @@ export function registerTerminalActions() {
 					order: 3,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not('config.terminal.integrated.showTabs')
-					]),
+						ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
+					])
 				}
 			});
 		}
@@ -1493,6 +1536,13 @@ export function registerTerminalActions() {
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.KILL,
+			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
+		},
+		group: ContextMenuGroup.Kill
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalSingleTabContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.KILL,
 			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
@@ -1727,13 +1777,9 @@ export function registerTerminalActions() {
 				terminalService.refreshActiveTab();
 				return Promise.resolve(null);
 			}
-			if (item === selectDefaultProfileTitle) {
-				terminalService.refreshActiveTab();
-				return terminalService.showProfileQuickPick('setDefault');
-			}
-			if (item === configureTerminalSettingsTitle) {
-				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
-				terminalService.refreshActiveTab();
+			if (item === switchTerminalShowTabsTitle) {
+				accessor.get(IConfigurationService).updateValue('terminal.integrated.tabs.enable', true);
+				return;
 			}
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
@@ -1772,7 +1818,7 @@ export function registerTerminalActions() {
 		order: 0,
 		when: ContextKeyAndExpr.create([
 			ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-			ContextKeyExpr.not('config.terminal.integrated.showTabs')
+			ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
 		]),
 	});
 }

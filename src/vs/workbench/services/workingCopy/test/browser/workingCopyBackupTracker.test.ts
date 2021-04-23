@@ -26,6 +26,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
 suite('WorkingCopyBackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
@@ -38,8 +39,10 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			@IWorkingCopyService workingCopyService: IWorkingCopyService,
 			@ILifecycleService lifecycleService: ILifecycleService,
 			@ILogService logService: ILogService,
+			@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
+			@IEditorService editorService: IEditorService
 		) {
-			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, logService);
+			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, logService, workingCopyEditorService, editorService);
 		}
 
 		protected override getBackupScheduleDelay(): number {

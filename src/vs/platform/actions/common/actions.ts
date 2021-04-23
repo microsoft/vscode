@@ -161,6 +161,7 @@ export class MenuId {
 	static readonly TerminalToolbarContext = new MenuId('TerminalToolbarContext');
 	static readonly TerminalTabsWidgetContext = new MenuId('TerminalTabsWidgetContext');
 	static readonly TerminalTabsWidgetEmptyContext = new MenuId('TerminalTabsWidgetEmptyContext');
+	static readonly TerminalSingleTabContext = new MenuId('TerminalSingleTabContext');
 
 	readonly id: number;
 	readonly _debugName: string;

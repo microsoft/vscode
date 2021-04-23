@@ -48,7 +48,7 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 	});
 });
 
-suite('ExtensionManifestPropertiesService - ExtensionWorkspaceTrustType', () => {
+suite('ExtensionManifestPropertiesService - ExtensionUntrustedWorkpaceSupportType', () => {
 	let testObject: ExtensionManifestPropertiesService;
 	let instantiationService: TestInstantiationService;
 	let testConfigurationService: TestConfigurationService;

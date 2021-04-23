@@ -40,7 +40,7 @@ export function provideWorkspaceTrustExtensionProposals(existing: string[], rang
 		if (extensionProposals.length) {
 			return extensionProposals.map(e => {
 				const item = new vscode.CompletionItem(e.id);
-				const insertText = `"${e.id}": {\n\t"request": "onStart",\n\t"version": "${e.packageJSON.version}"\n}`;
+				const insertText = `"${e.id}": {\n\t"supported": false,\n\t"version": "${e.packageJSON.version}"\n}`;
 				item.kind = vscode.CompletionItemKind.Value;
 				item.insertText = insertText;
 				item.range = range;
@@ -49,7 +49,7 @@ export function provideWorkspaceTrustExtensionProposals(existing: string[], rang
 			});
 		} else {
 			const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
-			example.insertText = '"vscode.csharp: {\n\t"request": "onStart",\n\t"version": "0.0.0"\n}`;"';
+			example.insertText = '"vscode.csharp: {\n\t"supported": false,\n\t"version": "0.0.0"\n}`;"';
 			example.kind = vscode.CompletionItemKind.Value;
 			example.range = range;
 			return [example];

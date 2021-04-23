@@ -221,13 +221,17 @@ export interface IEditorService {
 
 	/**
 	 * This method will return an entry for each editor that reports
-	 * a `resource` that matches the provided one in the group.
+	 * a `resource` that matches the provided one in the group or
+	 * across all groups.
 	 *
 	 * It is possible that multiple editors are returned in case the
 	 * same resource is opened in different editors. To find the specific
-	 * editor, either check on the `typeId` or do an `instanceof` check.
+	 * editor, use the `IResourceEditorInputIdentifier` as input.
 	 */
+	findEditors(resource: URI): ReadonlyArray<IEditorIdentifier>;
+	findEditors(resource: IResourceEditorInputIdentifier): ReadonlyArray<IEditorIdentifier>;
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput>;
+	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
 
 	/**
 	 * Get all available editor overrides for the editor input.

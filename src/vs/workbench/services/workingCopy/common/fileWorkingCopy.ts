@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -18,6 +19,12 @@ import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/te
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyBackupService, IWorkingCopyBackupMeta, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { hash } from 'vs/base/common/hash';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IAction, toAction } from 'vs/base/common/actions';
+import { isWindows } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 
@@ -361,7 +368,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -1095,18 +1103,87 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		}
 
 		// Delegate to save error handler
-		let throwError = true;
 		if (this.isTextFileModel(this.model)) {
 			this.textFileService.files.saveErrorHandler.onSaveError(error, this.model);
-			throwError = false;
+		} else {
+			this.doHandleSaveError(error);
 		}
 
 		// Emit as event
 		this._onDidSaveError.fire();
+	}
 
-		if (throwError) {
-			throw error;
+	private doHandleSaveError(error: Error): void {
+		const fileOperationError = error as FileOperationError;
+		const primaryActions: IAction[] = [];
+
+		let message: string;
+
+		// Dirty write prevention
+		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+			message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Do you want to overwrite the file with your changes?", this.name);
+
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ignoreModifiedSince: true }) }));
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
 		}
+
+		// Any other save error
+		else {
+			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
+			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
+			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
+			const canSaveElevated = false /* not yet supported for file working copy */ && this.resource.scheme === Schemas.file; // currently only supported for local schemes (https://github.com/microsoft/vscode/issues/48659)
+
+			// Save Elevated
+			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {
+				primaryActions.push(toAction({
+					id: 'fileWorkingCopy.saveElevated',
+					label: triedToUnlock ?
+						isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") :
+						isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."),
+					run: () => {
+						this.save({ writeElevated: true, writeUnlock: triedToUnlock, reason: SaveReason.EXPLICIT });
+					}
+				}));
+			}
+
+			// Unlock
+			else if (isWriteLocked) {
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.unlock', label: localize('overwrite', "Overwrite"), run: () => this.save({ writeUnlock: true, reason: SaveReason.EXPLICIT }) }));
+			}
+
+			// Retry
+			else {
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.retry', label: localize('retry', "Retry"), run: () => this.save({ reason: SaveReason.EXPLICIT }) }));
+			}
+
+			// Discard
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
+
+			// Message
+			if (isWriteLocked) {
+				if (triedToUnlock && canSaveElevated) {
+					message = isWindows ?
+						localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is read-only. Select 'Overwrite as Admin' to retry as administrator.", this.name) :
+						localize('readonlySaveErrorSudo', "Failed to save '{0}': File is read-only. Select 'Overwrite as Sudo' to retry as superuser.", this.name);
+				} else {
+					message = localize('readonlySaveError', "Failed to save '{0}': File is read-only. Select 'Overwrite' to attempt to make it writeable.", this.name);
+				}
+			} else if (canSaveElevated && isPermissionDenied) {
+				message = isWindows ?
+					localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", this.name) :
+					localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", this.name);
+			} else {
+				message = localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", this.name, toErrorMessage(error, false));
+			}
+		}
+
+		// Show to the user as notification
+		const handle = this.notificationService.notify({ id: `${hash(this.resource.toString())}`, severity: Severity.Error, message, actions: { primary: primaryActions } });
+
+		// Remove automatically when we get saved/reverted
+		const listener = Event.once(Event.any(this.onDidSave, this.onDidRevert))(() => handle.close());
+		Event.once(handle.onDidClose)(() => listener.dispose());
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {

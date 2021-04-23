@@ -456,6 +456,7 @@
     "vscode-languageserver-textdocument": "^1.0.1"
   },
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }

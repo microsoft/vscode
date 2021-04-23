@@ -7,6 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 /**
@@ -128,5 +129,16 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		} else {
 			this.remove(status);
 		}
+	}
+}
+
+export function getColorForSeverity(severity: Severity): string {
+	switch (severity) {
+		case Severity.Error:
+			return listErrorForeground;
+		case Severity.Warning:
+			return listWarningForeground;
+		default:
+			return '';
 	}
 }

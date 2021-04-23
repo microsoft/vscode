@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, WorkingCopyIdentifierSet } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/base/common/uri';
-import { TestWorkingCopy, TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 suite('WorkingCopyService', () => {
 
 	test('registry - basics', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const onDidChangeDirty: IWorkingCopy[] = [];
 		service.onDidChangeDirty(copy => onDidChangeDirty.push(copy));
@@ -105,7 +106,7 @@ suite('WorkingCopyService', () => {
 	});
 
 	test('registry - multiple copies on same resource throws (same type ID)', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const resource = URI.parse('custom://some/folder/custom.txt');
 
@@ -118,7 +119,7 @@ suite('WorkingCopyService', () => {
 	});
 
 	test('registry - multiple copies on same resource is supported (different type ID)', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const resource = URI.parse('custom://some/folder/custom.txt');
 
@@ -175,5 +176,24 @@ suite('WorkingCopyService', () => {
 		dispose3.dispose();
 
 		assert.strictEqual(service.workingCopies.length, 0);
+	});
+});
+
+suite('WorkingCopyIdentifierSet', () => {
+
+	test('basics', () => {
+		const resource1 = URI.parse('custom://some/folder/custom1.txt');
+		const resource2 = URI.parse('custom://some/folder/custom2.txt');
+
+		const copy1 = new TestWorkingCopy(resource1, false, 'testWorkingCopyTypeId1');
+		const copy2 = new TestWorkingCopy(resource2, false, 'testWorkingCopyTypeId1');
+
+		const set = new WorkingCopyIdentifierSet([copy1, copy2]);
+		assert.strictEqual(set.size, 2);
+		assert.ok(set.has(copy1));
+		assert.ok(set.has(copy2));
+
+		assert.ok(set.has({ resource: copy1.resource, typeId: copy1.typeId }));
+		assert.ok(!set.has({ resource: copy1.resource, typeId: 'testWorkingCopyTypeId2' }));
 	});
 });

@@ -30,6 +30,7 @@
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "%workspaceTrust%",

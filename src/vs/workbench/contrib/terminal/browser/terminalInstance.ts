@@ -507,7 +507,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						severity: Severity.Warning,
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
-					}, 3000);
+					}, this._configHelper.config.bellDuration);
 				}
 			});
 		}, 1000);
