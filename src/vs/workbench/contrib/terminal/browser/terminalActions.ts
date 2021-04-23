@@ -363,7 +363,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T,
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FOCUS),
 				},
