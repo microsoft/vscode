@@ -7,9 +7,9 @@ import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { EditorOptions, IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, append, Dimension, reset } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategory, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
@@ -46,6 +46,18 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { generateUuid } from 'vs/base/common/uuid';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { ResourceMap } from 'vs/base/common/map';
+import { IFileService } from 'vs/platform/files/common/files';
+import { joinPath } from 'vs/base/common/resources';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -99,7 +111,9 @@ export class GettingStartedPage extends EditorPane {
 	private tasksSlide!: HTMLElement;
 	private categoriesSlide!: HTMLElement;
 	private tasksContent!: HTMLElement;
-	private taskMediaComponent!: HTMLImageElement;
+	private taskMediaComponent!: HTMLElement;
+
+	private webviewID = generateUuid();
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -108,16 +122,21 @@ export class GettingStartedPage extends EditorPane {
 		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IModeService private readonly modeService: IModeService,
+		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private storageService: IStorageService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService private readonly hostService: IHostService,
+		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
@@ -130,7 +149,8 @@ export class GettingStartedPage extends EditorPane {
 				tabindex: 0,
 				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
 			});
-		this.taskMediaComponent = $('img.getting-started-media');
+		this.taskMediaComponent = $('.getting-started-media');
+		this.taskMediaComponent.id = generateUuid();
 
 
 		this.tasExperimentService = tasExperimentService;
@@ -322,6 +342,18 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
+	private mdCache = new ResourceMap<Promise<string>>();
+	private async readAndCacheTaskMarkdown(path: URI): Promise<string> {
+		if (!this.mdCache.has(path)) {
+			this.mdCache.set(path, (async () => {
+				const bytes = await this.fileService.readFile(path);
+				const markdown = bytes.value.toString();
+				return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+			})());
+		}
+		return assertIsDefined(this.mdCache.get(path));
+	}
+
 	private getHiddenCategories(): Set<string> {
 		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
 	}
@@ -334,9 +366,10 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
-	private selectTask(id: string | undefined, toggleIfAlreadySelected = true, delayFocus = true) {
+	private async selectTask(id: string | undefined, toggleIfAlreadySelected = true, delayFocus = true) {
 		this.taskDisposables.clear();
-		const mediaElement = assertIsDefined(this.taskMediaComponent);
+		clearNode(this.taskMediaComponent);
+
 		if (id) {
 			const taskElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-task-id="${id}"]`));
 			taskElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
@@ -356,17 +389,45 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedTask = id;
 			this.selectedTaskElement = taskElement;
 			const taskToExpand = assertIsDefined(this.currentCategory.content.items.find(task => task.id === id));
+			if (taskToExpand.media.type === 'image') {
 
-			mediaElement.setAttribute('alt', taskToExpand.media.altText);
-			this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path);
-			this.taskDisposables.add(addDisposableListener(mediaElement, 'load', () => mediaElement.width = mediaElement.naturalWidth * 2 / 3));
-			this.taskDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path)));
+				this.taskMediaComponent.classList.add('image');
+				this.taskMediaComponent.classList.remove('markdown');
+
+				const media = taskToExpand.media;
+				const mediaElement = $<HTMLImageElement>('img');
+				this.taskMediaComponent.appendChild(mediaElement);
+				mediaElement.setAttribute('alt', media.altText);
+				this.updateMediaSourceForColorMode(mediaElement, media.path);
+
+				this.taskDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
+
+			} else if (taskToExpand.media.type === 'markdown') {
+
+				this.taskMediaComponent.classList.remove('image');
+				this.taskMediaComponent.classList.add('markdown');
+
+				const media = taskToExpand.media;
+
+				const webview = this.taskDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.base] }, undefined));
+				webview.mountTo(this.taskMediaComponent);
+				webview.html = await this.renderMarkdown(media.path, media.base);
+
+				let isDisposed = false;
+				this.taskDisposables.add(toDisposable(() => { isDisposed = true; }));
+
+				this.taskDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+					// Render again since syntax highlighting of code blocks may have changed
+					const body = await this.renderMarkdown(media.path, media.base);
+					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+						webview.html = body;
+					}
+				}));
+			}
 			taskElement.classList.add('expanded');
 			taskElement.setAttribute('aria-expanded', 'true');
 		} else {
 			this.editorInput.selectedTask = undefined;
-			mediaElement.setAttribute('src', '');
-			mediaElement.setAttribute('alt', '');
 		}
 		setTimeout(() => {
 			// rescan after animation finishes
@@ -379,7 +440,35 @@ export class GettingStartedPage extends EditorPane {
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
-		element.src = sources[themeType].toString(true);
+		element.srcset = sources[themeType].toString(true) + ' 1.5x';
+	}
+
+	private async renderMarkdown(path: URI, base: URI): Promise<string> {
+		const content = await this.readAndCacheTaskMarkdown(path);
+		const nonce = generateUuid();
+		const colorMap = TokenizationRegistry.getColorMap();
+
+		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src) => {
+			const path = joinPath(base, src);
+			const transformed = asWebviewUri(this.environmentService, this.webviewID, path).toString();
+			return `src="${transformed}"`;
+		});
+
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}';">
+				<style nonce="${nonce}">
+					${DEFAULT_MARKDOWN_STYLES}
+					${css}
+				</style>
+			</head>
+			<body>
+				${uriTranformedContent}
+			</body>
+		</html>`;
 	}
 
 	createEditor(parent: HTMLElement) {
@@ -653,7 +742,6 @@ export class GettingStartedPage extends EditorPane {
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
 
-
 		this.startList?.layout(size);
 		this.gettingStartedList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
@@ -783,6 +871,11 @@ export class GettingStartedPage extends EditorPane {
 		return container;
 	}
 
+	override clearInput() {
+		this.taskDisposables.clear();
+		super.clearInput();
+	}
+
 	private buildCategorySlide(categoryID: string, selectedItem?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
@@ -815,8 +908,13 @@ export class GettingStartedPage extends EditorPane {
 				const taskDescription = $('.task-container', {},
 					$('h3.task-title', { 'x-task-title-for': task.id }, task.title),
 					container,
-					$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", task.media.altText) }),
 				);
+
+				if (task.media.type === 'image') {
+					taskDescription.appendChild(
+						$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", task.media.altText) }),
+					);
+				}
 
 				return $('button.getting-started-task',
 					{

@@ -407,7 +407,6 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
 	max-width: 1200px;
-	max-height: 1000px;
 	margin: 0 auto;
 	padding: 0 12px;
 	display: grid;
@@ -455,9 +454,15 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
 	grid-area: img;
-}
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
 	align-self: center;
+}
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media.markdown {
+	height: inherit;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media.image {
+	height: inherit;
+	width: inherit;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right {

@@ -48,7 +48,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
 								'doneOn': { 'command': '$5' },
-								'media': { 'path': '$6', 'altText': '$7' }
+								'media': { 'path': '$6', 'type': '$7' }
 							}
 						}],
 						properties: {
@@ -69,19 +69,41 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							},
 							media: {
 								type: 'object',
-								required: ['path', 'altText'],
-								description: localize('walkthroughs.tasks.media', "Image to show alongside this task."),
-								defaultSnippets: [{ 'body': { 'altText': '$1', 'path': '$2' } }],
-								properties: {
-									path: {
-										description: localize('walkthroughs.tasks.media.path', "Path to an image, relative to extension directory."),
-										type: 'string',
-									},
-									altText: {
-										type: 'string',
-										description: localize('walkthroughs.tasks.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+								description: localize('walkthroughs.tasks.media', "Media to show alongside this task, either an image or markdown content."),
+								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
+								oneOf: [
+									{
+										required: ['path', 'type', 'altText'],
+										properties: {
+											type: {
+												description: localize('walkthroughs.tasks.media.type', "Type of media to render, either an image or markdown."),
+												enum: ['image'],
+												type: 'string',
+											},
+											path: {
+												description: localize('walkthroughs.tasks.media.image.path', "Path to the image, relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
+												type: 'string',
+											},
+											altText: {
+												type: 'string',
+												description: localize('walkthroughs.tasks.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+											}
+										}
+									}, {
+										required: ['path', 'type'],
+										properties: {
+											type: {
+												description: localize('walkthroughs.tasks.media.type', "Type of media to render, either an image or markdown."),
+												enum: ['markdown'],
+												type: 'string',
+											},
+											path: {
+												description: localize('walkthroughs.tasks.media.markdown.path', "Path to the markdown document, relative to extension directory."),
+												type: 'string',
+											}
+										}
 									}
-								}
+								]
 							},
 							doneOn: {
 								description: localize('walkthroughs.tasks.doneOn', "Signal to mark task as complete."),

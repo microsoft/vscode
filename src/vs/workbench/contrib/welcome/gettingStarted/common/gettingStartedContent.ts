@@ -21,7 +21,9 @@ export type BuiltinGettingStartedItem = {
 	description: string,
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	when?: string,
-	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
+	media:
+	| { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string }
+	| { type: 'markdown', path: string },
 };
 
 export type BuiltinGettingStartedCategory = {

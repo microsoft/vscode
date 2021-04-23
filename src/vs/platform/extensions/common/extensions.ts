@@ -117,7 +117,9 @@ export interface IWalkthroughTask {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
-	readonly media: { path: string, altText: string },
+	readonly media:
+	| { type: 'image', path: string, altText: string }
+	| { type: 'markdown', path: string, },
 	readonly doneOn?: { command: string };
 	readonly when?: string;
 }
