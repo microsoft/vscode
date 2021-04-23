@@ -1185,7 +1185,7 @@ export namespace OpenPortInPreviewAction {
 			if (opener) {
 				return opener.openExternalUri(uri, { sourceUri }, new CancellationTokenSource().token);
 			}
-			return openerService.open(sourceUri);
+			return openerService.open(uri);
 		}
 		return Promise.resolve();
 	}
