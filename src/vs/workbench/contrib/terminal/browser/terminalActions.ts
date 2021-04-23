@@ -17,6 +17,7 @@ import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, ICommandActionTitle, ILocalizedString, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -39,8 +40,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const switchTerminalActionViewItemSeparator = '─────────';
-export const selectDefaultProfileTitle = localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile");
-export const configureTerminalSettingsTitle = localize('workbench.action.terminal.openSettings', "Configure Terminal Settings");
+export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -1727,13 +1727,9 @@ export function registerTerminalActions() {
 				terminalService.refreshActiveTab();
 				return Promise.resolve(null);
 			}
-			if (item === selectDefaultProfileTitle) {
-				terminalService.refreshActiveTab();
-				return terminalService.showProfileQuickPick('setDefault');
-			}
-			if (item === configureTerminalSettingsTitle) {
-				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
-				terminalService.refreshActiveTab();
+			if (item === switchTerminalShowTabsTitle) {
+				accessor.get(IConfigurationService).updateValue('terminal.integrated.showTabs', true);
+				return;
 			}
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {

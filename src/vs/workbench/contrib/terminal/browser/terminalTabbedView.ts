@@ -469,7 +469,7 @@ export class TerminalTabbedView extends Disposable {
 				new Action('moveLeft', 'Move Tabs Left', undefined, undefined, async () => {
 					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'left');
 				}),
-			new Action('hideTabs', 'Hide View', undefined, undefined, async () => {
+			new Action('hideTabs', 'Hide Tabs', undefined, undefined, async () => {
 				this._configurationService.updateValue('terminal.integrated.showTabs', false);
 			})
 		];
