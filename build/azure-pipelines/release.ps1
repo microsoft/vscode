@@ -67,9 +67,7 @@ do
 					asset = $asset.Name
 				}
 
-				if ($product -eq 'client') {
-					exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
-				}
+				exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
 			}
 		}
 	}
