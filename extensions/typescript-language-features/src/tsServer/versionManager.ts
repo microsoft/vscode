@@ -38,7 +38,7 @@ export class TypeScriptVersionManager extends Disposable {
 					this._currentVersion = localVersion;
 				}
 			} else {
-				this._disposables.push(vscode.workspace.onDidReceiveWorkspaceTrust(() => {
+				this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
 					if (this.versionProvider.localVersion) {
 						this.updateActiveVersion(this.versionProvider.localVersion);
 					}
