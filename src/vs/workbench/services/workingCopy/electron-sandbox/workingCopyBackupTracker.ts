@@ -25,6 +25,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Promises, raceCancellation } from 'vs/base/common/async';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
 export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
@@ -38,12 +39,13 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService);
+		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService);
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -321,14 +323,18 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
+
 		// If we have proceeded enough that editors and dirty state
 		// has restored, we make sure that no backups lure around
 		// given we have no known dirty working copy. This helps
 		// to clean up stale backups as for example reported in
 		// https://github.com/microsoft/vscode/issues/92962
+		//
+		// However, we never want to discard backups that we know
+		// were not restored in the session.
 		if (this.editorGroupService.isRestored()) {
 			try {
-				await this.workingCopyBackupService.discardBackups();
+				await this.workingCopyBackupService.discardBackups(Array.from(this.unrestoredBackups));
 			} catch (error) {
 				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 			}

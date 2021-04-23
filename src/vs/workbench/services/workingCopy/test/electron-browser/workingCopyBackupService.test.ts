@@ -522,7 +522,7 @@ suite('WorkingCopyBackupService', () => {
 		});
 	});
 
-	suite('discardBackups', () => {
+	suite('discardBackups (all)', () => {
 		test('text file', async () => {
 			const backupId1 = toUntypedWorkingCopyId(fooFile);
 			const backupId2 = toUntypedWorkingCopyId(barFile);
@@ -562,6 +562,53 @@ suite('WorkingCopyBackupService', () => {
 			await service.discardBackups();
 			await service.backup(toUntypedWorkingCopyId(untitledFile), bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(existsSync(workspaceBackupPath), true);
+		});
+	});
+
+	suite('discardBackups (except some)', () => {
+		test('text file', async () => {
+			const backupId1 = toUntypedWorkingCopyId(fooFile);
+			const backupId2 = toUntypedWorkingCopyId(barFile);
+			const backupId3 = toTypedWorkingCopyId(barFile);
+
+			await service.backup(backupId1, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
+
+			await service.backup(backupId2, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 2);
+
+			await service.backup(backupId3, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
+
+			await service.discardBackups([backupId2, backupId3]);
+
+			let backupPath = join(workspaceBackupPath, backupId1.resource.scheme, hashIdentifier(backupId1));
+			assert.strictEqual(existsSync(backupPath), false);
+
+			backupPath = join(workspaceBackupPath, backupId2.resource.scheme, hashIdentifier(backupId2));
+			assert.strictEqual(existsSync(backupPath), true);
+
+			backupPath = join(workspaceBackupPath, backupId3.resource.scheme, hashIdentifier(backupId3));
+			assert.strictEqual(existsSync(backupPath), true);
+
+			await service.discardBackups([backupId1]);
+
+			for (const backupId of [backupId1, backupId2, backupId3]) {
+				const backupPath = join(workspaceBackupPath, backupId.resource.scheme, hashIdentifier(backupId));
+				assert.strictEqual(existsSync(backupPath), false);
+			}
+		});
+
+		test('untitled file', async () => {
+			const backupId = toUntypedWorkingCopyId(untitledFile);
+			const backupPath = join(workspaceBackupPath, backupId.resource.scheme, hashIdentifier(backupId));
+
+			await service.backup(backupId, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(existsSync(backupPath), true);
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
+
+			await service.discardBackups([backupId]);
+			assert.strictEqual(existsSync(backupPath), true);
 		});
 	});
 
