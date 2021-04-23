@@ -20,6 +20,7 @@ import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface IContributedEditorInput extends IEditorInput {
 	viewType?: string;
@@ -472,3 +473,5 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 	}
 }
+
+registerSingleton(IEditorOverrideService, EditorOverrideService);
