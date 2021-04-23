@@ -298,16 +298,27 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.showTabs': {
-			description: localize('terminal.integrated.showTabs', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
+		'terminal.integrated.tabs.enable': {
+			description: localize('terminal.integrated.tabs.enable', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
+			type: 'boolean',
+			default: true,
+		},
+		'terminal.integrated.tabs.hideForSingle': {
+			description: localize('terminal.integrated.tabs.hideForSingle', 'Hides the terminal tabs view when there is only a single terminal instance.'),
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.tabsLocation': {
-			'type': 'string',
-			'enum': ['left', 'right'],
-			'default': 'right',
-			'description': localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
+		'terminal.integrated.tabs.showActiveTerminal': {
+			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),
+			type: 'string',
+			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
+			default: 'singleTerminalOrNarrow',
+		},
+		'terminal.integrated.tabs.location': {
+			type: 'string',
+			enum: ['left', 'right'],
+			default: 'right',
+			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
