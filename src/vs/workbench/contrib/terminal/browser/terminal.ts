@@ -258,7 +258,7 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
-	readonly icon: Codicon;
+	readonly icon?: Codicon;
 
 	readonly statusList: ITerminalStatusList;
 

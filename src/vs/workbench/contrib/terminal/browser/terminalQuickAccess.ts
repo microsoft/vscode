@@ -32,7 +32,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			const terminalTab = terminalTabs[tabIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalTab.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalTab.terminalInstances[terminalIndex];
-				const label = `$(${terminal.icon.id}) ${tabIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
+				const label = `$(${terminal.icon?.id}) ${tabIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
 
 				const highlights = matchesFuzzy(filter, label, true);
 				if (highlights) {
