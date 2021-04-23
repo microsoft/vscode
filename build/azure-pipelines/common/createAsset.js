@@ -35,12 +35,12 @@ function getPlatform(product, os, arch, type) {
                     if (arch === 'arm64') {
                         throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
                     }
-                    return `server-${arch}`;
+                    return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
                 case 'web':
                     if (arch === 'arm64') {
                         throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
                     }
-                    return `server-${arch}-web`;
+                    return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
                 default:
                     throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
             }
