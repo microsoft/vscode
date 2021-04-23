@@ -75,10 +75,12 @@ export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	readonly serviceWorkerFetchIgnoreSubdomain?: boolean;
 	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
 }
 
 export interface WebviewContentOptions {
+	readonly alwaysFetchFromRemote?: boolean;
 	readonly allowMultipleAPIAcquire?: boolean;
 	readonly allowScripts?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
