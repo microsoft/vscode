@@ -136,8 +136,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.markTaskComplete',
-			title: localize('gettingStarted.markTaskComplete', "Mark Task Complete"),
+			id: 'gettingStarted.markStepComplete',
+			title: localize('gettingStarted.markStepComplete', "Mark Step Complete"),
 			category,
 		});
 	}
@@ -145,15 +145,15 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor, arg: string) {
 		if (!arg) { return; }
 		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.progressTask(arg);
+		gettingStartedService.progressStep(arg);
 	}
 });
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.markTaskIncomplete',
-			title: localize('gettingStarted.markTaskInomplete', "Mark Task Incomplete"),
+			id: 'gettingStarted.markStepIncomplete',
+			title: localize('gettingStarted.markStepInomplete', "Mark Step Incomplete"),
 			category,
 		});
 	}
@@ -161,7 +161,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor, arg: string) {
 		if (!arg) { return; }
 		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.deprogressTask(arg);
+		gettingStartedService.deprogressStep(arg);
 	}
 });
 

@@ -15,7 +15,7 @@ const intermediateIcon = registerIcon('getting-started-intermediate', Codicon.mo
 const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
 
 
-export type BuiltinGettingStartedItem = {
+export type BuiltinGettingStartedStep = {
 	id: string
 	title: string,
 	description: string,
@@ -33,7 +33,7 @@ export type BuiltinGettingStartedCategory = {
 	icon: ThemeIcon,
 	when?: string,
 	content:
-	| { type: 'items', items: BuiltinGettingStartedItem[] }
+	| { type: 'steps', steps: BuiltinGettingStartedStep[] }
 };
 
 export type BuiltinGettingStartedStartEntry = {
@@ -123,17 +123,17 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		when: 'remoteName == codespaces',
 		description: localize('gettingStarted.codespaces.description', "Get up and running with your instant code environment."),
 		content: {
-			type: 'items',
-			items: [
+			type: 'steps',
+			steps: [
 				{
-					id: 'runProjectTask',
+					id: 'runProjectStep',
 					title: localize('gettingStarted.runProject.title', "Build & run your app"),
 					description: localize('gettingStarted.runProject.description', "Build, run & debug your code in the cloud, right from the browser.\n[Start Debugging](command:workbench.action.debug.selectandstart)"),
 					doneOn: { commandExecuted: 'workbench.action.debug.selectandstart' },
 					media: { type: 'image', altText: 'Node.js project running debug mode and paused.', path: 'runProject.png' },
 				},
 				{
-					id: 'forwardPortsTask',
+					id: 'forwardPortsStep',
 					title: localize('gettingStarted.forwardPorts.title', "Access your running application"),
 					description: localize('gettingStarted.forwardPorts.description', "Ports running within your codespace are automatically forwarded to the web, so you can open them in your browser.\n[Show Ports Panel](command:~remote.forwardedPorts.focus)"),
 					doneOn: { commandExecuted: '~remote.forwardedPorts.focus' },
@@ -178,8 +178,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: setupIcon,
 		when: 'remoteName != codespaces',
 		content: {
-			type: 'items',
-			items: [
+			type: 'steps',
+			steps: [
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Customize the look with themes"),
@@ -279,8 +279,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: beginnerIcon,
 		description: localize('gettingStarted.beginner.description', "Jump right into VS Code and get an overview of the must-have features."),
 		content: {
-			type: 'items',
-			items: [
+			type: 'steps',
+			steps: [
 				{
 					id: 'commandPaletteTask',
 					title: localize('gettingStarted.commandPalette.title', "Find & run commands"),
@@ -351,8 +351,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: intermediateIcon,
 		description: localize('gettingStarted.intermediate.description', "Optimize your development workflow with these tips & tricks."),
 		content: {
-			type: 'items',
-			items: [
+			type: 'steps',
+			steps: [
 				{
 					id: 'playground',
 					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),

@@ -113,7 +113,7 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
-export interface IWalkthroughTask {
+export interface IWalkthroughStep {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
@@ -128,7 +128,7 @@ export interface IWalkthrough {
 	readonly id: string,
 	readonly title: string;
 	readonly description: string;
-	readonly tasks: IWalkthroughTask[];
+	readonly steps: IWalkthroughStep[];
 	readonly primary?: boolean;
 	readonly when?: string;
 }

@@ -19,7 +19,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { BuiltinGettingStartedCategory, BuiltinGettingStartedItem, BuiltinGettingStartedStartEntry, startEntries, walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
+import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, BuiltinGettingStartedStartEntry, startEntries, walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -44,7 +44,7 @@ type LegacyButtonConfig =
 	| { title: string, command?: never, link: string }
 	| { title: string, command: string, link?: never, sideBySide?: boolean };
 
-export interface IGettingStartedTask {
+export interface IGettingStartedStep {
 	id: string
 	title: string
 	description: LinkedText[]
@@ -67,7 +67,7 @@ export interface IGettingStartedWalkthroughDescriptor {
 	| { type: 'image', path: string }
 	when: ContextKeyExpression
 	content:
-	| { type: 'items' }
+	| { type: 'steps' }
 }
 
 export interface IGettingStartedStartEntryDescriptor {
@@ -93,18 +93,18 @@ export interface IGettingStartedCategory {
 	| { type: 'image', path: string }
 	when: ContextKeyExpression
 	content:
-	| { type: 'items', items: IGettingStartedTask[] }
+	| { type: 'steps', steps: IGettingStartedStep[] }
 	| { type: 'startEntry', command: string }
 }
 
-type TaskProgress = { done?: boolean; };
-export interface IGettingStartedTaskWithProgress extends IGettingStartedTask, Required<TaskProgress> { }
+type StepProgress = { done?: boolean; };
+export interface IGettingStartedStepWithProgress extends IGettingStartedStep, Required<StepProgress> { }
 
 export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStartedCategory, 'content'> {
 	content:
 	| {
-		type: 'items',
-		items: IGettingStartedTaskWithProgress[],
+		type: 'steps',
+		steps: IGettingStartedStepWithProgress[],
 		done: boolean;
 		stepsComplete: number
 		stepsTotal: number
@@ -117,16 +117,16 @@ export interface IGettingStartedService {
 
 	readonly onDidAddCategory: Event<IGettingStartedCategoryWithProgress>
 	readonly onDidRemoveCategory: Event<string>
-	readonly onDidChangeTask: Event<IGettingStartedTaskWithProgress>
+	readonly onDidChangeStep: Event<IGettingStartedStepWithProgress>
 	readonly onDidChangeCategory: Event<IGettingStartedCategoryWithProgress>
 
-	readonly onDidProgressTask: Event<IGettingStartedTaskWithProgress>
+	readonly onDidProgressStep: Event<IGettingStartedStepWithProgress>
 
 	getCategories(): IGettingStartedCategoryWithProgress[]
 
 	progressByEvent(eventName: string): void;
-	progressTask(id: string): void;
-	deprogressTask(id: string): void;
+	progressStep(id: string): void;
+	deprogressStep(id: string): void;
 }
 
 export class GettingStartedService extends Disposable implements IGettingStartedService {
@@ -141,20 +141,20 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private readonly _onDidChangeCategory = new Emitter<IGettingStartedCategoryWithProgress>();
 	onDidChangeCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidChangeCategory.event;
 
-	private readonly _onDidChangeTask = new Emitter<IGettingStartedTaskWithProgress>();
-	onDidChangeTask: Event<IGettingStartedTaskWithProgress> = this._onDidChangeTask.event;
+	private readonly _onDidChangeStep = new Emitter<IGettingStartedStepWithProgress>();
+	onDidChangeStep: Event<IGettingStartedStepWithProgress> = this._onDidChangeStep.event;
 
-	private readonly _onDidProgressTask = new Emitter<IGettingStartedTaskWithProgress>();
-	onDidProgressTask: Event<IGettingStartedTaskWithProgress> = this._onDidProgressTask.event;
+	private readonly _onDidProgressStep = new Emitter<IGettingStartedStepWithProgress>();
+	onDidProgressStep: Event<IGettingStartedStepWithProgress> = this._onDidProgressStep.event;
 
 	private memento: Memento;
-	private taskProgress: Record<string, TaskProgress>;
+	private stepProgress: Record<string, StepProgress>;
 
 	private commandListeners = new Map<string, string[]>();
 	private eventListeners = new Map<string, string[]>();
 
 	private gettingStartedContributions = new Map<string, IGettingStartedCategory>();
-	private tasks = new Map<string, IGettingStartedTask>();
+	private steps = new Map<string, IGettingStartedStep>();
 
 	private tasExperimentService?: ITASExperimentService;
 	private sessionInstalledExtensions = new Set<string>();
@@ -178,7 +178,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this.tasExperimentService = tasExperimentService;
 
 		this.memento = new Memento('gettingStartedService', this.storageService);
-		this.taskProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 
 		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
 			added.forEach(e => this.registerExtensionContributions(e.description));
@@ -216,17 +216,17 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				order: index,
 				when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true()
 			},
-				category.content.items.map((item, index) => {
-					this.getTaskOverrides(item, category.id);
+				category.content.steps.map((step, index) => {
+					this.getStepOverrides(step, category.id);
 					return ({
-						...item,
-						description: parseDescription(item.description),
+						...step,
+						description: parseDescription(step.description),
 						category: category.id,
 						order: index,
-						when: ContextKeyExpr.deserialize(item.when) ?? ContextKeyExpr.true(),
-						media: item.media.type === 'image'
-							? { type: 'image', altText: item.media.altText, path: convertInternalMediaPathsToBrowserURIs(item.media.path) }
-							: { type: 'markdown', path: convertInternalMediaPathToFileURI(item.media.path), base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require) },
+						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
+						media: step.media.type === 'image'
+							? { type: 'image', altText: step.media.altText, path: convertInternalMediaPathsToBrowserURIs(step.media.path) }
+							: { type: 'markdown', path: convertInternalMediaPathToFileURI(step.media.path), base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require) },
 					});
 				}));
 		});
@@ -240,28 +240,33 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideCategory.${category.id}.description`),
 		]);
 
+		if (!(title || description)) { return; }
+
 		const existing = assertIsDefined(this.gettingStartedContributions.get(category.id));
 		existing.title = title ?? existing.title;
 		existing.description = description ?? existing.description;
 		this._onDidChangeCategory.fire(this.getCategoryProgress(existing));
 	}
 
-	private async getTaskOverrides(item: BuiltinGettingStartedItem, categoryId: string) {
+	private async getStepOverrides(step: BuiltinGettingStartedStep, categoryId: string) {
 		if (!this.tasExperimentService) { return; }
 
 		const [title, description, media] = await Promise.all([
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideTask.${item.id}.title`),
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideTask.${item.id}.description`),
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideTask.${item.id}.media`),
+			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.title`),
+			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.description`),
+			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.media`),
 		]);
+
+		if (!(title || description || media)) { return; }
 
 		const existingCategory = assertIsDefined(this.gettingStartedContributions.get(categoryId));
 		if (existingCategory.content.type === 'startEntry') { throw Error('Unexpected content type'); }
-		const existingItem = assertIsDefined(existingCategory.content.items.find(_item => _item.id === item.id));
-		existingItem.title = title ?? existingItem.title;
-		existingItem.description = description ? parseDescription(description) : existingItem.description;
-		existingItem.media.path = media ? convertInternalMediaPathsToBrowserURIs(media) : existingItem.media.path;
-		this._onDidChangeTask.fire(this.getTaskProgress(existingItem));
+		const existingStep = assertIsDefined(existingCategory.content.steps.find(_step => _step.id === step.id));
+
+		existingStep.title = title ?? existingStep.title;
+		existingStep.description = description ? parseDescription(description) : existingStep.description;
+		existingStep.media.path = media ? convertInternalMediaPathsToBrowserURIs(media) : existingStep.media.path;
+		this._onDidChangeStep.fire(this.getStepProgress(existingStep));
 	}
 
 	private registerExtensionContributions(extension: IExtensionDescription) {
@@ -324,20 +329,20 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 
 
-		extension.contributes?.walkthroughs?.forEach(section => {
-			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
+		extension.contributes?.walkthroughs?.forEach(walkthrough => {
+			const categoryID = extension.identifier.value + '#walkthrough#' + walkthrough.id;
 			if (
 				this.sessionInstalledExtensions.has(extension.identifier.value)
-				&& section.primary
-				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(section.when) ?? ContextKeyExpr.true())
+				&& walkthrough.primary
+				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value);
 				sectionToOpen = categoryID;
 			}
 			this.registerWalkthrough({
-				content: { type: 'items' },
-				description: section.description,
-				title: section.title,
+				content: { type: 'steps' },
+				description: walkthrough.description,
+				title: walkthrough.title,
 				id: categoryID,
 				order: Math.min(),
 				icon: {
@@ -346,27 +351,27 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
 						: DefaultIconPath
 				},
-				when: ContextKeyExpr.deserialize(section.when) ?? ContextKeyExpr.true(),
+				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
 			},
-				section.tasks.map((task, index) => {
-					const description = parseDescription(task.description);
-					const buttonDescription = (task as any as { button: LegacyButtonConfig }).button;
+				(walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
+					const description = parseDescription(step.description);
+					const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
 					if (buttonDescription) {
 						description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
 					}
-					const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + task.id;
+					const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 					return ({
 						description: description,
-						media: task.media.type === 'image'
-							? { type: 'image', altText: task.media.altText, path: convertExtensionRelativePathsToBrowserURIs(task.media.path) }
-							: { type: 'markdown', path: convertExtensionPathToFileURI(task.media.path), base: extension.extensionLocation }
+						media: step.media.type === 'image'
+							? { type: 'image', altText: step.media.altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) }
+							: { type: 'markdown', path: convertExtensionPathToFileURI(step.media.path), base: extension.extensionLocation }
 						,
-						doneOn: task.doneOn?.command
-							? { commandExecuted: task.doneOn.command }
+						doneOn: step.doneOn?.command
+							? { commandExecuted: step.doneOn.command }
 							: { eventFired: 'markDone:' + fullyQualifiedID },
 						id: fullyQualifiedID,
-						title: task.title,
-						when: ContextKeyExpr.deserialize(task.when) ?? ContextKeyExpr.true(),
+						title: step.title,
+						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
 						category: categoryID,
 						order: index,
 					});
@@ -404,28 +409,28 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		extension.contributes?.walkthroughs?.forEach(section => {
 			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
-			section.tasks.forEach(task => {
-				const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + task.id;
-				this.tasks.delete(fullyQualifiedID);
+			section.steps.forEach(step => {
+				const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + step.id;
+				this.steps.delete(fullyQualifiedID);
 			});
 			this.gettingStartedContributions.delete(categoryID);
 			this._onDidRemoveCategory.fire(categoryID);
 		});
 	}
 
-	private registerDoneListeners(task: IGettingStartedTask) {
-		if (task.doneOn.commandExecuted) {
-			const existing = this.commandListeners.get(task.doneOn.commandExecuted);
-			if (existing) { existing.push(task.id); }
+	private registerDoneListeners(step: IGettingStartedStep) {
+		if (step.doneOn.commandExecuted) {
+			const existing = this.commandListeners.get(step.doneOn.commandExecuted);
+			if (existing) { existing.push(step.id); }
 			else {
-				this.commandListeners.set(task.doneOn.commandExecuted, [task.id]);
+				this.commandListeners.set(step.doneOn.commandExecuted, [step.id]);
 			}
 		}
-		if (task.doneOn.eventFired) {
-			const existing = this.eventListeners.get(task.doneOn.eventFired);
-			if (existing) { existing.push(task.id); }
+		if (step.doneOn.eventFired) {
+			const existing = this.eventListeners.get(step.doneOn.eventFired);
+			if (existing) { existing.push(step.id); }
 			else {
-				this.eventListeners.set(task.doneOn.eventFired, [task.id]);
+				this.eventListeners.set(step.doneOn.eventFired, [step.id]);
 			}
 		}
 	}
@@ -436,18 +441,18 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			.sort((a, b) => a.order - b.order)
 			.filter(category => this.contextService.contextMatchesRules(category.when))
 			.map(category => {
-				if (category.content.type === 'items') {
+				if (category.content.type === 'steps') {
 					return {
 						...category,
 						content: {
-							type: 'items' as const,
-							items: category.content.items.filter(item => this.contextService.contextMatchesRules(item.when))
+							type: 'steps' as const,
+							steps: category.content.steps.filter(step => this.contextService.contextMatchesRules(step.when))
 						}
 					};
 				}
 				return category;
 			})
-			.filter(category => category.content.type !== 'items' || category.content.items.length)
+			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
 			.map(category => this.getCategoryProgress(category));
 		return categoriesWithCompletion;
 	}
@@ -457,54 +462,54 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			return { ...category, content: category.content };
 		}
 
-		const tasksWithProgress = category.content.items.map(task => this.getTaskProgress(task));
-		const tasksComplete = tasksWithProgress.filter(task => task.done);
+		const stepsWithProgress = category.content.steps.map(step => this.getStepProgress(step));
+		const stepsComplete = stepsWithProgress.filter(step => step.done);
 
 		return {
 			...category,
 			content: {
-				type: 'items',
-				items: tasksWithProgress,
-				stepsComplete: tasksComplete.length,
-				stepsTotal: tasksWithProgress.length,
-				done: tasksComplete.length === tasksWithProgress.length,
+				type: 'steps',
+				steps: stepsWithProgress,
+				stepsComplete: stepsComplete.length,
+				stepsTotal: stepsWithProgress.length,
+				done: stepsComplete.length === stepsWithProgress.length,
 			}
 		};
 	}
 
-	private getTaskProgress(task: IGettingStartedTask): IGettingStartedTaskWithProgress {
+	private getStepProgress(step: IGettingStartedStep): IGettingStartedStepWithProgress {
 		return {
-			...task,
+			...step,
 			done: false,
-			...this.taskProgress[task.id]
+			...this.stepProgress[step.id]
 		};
 	}
 
-	progressTask(id: string) {
-		const oldProgress = this.taskProgress[id];
+	progressStep(id: string) {
+		const oldProgress = this.stepProgress[id];
 		if (!oldProgress || oldProgress.done !== true) {
-			this.taskProgress[id] = { done: true };
+			this.stepProgress[id] = { done: true };
 			this.memento.saveMemento();
-			const task = this.getTask(id);
-			this._onDidProgressTask.fire(this.getTaskProgress(task));
+			const step = this.getStep(id);
+			this._onDidProgressStep.fire(this.getStepProgress(step));
 		}
 	}
 
-	deprogressTask(id: string) {
-		delete this.taskProgress[id];
+	deprogressStep(id: string) {
+		delete this.stepProgress[id];
 		this.memento.saveMemento();
-		const task = this.getTask(id);
-		this._onDidProgressTask.fire(this.getTaskProgress(task));
+		const step = this.getStep(id);
+		this._onDidProgressStep.fire(this.getStepProgress(step));
 	}
 
 	private progressByCommand(command: string) {
 		const listening = this.commandListeners.get(command) ?? [];
-		listening.forEach(id => this.progressTask(id));
+		listening.forEach(id => this.progressStep(id));
 	}
 
 	progressByEvent(event: string): void {
 		const listening = this.eventListeners.get(event) ?? [];
-		listening.forEach(id => this.progressTask(id));
+		listening.forEach(id => this.progressStep(id));
 	}
 
 	private registerStartEntry(categoryDescriptor: IGettingStartedStartEntryDescriptor): void {
@@ -520,27 +525,27 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidAddCategory.fire(this.getCategoryProgress(category));
 	}
 
-	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, items: IGettingStartedTask[]): void {
+	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
 		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
 		if (oldCategory) {
 			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor.id})`);
 			return;
 		}
 
-		const category: IGettingStartedCategory = { ...categoryDescriptor, content: { type: 'items', items } };
+		const category: IGettingStartedCategory = { ...categoryDescriptor, content: { type: 'steps', steps } };
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
-		items.forEach(task => {
-			if (this.tasks.has(task.id)) { throw Error('Attempting to register task with id ' + task.id + ' twice. Second is dropped.'); }
-			this.tasks.set(task.id, task);
-			this.registerDoneListeners(task);
+		steps.forEach(step => {
+			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
+			this.steps.set(step.id, step);
+			this.registerDoneListeners(step);
 		});
 		this._onDidAddCategory.fire(this.getCategoryProgress(category));
 	}
 
-	private getTask(id: string): IGettingStartedTask {
-		const task = this.tasks.get(id);
-		if (!task) { throw Error('Attempting to access task which does not exist in registry ' + id); }
-		return task;
+	private getStep(id: string): IGettingStartedStep {
+		const step = this.steps.get(id);
+		if (!step) { throw Error('Attempting to access step which does not exist in registry ' + id); }
+		return step;
 	}
 }
 
@@ -586,7 +591,7 @@ registerAction2(class extends Action2 {
 		for (const key in record) {
 			if (Object.prototype.hasOwnProperty.call(record, key)) {
 				try {
-					gettingStartedService.deprogressTask(key);
+					gettingStartedService.deprogressStep(key);
 				} catch (e) {
 					console.error(e);
 				}
