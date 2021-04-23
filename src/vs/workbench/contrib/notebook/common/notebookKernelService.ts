@@ -25,6 +25,7 @@ export interface INotebookKernelService {
 	readonly onDidAddKernel: Event<INotebookKernel>;
 	readonly onDidRemoveKernel: Event<INotebookKernel>;
 	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
+	readonly onDidChangeNotebookAffinity: Event<void>
 
 	registerKernel(kernel: INotebookKernel): IDisposable;
 

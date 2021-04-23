@@ -74,10 +74,12 @@ export class NotebookKernelService implements INotebookKernelService {
 	private readonly _onDidChangeNotebookKernelBinding = new Emitter<INotebookKernelBindEvent>();
 	private readonly _onDidAddKernel = new Emitter<INotebookKernel>();
 	private readonly _onDidRemoveKernel = new Emitter<INotebookKernel>();
+	private readonly _onDidChangeNotebookAffinity = new Emitter<void>();
 
 	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
 	readonly onDidRemoveKernel: Event<INotebookKernel> = this._onDidRemoveKernel.event;
+	readonly onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;
 
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -174,6 +176,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		if (existing !== kernel.id) {
 			this._notebookTypeBindings.map.set(typeId, kernel.id);
 			this._notebookInstanceBindings.store();
+			this._onDidChangeNotebookAffinity.fire();
 		}
 	}
 
@@ -203,5 +206,6 @@ export class NotebookKernelService implements INotebookKernelService {
 		} else {
 			info.notebookPriorities.set(notebook, preference);
 		}
+		this._onDidChangeNotebookAffinity.fire();
 	}
 }
