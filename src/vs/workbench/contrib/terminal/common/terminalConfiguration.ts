@@ -303,11 +303,22 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		'terminal.integrated.tabs.hideForSingle': {
+			description: localize('terminal.integrated.tabs.hideForSingle', 'Hides the terminal tabs view when there is only a single terminal instance.'),
+			type: 'boolean',
+			default: true
+		},
+		'terminal.integrated.tabs.showActiveTerminal': {
+			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),
+			type: 'string',
+			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
+			default: 'singleTerminalOrNarrow',
+		},
 		'terminal.integrated.tabsLocation': {
-			'type': 'string',
-			'enum': ['left', 'right'],
-			'default': 'right',
-			'description': localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
+			type: 'string',
+			enum: ['left', 'right'],
+			default: 'right',
+			description: localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),

@@ -25,7 +25,7 @@ import { ITerminalProfile, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/term
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { listErrorForeground, listWarningForeground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
@@ -367,7 +367,7 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 }
 
 function getSingleTabLabel(instance: ITerminalInstance | null) {
-	if (!instance) {
+	if (!instance || !instance.title) {
 		return '';
 	}
 	const primaryStatus = instance.statusList.primary;

@@ -161,7 +161,6 @@ export function registerTerminalActions() {
 			} else {
 				event = eventOrProfile as MouseEvent;
 			}
-			console.log('arguments', arguments);
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
@@ -382,7 +381,21 @@ export function registerTerminalActions() {
 					order: 0,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.has('config.terminal.integrated.showTabs')
+						ContextKeyExpr.has('config.terminal.integrated.showTabs'),
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('config.terminal.integrated.tabs.showActiveTerminal', 'singleTerminal'),
+								ContextKeyExpr.equals('terminalCount', 1)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('config.terminal.integrated.tabs.showActiveTerminal', 'singleTerminalOrNarrow'),
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals('terminalCount', 1),
+									ContextKeyExpr.has('isTerminalTabsNarrow')
+								)
+							),
+							ContextKeyExpr.equals('config.terminal.integrated.tabs.showActiveTerminal', 'always')
+						)
 					]),
 				}
 			});
