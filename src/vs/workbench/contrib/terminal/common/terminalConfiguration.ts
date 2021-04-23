@@ -385,6 +385,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 1
 		},
+		'terminal.integrated.bellDuration': {
+			markdownDescription: localize('terminal.integrated.bellDuration', "The number of milliseconds to show the bell within a terminal tab when triggered."),
+			type: 'number',
+			default: 1000
+		},
 		'terminal.integrated.fontWeight': {
 			'anyOf': [
 				{

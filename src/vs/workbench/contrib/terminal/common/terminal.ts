@@ -190,7 +190,8 @@ export interface ITerminalConfiguration {
 		hideForSingle: boolean;
 		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
 		location: 'left' | 'right';
-	}
+	},
+	bellDuration: number;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
