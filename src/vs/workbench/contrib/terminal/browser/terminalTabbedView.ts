@@ -399,6 +399,9 @@ export class TerminalTabbedView extends Disposable {
 		this._register(dom.addDisposableListener(this._tabTreeContainer, dom.EventType.FOCUS_IN, () => {
 			this._terminalTabsFocusContextKey.set(true);
 		}));
+		this._register(dom.addDisposableListener(this._tabTreeContainer, dom.EventType.FOCUS_OUT, () => {
+			this._terminalTabsFocusContextKey.set(false);
+		}));
 		this._register(dom.addDisposableListener(parentDomElement, dom.EventType.DROP, async (e: DragEvent) => {
 			if (e.target === this._parentElement || dom.isAncestor(e.target as HTMLElement, parentDomElement)) {
 				if (!e.dataTransfer) {
@@ -474,7 +477,11 @@ export class TerminalTabbedView extends Disposable {
 
 	public focusTabsView(): void {
 		this._terminalTabsFocusContextKey.set(true);
+		const focused = this._tabsWidget.getFocus();
 		this._tabsWidget.domFocus();
+		if (focused) {
+			this._tabsWidget.setFocus(focused);
+		}
 	}
 
 	public focusFindWidget() {
