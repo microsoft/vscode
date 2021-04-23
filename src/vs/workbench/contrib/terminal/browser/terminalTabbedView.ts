@@ -146,7 +146,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _shouldShowTabs(): boolean {
 		const showTabs = this._terminalService.configHelper.config.showTabs;
-		return showTabs === 'on' ||
+		return <any>showTabs === true || showTabs === 'on' ||
 			(showTabs === 'multipleTerminals' && this._terminalService.terminalInstances.length > 1);
 	}
 
