@@ -1338,8 +1338,8 @@ export interface IWillRunFileOperationParticipation {
 
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
-	$onDidRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[]): void;
+	$onWillRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
+	$onDidRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[]): void;
 }
 
 export interface ObjectIdentifier {
