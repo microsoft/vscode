@@ -260,6 +260,8 @@
 	padding: 2px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-list-row:hover .actions {
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-list-row:hover .actions,
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget:focus-within .monaco-list-row.selected .actions,
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget:focus-within .monaco-list-row.focused .actions {
 	display: block;
 }
