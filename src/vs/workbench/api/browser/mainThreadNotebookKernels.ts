@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
-import { disposableTimeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -191,23 +190,15 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		}(data, this._modeService);
 		const registration = this._notebookKernelService.registerKernel(kernel);
 
-		let timeoutHandle = new MutableDisposable();
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
-			// todo@jrieken this is smelly... the onDidChangeNotebookKernelBinding event
-			// can happen in the same tick as notebook creation. We cannot send an IPC
-			// messages immediately because the ext host hasn't received the "new notebook"
-			// message yet. It requires some onWillAddNotebook or onDidCreateNotebook event
-			// to make sure that ext-host-sync'ing is first
-			timeoutHandle.value = disposableTimeout(() => {
-				if (e.oldKernel === kernel.id) {
-					this._proxy.$acceptSelection(handle, e.notebook, false);
-				} else if (e.newKernel === kernel.id) {
-					this._proxy.$acceptSelection(handle, e.notebook, true);
-				}
-			}, 0);
+			if (e.oldKernel === kernel.id) {
+				this._proxy.$acceptSelection(handle, e.notebook, false);
+			} else if (e.newKernel === kernel.id) {
+				this._proxy.$acceptSelection(handle, e.notebook, true);
+			}
 		});
 
-		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration, timeoutHandle)]);
+		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {

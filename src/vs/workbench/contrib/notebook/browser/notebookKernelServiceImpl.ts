@@ -41,6 +41,7 @@ class LRUMemento<K, V> {
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		this.map = new LRUCache(limit, 0.7);
+		this.restore();
 	}
 
 	restore(): this {
