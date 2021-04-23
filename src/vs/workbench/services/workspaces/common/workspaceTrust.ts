@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
+import { splitName } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname } from 'vs/base/common/resources';
@@ -212,6 +213,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	setParentFolderTrust(trusted: boolean): void {
+		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
+			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
+
+			this.setFoldersTrust([URI.file(parentPath)], trusted);
+		}
 	}
 
 	setWorkspaceTrust(trusted: boolean): void {

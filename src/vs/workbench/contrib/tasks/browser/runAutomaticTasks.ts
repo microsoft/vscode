@@ -115,9 +115,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return { tasks, taskNames, locations };
 	}
 
-	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustRequestService: IWorkspaceTrustRequestService,
+	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		openerService: IOpenerService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
-		const isWorkspaceTrusted = await workspaceTrustRequestService.requestWorkspaceTrust({ modal: false });
+		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkpaceTrusted;
 		if (!isWorkspaceTrusted) {
 			return;
 		}

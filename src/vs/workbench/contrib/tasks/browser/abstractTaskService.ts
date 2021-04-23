@@ -80,7 +80,7 @@ import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQui
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -257,6 +257,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -931,7 +932,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
 				this.getWorkspaceTasks().then(workspaceTasks => {
-					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, this.workspaceTrustRequestService, this.openerService, workspaceTasks);
+					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, this.workspaceTrustManagementService, this.openerService, workspaceTasks);
 				});
 			}
 			return value;
