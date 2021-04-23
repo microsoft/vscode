@@ -102,8 +102,8 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalContainer.classList.add('terminal-outer-container');
 		this._terminalContainer.style.display = 'block';
 
-		this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-		this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+		this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
+		this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
 
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
 
@@ -113,11 +113,11 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalTabsFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS.bindTo(contextKeyService);
 
 		_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
+			if (e.affectsConfiguration('terminal.integrated.tabs.enable')) {
 				this._refreshShowTabs();
-			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
-				this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-				this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+			} else if (e.affectsConfiguration('terminal.integrated.tabs.location')) {
+				this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
+				this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
 				if (this._shouldShowTabs()) {
 					this._splitView.swapViews(0, 1);
 					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
@@ -145,9 +145,9 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _shouldShowTabs(): boolean {
-		const showTabs = this._terminalService.configHelper.config.showTabs;
-		return <any>showTabs === true || showTabs === 'on' ||
-			(showTabs === 'multipleTerminals' && this._terminalService.terminalInstances.length > 1);
+		const enable = this._terminalService.configHelper.config.tabs.enable;
+		const hideForSingle = this._terminalService.configHelper.config.tabs.hideForSingle;
+		return enable && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
 	}
 
 	private _refreshShowTabs() {
@@ -477,15 +477,15 @@ export class TerminalTabbedView extends Disposable {
 	private _getTabActions(): Action[] {
 		return [
 			new Separator(),
-			this._configurationService.inspect('terminal.integrated.tabsLocation').userValue === 'left' ?
+			this._configurationService.inspect('terminal.integrated.tabs.location').userValue === 'left' ?
 				new Action('moveRight', localize('moveTabsRight', "Move Tabs Right"), undefined, undefined, async () => {
-					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'right');
+					this._configurationService.updateValue('terminal.integrated.tabs.location', 'right');
 				}) :
 				new Action('moveLeft', localize('moveTabsLeft', "Move Tabs Left"), undefined, undefined, async () => {
-					this._configurationService.updateValue('terminal.integrated.tabsLocation', 'left');
+					this._configurationService.updateValue('terminal.integrated.tabs.location', 'left');
 				}),
 			new Action('hideTabs', localize('hideTabs', "Hide Tabs"), undefined, undefined, async () => {
-				this._configurationService.updateValue('terminal.integrated.showTabs', false);
+				this._configurationService.updateValue('terminal.integrated.tabs.enable', false);
 			})
 		];
 	}

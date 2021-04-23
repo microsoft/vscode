@@ -137,8 +137,6 @@ export interface ITerminalConfiguration {
 		windows: string | null;
 	};
 	useWslProfiles: boolean;
-	showTabs: 'on' | 'multipleTerminals' | 'off';
-	tabsLocation: 'left' | 'right';
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -188,8 +186,10 @@ export interface ITerminalConfiguration {
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
 	tabs: {
+		enable: boolean;
 		hideForSingle: boolean;
 		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
+		location: 'left' | 'right';
 	}
 }
 
