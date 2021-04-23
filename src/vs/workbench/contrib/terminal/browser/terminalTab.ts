@@ -414,7 +414,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			const instance = this.terminalInstances[i];
 			if (instance.title) {
-				title += `, ${instance.title}}`;
+				title += `, ${instance.title}`;
 			}
 		}
 		return title;
