@@ -39,7 +39,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					description: localize('walkthroughs.when', "Context key expression to control the visibility of this walkthrough.")
 				},
 				tasks: {
-					deprecationMessage: localize('usesteps', "Deprecated. Please use `steps` instead")
+					deprecationMessage: localize('usesteps', "Deprecated. Use `steps` instead")
 				},
 				steps: {
 					type: 'array',
