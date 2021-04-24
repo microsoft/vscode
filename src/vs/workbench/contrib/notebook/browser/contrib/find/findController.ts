@@ -362,6 +362,12 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this._previousFocusElement.focus();
 			this._previousFocusElement = undefined;
 		}
+
+		this._notebookEditor.viewModel?.viewCells.forEach(cell => {
+			if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
+				cell.updateEditState(CellEditState.Preview, 'find');
+			}
+		});
 	}
 
 	override _updateMatchesCount(): void {
