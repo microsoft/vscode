@@ -884,16 +884,21 @@ declare module 'vscode' {
 	//#region Custom Tree View Drag and Drop https://github.com/microsoft/vscode/issues/32592
 	export interface TreeViewOptions<T> {
 		/**
-		* Whether the tree supports drag and drop.
-		*/
+		 * * Whether the tree supports drag and drop.
+		 */
 		enableDragAndDrop?: boolean;
 	}
 
 	export interface TreeDataProvider<T> {
 		/**
-		* Whether the tree supports drag and drop.
-		*/
-		setParent?(element: T, targetElement: T): Thenable<void>;
+		 * Optional method to reparent an `element`.
+		 *
+		 * **NOTE:**  This method should be implemented if the tree supports drag and drop.
+		 *
+		 * @param elements The selected elements that will be reparented.
+		 * @param targetElement The new parent of the elements.
+		 */
+		setParent?(elements: T[], targetElement: T): Thenable<void>;
 	}
 
 	//#endregion

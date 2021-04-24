@@ -377,10 +377,10 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	setParent(treeItemHandleOrNode: TreeItemHandle[], newParentHandleOrNode: TreeItemHandle): Promise<void> {
-		const element = this.getExtensionElement(treeItemHandleOrNode[0]);
-		const newParentElement = this.getExtensionElement(newParentHandleOrNode);
-		return asPromise(() => this.dataProvider.setParent!(element!, newParentElement!));
+	setParent(treeItemHandleOrNodes: TreeItemHandle[], newParentHandleOrNode: TreeItemHandle): Promise<void> {
+		const elements = treeItemHandleOrNodes.map(item => this.getExtensionElement(item)!);
+		const newParentElement = this.getExtensionElement(newParentHandleOrNode)!;
+		return asPromise(() => this.dataProvider.setParent!(elements, newParentElement));
 	}
 
 	get hasResolve(): boolean {
