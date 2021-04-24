@@ -18,15 +18,23 @@ steps:
       (cd build ; yarn)
     displayName: Install dependencies
 
-  - script: |
-      set -e
-      VERSION=`node -p "require(\"./package.json\").version"`
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-        node build/azure-pipelines/common/createBuild.js $VERSION
+  - download: current
+    patterns: '**/artifacts_processed.txt'
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = 'Stop'
+
+      if (Test-Path "$(Pipeline.Workspace)/artifacts_processed.txt") {
+        return
+      }
+      exec { $VERSION = node -p "require('./package.json').version" }
+      $env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
+      exec { node build/azure-pipelines/common/createBuild.js $VERSION }
     displayName: Create build
 
   - pwsh: Start-Sleep -Seconds 600
-    displayName: Delay start
+    displayName: Delay start for 10min
 
   - pwsh: |
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"

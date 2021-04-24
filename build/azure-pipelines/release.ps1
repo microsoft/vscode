@@ -3,9 +3,6 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $ARTIFACT_PROCESSED_ARTIFACT_NAME = 'artifacts_processed'
 
-# This set will keep track of which artifacts have already been processed
-$set = [System.Collections.Generic.HashSet[string]]::new()
-
 function Get-PipelineArtifact {
 	param($Name = '*')
 	try {
@@ -23,22 +20,13 @@ function Get-PipelineArtifact {
 	}
 }
 
-$res = Get-PipelineArtifact -Name $ARTIFACT_PROCESSED_ARTIFACT_NAME
-# If we have already processed some artifacts, don't publish them again (example, you need to rerun the Release stage)
-if ($res) {
-	try {
-		Invoke-RestMethod $artifactsProcessedArtifact.resource.downloadUrl -OutFile "$env:AGENT_TEMPDIRECTORY/$ARTIFACT_PROCESSED_ARTIFACT_NAME.zip" -Headers @{
-			Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-		} -MaximumRetryCount 5 -RetryIntervalSec 1
+# This set will keep track of which artifacts have already been processed
+$set = [System.Collections.Generic.HashSet[string]]::new()
 
-		Expand-Archive -Path "$env:AGENT_TEMPDIRECTORY/$ARTIFACT_PROCESSED_ARTIFACT_NAME.zip" -DestinationPath $env:AGENT_TEMPDIRECTORY
-
-		Get-Content "$env:AGENT_TEMPDIRECTORY/$ARTIFACT_PROCESSED_ARTIFACT_NAME/$ARTIFACT_PROCESSED_ARTIFACT_NAME.txt" | ForEach-Object {
-			$set.Add($_);
-			Write-Host "Already processed artifact: $_"
-		}
-	} catch {
-		Write-Warning $_
+if (Test-Path "$env:PIPELINE_WORKSPACE/$ARTIFACT_PROCESSED_ARTIFACT_NAME/$ARTIFACT_PROCESSED_ARTIFACT_NAME.txt") {
+	Get-Content "$env:PIPELINE_WORKSPACE/$ARTIFACT_PROCESSED_ARTIFACT_NAME/$ARTIFACT_PROCESSED_ARTIFACT_NAME.txt" | ForEach-Object {
+		$set.Add($_) | Out-Null;
+		Write-Host "Already processed artifact: $_"
 	}
 }
 
