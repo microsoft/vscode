@@ -1016,7 +1016,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	protected _createProcessManager(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
-		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
+		this._processManager.onProcessReady(() => {
+			this._onProcessIdReady.fire(this);
+			// Re-fire the title change event to ensure a slow resolved icon gets applied
+			this._onTitleChanged.fire(this);
+		});
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(ev => {
 			this._initialDataEvents?.push(ev.data);

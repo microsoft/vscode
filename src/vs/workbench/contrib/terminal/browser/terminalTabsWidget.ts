@@ -227,7 +227,12 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			}
 		} else {
 			this.fillActionBar(instance, template);
-			label = `${prefix}$(${instance.icon?.id}) ${instance.title}`;
+			label = `${prefix}$(${instance.icon?.id})`;
+			// Only add the title if the icon is set, this prevents the title jumping around for
+			// example when launching with a ShellLaunchConfig.name and no icon
+			if (instance.icon) {
+				label += ` ${instance.title}`;
+			}
 		}
 
 		if (!template.elementDispoables) {
