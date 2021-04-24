@@ -38,6 +38,10 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Process artifacts
 
+  - publish: $(Agent.TempDirectory)/artifacts_processed.txt
+    artifact: artifacts_processed
+    displayName: Publish what artifacts were published
+
   - script: |
       set -e
 
