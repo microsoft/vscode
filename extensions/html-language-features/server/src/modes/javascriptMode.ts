@@ -16,6 +16,7 @@ import { normalize, sep } from 'path';
 
 import * as ts from 'typescript';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+import { statSync } from 'fs';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
@@ -53,10 +54,19 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				return fileName.substr(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS;
 			},
 			getScriptVersion: (fileName: string) => {
+				// Let the outer TextDocument give the version
 				if (fileName === deschemeURI(currentTextDocument.uri)) {
 					return String(currentTextDocument.version);
 				}
-				return '1'; // default lib an jquery.d.ts are static
+				// Default libs and jquery.d.ts are static.
+				// Include node_modules as a perf win
+				if (fileName.startsWith('lib.') || fileName === 'jquery' || fileName.includes('node_modules')) {
+					return '1'; 
+				}
+				// Unsure how this could occur, but better to not raise with statSync
+				if (!ts.sys.fileExists(fileName)) { return '1'; }
+				// Use mtime from the fs
+				return String(statSync(fileName).mtimeMs);
 			},
 			getScriptSnapshot: (fileName: string) => {
 				let text = '';
