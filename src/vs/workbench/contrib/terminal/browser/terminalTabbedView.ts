@@ -7,7 +7,7 @@ import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -186,10 +186,10 @@ export class TerminalTabbedView extends Disposable {
 		if (ctx) {
 			const style = window.getComputedStyle(this._terminalTabTree);
 			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
-			const maxTextSize = this._terminalService.terminalInstances.reduce((p, c) => {
-				return Math.max(p, ctx.measureText(c.title).width);
+			const maxInstanceWidth = this._terminalService.terminalInstances.reduce((p, c) => {
+				return Math.max(p, ctx.measureText(c.title + (c.shellLaunchConfig.description || '')).width + this._getAdditionalWidth(c));
 			}, 0);
-			idealWidth = Math.ceil(Math.max(maxTextSize + this._getAdditionalWidth(), DEFAULT_TABS_WIDGET_WIDTH));
+			idealWidth = Math.ceil(Math.max(maxInstanceWidth, DEFAULT_TABS_WIDGET_WIDTH));
 		}
 		// If the size is already ideal, toggle to collapsed
 		const currentWidth = Math.ceil(this._splitView.getViewSize(this._tabTreeIndex));
@@ -200,27 +200,12 @@ export class TerminalTabbedView extends Disposable {
 		this._updateWidgetWidth(idealWidth);
 	}
 
-	private _getAdditionalWidth(): number {
+	private _getAdditionalWidth(instance: ITerminalInstance): number {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
 		const additionalWidth = 30;
-		const statusIconWidth = this._terminalService.terminalInstances.find(i => i.statusList.statuses.length > 0) ? STATUS_ICON_WIDTH : 0;
-		const splitAnnotationWidth = this._terminalService.terminalTabs.find(t => t.terminalInstances.length > 1) ? SPLIT_ANNOTATION_WIDTH : 0;
-		if (statusIconWidth === 0 && splitAnnotationWidth === 0) {
-			return additionalWidth;
-		} else if (splitAnnotationWidth === 0 || statusIconWidth === 0) {
-			// splits or status
-			return additionalWidth + splitAnnotationWidth + statusIconWidth;
-		} else {
-			// check if a split terminal has a status icon
-			for (const tab of this._terminalService.terminalTabs.filter(t => t.terminalInstances.length > 1)) {
-				for (const instance of tab.terminalInstances) {
-					if (instance.statusList.statuses.length > 0) {
-						return additionalWidth + statusIconWidth + splitAnnotationWidth - 10;
-					}
-				}
-			}
-			return additionalWidth + statusIconWidth;
-		}
+		const statusIconWidth = instance.statusList.statuses.length > 0 ? STATUS_ICON_WIDTH : 0;
+		const splitAnnotationWidth = (this._terminalService.getTabForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
+		return additionalWidth + splitAnnotationWidth + statusIconWidth;
 	}
 
 	private _handleOnDidSashChange(): void {
