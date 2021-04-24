@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorOptions, IEditorInputFactoryRegistry, Extensions as EditorExtensions, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorInputFactoryRegistry, EditorExtensions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Registry } from 'vs/platform/registry/common/platform';

@@ -27,7 +27,8 @@ import { IExtUri } from 'vs/base/common/resources';
 // Static values for editor contributions
 export const EditorExtensions = {
 	Editors: 'workbench.contributions.editors',
-	Associations: 'workbench.editors.associations'
+	Associations: 'workbench.editors.associations',
+	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
 };
 
 // Editor State Context Keys
@@ -1538,11 +1539,7 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	}
 }
 
-export const Extensions = {
-	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
-};
-
-Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
+Registry.add(EditorExtensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
 export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
 	if (!paths || !paths.length) {

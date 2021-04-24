@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorExtensions as Extensions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -24,7 +24,7 @@ import { extUri } from 'vs/base/common/resources';
 
 const NullThemeService = new TestThemeService();
 
-let EditorRegistry: IEditorRegistry = Registry.as(Extensions.Editors);
+let EditorRegistry: IEditorRegistry = Registry.as(EditorExtensions.Editors);
 let EditorInputRegistry: IEditorInputFactoryRegistry = Registry.as(EditorExtensions.EditorInputFactories);
 
 class TestEditor extends EditorPane {
