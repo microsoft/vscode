@@ -350,12 +350,9 @@ export const enum CellEditType {
 	Metadata = 3,
 	CellLanguage = 4,
 	DocumentMetadata = 5,
-	OutputsSplice = 6,
-	Move = 7,
-	Unknown = 8,
-	CellContent = 9,
-	OutputItems = 10,
-	PartialMetadata = 11
+	Move = 6,
+	OutputItems = 7,
+	PartialMetadata = 8
 }
 
 export interface ICellDto2 {
