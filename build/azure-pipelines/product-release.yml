@@ -25,7 +25,7 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = 'Stop'
 
-      if (Test-Path "$(Pipeline.Workspace)/artifacts_processed.txt") {
+      if (Test-Path "$(Pipeline.Workspace)/artifacts_processed/artifacts_processed.txt") {
         return
       }
       $env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
