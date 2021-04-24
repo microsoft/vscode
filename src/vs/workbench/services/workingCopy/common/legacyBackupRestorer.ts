@@ -46,8 +46,13 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 
 	protected async doRestoreLegacyBackups(): Promise<void> {
 
-		// Resolve all backup resources that exist for this window (only those without `typeId`)
-		const backups = (await this.workingCopyBackupService.getBackups()).filter(backup => backup.typeId.length === 0);
+		// Resolve all backup resources that exist for this window
+		// that have not yet adopted the working copy editor handler
+		// - any working copy without `typeId`
+		// - not `search-edior:/` (supports migration to typeId)
+		const backups = (await this.workingCopyBackupService.getBackups())
+			.filter(backup => backup.typeId.length === 0)
+			.filter(backup => backup.resource.scheme !== 'search-editor');
 
 		// Trigger `resolve` in each opened editor that can be found
 		// for the given resource and keep track of backups that are
