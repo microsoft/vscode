@@ -244,7 +244,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		}));
 		template.label.setResource({
 			resource: instance.resource,
-			name: label
+			name: label,
+			description: instance.shellLaunchConfig.description
 		}, {
 			fileDecorations: {
 				colors: true,

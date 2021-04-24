@@ -411,10 +411,16 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			return '';
 		}
 		let title = this.terminalInstances[0].title;
+		if (this.terminalInstances[0].shellLaunchConfig.description) {
+			title += ` (${this.terminalInstances[0].shellLaunchConfig.description})`;
+		}
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			const instance = this.terminalInstances[i];
 			if (instance.title) {
 				title += `, ${instance.title}`;
+				if (instance.shellLaunchConfig.description) {
+					title += ` (${instance.shellLaunchConfig.description})`;
+				}
 			}
 		}
 		return title;

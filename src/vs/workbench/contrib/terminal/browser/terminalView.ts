@@ -387,9 +387,12 @@ function getSingleTabLabel(instance: ITerminalInstance | null) {
 		return '';
 	}
 	const primaryStatus = instance.statusList.primary;
-	const baseLabel = `$(${instance.icon?.id}) ${instance.title}`;
-	if (primaryStatus?.icon) {
-		return `${baseLabel} $(${primaryStatus.icon.id})`;
+	let label = `$(${instance.icon?.id}) ${instance.title}`;
+	if (instance.shellLaunchConfig.description) {
+		label += ` (${instance.shellLaunchConfig.description})`;
 	}
-	return baseLabel;
+	if (primaryStatus?.icon) {
+		label += ` $(${primaryStatus.icon.id})`;
+	}
+	return label;
 }
