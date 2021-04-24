@@ -20,7 +20,7 @@ import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LegacyWorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
+import { LegacyWorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/legacyBackupRestorer';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
 import { IWorkingCopyIdentifier, WorkingCopyIdentifierSet } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -313,12 +313,13 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		// Discard all but some backups
 		if (Array.isArray(except) && except.length > 0) {
 			const exceptSet = new WorkingCopyIdentifierSet(except);
+			const backups = await this.getBackups();
 
-			for (const backup of await this.getBackups()) {
+			await Promises.settled(backups.map(async backup => {
 				if (!exceptSet.has(backup)) {
 					await this.discardBackup(backup);
 				}
-			}
+			}));
 		}
 
 		// Discard all backups
@@ -531,12 +532,13 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 	async discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
 		if (Array.isArray(except) && except.length > 0) {
 			const exceptSet = new WorkingCopyIdentifierSet(except);
+			const backups = await this.getBackups();
 
-			for (const backup of await this.getBackups()) {
+			await Promises.settled(backups.map(async backup => {
 				if (!exceptSet.has(backup)) {
 					await this.discardBackup(backup);
 				}
-			}
+			}));
 		} else {
 			this.backups.clear();
 		}
@@ -560,7 +562,11 @@ export function hashIdentifier(identifier: IWorkingCopyIdentifier): string {
 	let resource: URI;
 	if (identifier.typeId.length > 0) {
 		const typeIdHash = hashString(identifier.typeId);
-		resource = joinPath(identifier.resource, typeIdHash);
+		if (identifier.resource.path) {
+			resource = joinPath(identifier.resource, typeIdHash);
+		} else {
+			resource = identifier.resource.with({ path: typeIdHash });
+		}
 	} else {
 		resource = identifier.resource;
 	}

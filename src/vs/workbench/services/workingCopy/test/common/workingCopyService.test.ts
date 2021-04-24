@@ -196,4 +196,20 @@ suite('WorkingCopyIdentifierSet', () => {
 		assert.ok(set.has({ resource: copy1.resource, typeId: copy1.typeId }));
 		assert.ok(!set.has({ resource: copy1.resource, typeId: 'testWorkingCopyTypeId2' }));
 	});
+
+	test('works when resource has no path component', () => {
+		const resource1 = URI.from({ scheme: 'custom', fragment: 'frag1' });
+		const resource2 = URI.from({ scheme: 'custom', fragment: 'frag2' });
+
+		const copy1 = new TestWorkingCopy(resource1, false, 'testWorkingCopyTypeId1');
+		const copy2 = new TestWorkingCopy(resource2, false, 'testWorkingCopyTypeId1');
+
+		const set = new WorkingCopyIdentifierSet([copy1, copy2]);
+		assert.strictEqual(set.size, 2);
+		assert.ok(set.has(copy1));
+		assert.ok(set.has(copy2));
+
+		assert.ok(set.has({ resource: copy1.resource, typeId: copy1.typeId }));
+		assert.ok(!set.has({ resource: copy1.resource, typeId: 'testWorkingCopyTypeId2' }));
+	});
 });

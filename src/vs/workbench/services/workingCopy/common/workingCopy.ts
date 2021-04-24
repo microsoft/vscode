@@ -9,7 +9,6 @@ import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { joinPath } from 'vs/base/common/resources';
 import { HashSet } from 'vs/base/common/map';
 
 export const enum WorkingCopyCapabilities {
@@ -80,7 +79,7 @@ export interface IWorkingCopyIdentifier {
  */
 export class WorkingCopyIdentifierSet extends HashSet<IWorkingCopyIdentifier> {
 	constructor(identifiers: IWorkingCopyIdentifier[]) {
-		super(identifiers, identifier => joinPath(identifier.resource, identifier.typeId).toString());
+		super(identifiers, identifier => `${identifier.resource.toString()}${identifier.typeId}`);
 	}
 }
 

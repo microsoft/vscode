@@ -223,6 +223,30 @@ suite('WorkingCopyBackupService', () => {
 
 			assert.notStrictEqual(untypedBackupHash, typedBackupHash);
 		});
+
+		test('should not fail for URIs without path', () => {
+			const uri = URI.from({
+				scheme: 'vscode-fragment',
+				fragment: 'frag'
+			});
+
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// If these hashes change people will lose their backed up files
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			const untypedBackupHash = hashIdentifier(toUntypedWorkingCopyId(uri));
+			assert.strictEqual(untypedBackupHash, '-2f6b2f1b');
+			assert.strictEqual(untypedBackupHash, hash(uri.toString()).toString(16));
+
+			const typedBackupHash = hashIdentifier({ typeId: 'hashTest', resource: uri });
+			assert.strictEqual(typedBackupHash, '6e82ca57');
+
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// If these hashes collide people will lose their backed up files
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			assert.notStrictEqual(untypedBackupHash, typedBackupHash);
+		});
 	});
 
 	suite('getBackupResource', () => {
