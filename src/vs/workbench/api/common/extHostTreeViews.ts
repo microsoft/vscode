@@ -127,12 +127,12 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getChildren(treeItemHandle);
 	}
 
-	$setParent(treeViewId: string, treeItemHandle: string, newParentItemHandle: string): Promise<void> {
+	$setParent(treeViewId: string, treeItemHandles: string[], newParentItemHandle: string): Promise<void> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
 		}
-		return treeView.setParent(treeItemHandle, newParentItemHandle);
+		return treeView.setParent(treeItemHandles, newParentItemHandle);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {
@@ -377,14 +377,10 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	setParent(treeItemHandleOrNode: TreeItemHandle | TreeNode | Root, newParentHandleOrNode: TreeItemHandle | TreeNode | Root): Promise<void> {
-		let elementNode = this.getTreeNode(treeItemHandleOrNode);
-		let newParentNode = this.getTreeNode(newParentHandleOrNode);
-		if (elementNode?.parent && elementNode.parent !== newParentNode) {
-			// if it's not a direct child from parent node then we can move
-
-		}
-		return Promise.resolve(undefined);
+	setParent(treeItemHandleOrNode: TreeItemHandle[], newParentHandleOrNode: TreeItemHandle): Promise<void> {
+		const element = this.getExtensionElement(treeItemHandleOrNode[0]);
+		const newParentElement = this.getExtensionElement(newParentHandleOrNode);
+		return asPromise(() => this.dataProvider.setParent!(element!, newParentElement!));
 	}
 
 	get hasResolve(): boolean {
@@ -765,20 +761,6 @@ class ExtHostTreeView<T> extends Disposable {
 		this.elements.clear();
 		this.nodes.forEach(node => node.dispose());
 		this.nodes.clear();
-	}
-
-	private getTreeNode(itemNodeOrHandle: TreeNode | TreeItemHandle | Root): TreeNode | undefined {
-		if (itemNodeOrHandle) {
-			let treeNode: TreeNode | undefined;
-			if (typeof itemNodeOrHandle === 'string') {
-				const element = this.getExtensionElement(itemNodeOrHandle);
-				treeNode = element ? this.nodes.get(element) : undefined;
-			} else {
-				treeNode = itemNodeOrHandle;
-			}
-			return treeNode;
-		}
-		return undefined;
 	}
 
 	override dispose() {
