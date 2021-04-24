@@ -32,7 +32,7 @@ function deschemeURI(uri: string) {
 	// Both \ and / must be escaped in regular expressions
 	newPath = newPath.replace(new RegExp('\\' + sep, 'g'), '/');
 
-	if (process.platform !== 'win32') return newPath;
+	if (process.platform !== 'win32') { return newPath; }
 
 	// Windows URIs come in like '/c%3A/Users/orta/dev/...', we need to switch it to 'c:/Users/orta/dev/...'
 	return newPath.slice(1).replace('%3A', ':');
@@ -61,7 +61,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				// Default libs and jquery.d.ts are static.
 				// Include node_modules as a perf win
 				if (fileName.startsWith('lib.') || fileName === 'jquery' || fileName.includes('node_modules')) {
-					return '1'; 
+					return '1';
 				}
 				// Unsure how this could occur, but better to not raise with statSync
 				if (!ts.sys.fileExists(fileName)) { return '1'; }
@@ -146,7 +146,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const filePath = deschemeURI(jsDocument.uri);
 
 			let offset = jsDocument.offsetAt(position);
-			let completions = jsLanguageService.getCompletionsAtPosition(filePath, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false });
+			let completions = jsLanguageService.getCompletionsAtPosition(filePath, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false, importModuleSpecifierEnding: 'js' });
 
 			if (!completions) {
 				return { isIncomplete: false, items: [] };
