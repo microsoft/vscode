@@ -227,9 +227,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			}
 		} else {
 			this.fillActionBar(instance, template);
-			// Remove "Task - " from only tabs to give more horizontal space as it's obvious from
-			// the tab icon
-			label = `${prefix}$(${instance.icon?.id}) ${instance.title.replace(/^Task - /, '')}`;
+			label = `${prefix}$(${instance.icon?.id}) ${instance.title}`;
 		}
 
 		if (!template.elementDispoables) {
@@ -245,7 +243,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
-			description: instance.shellLaunchConfig.description
+			description: hasText ? instance.shellLaunchConfig.description : undefined
 		}, {
 			fileDecorations: {
 				colors: true,
