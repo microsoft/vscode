@@ -382,7 +382,16 @@ export class GettingStartedPage extends EditorPane {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'toggleStepCompletion2', argument: id });
 				this.toggleStepCompletion(id);
 			}
+			stepElement.style.height = ``;
 			stepElement.style.height = `${stepElement.scrollHeight}px`;
+
+			setTimeout(() => {
+				// Scrollheight doesn't play nicely with the -webkit-line-clamp logic, soketomes clipped even after the first scan
+				// rescan in a lil bit to help things along.
+				stepElement.style.height = ``;
+				stepElement.style.height = `${stepElement.scrollHeight}px`;
+			}, 50);
+
 			if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
 				throw Error('cannot expand step for category of non steps type' + this.currentCategory?.id);
 			}
@@ -711,7 +720,7 @@ export class GettingStartedPage extends EditorPane {
 					'x-dispatch': 'hideCategory:' + category.id,
 					'title': localize('close', "Hide"),
 				}),
-				$('h3.category-title', { 'x-category-title-for': category.id }, category.title),
+				$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title),
 				$('.category-progress', { 'x-data-category-id': category.id, },
 					$('.progress-bar-outer', { 'role': 'progressbar' },
 						$('.progress-bar-inner'))));
@@ -891,8 +900,8 @@ export class GettingStartedPage extends EditorPane {
 				{},
 				this.iconWidgetFor(category),
 				$('.category-description-container', {},
-					$('h2.category-title', { 'x-category-title-for': category.id }, category.title),
-					$('.category-description.description', { 'x-category-description-for': category.id }, category.description)));
+					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title),
+					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, category.description)));
 
 		const categoryElements = category.content.steps.map(
 			(step, i, arr) => {
@@ -906,7 +915,7 @@ export class GettingStartedPage extends EditorPane {
 				this.buildStepMarkdownDescription(container, step.description);
 
 				const stepDescription = $('.step-container', {},
-					$('h3.step-title', { 'x-step-title-for': step.id }, step.title),
+					$('h3.step-title.max-lines-3', { 'x-step-title-for': step.id }, step.title),
 					container,
 				);
 

@@ -337,6 +337,11 @@
 	opacity: 0.8;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-title {
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns .getting-started-detail-left > div {
 	width: 100%;
 }
@@ -412,7 +417,7 @@
 	display: grid;
 
 	grid-template-columns: minmax(auto, 400px) 1fr;
-	grid-template-rows: minmax(40px, 20%) 100px max-content 1fr;
+	grid-template-rows: minmax(40px, 20%) auto max-content 1fr;
 	grid-column-gap: 20px;
 	grid-template-areas:
 	"back img"
@@ -425,7 +430,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	max-width: 500px;
 	grid-template-columns: auto;
-	grid-template-rows: 30px 100px minmax(30%, 40%) 1fr;
+	grid-template-rows: 30px auto minmax(30%, 40%) 1fr;
 	grid-column-gap: 20px;
 	grid-template-areas:
 	"back"
@@ -436,7 +441,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
-	grid-template-rows: 0 100px minmax(40%, 50%) 1fr;
+	grid-template-rows: 0 auto minmax(40%, 50%) 1fr;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .prev-button {
@@ -463,6 +468,8 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media.image {
 	height: inherit;
 	width: inherit;
+	display: flex;
+	justify-content: center;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right {
@@ -620,4 +627,13 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category:hover .codicon-close {
 	visibility: visible;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .max-lines-3 {
+	/* Supported everywhere: https://developer.mozilla.org/en-US/docs/Web/CSS/-webkit-line-clamp#browser_compatibility */
+	-webkit-line-clamp: 3;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
