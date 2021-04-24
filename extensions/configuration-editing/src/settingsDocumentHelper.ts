@@ -60,11 +60,11 @@ export class SettingsDocument {
 			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
 		}
 
-		// security.workspace.trust.extensionRequest
-		if (location.path[0] === 'security.workspace.trust.extensionRequest' && location.path.length === 2 && location.isAtPropertyKey) {
+		// extensions.supportUntrustedWorkspaces
+		if (location.path[0] === 'extensions.supportUntrustedWorkspaces' && location.path.length === 2 && location.isAtPropertyKey) {
 			let alreadyConfigured: string[] = [];
 			try {
-				alreadyConfigured = Object.keys(parse(this.document.getText())['security.workspace.trust.extensionRequest']);
+				alreadyConfigured = Object.keys(parse(this.document.getText())['extensions.supportUntrustedWorkspaces']);
 			} catch (e) {/* ignore error */ }
 			return provideWorkspaceTrustExtensionProposals(alreadyConfigured, range);
 		}

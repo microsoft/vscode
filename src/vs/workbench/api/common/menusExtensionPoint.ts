@@ -139,6 +139,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'statusBar/remoteIndicator',
+		id: MenuId.StatusBarRemoteIndicatorMenu,
+		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),
+		supportsSubmenus: false
+	},
+	{
 		key: 'view/title',
 		id: MenuId.ViewTitle,
 		description: localize('view.viewTitle', "The contributed view title menu")

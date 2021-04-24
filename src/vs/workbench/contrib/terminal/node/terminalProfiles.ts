@@ -203,10 +203,10 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 					path: wslPath,
 					args: [`-d`, `${distroName}`]
 				};
-				// TODO: Use Ubuntu icon
-				// if (distroName.includes('Ubuntu')) {
-				// }
-				if (distroName.includes('Debian')) {
+				if (distroName.includes('Ubuntu')) {
+					profile.icon = 'terminal-ubuntu';
+				}
+				else if (distroName.includes('Debian')) {
 					profile.icon = 'terminal-debian';
 				} else {
 					profile.icon = 'terminal-linux';

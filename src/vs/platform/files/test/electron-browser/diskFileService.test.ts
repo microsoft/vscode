@@ -88,7 +88,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		this.smallStatSize = enabled;
 	}
 
-	async override stat(resource: URI): Promise<IStat> {
+	override async stat(resource: URI): Promise<IStat> {
 		const res = await super.stat(resource);
 
 		if (this.invalidStatSize) {
@@ -100,7 +100,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return res;
 	}
 
-	async override read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+	override async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		const bytesRead = await super.read(fd, pos, data, offset, length);
 
 		this.totalBytesRead += bytesRead;
@@ -108,7 +108,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return bytesRead;
 	}
 
-	async override readFile(resource: URI): Promise<Uint8Array> {
+	override async readFile(resource: URI): Promise<Uint8Array> {
 		const res = await super.readFile(resource);
 
 		this.totalBytesRead += res.byteLength;

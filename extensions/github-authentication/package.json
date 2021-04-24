@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.41.0"
   },
+  "icon": "images/icon.png",
   "enableProposedApi": true,
   "categories": [
     "Other"
@@ -20,7 +21,12 @@
   "activationEvents": [
     "onAuthenticationRequest:github"
   ],
-  "workspaceTrust": { "request": "never" },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {

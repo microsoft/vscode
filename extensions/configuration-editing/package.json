@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.0.0"
   },
+  "icon": "images/icon.png",
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:jsonc"
@@ -22,8 +23,11 @@
     "jsonc-parser": "^2.2.1",
     "vscode-nls": "^4.1.1"
   },
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "languages": [

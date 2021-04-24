@@ -115,7 +115,7 @@ export class BrowserWindow extends Disposable {
 	private create(): void {
 
 		// Driver
-		if (this.environmentService.options?.driver) {
+		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
 			(async () => this._register(await registerWindowDriver()))();
 		}
 

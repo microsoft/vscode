@@ -6565,10 +6565,10 @@ node-libs-browser@^2.2.1:
     util "^0.11.0"
     vm-browserify "^1.0.1"
 
-node-pty@0.10.0-beta19:
-  version "0.10.0-beta19"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta19.tgz#b7cbfba53f7b2a816efe8c9302dd083cc5874458"
-  integrity sha512-4UIOGMvpofUbe+ZniBUtY8zc/psMURSzbMonQgIhK7JlMQsUwcbkDIrKzStVLJX0FkeZpUNlsVtK7qqzHvrUZA==
+node-pty@0.10.1:
+  version "0.10.1"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.1.tgz#cd05d03a2710315ec40221232ec04186f6ac2c6d"
+  integrity sha512-JTdtUS0Im/yRsWJSx7yiW9rtpfmxqxolrtnyKwPLI+6XqTAPW/O2MjS8FYL4I5TsMbH2lVgDb2VMjp+9LoQGNg==
   dependencies:
     nan "^2.14.0"
 
@@ -9545,10 +9545,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.3.0-dev.20210412:
-  version "4.3.0-dev.20210412"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210412.tgz#985af41fcbe9d6bf9c4132e3209b7905b5af4281"
-  integrity sha512-jAoT9A85ujmykZTKSQ7WLJ7aItFTXrmt+FWPl3xgvfrtM26ZAqvfYXVm2XjSFOwSzMptS+7D1Afxj/fynTOhEQ==
+typescript@^4.3.0-dev.20210420:
+  version "4.3.0-dev.20210420"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210420.tgz#8a7269694d5972411e506921bfe1f1858af8d1ad"
+  integrity sha512-t52VhOM4nSLtLZTgQ8/dtKNGXQy7oZ/xV62p/S+wjHgAI3FA595eIz3z4PaoYgURH5nBxIrvD0OMj0Ac5g9KyA==
 
 typical@^4.0.0:
   version "4.0.0"
@@ -9917,10 +9917,10 @@ vm-browserify@^1.0.1:
   resolved "https://registry.yarnpkg.com/vm-browserify/-/vm-browserify-1.1.2.tgz#78641c488b8e6ca91a75f511e7a3b32a86e5dda0"
   integrity sha512-2ham8XPWTONajOR0ohOKOHXkm3+gaBmGut3SRuu75xLd/RRaY6vqgh8NBYYk7+RW3u5AtzPQZG8F10LHkl0lAQ==
 
-vscode-debugprotocol@1.46.0:
-  version "1.46.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.46.0.tgz#1f6d0420fb91c158babba2eeb988a4b00d062815"
-  integrity sha512-V10u1L679DJZfOtQXhKylJPMqNbhazav4mRxPrBE8/Jpznow1b1j1EGDDvJ4prQ623CLAnvpFfVkVQ+CX3xdtg==
+vscode-debugprotocol@1.47.0:
+  version "1.47.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.47.0.tgz#700055bea38633a9530a5a552fb3ea314d76b73f"
+  integrity sha512-ii7oCz3Wfr/SGtFr5AYop5dJm0dUmpg0hq2lTzTBdaht8nSheYMMjPntxULBR+2TUxXLcCKFZkF2UEJQduYsIQ==
 
 vscode-nls-dev@^3.3.1:
   version "3.3.1"

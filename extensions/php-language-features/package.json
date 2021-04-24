@@ -9,6 +9,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "enableProposedApi": true,
   "activationEvents": [
     "onLanguage:php"
   ],
@@ -16,6 +17,16 @@
   "categories": [
     "Programming Languages"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%",
+      "restrictedConfigurations": [
+        "php.validate.executablePath"
+      ]
+    }
+  },
   "contributes": {
     "configuration": {
       "title": "%configuration.title%",

@@ -109,7 +109,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		super(actionId, actionLabel, undefined, true);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		let layouts = this.keyboardLayoutService.getAllKeyboardLayouts();
 		let currentLayout = this.keyboardLayoutService.getCurrentKeyboardLayout();
 		let layoutConfig = this.configurationService.getValue('keyboard.layout');

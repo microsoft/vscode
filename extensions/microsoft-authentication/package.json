@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.42.0"
   },
+  "icon": "media/icon.png",
   "categories": [
     "Other"
   ],
@@ -15,7 +16,12 @@
   "activationEvents": [
     "onAuthenticationRequest:microsoft"
   ],
-  "workspaceTrust": { "request": "never" },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "extensionKind": [
     "ui",
     "workspace",

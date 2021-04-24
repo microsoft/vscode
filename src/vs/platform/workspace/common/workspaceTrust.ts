@@ -17,7 +17,7 @@ export function workspaceTrustToString(trustState: boolean) {
 	if (trustState) {
 		return localize('trusted', "Trusted");
 	} else {
-		return localize('untrusted', "Untrusted");
+		return localize('untrusted', "Restricted Mode");
 	}
 }
 

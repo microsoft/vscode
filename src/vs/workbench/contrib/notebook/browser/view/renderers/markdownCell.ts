@@ -53,7 +53,7 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 		super();
 
 		this._register(getResizesObserver(this.markdownContainer, undefined, () => {
-			if (viewCell.editState === CellEditState.Preview) {
+			if (viewCell.getEditState() === CellEditState.Preview) {
 				this.viewCell.renderedMarkdownHeight = container.clientHeight;
 			}
 		})).startObserving();
@@ -74,7 +74,7 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 		} else {
 			this.localDisposables.clear();
 			this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
-				if (this.viewCell.editState === CellEditState.Preview) {
+				if (this.viewCell.getEditState() === CellEditState.Preview) {
 					this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
 				}
 				this.relayoutCell();
@@ -184,7 +184,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this._register(viewCell.onDidChangeLayout((e) => {
 			const layoutInfo = this.editor?.getLayoutInfo();
-			if (e.outerWidth && this.viewCell.editState === CellEditState.Editing && layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
+			if (e.outerWidth && this.viewCell.getEditState() === CellEditState.Editing && layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
 				this.onCellEditorWidthChange();
 			} else if (e.totalHeight || e.outerWidth) {
 				this.relayoutCell();
@@ -244,7 +244,7 @@ export class StatefulMarkdownCell extends Disposable {
 	private viewUpdate(): void {
 		if (this.viewCell.metadata?.inputCollapsed) {
 			this.viewUpdateCollapsed();
-		} else if (this.viewCell.editState === CellEditState.Editing) {
+		} else if (this.viewCell.getEditState() === CellEditState.Editing) {
 			this.viewUpdateEditing();
 		} else {
 			this.viewUpdatePreview();
@@ -336,7 +336,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 				this.viewCell.attachTextEditor(this.editor!);
 
-				if (this.viewCell.editState === CellEditState.Editing) {
+				if (this.viewCell.getEditState() === CellEditState.Editing) {
 					this.focusEditorIfNeeded();
 				}
 
@@ -375,7 +375,6 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private layoutEditor(dimension: DOM.IDimension): void {
 		this.editor?.layout(dimension);
-		this.templateData.statusBar.layout(dimension.width);
 	}
 
 	private onCellEditorWidthChange(): void {

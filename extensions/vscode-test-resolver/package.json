@@ -9,6 +9,7 @@
   "engines": {
     "vscode": "^1.25.0"
   },
+  "icon": "media/icon.png",
   "extensionKind": [
     "ui"
   ],
@@ -79,31 +80,31 @@
           "when": "remoteName == test"
         }
       ],
-      "statusBar/windowIndicator": [
+      "statusBar/remoteIndicator": [
         {
           "command": "vscode-testresolver.newWindow",
           "when": "!remoteName",
-          "group": "9_local_testresolver@2"
+          "group": "remote_90_test_1_local@2"
         },
         {
           "command": "vscode-testresolver.showLog",
           "when": "remoteName == test",
-          "group": "1_remote_testresolver_open@3"
+          "group": "remote_90_test_1_open@3"
         },
         {
           "command": "vscode-testresolver.newWindow",
           "when": "remoteName == test",
-          "group": "1_remote_testresolver_open@1"
+          "group": "remote_90_test_1_open@1"
         },
         {
           "command": "vscode-testresolver.openTunnel",
           "when": "remoteName == test",
-          "group": "1_remote_testresolver_open@4"
+          "group": "remote_90_test_2_more@4"
         },
         {
           "command": "vscode-testresolver.startRemoteServer",
           "when": "remoteName == test",
-          "group": "1_remote_testresolver_open@5"
+          "group": "remote_90_test_2_more@5"
         }
       ]
     },

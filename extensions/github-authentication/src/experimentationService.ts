@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getExperimentationService, IExperimentationService, IExperimentationTelemetry, TargetPopulation } from 'vscode-tas-client';
@@ -52,24 +51,15 @@ export class ExperimentationTelemetry implements IExperimentationTelemetry {
 	}
 }
 
-interface ProductConfiguration {
-	quality?: 'stable' | 'insider' | 'exploration';
-}
-
-async function getProductConfig(appRoot: string): Promise<ProductConfiguration> {
-	const raw = await vscode.workspace.fs.readFile(vscode.Uri.file(path.join(appRoot, 'product.json')));
-	return JSON.parse(raw.toString());
-}
-
-function getTargetPopulation(product: ProductConfiguration): TargetPopulation {
-	switch (product.quality) {
-		case 'stable':
+function getTargetPopulation(): TargetPopulation {
+	switch (vscode.env.uriScheme) {
+		case 'vscode':
 			return TargetPopulation.Public;
-		case 'insider':
+		case 'vscode-insiders':
 			return TargetPopulation.Insiders;
-		case 'exploration':
+		case 'vscode-exploration':
 			return TargetPopulation.Internal;
-		case undefined:
+		case 'code-oss':
 			return TargetPopulation.Team;
 		default:
 			return TargetPopulation.Public;
@@ -79,7 +69,5 @@ function getTargetPopulation(product: ProductConfiguration): TargetPopulation {
 export async function createExperimentationService(context: vscode.ExtensionContext, telemetry: ExperimentationTelemetry): Promise<IExperimentationService> {
 	const id = context.extension.id;
 	const version = context.extension.packageJSON.version;
-	const product = await getProductConfig(vscode.env.appRoot);
-	const targetPopulation = getTargetPopulation(product);
-	return getExperimentationService(id, version, targetPopulation, telemetry, context.globalState);
+	return getExperimentationService(id, version, getTargetPopulation(), telemetry, context.globalState);
 }

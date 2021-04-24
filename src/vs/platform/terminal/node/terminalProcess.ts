@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { timeout } from 'vs/base/common/async';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -44,6 +45,23 @@ const enum ShutdownConstants {
 	MaximumShutdownTime = 5000
 }
 
+const enum Constants {
+	/**
+	 * The minimum duration between kill and spawn calls on Windows/conpty as a mitigation for a
+	 * hang issue. See:
+	 * - https://github.com/microsoft/vscode/issues/71966
+	 * - https://github.com/microsoft/vscode/issues/117956
+	 * - https://github.com/microsoft/vscode/issues/121336
+	 */
+	KillSpawnThrottleInterval = 250,
+	/**
+	 * The amount of time to wait when a call is throttles beyond the exact amount, this is used to
+	 * try prevent early timeouts causing a kill/spawn call to happen at double the regular
+	 * interval.
+	 */
+	KillSpawnSpacingDuration = 50,
+}
+
 interface IWriteObject {
 	data: string,
 	isBinary: boolean
@@ -52,6 +70,8 @@ interface IWriteObject {
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
+
+	private static _lastKillOrStart = 0;
 
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
@@ -203,6 +223,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
 		const args = shellLaunchConfig.args || [];
+		await this._throttleKillSpawn();
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
@@ -280,6 +301,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// point but we want to make sure
 		try {
 			if (this._ptyProcess) {
+				await this._throttleKillSpawn();
 				this._logService.trace('IPty#kill');
 				this._ptyProcess.kill();
 			}
@@ -288,6 +310,19 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		this._onProcessExit.fire(this._exitCode || 0);
 		this.dispose();
+	}
+
+	private async _throttleKillSpawn(): Promise<void> {
+		// Only throttle on Windows/conpty
+		if (!isWindows || !('useConpty' in this._ptyOptions) || !this._ptyOptions.useConpty) {
+			return;
+		}
+		// Use a loop to ensure multiple calls in a single interval space out
+		while (Date.now() - TerminalProcess._lastKillOrStart < Constants.KillSpawnThrottleInterval) {
+			this._logService.trace('Throttling kill/spawn call');
+			await timeout(Constants.KillSpawnThrottleInterval - (Date.now() - TerminalProcess._lastKillOrStart) + Constants.KillSpawnSpacingDuration);
+		}
+		TerminalProcess._lastKillOrStart = Date.now();
 	}
 
 	private _sendProcessId(pid: number) {

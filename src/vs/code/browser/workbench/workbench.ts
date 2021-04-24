@@ -413,13 +413,6 @@ class WindowIndicator implements IWindowIndicator {
 
 	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
 
-	// Revive static extension locations
-	if (Array.isArray(config.staticExtensions)) {
-		config.staticExtensions.forEach(extension => {
-			extension.extensionLocation = URI.revive(extension.extensionLocation);
-		});
-	}
-
 	// Find workspace to open and payload
 	let foundWorkspace = false;
 	let workspace: IWorkspace;

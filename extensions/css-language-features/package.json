@@ -18,7 +18,12 @@
   "main": "./client/out/node/cssClientMain",
   "browser": "./client/dist/browser/cssClientMain",
   "enableProposedApi": true,
-  "workspaceTrust": { "request": "never" },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",

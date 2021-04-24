@@ -233,7 +233,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return this;
 	}
 
-	async override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		await this.textFileService.revert(this.resource, options);
 	}
 }

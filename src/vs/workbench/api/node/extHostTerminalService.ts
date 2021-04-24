@@ -86,7 +86,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			this._defaultShell ?? getSystemShellSync(platform.OS, process.env as platform.IProcessEnvironment),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
-			terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver),
+			terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, process.env, this._variableResolver),
 			this._logService,
 			useAutomationShell
 		);
@@ -99,7 +99,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 				.get<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 		};
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, useAutomationShell, terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver), this._logService);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, useAutomationShell, terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, process.env, this._variableResolver), this._logService);
 	}
 
 	private _registerListeners(): void {

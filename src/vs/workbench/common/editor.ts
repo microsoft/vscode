@@ -24,6 +24,12 @@ import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
+// Static values for editor contributions
+export const EditorExtensions = {
+	Editors: 'workbench.contributions.editors',
+	Associations: 'workbench.editors.associations'
+};
+
 // Editor State Context Keys
 export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
@@ -176,6 +182,11 @@ export interface IEditorControl extends ICompositeControl { }
 export interface IFileEditorInputFactory {
 
 	/**
+	 * The type identifier of the file editor input.
+	 */
+	typeId: string;
+
+	/**
 	 * Creates new new editor input capable of showing files.
 	 */
 	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
@@ -186,8 +197,19 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
+/**
+ * @deprecated obsolete
+ *
+ * TODO@bpasero remove this API and users once the generic backup restorer has been removed
+ */
 export interface ICustomEditorInputFactory {
+	/**
+	 * @deprecated obsolete
+	 */
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
+	/**
+	 * @deprecated obsolete
+	 */
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
 
@@ -205,11 +227,15 @@ export interface IEditorInputFactoryRegistry {
 
 	/**
 	 * Registers the custom editor input factory to use for custom inputs.
+	 *
+	 * @deprecated obsolete
 	 */
 	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void;
 
 	/**
 	 * Returns the custom editor input factory to use for custom inputs.
+	 *
+	 * @deprecated obsolete
 	 */
 	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
@@ -509,6 +535,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * Returns a copy of the current editor input. Used when we can't just reuse the input
+	 */
+	copy?(): IEditorInput;
 }
 
 /**
@@ -610,6 +641,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	matches(otherInput: unknown): boolean {
 		return this === otherInput;
+	}
+
+	copy(): IEditorInput {
+		return this;
 	}
 
 	isDisposed(): boolean {
@@ -879,6 +914,10 @@ export class EditorModel extends Disposable implements IEditorModel {
 export interface IEditorInputWithOptions {
 	editor: IEditorInput;
 	options?: IEditorOptions | ITextEditorOptions;
+}
+
+export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
+	group?: IEditorGroup;
 }
 
 export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {

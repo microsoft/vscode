@@ -54,7 +54,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (this.productService.releaseNotesUrl) {
 			const uri = URI.parse(this.productService.releaseNotesUrl);
 			await this.openerService.open(uri);
@@ -75,7 +75,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.enabled) {
 			return;
 		}
@@ -611,7 +611,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							nls.localize('cancel', "Cancel"),
 						],
 						{
-							detail: nls.localize('selectSyncService.detail', "Insiders version of VSCode will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
+							detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
 							cancelId: 2
 						}
 					);

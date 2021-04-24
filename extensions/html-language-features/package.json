@@ -17,7 +17,12 @@
   ],
   "main": "./client/out/node/htmlClientMain",
   "browser": "./client/dist/browser/htmlClientMain",
-  "workspaceTrust": { "request": "never" },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",

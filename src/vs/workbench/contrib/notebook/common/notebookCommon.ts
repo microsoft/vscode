@@ -18,11 +18,12 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 export enum CellKind {
 	Markdown = 1,
@@ -66,6 +67,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 export interface NotebookDocumentMetadata {
 	custom?: { [key: string]: unknown };
 	trusted: boolean;
+	[key: string]: unknown;
 }
 
 export enum NotebookCellExecutionState {
@@ -81,8 +83,6 @@ export interface INotebookCellPreviousExecutionResult {
 }
 
 export interface NotebookCellMetadata {
-	editable?: boolean;
-	breakpointMargin?: boolean;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
 	runState?: NotebookCellExecutionState;
@@ -91,7 +91,11 @@ export interface NotebookCellMetadata {
 	runEndTime?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
-	custom?: { [key: string]: unknown };
+
+	/**
+	 * custom metadata
+	 */
+	[key: string]: unknown;
 }
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
@@ -689,21 +693,6 @@ export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly mtime?: number;
 }
 
-/**
- * [start, end]
- */
-export interface ICellRange {
-	/**
-	 * zero based index
-	 */
-	start: number;
-
-	/**
-	 * zero based index
-	 */
-	end: number;
-}
-
 export enum NotebookEditorPriority {
 	default = 'default',
 	option = 'option',
@@ -765,37 +754,34 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	return false;
 }
 
+export interface INotebookKernelChangeEvent {
+	label?: true;
+	description?: true;
+	detail?: true;
+	supportedLanguages?: true;
+	hasExecutionOrder?: true;
+}
+
 export interface INotebookKernel {
 
-	/** @deprecated */
-	providerHandle?: number;
-	/** @deprecated */
-	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
+	readonly id: string;
+	readonly viewType: string;
+	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
+	readonly extension: ExtensionIdentifier;
 
-	id?: string;
-	friendlyId: string;
+	readonly localResourceRoot: URI;
+	readonly preloadUris: URI[];
+	readonly preloadProvides: string[];
+
 	label: string;
-	extension: ExtensionIdentifier;
-	localResourceRoot: URI;
 	description?: string;
 	detail?: string;
-	isPreferred?: boolean;
-	preloadUris: URI[];
-	preloadProvides: string[];
-	supportedLanguages?: string[]
+	supportedLanguages: string[]
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
-	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
-	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
-}
-
-export interface INotebookKernelProvider {
-	providerExtensionId: string;
-	providerDescription?: string;
-	selector: INotebookDocumentFilter;
-	onDidChangeKernels: Event<URI | undefined>;
-	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
+	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 }
 
 export interface INotebookCellStatusBarItemProvider {
@@ -827,7 +813,9 @@ export interface INotebookDiffResult {
 export interface INotebookCellStatusBarItem {
 	readonly alignment: CellStatusbarAlignment;
 	readonly priority?: number;
-	readonly text: string;
+	readonly text?: string;
+	readonly color?: string | ThemeColor;
+	readonly backgroundColor?: string | ThemeColor;
 	readonly tooltip?: string;
 	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
@@ -857,66 +845,4 @@ export interface INotebookDecorationRenderOptions {
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
-
-export function cellIndexesToRanges(indexes: number[]) {
-	indexes.sort((a, b) => a - b);
-	const first = indexes.shift();
-
-	if (first === undefined) {
-		return [];
-	}
-
-	return indexes.reduce(function (ranges, num) {
-		if (num <= ranges[0][1]) {
-			ranges[0][1] = num + 1;
-		} else {
-			ranges.unshift([num, num + 1]);
-		}
-		return ranges;
-	}, [[first, first + 1]]).reverse().map(val => ({ start: val[0], end: val[1] }));
-}
-
-export function cellRangesToIndexes(ranges: ICellRange[]) {
-	const indexes = ranges.reduce((a, b) => {
-		for (let i = b.start; i < b.end; i++) {
-			a.push(i);
-		}
-
-		return a;
-	}, [] as number[]);
-
-	return indexes;
-}
-
-/**
- * todo@rebornix notebookBrowser.reduceCellRanges
- * @returns
- */
-export function reduceRanges(ranges: ICellRange[]) {
-	const sorted = ranges.sort((a, b) => a.start - b.start);
-	const first = sorted[0];
-
-	if (!first) {
-		return [];
-	}
-
-	return sorted.reduce((prev: ICellRange[], curr) => {
-		const last = prev[prev.length - 1];
-		if (last.end >= curr.start) {
-			last.end = Math.max(last.end, curr.end);
-		} else {
-			prev.push(curr);
-		}
-		return prev;
-	}, [first] as ICellRange[]);
-}
-
-/**
- * todo@rebornix test and sort
- * @param range
- * @param other
- * @returns
- */
-export function cellRangeContains(range: ICellRange, other: ICellRange): boolean {
-	return other.start >= range.start && other.end <= range.end;
-}
+export const NOTEBOOK_WORKING_COPY_TYPE_PREFIX = 'notebook/';

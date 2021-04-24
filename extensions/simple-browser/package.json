@@ -4,7 +4,7 @@
   "description": "%description%",
   "enableProposedApi": true,
   "version": "1.0.0",
-  "icon": "icon.png",
+  "icon": "media/icon.png",
   "publisher": "vscode",
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
@@ -27,8 +27,11 @@
     "onOpenExternalUri:http",
     "onOpenExternalUri:https"
   ],
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "commands": [

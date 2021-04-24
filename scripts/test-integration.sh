@@ -36,7 +36,8 @@ else
 				compile-extension:css-language-features-server \
 				compile-extension:html-language-features-server \
 				compile-extension:json-language-features-server \
-				compile-extension:git
+				compile-extension:git \
+				compile-extension-media
 
 	# Configuration for more verbose output
 	export VSCODE_CLI=1

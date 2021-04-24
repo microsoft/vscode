@@ -73,7 +73,7 @@ export interface IWorkingCopyBackupService {
 	/**
 	 * Gets a list of working copy backups for the current workspace.
 	 */
-	getBackups(): Promise<IWorkingCopyIdentifier[]>;
+	getBackups(): Promise<ReadonlyArray<IWorkingCopyIdentifier>>;
 
 	/**
 	 * Resolves the working copy backup for the given identifier if that exists.
@@ -92,6 +92,9 @@ export interface IWorkingCopyBackupService {
 
 	/**
 	 * Discards all working copy backups.
+	 *
+	 * The optional set of identifiers can be provided to discard all but the
+	 * provided ones.
 	 */
-	discardBackups(): Promise<void>;
+	discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void>;
 }

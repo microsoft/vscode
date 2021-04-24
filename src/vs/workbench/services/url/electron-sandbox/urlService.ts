@@ -50,7 +50,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		return uri.with({ query });
 	}
 
-	async override open(resource: URI | string, options?: IRelayOpenURLOptions): Promise<boolean> {
+	override async open(resource: URI | string, options?: IRelayOpenURLOptions): Promise<boolean> {
 
 		if (!matchesScheme(resource, this.productService.urlProtocol)) {
 			return false;

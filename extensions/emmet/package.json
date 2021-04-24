@@ -455,7 +455,10 @@
     "vscode-emmet-helper": "^2.3.0",
     "vscode-languageserver-textdocument": "^1.0.1"
   },
-  "workspaceTrust": {
-    "request": "never"
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   }
 }

@@ -21,6 +21,15 @@ export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('t
 /** A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false, nls.localize('terminalFocusContextKey', "Whether the terminal is focused"));
 
+/** A context key that is set to the current number of integrated terminals. */
+export const KEYBINDING_CONTEXT_TERMINAL_COUNT = new RawContextKey<number>('terminalCount', 0, nls.localize('terminalCountContextKey', "The current number of terminals"));
+
+/** A context key that is set when the terminal tabs view is narrow. */
+export const KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS = new RawContextKey<boolean>('isTerminalTabsNarrow', false, true);
+
+/** A context key that is set when the integrated terminal tabs widget has focus. */
+export const KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS = new RawContextKey<boolean>('terminalTabsFocus', false, nls.localize('terminalTabsFocusContextKey', "Whether the terminal tabs widget is focused"));
+
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
 /** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined, { type: 'string', description: nls.localize('terminalShellTypeContextKey', "The shell type of the active terminal") });
@@ -97,8 +106,6 @@ export interface IShellLaunchConfigResolveOptions {
 	allowAutomationShell?: boolean;
 }
 
-export const TERMINAL_DECORATIONS_SCHEME = 'vscode-terminal';
-
 export type FontWeight = 'normal' | 'bold' | number;
 
 export interface ITerminalProfiles {
@@ -130,8 +137,6 @@ export interface ITerminalConfiguration {
 		windows: string | null;
 	};
 	useWslProfiles: boolean;
-	showTabs: boolean;
-	tabsLocation: 'left' | 'right';
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -180,6 +185,13 @@ export interface ITerminalConfiguration {
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
+	tabs: {
+		enabled: boolean;
+		hideForSingle: boolean;
+		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
+		location: 'left' | 'right';
+	},
+	bellDuration: number;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -413,6 +425,7 @@ export const enum TERMINAL_COMMAND_ID {
 	FIND_PREVIOUS = 'workbench.action.terminal.findPrevious',
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
+	KILL_INSTANCE = 'workbench.action.terminal.killInstance',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',
 	CONFIGURE_TERMINAL_SETTINGS = 'workbench.action.terminal.openSettings',
 	COPY_SELECTION = 'workbench.action.terminal.copySelection',
@@ -428,13 +441,16 @@ export const enum TERMINAL_COMMAND_ID {
 	NEW_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.newInActiveWorkspace',
 	NEW_WITH_PROFILE = 'workbench.action.terminal.newWithProfile',
 	SPLIT = 'workbench.action.terminal.split',
+	SPLIT_INSTANCE = 'workbench.action.terminal.splitInstance',
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',
 	FOCUS_PREVIOUS_PANE = 'workbench.action.terminal.focusPreviousPane',
+	FOCUS_TABS_VIEW = 'workbench.action.terminal.focusTabsView',
 	FOCUS_NEXT_PANE = 'workbench.action.terminal.focusNextPane',
 	RESIZE_PANE_LEFT = 'workbench.action.terminal.resizePaneLeft',
 	RESIZE_PANE_RIGHT = 'workbench.action.terminal.resizePaneRight',
 	RESIZE_PANE_UP = 'workbench.action.terminal.resizePaneUp',
+	CREATE_WITH_PROFILE_BUTTON = 'workbench.action.terminal.createProfileButton',
 	RESIZE_PANE_DOWN = 'workbench.action.terminal.resizePaneDown',
 	FOCUS = 'workbench.action.terminal.focus',
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',
@@ -453,9 +469,10 @@ export const enum TERMINAL_COMMAND_ID {
 	SCROLL_TO_TOP = 'workbench.action.terminal.scrollToTop',
 	CLEAR = 'workbench.action.terminal.clear',
 	CLEAR_SELECTION = 'workbench.action.terminal.clearSelection',
-	CONFIGURE_ACTIVE = 'workbench.action.terminal.configureActive',
 	CHANGE_ICON = 'workbench.action.terminal.changeIcon',
+	CHANGE_ICON_INSTANCE = 'workbench.action.terminal.changeIconInstance',
 	RENAME = 'workbench.action.terminal.rename',
+	RENAME_INSTANCE = 'workbench.action.terminal.renameInstance',
 	RENAME_WITH_ARG = 'workbench.action.terminal.renameWithArg',
 	FIND_FOCUS = 'workbench.action.terminal.focusFind',
 	FIND_HIDE = 'workbench.action.terminal.hideFind',

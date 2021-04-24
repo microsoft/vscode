@@ -10697,6 +10697,16 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean, readonly isReadonly?: boolean }): Disposable;
+
+		/**
+		 * When true, the user has explicitly trusted the contents of the workspace.
+		 */
+		export const isTrusted: boolean;
+
+		/**
+		 * Event that fires when the current workspace has been trusted.
+		 */
+		export const onDidGrantWorkspaceTrust: Event<void>;
 	}
 
 	/**

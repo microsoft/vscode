@@ -1884,10 +1884,10 @@ typescript@^4.1.3:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.1.3.tgz#519d582bd94cba0cf8934c7d8e8467e473f53bb7"
   integrity sha512-B3ZIOf1IKeH2ixgHhj6la6xdwR9QrLC5d1VKeCSY4tvkqhF2eqd9O7txNlS0PO3GrBAFIdr3L1ndNwteUbZLYg==
 
-typescript@^4.3.0-dev.20210412:
-  version "4.3.0-dev.20210412"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210412.tgz#985af41fcbe9d6bf9c4132e3209b7905b5af4281"
-  integrity sha512-jAoT9A85ujmykZTKSQ7WLJ7aItFTXrmt+FWPl3xgvfrtM26ZAqvfYXVm2XjSFOwSzMptS+7D1Afxj/fynTOhEQ==
+typescript@^4.3.0-dev.20210420:
+  version "4.3.0-dev.20210420"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210420.tgz#8a7269694d5972411e506921bfe1f1858af8d1ad"
+  integrity sha512-t52VhOM4nSLtLZTgQ8/dtKNGXQy7oZ/xV62p/S+wjHgAI3FA595eIz3z4PaoYgURH5nBxIrvD0OMj0Ac5g9KyA==
 
 uc.micro@^1.0.1, uc.micro@^1.0.5:
   version "1.0.5"

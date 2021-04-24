@@ -223,7 +223,7 @@ export class AdapterManager implements IAdapterManager {
 		return !!this.debuggers.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
 	}
 
-	async guessDebugger(type?: string): Promise<Debugger | undefined> {
+	async guessDebugger(gettingConfigurations: boolean, type?: string): Promise<Debugger | undefined> {
 		if (type) {
 			const adapter = this.getDebugger(type);
 			return Promise.resolve(adapter);
@@ -245,7 +245,9 @@ export class AdapterManager implements IAdapterManager {
 			if (adapters.length > 1) {
 				candidates = adapters;
 			}
-		} else {
+		}
+
+		if (gettingConfigurations && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
 			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}

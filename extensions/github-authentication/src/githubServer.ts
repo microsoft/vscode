@@ -15,6 +15,7 @@ const localize = nls.loadMessageBundle();
 
 export const NETWORK_ERROR = 'network error';
 const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
+// const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
@@ -53,7 +54,11 @@ export class GitHubServer {
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+		let callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+
+		// TODO@joaomoreno TODO@RMacfarlane
+		const nocors = callbackUri.scheme === 'https' && /^vscode\./.test(callbackUri.authority);
+		callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate${nocors ? '?nocors=true' : ''}`));
 
 		if (this.isTestEnvironment(callbackUri)) {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
@@ -80,7 +85,7 @@ export class GitHubServer {
 			const existingStates = this._pendingStates.get(scopes) || [];
 			this._pendingStates.set(scopes, [...existingStates, state]);
 
-			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
+			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com${nocors ? '&nocors=true' : ''}`);
 			await vscode.env.openExternal(uri);
 		}
 
@@ -121,23 +126,36 @@ export class GitHubServer {
 				return;
 			}
 
-			try {
-				const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`, {
-					method: 'POST',
-					headers: {
-						Accept: 'application/json'
-					}
-				});
+			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
 
-				if (result.ok) {
-					const json = await result.json();
+			// TODO@joao: remove
+			if (query.nocors) {
+				try {
+					const json: any = await vscode.commands.executeCommand('_workbench.fetchJSON', url, 'POST');
 					Logger.info('Token exchange success!');
 					resolve(json.access_token);
-				} else {
-					reject(result.statusText);
+				} catch (err) {
+					reject(err);
 				}
-			} catch (ex) {
-				reject(ex);
+			} else {
+				try {
+					const result = await fetch(url, {
+						method: 'POST',
+						headers: {
+							Accept: 'application/json'
+						}
+					});
+
+					if (result.ok) {
+						const json = await result.json();
+						Logger.info('Token exchange success!');
+						resolve(json.access_token);
+					} else {
+						reject(result.statusText);
+					}
+				} catch (ex) {
+					reject(ex);
+				}
 			}
 		};
 
