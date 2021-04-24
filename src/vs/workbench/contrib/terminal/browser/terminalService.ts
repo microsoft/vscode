@@ -40,6 +40,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
+import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
+import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -1004,6 +1006,15 @@ export class TerminalService implements ITerminalService {
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
+		}
+
+		// Add welcome message and title annotation for local terminals launched within remote or
+		// virtual workspaces
+		const isRemoteWorkspace = !!VirtualWorkspaceContext.getValue(this._contextKeyService) ||
+			this._remoteAgentService.getConnection() && (typeof shellLaunchConfig.cwd === 'string' || shellLaunchConfig.cwd?.scheme === Schemas.file);
+		if (isRemoteWorkspace) {
+			shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminal', "Warning: This shell is running on your local machine"), true);
+			shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
 		}
 
 		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shellLaunchConfig);
