@@ -28,9 +28,12 @@ steps:
       if (Test-Path "$(Pipeline.Workspace)/artifacts_processed.txt") {
         return
       }
-      exec { $VERSION = node -p "require('./package.json').version" }
       $env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
-      exec { node build/azure-pipelines/common/createBuild.js $VERSION }
+      exec {
+        $VERSION = node -p "require('./package.json').version"
+        Write-Host "Creating build with version: $VERSION"
+        node build/azure-pipelines/common/createBuild.js $VERSION
+      }
     displayName: Create build
 
   - pwsh: Start-Sleep -Seconds 600
