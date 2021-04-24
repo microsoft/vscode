@@ -1000,7 +1000,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private createTerminalName(task: CustomTask | ContributedTask): string {
 		const needsFolderQualification = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
+		return needsFolderQualification ? task.getQualifiedLabel() : (task.configurationProperties.name || '');
 	}
 
 	private async createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): Promise<IShellLaunchConfig | undefined> {
@@ -1008,6 +1008,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		let needsFolderQualification = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let terminalName = this.createTerminalName(task);
+		const description = nls.localize('TerminalTaskSystem.terminalDescription', 'Task');
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			let defaultConfig: { shell: string, args: string[] | string | undefined };
@@ -1024,7 +1025,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					args: defaultProfile.args
 				};
 			}
-			shellLaunchConfig = { name: terminalName, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
+			shellLaunchConfig = { name: terminalName, description, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
@@ -1111,6 +1112,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
 			shellLaunchConfig = {
 				name: terminalName,
+				description,
 				executable: executable,
 				args: args.map(a => Types.isString(a) ? a : a.value),
 				waitOnExit
