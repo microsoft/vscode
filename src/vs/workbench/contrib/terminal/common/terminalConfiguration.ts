@@ -298,8 +298,8 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.tabs.enable': {
-			description: localize('terminal.integrated.tabs.enable', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
+		'terminal.integrated.tabs.enabled': {
+			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
 			type: 'boolean',
 			default: true,
 		},

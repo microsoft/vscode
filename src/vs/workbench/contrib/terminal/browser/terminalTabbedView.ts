@@ -113,7 +113,7 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalTabsFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS.bindTo(contextKeyService);
 
 		_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated.tabs.enable') ||
+			if (e.affectsConfiguration('terminal.integrated.tabs.enabled') ||
 				e.affectsConfiguration('terminal.integrated.tabs.hideForSingle')) {
 				this._refreshShowTabs();
 			} else if (e.affectsConfiguration('terminal.integrated.tabs.location')) {
@@ -146,7 +146,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _shouldShowTabs(): boolean {
-		const enable = this._terminalService.configHelper.config.tabs.enable;
+		const enable = this._terminalService.configHelper.config.tabs.enabled;
 		const hideForSingle = this._terminalService.configHelper.config.tabs.hideForSingle;
 		return enable && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
 	}
@@ -472,7 +472,7 @@ export class TerminalTabbedView extends Disposable {
 					this._configurationService.updateValue('terminal.integrated.tabs.location', 'left');
 				}),
 			new Action('hideTabs', localize('hideTabs', "Hide Tabs"), undefined, undefined, async () => {
-				this._configurationService.updateValue('terminal.integrated.tabs.enable', false);
+				this._configurationService.updateValue('terminal.integrated.tabs.enabled', false);
 			})
 		];
 	}

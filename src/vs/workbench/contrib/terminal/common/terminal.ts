@@ -186,7 +186,7 @@ export interface ITerminalConfiguration {
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
 	tabs: {
-		enable: boolean;
+		enabled: boolean;
 		hideForSingle: boolean;
 		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
 		location: 'left' | 'right';

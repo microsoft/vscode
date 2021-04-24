@@ -356,7 +356,7 @@ export function registerTerminalActions() {
 					order: 0,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.has('config.terminal.integrated.tabs.enable'),
+						ContextKeyExpr.has('config.terminal.integrated.tabs.enabled'),
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals('config.terminal.integrated.tabs.showActiveTerminal', 'singleTerminal'),
@@ -1332,7 +1332,7 @@ export function registerTerminalActions() {
 						order: 2,
 						when: ContextKeyAndExpr.create([
 							ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-							ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
+							ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
 						]),
 					}, {
 						id: MenuId.TerminalSingleTabContext,
@@ -1520,7 +1520,7 @@ export function registerTerminalActions() {
 					order: 3,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
+						ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
 					])
 				}
 			});
@@ -1778,7 +1778,7 @@ export function registerTerminalActions() {
 				return Promise.resolve(null);
 			}
 			if (item === switchTerminalShowTabsTitle) {
-				accessor.get(IConfigurationService).updateValue('terminal.integrated.tabs.enable', true);
+				accessor.get(IConfigurationService).updateValue('terminal.integrated.tabs.enabled', true);
 				return;
 			}
 			const indexMatches = terminalIndexRe.exec(item);
@@ -1818,7 +1818,7 @@ export function registerTerminalActions() {
 		order: 0,
 		when: ContextKeyAndExpr.create([
 			ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-			ContextKeyExpr.not('config.terminal.integrated.tabs.enable')
+			ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
 		]),
 	});
 }
