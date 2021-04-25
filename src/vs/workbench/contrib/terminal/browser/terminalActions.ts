@@ -743,7 +743,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
-				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
+				title: { value: localize('workbench.action.terminal.changeIconInstance', "Change Icon Instance"), original: 'Change Icon Instance' },
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -779,7 +779,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
-				title: { value: localize('workbench.action.terminal.renameInstance', "Rename"), original: 'Rename' },
+				title: { value: localize('workbench.action.terminal.renameInstance', "Rename Instance"), original: 'Rename Instance' },
 				f1: false,
 				category,
 				keybinding: {
