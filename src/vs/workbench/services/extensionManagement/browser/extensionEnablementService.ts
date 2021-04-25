@@ -162,7 +162,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		const result = await Promises.settled(extensions.map(e => {
 			if (this._isDisabledByTrustRequirement(e)) {
-				return this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: true })
+				return this.workspaceTrustRequestService.requestWorkspaceTrust()
 					.then(trustState => {
 						if (trustState) {
 							return this._setEnablement(e, newState);

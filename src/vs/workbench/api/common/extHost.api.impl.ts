@@ -924,9 +924,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get isTrusted() {
 				return extHostWorkspace.trusted;
 			},
-			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
+			requestWorkspaceTrust: () => {
 				checkProposedApiEnabled(extension);
-				return extHostWorkspace.requestWorkspaceTrust(options);
+				return extHostWorkspace.requestWorkspaceTrust();
 			},
 			onDidGrantWorkspaceTrust: (listener, thisArgs?, disposables?) => {
 				return extHostWorkspace.onDidGrantWorkspaceTrust(listener, thisArgs, disposables);

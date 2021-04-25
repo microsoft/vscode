@@ -29,7 +29,6 @@ export interface WorkspaceTrustRequestButton {
 export interface WorkspaceTrustRequestOptions {
 	readonly buttons?: WorkspaceTrustRequestButton[];
 	readonly message?: string;
-	readonly modal: boolean;
 }
 
 export type WorkspaceTrustChangeEvent = Event<boolean>;

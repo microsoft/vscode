@@ -3032,13 +3032,8 @@ declare module 'vscode' {
 	export namespace workspace {
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
-		 * @param options Optional object describing the properties of the
-		 * workspace trust request. Defaults to { modal: false }
-		 * When using a non-modal request, the promise will return immediately.
-		 * Any time trust is not given, it is recommended to use the
-		* `onDidGrantWorkspaceTrust` event to listen for trust changes.
 		 */
-		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean>;
+		export function requestWorkspaceTrust(): Thenable<boolean>;
 	}
 
 	//#endregion

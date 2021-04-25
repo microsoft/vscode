@@ -198,7 +198,6 @@ export class TestService extends Disposable implements ITestService {
 
 		const result = this.testResults.createLiveResult(req);
 		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			modal: true,
 			message: localize('testTrust', "Running tests may execute code in your workspace."),
 		});
 
