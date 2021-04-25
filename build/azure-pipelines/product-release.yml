@@ -13,9 +13,12 @@ steps:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
 
-  - script: |
-      set -e
-      (cd build ; yarn)
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      exec {
+        cd build
+        yarn
+      }
     displayName: Install dependencies
 
   - download: current
@@ -28,6 +31,7 @@ steps:
       if (Test-Path "$(Pipeline.Workspace)/artifacts_processed/artifacts_processed.txt") {
         return
       }
+
       $env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
       exec {
         $VERSION = node -p "require('./package.json').version"
@@ -53,21 +57,17 @@ steps:
     artifact: artifacts_processed
     displayName: Publish what artifacts were published
 
-  - script: |
-      set -e
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
 
-      # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      # AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      # MOONCAKE_STORAGE_ACCESS_KEY="$(vscode-mooncake-storage-key)" \
-      # node build/azure-pipelines/common/sync-mooncake.js "$VSCODE_QUALITY"
+      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
+      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
+      $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(vscode-mooncake-storage-key)"
+      exec { node build/azure-pipelines/common/sync-mooncake.js $env:VSCODE_QUALITY }
 
-      echo "we would sync mooncake $VSCODE_QUALITY"
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
 
-  - script: |
-      set -e
-
-      # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      # node build/azure-pipelines/common/releaseBuild.js
-
-      echo 'we would release the build here...'
+      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
+      exec { node build/azure-pipelines/common/releaseBuild.js }
     condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], true), and(in(variables['VSCODE_QUALITY'], 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))))
