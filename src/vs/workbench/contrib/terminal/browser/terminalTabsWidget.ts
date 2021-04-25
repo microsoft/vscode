@@ -98,7 +98,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		});
 
 		this.onMouseClick(e => {
-			e.element?.focus(true);
+			// if in the midst of a multi select, don't focus the element
+			if (this.getSelection().length <= 1) {
+				e.element?.focus(true);
+			}
 		});
 
 		this._terminalTabsOneSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_ONE_SELECTED.bindTo(contextKeyService);
