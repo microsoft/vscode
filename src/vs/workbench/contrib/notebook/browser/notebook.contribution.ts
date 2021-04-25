@@ -60,6 +60,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/contributedStatusBarItemController';
