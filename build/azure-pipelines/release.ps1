@@ -1,7 +1,7 @@
 . build/azure-pipelines/win32/exec.ps1
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$ARTIFACT_PROCESSED_ARTIFACT_NAME = 'artifacts_processed'
+$ARTIFACT_PROCESSED_FILE_PATH = "$env:PIPELINE_WORKSPACE/artifacts_processed/artifacts_processed.txt"
 
 function Get-PipelineArtifact {
 	param($Name = '*')
@@ -23,11 +23,13 @@ function Get-PipelineArtifact {
 # This set will keep track of which artifacts have already been processed
 $set = [System.Collections.Generic.HashSet[string]]::new()
 
-if (Test-Path "$env:PIPELINE_WORKSPACE/$ARTIFACT_PROCESSED_ARTIFACT_NAME/$ARTIFACT_PROCESSED_ARTIFACT_NAME.txt") {
-	Get-Content "$env:PIPELINE_WORKSPACE/$ARTIFACT_PROCESSED_ARTIFACT_NAME/$ARTIFACT_PROCESSED_ARTIFACT_NAME.txt" | ForEach-Object {
+if (Test-Path $ARTIFACT_PROCESSED_FILE_PATH) {
+	Get-Content $ARTIFACT_PROCESSED_FILE_PATH | ForEach-Object {
 		$set.Add($_) | Out-Null;
 		Write-Host "Already processed artifact: $_"
 	}
+} else {
+	New-Item -Path $ARTIFACT_PROCESSED_FILE_PATH -Force
 }
 
 # Determine which stages we need to watch
@@ -76,7 +78,7 @@ do {
 			}
 
 			exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
-			$artifactName >> "$env:PIPELINE_WORKSPACE/$ARTIFACT_PROCESSED_ARTIFACT_NAME/$ARTIFACT_PROCESSED_ARTIFACT_NAME.txt"
+			$artifactName >> $ARTIFACT_PROCESSED_FILE_PATH
 		}
 	}
 
