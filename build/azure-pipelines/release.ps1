@@ -76,7 +76,7 @@ do {
 			}
 
 			exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
-			$artifactName >> "$env:AGENT_TEMPDIRECTORY/$ARTIFACT_PROCESSED_ARTIFACT_NAME.txt"
+			$artifactName >> "$env:PIPELINE_WORKSPACE/$ARTIFACT_PROCESSED_ARTIFACT_NAME/$ARTIFACT_PROCESSED_ARTIFACT_NAME.txt"
 		}
 	}
 
