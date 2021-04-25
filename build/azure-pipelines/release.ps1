@@ -25,11 +25,11 @@ $set = [System.Collections.Generic.HashSet[string]]::new()
 
 if (Test-Path $ARTIFACT_PROCESSED_FILE_PATH) {
 	Get-Content $ARTIFACT_PROCESSED_FILE_PATH | ForEach-Object {
-		$set.Add($_) | Out-Null;
+		$set.Add($_) | Out-Null
 		Write-Host "Already processed artifact: $_"
 	}
 } else {
-	New-Item -Path $ARTIFACT_PROCESSED_FILE_PATH -Force
+	New-Item -Path $ARTIFACT_PROCESSED_FILE_PATH -Force | Out-Null
 }
 
 # Determine which stages we need to watch
@@ -56,18 +56,18 @@ do {
 			try {
 				Invoke-RestMethod $_.resource.downloadUrl -OutFile "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -Headers @{
 					Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-				} -MaximumRetryCount 5 -RetryIntervalSec 1
+				} -MaximumRetryCount 5 -RetryIntervalSec 1  | Out-Null
 
-				Expand-Archive -Path "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -DestinationPath $env:AGENT_TEMPDIRECTORY
+				Expand-Archive -Path "$env:AGENT_TEMPDIRECTORY/$artifactName.zip" -DestinationPath $env:AGENT_TEMPDIRECTORY | Out-Null
 			} catch {
 				Write-Warning $_
-				$set.Remove($artifactName)
+				$set.Remove($artifactName) | Out-Null
 				continue
 			}
 
-			Write-Host "Expanding variables:"
 			$null,$product,$os,$arch,$type = $artifactName -split '_'
 			$asset = Get-ChildItem -rec "$env:AGENT_TEMPDIRECTORY/$artifactName"
+			Write-Host "Processing artifact with the following values:"
 			# turning in into an object just to log nicely
 			@{
 				product = $product
@@ -75,7 +75,7 @@ do {
 				arch = $arch
 				type = $type
 				asset = $asset.Name
-			}
+			} | Format-Table
 
 			exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
 			$artifactName >> $ARTIFACT_PROCESSED_FILE_PATH
@@ -100,4 +100,4 @@ do {
 	}
 } while (!$otherStageFinished)
 
-Write-Host "DONE WITH NUMBER OF ARTIFACTS: $($set.Count)"
+Write-Host "Processed $($set.Count) artifacts."
