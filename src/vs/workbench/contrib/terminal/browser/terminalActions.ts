@@ -743,7 +743,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
-				title: { value: localize('workbench.action.terminal.changeIconInstance', "Change Icon Instance"), original: 'Change Icon Instance' },
+				title: { value: localize('workbench.action.terminal.changeIconInstance', "Change Icon"), original: 'Change Icon' },
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_ONE_SELECTED),
@@ -754,7 +754,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return getFocusedTabInstance(accessor)?.changeIcon();
+			return getSelectedInstances(accessor)?.[0].changeIcon();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -779,7 +779,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
-				title: { value: localize('workbench.action.terminal.renameInstance', "Rename Instance"), original: 'Rename Instance' },
+				title: { value: localize('workbench.action.terminal.renameInstance', "Rename"), original: 'Rename' },
 				f1: false,
 				category,
 				keybinding: {
@@ -804,7 +804,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return getFocusedTabInstance(accessor)?.rename();
+			return getSelectedInstances(accessor)?.[0].rename();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1384,9 +1384,11 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const instance = getFocusedTabInstance(accessor);
-			if (instance) {
-				accessor.get(ITerminalService).splitInstance(instance);
+			const instances = getSelectedInstances(accessor);
+			if (instances) {
+				for (const instance of instances) {
+					accessor.get(ITerminalService).splitInstance(instance);
+				}
 			}
 		}
 	});
@@ -1553,7 +1555,9 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
-				title: { value: localize('workbench.action.terminal.killWithInstance', "Kill"), original: 'Kill' },
+				title: {
+					value: localize('workbench.action.terminal.killWithInstance', "Kill"), original: 'Kill'
+				},
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN),
@@ -1564,14 +1568,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const instance = getFocusedTabInstance(accessor);
-			if (instance) {
-				const terminalService = accessor.get(ITerminalService);
-				instance.dispose(true);
-				if (terminalService.terminalInstances.length > 0) {
-					await terminalService.showPanel(true);
-				}
-			}
+			getSelectedInstances(accessor)?.forEach(instance => instance.dispose(true));
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1827,14 +1824,17 @@ interface IRemoteTerminalPick extends IQuickPickItem {
 	term: IRemoteTerminalAttachTarget;
 }
 
-function getFocusedTabInstance(accessor: ServicesAccessor): ITerminalInstance | undefined {
+function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] | undefined {
 	const listService = accessor.get(IListService);
-	if (!listService.lastFocusedList?.getFocus()?.length) {
+	if (!listService.lastFocusedList?.getSelection()?.length) {
 		return undefined;
 	}
-	const result = listService.lastFocusedList?.getFocus()[0];
-	if ('instanceId' in result) {
-		return result as ITerminalInstance;
+	const instances = [];
+	const selections = listService.lastFocusedList.getSelection();
+	for (const instance of selections) {
+		if ('instanceId' in instance) {
+			instances.push(instance as ITerminalInstance);
+		}
 	}
-	return undefined;
+	return instances;
 }
