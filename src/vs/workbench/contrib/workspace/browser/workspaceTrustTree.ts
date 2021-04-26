@@ -577,7 +577,7 @@ export class WorkspaceTrustTreeModel {
 		this.settings.push(new WorkspaceTrustSettingsTreeEntry(
 			'trustedFolders',
 			localize('trustedFolders', "Trusted Folders"),
-			localize('trustedFoldersDescription', "All workspaces under the following folders will be trusted."),
+			localize('trustedFoldersDescription', "You trust the following folders and their children: "),
 			trustedFolders));
 	}
 }
