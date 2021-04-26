@@ -21,6 +21,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IContributedEditorInput extends IEditorInput {
 	viewType?: string;
@@ -40,6 +42,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	readonly _serviceBrand: undefined;
 
 	private _contributionPoints: Map<string | glob.IRelativePattern, ContributionPoints> = new Map<string | glob.IRelativePattern, ContributionPoints>();
+	private static readonly overrideCacheStorageID = 'editorOverrideService.cache';
+	private cache: Set<string> | undefined;
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -47,11 +51,31 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
+		// Read in the cache on statup
+		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
+		this.storageService.remove(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL);
+
+		this._register(this.storageService.onWillSaveState(() => {
+			// We want to store the glob patterns we would activate on, this allows us to know if we need to await the ext host on startup for opening a resource
+			this.cacheContributionPoints();
+		}));
+
+		// When extensions have registered we no longer need the cache
+		this.extensionService.onDidRegisterExtensions(() => {
+			this.cache = undefined;
+		});
 	}
 
 	async resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined> {
+		// If it was an override before we await for the extensions to activate and then proceed with overriding or else they won't be registered
+		if (this.cache && editor.resource && this.resourceMatchesCache(editor.resource)) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+		}
+
 		if (options?.override === EditorOverride.DISABLED) {
 			throw new Error(`Calling resolve editor override when override is explicitly disabled!`);
 		}
@@ -471,6 +495,48 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		if (chosenInput.viewType) {
 			this.telemetryService.publicLog2<editorOverrideEvent, editorOverrideClassification>('override.viewType', { viewType: chosenInput.viewType });
 		}
+	}
+
+	private cacheContributionPoints() {
+		// Create a set to store contributed glob patterns
+		const cacheStorage: Set<string> = new Set<string>();
+
+		// Store just the relative pattern pieces without any path info
+		for (const globPattern of this._contributionPoints.keys()) {
+			const contribPoint = this._contributionPoints.get(globPattern)!;
+			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== ContributedEditorPriority.option);
+			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
+			if (!nonOptional) {
+				continue;
+			}
+			if (glob.isRelativePattern(globPattern)) {
+				cacheStorage.add(`${globPattern.pattern}`);
+			} else {
+				cacheStorage.add(globPattern);
+			}
+		}
+
+		// Also store the users settings as those would have to activate on startup as well
+		const userAssociations = this.configurationService.getValue<EditorAssociations>(editorsAssociationsSettingId) || [];
+		for (const association of userAssociations) {
+			if (association.filenamePattern) {
+				cacheStorage.add(association.filenamePattern);
+			}
+		}
+		this.storageService.store(EditorOverrideService.overrideCacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	}
+
+	private resourceMatchesCache(resource: URI): boolean {
+		if (!this.cache) {
+			return false;
+		}
+
+		for (const cacheEntry of this.cache) {
+			if (globMatchesResource(cacheEntry, resource)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
