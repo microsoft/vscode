@@ -98,9 +98,24 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		});
 
 		this.onMouseClick(e => {
-			// if in the midst of a multi select, don't focus the element
-			if (this.getSelection().length <= 1) {
-				e.element?.focus(true);
+			// If focus mode is single click focus the element unless a multi-select in happening
+			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>('terminal.integrated.tabs.focusMode');
+			if (focusMode === 'singleClick') {
+				if (this.getSelection().length <= 1) {
+					e.element?.focus(true);
+				}
+			}
+		});
+
+		// Set the selection to whatever is right clicked if it is not inside the selection
+		this.onContextMenu(e => {
+			if (!e.element) {
+				this.setSelection([null]);
+				return;
+			}
+			const selection = this.getSelection();
+			if (!selection || !selection.find(s => e.element === s)) {
+				this.setSelection([e.element]);
 			}
 		});
 
@@ -133,6 +148,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
 		this._terminalService.onInstancePrimaryStatusChanged(() => this._render());
+		this._render();
 	}
 
 	private _render(): void {

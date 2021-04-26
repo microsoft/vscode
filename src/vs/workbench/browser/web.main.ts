@@ -311,6 +311,7 @@ class BrowserMain extends Disposable {
 		}
 
 		fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

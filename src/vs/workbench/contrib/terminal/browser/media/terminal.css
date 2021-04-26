@@ -244,6 +244,11 @@
 	color: inherit;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .monaco-icon-description-container {
+	/* The description element doesn't go away once created sometimes so force hide */
+	display: none;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .codicon {
 	vertical-align: text-bottom;
 }

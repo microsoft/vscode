@@ -540,7 +540,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns a copy of the current editor input. Used when we can't just reuse the input
 	 */
-	copy?(): IEditorInput;
+	copy(): IEditorInput;
 }
 
 /**

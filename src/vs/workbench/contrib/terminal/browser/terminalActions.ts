@@ -393,7 +393,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH,
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FOCUS),
 				},
@@ -1315,7 +1315,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
-				keybinding: [{
+				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
 					weight: KeybindingWeight.WorkbenchContrib,
 					mac: {
@@ -1323,7 +1323,7 @@ export function registerTerminalActions() {
 						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
 					},
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
-				}],
+				},
 				icon: Codicon.splitHorizontal,
 				menu: [
 					{
@@ -1336,6 +1336,9 @@ export function registerTerminalActions() {
 						]),
 					}, {
 						id: MenuId.TerminalSingleTabContext,
+						group: ContextMenuGroup.Create
+					}, {
+						id: MenuId.TerminalContainerContext,
 						group: ContextMenuGroup.Create
 					}
 				],
@@ -1362,24 +1365,26 @@ export function registerTerminalActions() {
 			});
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.SPLIT,
-			title: localize('workbench.action.terminal.split.short', "Split")
-		},
-		group: ContextMenuGroup.Create
-	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
-				title: { value: localize('workbench.action.terminal.splitWithInstance', "Split"), original: 'Split' },
+				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
 				menu: {
 					id: MenuId.TerminalTabsWidgetContext,
 					group: ContextMenuGroup.Create
+				},
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
+						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+					},
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS
 				}
 			});
 		}
@@ -1556,7 +1561,7 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
 				title: {
-					value: localize('workbench.action.terminal.killWithInstance', "Kill"), original: 'Kill'
+					value: localize('workbench.action.terminal.kill.short', "Kill Terminal"), original: 'Kill Terminal'
 				},
 				f1: false,
 				category,
@@ -1564,6 +1569,15 @@ export function registerTerminalActions() {
 				menu: {
 					id: MenuId.TerminalTabsWidgetContext,
 					group: ContextMenuGroup.Kill
+				},
+				keybinding: {
+					primary: KeyCode.Delete,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+						secondary: [KeyCode.Delete]
+					},
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS
 				}
 			});
 		}

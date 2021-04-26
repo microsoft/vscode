@@ -219,6 +219,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_IN_DEBUG_MODE,
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const debugService = accessor.get(IDebugService);
+		const configurationService = accessor.get(IConfigurationService);
 		let session: IDebugSession | undefined;
 		if (isSessionContext(context)) {
 			session = debugService.getModel().getSession(context.sessionId);
@@ -230,6 +231,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
 			await debugService.startDebugging(launch, name, { noDebug: false });
 		} else {
+			const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
+			// Stop should be sent to the root parent session
+			while (!showSubSessions && session && session.parentSession) {
+				session = session.parentSession;
+			}
 			session.removeReplExpressions();
 			await debugService.restartSession(session);
 		}

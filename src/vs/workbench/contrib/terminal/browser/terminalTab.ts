@@ -336,6 +336,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			if (this.activeInstance) {
 				this.activeInstance.focus(true);
 			}
+		} else if (index < this._activeInstanceIndex) {
+			// Adjust active instance index if needed
+			this._activeInstanceIndex--;
 		}
 
 		// Remove the instance from the split pane if it has been created
