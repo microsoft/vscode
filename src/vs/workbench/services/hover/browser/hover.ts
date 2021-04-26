@@ -82,13 +82,20 @@ export interface IHoverOptions {
 	hideOnHover?: boolean;
 
 	/**
-	 * Whether to anchor the hover above (default) or below the target. This option will be ignored
-	 * if there is not enough room to layout the hover in the specified anchor position.
+	 * Position of the hover. Default is to show above the target.
+	 * It will be ignored if there is not enough room to layout the hover in the specified position.
 	 */
 	hoverPosition?: HoverPosition;
 
-	compact?: boolean;
+	/**
+	 * Whether to show the hover pointer
+	 */
 	showPointer?: boolean;
+
+	/**
+	 * Whether to show a compact hover
+	 */
+	compact?: boolean;
 }
 
 export interface IHoverAction {
