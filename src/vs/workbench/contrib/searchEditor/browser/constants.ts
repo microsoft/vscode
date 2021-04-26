@@ -9,6 +9,8 @@ export const InSearchEditor = new RawContextKey<boolean>('inSearchEditor', false
 
 export const SearchEditorScheme = 'search-editor';
 
+export const SearchEditorWorkingCopyTypeId = 'search/editor';
+
 export const SearchEditorFindMatchClass = 'seaarchEditorFindMatch';
 
 export const SearchEditorID = 'workbench.editor.searchEditor';

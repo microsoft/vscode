@@ -14,6 +14,7 @@ import { SearchConfiguration } from './searchEditorInput';
 import { assertIsDefined } from 'vs/base/common/types';
 import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 
 
 export class SearchEditorModel {
@@ -36,20 +37,36 @@ export class SearchEditorModel {
 		@IModeService private readonly modeService: IModeService) {
 		this.onModelResolved = new Promise<ITextModel>(resolve => this.resolveContents = resolve);
 		this.onModelResolved.then(model => this.cachedContentsModel = model);
-		this.ongoingResolve = workingCopyBackupService.resolve({ resource: modelUri, typeId: NO_TYPE_ID })
-			.then(backup => {
-				const model = modelService.getModel(modelUri);
-				if (model) {
-					return model;
+
+		this.ongoingResolve = (async () => {
+			let discardLegacyBackup = false;
+			let backup = await workingCopyBackupService.resolve({ resource: modelUri, typeId: SearchEditorWorkingCopyTypeId });
+			if (!backup) {
+				// TODO@bpasero remove this fallback after some releases
+				backup = await workingCopyBackupService.resolve({ resource: modelUri, typeId: NO_TYPE_ID });
+
+				if (backup && modelUri.scheme === SearchEditorScheme) {
+					discardLegacyBackup = true;
+				}
+			}
+
+			let model = modelService.getModel(modelUri);
+			if (!model && backup) {
+				const factory = await createTextBufferFactoryFromStream(backup.value);
+
+				if (discardLegacyBackup) {
+					await workingCopyBackupService.discardBackup({ resource: modelUri, typeId: NO_TYPE_ID });
 				}
 
-				if (backup) {
-					return createTextBufferFactoryFromStream(backup.value).then(factory => modelService.createModel(factory, modeService.create('search-result'), modelUri));
-				}
+				model = modelService.createModel(factory, modeService.create('search-result'), modelUri);
+			}
 
-				return undefined;
-			})
-			.then(model => { if (model) { this.resolveContents(model); } });
+			if (model) {
+				this.resolveContents(model);
+			}
+
+			return model;
+		})();
 	}
 
 	async resolve(): Promise<ITextModel> {
