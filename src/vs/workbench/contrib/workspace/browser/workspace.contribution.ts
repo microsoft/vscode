@@ -226,7 +226,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
  * Status Bar Entry
  */
 class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContribution {
-	private static readonly ID = 'status.workspaceTrust';
+	private readonly entryId = `status.workspaceTrust.${this.workspaceService.getWorkspace().id}`;
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 	private pendingRequestContextKey = WorkspaceTrustContext.PendingRequest.key;
 	private contextKeys = new Set([this.pendingRequestContextKey]);
@@ -235,6 +235,7 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
@@ -243,7 +244,7 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 		if (isWorkspaceTrustEnabled(configurationService)) {
 			const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
-			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, WorkspaceTrustStatusbarItem.ID, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 			this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.updateStatusbarEntry(trusted)));
 			this._register(this.contextKeyService.onDidChangeContext((contextChange) => {
 				if (contextChange.affectsSome(this.contextKeys)) {
@@ -263,8 +264,8 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 		return {
 			text: trusted ? `$(shield)` : `$(shield) ${text}`,
-			ariaLabel: localize('status.WorkspaceTrust', "Workspace Trust"),
-			tooltip: localize('status.WorkspaceTrust', "Workspace Trust"),
+			ariaLabel: trusted ? localize('status.ariaTrusted', "This workspace is trusted.") : localize('status.ariaUntrusted', "Restricted Mode: Some features are disabled because this workspace is not trusted."),
+			tooltip: trusted ? localize('status.tooltipTrusted', "This workspace is trusted.") : localize('status.tooltipUntrusted', "Some features are disabled because this workspace is not trusted."),
 			command: 'workbench.trust.manage',
 			backgroundColor,
 			color
@@ -273,7 +274,7 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 	private updateVisibility(trusted: boolean): void {
 		const pendingRequest = this.contextKeyService.getContextKeyValue(this.pendingRequestContextKey) === true;
-		this.statusbarService.updateEntryVisibility(WorkspaceTrustStatusbarItem.ID, !trusted || pendingRequest);
+		this.statusbarService.updateEntryVisibility(this.entryId, !trusted || pendingRequest);
 	}
 
 	private updateStatusbarEntry(trusted: boolean): void {
