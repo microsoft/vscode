@@ -341,10 +341,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
 			if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
 				const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
-				const { name } = splitName(parentPath);
 				if (parentPath) {
 					trustChoiceWithMenu.menu.push({
-						label: localize('trustParentButton', "Trust All in '{0}'", name),
+						label: localize('trustParentButton', "Trust All in Parent Folder"),
 						run: () => {
 							trustUris([URI.file(parentPath)]);
 						}

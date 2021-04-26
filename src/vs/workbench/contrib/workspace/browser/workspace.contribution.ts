@@ -38,7 +38,6 @@ import product from 'vs/platform/product/common/product';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
-import { splitName } from 'vs/base/common/labels';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 
 /*
@@ -113,9 +112,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace())!;
 		const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
-			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
-			const { name } = splitName(parentPath);
-			checkboxText = localize('checkboxString', "I trust the author of all files in '{0}'", name);
+			checkboxText = localize('checkboxString', "I trust the author of all files in the parent folder");
 		}
 
 		// Show Workspace Trust Start Dialog
