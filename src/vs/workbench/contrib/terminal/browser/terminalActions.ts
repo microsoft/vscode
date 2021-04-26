@@ -1560,6 +1560,15 @@ export function registerTerminalActions() {
 				menu: {
 					id: MenuId.TerminalTabsWidgetContext,
 					group: ContextMenuGroup.Kill
+				},
+				keybinding: {
+					primary: KeyCode.Delete,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+						secondary: [KeyCode.Delete]
+					},
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS
 				}
 			});
 		}
