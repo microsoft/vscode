@@ -78,7 +78,7 @@
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations {
-	height: 295px;
+	min-height: 295px;
 }
 
 .workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted {
