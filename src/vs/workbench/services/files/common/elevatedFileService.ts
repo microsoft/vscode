@@ -23,5 +23,5 @@ export interface IElevatedFileService {
 	 * Attempts to write to the target resource elevated. This may bring
 	 * up a dialog to ask for admin username / password.
 	 */
-	writeElevated(resource: URI, value: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
+	writeFileElevated(resource: URI, value: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
 }

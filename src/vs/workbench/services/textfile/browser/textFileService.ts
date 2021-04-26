@@ -165,7 +165,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		const readable = await this.getEncodedReadable(resource, value, options);
 
 		if (options?.writeElevated && this.elevatedFileService.isSupported(resource)) {
-			return this.elevatedFileService.writeElevated(resource, readable, options);
+			return this.elevatedFileService.writeFileElevated(resource, readable, options);
 		}
 
 		return this.fileService.writeFile(resource, readable, options);

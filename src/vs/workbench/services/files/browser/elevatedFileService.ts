@@ -20,7 +20,7 @@ export class BrowserElevatedFileService implements IElevatedFileService {
 		return false;
 	}
 
-	async writeElevated(resource: URI, value: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+	async writeFileElevated(resource: URI, value: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
 		throw new Error('Unsupported');
 	}
 }

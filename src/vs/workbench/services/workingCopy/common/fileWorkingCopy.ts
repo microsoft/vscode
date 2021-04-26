@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
+import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyBackupMeta, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -1049,12 +1049,19 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 						saveCancellation.dispose();
 					}
 
-					// Write them to disk
-					const stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), {
+					const writeFileOptions: IWriteFileOptions = {
 						mtime: lastResolvedFileStat.mtime,
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						unlock: options.writeUnlock
-					});
+					};
+
+					// Write them to disk
+					let stat: IFileStatWithMetadata;
+					if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
+						stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+					} else {
+						stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+					}
 
 					this.handleSaveSuccess(stat, versionId, options);
 				} catch (error) {
