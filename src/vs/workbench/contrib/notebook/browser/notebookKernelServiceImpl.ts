@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelBindEvent, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelBindEvent, INotebookKernelMatchInfo, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -167,7 +167,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		});
 	}
 
-	getNotebookKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined, all: INotebookKernel[] } {
+	getNotebookKernels(notebook: INotebookTextModelLike): INotebookKernelMatchInfo {
 
 		// all applicable kernels
 		const kernels: { kernel: INotebookKernel, instanceAffinity: number, typeAffinity: number, score: number }[] = [];

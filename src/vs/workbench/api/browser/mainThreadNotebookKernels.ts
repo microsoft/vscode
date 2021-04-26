@@ -128,12 +128,12 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				return;
 			}
-			const { selected: kernel } = this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument);
-			if (!kernel) {
+			const { selected } = this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument);
+			if (!selected) {
 				return;
 			}
 			for (let [handle, candidate] of this._kernels) {
-				if (candidate[0] === kernel) {
+				if (candidate[0] === selected) {
 					this._proxy.$acceptRendererMessage(handle, editor.getId(), e.message);
 					break;
 				}

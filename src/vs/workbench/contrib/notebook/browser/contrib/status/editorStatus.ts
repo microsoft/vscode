@@ -72,9 +72,9 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.viewModel.notebookDocument;
-		const { selected: bound, all } = notebookKernelService.getNotebookKernels(notebook);
+		const { selected, all } = notebookKernelService.getNotebookKernels(notebook);
 
-		if (bound && context && bound.id === context.id && ExtensionIdentifier.equals(bound.extension, context.extension)) {
+		if (selected && context && selected.id === context.id && ExtensionIdentifier.equals(selected.extension, context.extension)) {
 			// current kernel is wanted kernel -> done
 			return;
 		}
@@ -98,13 +98,13 @@ registerAction2(class extends Action2 {
 			const picks = all.map(kernel => {
 				const res = <KernelPick>{
 					kernel,
-					picked: kernel.id === bound?.id,
+					picked: kernel.id === selected?.id,
 					label: kernel.label,
 					description: kernel.description,
 					detail: kernel.detail,
 					buttons: [configButton]
 				};
-				if (kernel.id === bound?.id) {
+				if (kernel.id === selected?.id) {
 					if (!res.description) {
 						res.description = nls.localize('current1', "Currently Selected");
 					} else {
@@ -172,7 +172,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private _showKernelStatus(notebook: INotebookTextModel) {
 
-		let { selected: bound, all } = this._notebookKernelService.getNotebookKernels(notebook);
+		let { selected, all } = this._notebookKernelService.getNotebookKernels(notebook);
 		let isSuggested = false;
 
 		if (all.length === 0) {
@@ -180,17 +180,17 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		if (!bound) {
-			bound = all[0];
+		if (!selected) {
+			selected = all[0];
 			isSuggested = true;
 		}
 
-		const text = `$(notebook-kernel-select) ${bound.label}`;
-		const tooltip = bound.description ?? bound.detail ?? bound.label;
+		const text = `$(notebook-kernel-select) ${selected.label}`;
+		const tooltip = selected.description ?? selected.detail ?? selected.label;
 		const registration = this._statusbarService.addEntry(
 			{
 				text,
-				ariaLabel: bound.label,
+				ariaLabel: selected.label,
 				tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 				command: all.length > 1 ? 'notebook.selectKernel' : undefined,
 			},
@@ -199,7 +199,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			StatusbarAlignment.RIGHT,
 			100
 		);
-		const listener = bound.onDidChange(() => this._showKernelStatus(notebook));
+		const listener = selected.onDidChange(() => this._showKernelStatus(notebook));
 		this._kernelInfoElement.value = combinedDisposable(listener, registration);
 	}
 }
