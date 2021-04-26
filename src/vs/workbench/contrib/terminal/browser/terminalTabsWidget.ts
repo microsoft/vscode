@@ -110,6 +110,11 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			this._terminalTabsOneSelectedContextKey.set(e.elements.length === 1);
 		});
 
+		this.onDidChangeFocus(e => {
+			const selectionExcludesFocusedElement = e.elements.length === 1 && !this.getSelection().includes(e.elements[0]);
+			this._terminalTabsOneSelectedContextKey.set(selectionExcludesFocusedElement);
+		});
+
 		this.onDidOpen(async e => {
 			const instance = e.element;
 			if (!instance) {
