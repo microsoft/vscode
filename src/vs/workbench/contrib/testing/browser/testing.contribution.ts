@@ -14,7 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation, ViewContentGroups } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
