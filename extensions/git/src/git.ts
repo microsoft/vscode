@@ -2055,30 +2055,27 @@ export class Repository {
 		}
 
 		// for-each-ref will fail for repositories without a commit (i.e. empty repositories)
-		try {
-			const result2 = await this.exec(['config', '--get', 'branch.' + name + '.remote']);
-			const result3 = await this.exec(['config', '--get', 'branch.' + name + '.merge']);
+		const branchConfig = await this.exec(['config', '--get-regex', 'branch.' + name]);
+		if (branchConfig.stdout) {
+			let remote, remoteBranch;
 
-			if (!result2.stdout || !result3.stdout) {
-				throw new Error(`Could not fetch remote (branch) of ${name}`);
+			let match = /^branch\..+\.remote\s(.+)$/m.exec(branchConfig.stdout);
+			if (match) {
+				remote = match[1];
 			}
 
-			const remote = result2.stdout.trim();
-
-			const longRemoteName = result3.stdout.trim();
-			const match = /^refs\/heads\/([^/]+)$/.exec(longRemoteName);
-
-			if (!match) {
-				throw new Error(`Could not parse upstream remote name: ${longRemoteName}`);
+			match = /^branch\..+\.merge\srefs\/heads\/(.+)$/m.exec(branchConfig.stdout);
+			if (match) {
+				remoteBranch = match[1];
 			}
 
-			return {
-				name,
-				type: RefType.Head,
-				upstream: { remote: remote, name: match[1] }
-			};
-		} catch (err) {
-			// noop
+			if (remote && remoteBranch) {
+				return {
+					name,
+					type: RefType.Head,
+					upstream: { remote: remote, name: remoteBranch }
+				};
+			}
 		}
 
 		return Promise.reject<Branch>(new Error('No such branch'));
