@@ -128,7 +128,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				return;
 			}
-			const { selected } = this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument);
+			const { selected } = this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument);
 			if (!selected) {
 				return;
 			}
@@ -158,7 +158,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				continue;
 			}
-			if (this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument).selected !== kernel) {
+			if (this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument).selected !== kernel) {
 				// different kernel
 				continue;
 			}

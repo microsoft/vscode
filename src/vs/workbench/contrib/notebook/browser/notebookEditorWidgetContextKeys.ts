@@ -91,7 +91,7 @@ export class NotebookEditorContextKeys {
 			return;
 		}
 
-		const { selected, all } = this._notebookKernelService.getNotebookKernels(this._editor.viewModel.notebookDocument);
+		const { selected, all } = this._notebookKernelService.getMatchingKernel(this._editor.viewModel.notebookDocument);
 		this._notebookKernelCount.set(all.length);
 		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
 	}

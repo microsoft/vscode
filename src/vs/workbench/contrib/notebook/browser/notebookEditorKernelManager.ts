@@ -22,7 +22,7 @@ export class NotebookEditorKernelManager extends Disposable {
 	}
 
 	getActiveKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
-		const info = this._notebookKernelService.getNotebookKernels(notebook);
+		const info = this._notebookKernelService.getMatchingKernel(notebook);
 		return info.selected ?? info.all[0];
 	}
 
@@ -62,7 +62,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		if (cellHandles.length > 0) {
-			this._notebookKernelService.updateNotebookInstanceKernelBinding(notebook, kernel);
+			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
 			await kernel.executeNotebookCellsRequest(notebook.uri, cellHandles);
 		}
 	}

@@ -72,7 +72,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.viewModel.notebookDocument;
-		const { selected, all } = notebookKernelService.getNotebookKernels(notebook);
+		const { selected, all } = notebookKernelService.getMatchingKernel(notebook);
 
 		if (selected && context && selected.id === context.id && ExtensionIdentifier.equals(selected.extension, context.extension)) {
 			// current kernel is wanted kernel -> done
@@ -115,7 +115,7 @@ registerAction2(class extends Action2 {
 			});
 			const pick = await quickInputService.pick(picks, {
 				onDidTriggerItemButton: (context) => {
-					notebookKernelService.updateNotebookTypeKernelBinding(notebook.viewType, context.item.kernel);
+					notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
 				}
 			});
 
@@ -125,7 +125,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (newKernel) {
-			notebookKernelService.updateNotebookInstanceKernelBinding(notebook, newKernel);
+			notebookKernelService.selectKernelForNotebook(newKernel, notebook);
 		}
 	}
 });
@@ -172,7 +172,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private _showKernelStatus(notebook: INotebookTextModel) {
 
-		let { selected, all } = this._notebookKernelService.getNotebookKernels(notebook);
+		let { selected, all } = this._notebookKernelService.getMatchingKernel(notebook);
 		let isSuggested = false;
 
 		if (all.length === 0) {

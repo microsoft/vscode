@@ -54,7 +54,7 @@ suite('NotebookKernelService', () => {
 		kernelService.registerKernel(k2);
 
 		// equal priorities -> sort by name
-		let info = kernelService.getNotebookKernels({ uri: u1, viewType: 'foo' });
+		let info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
 
@@ -63,18 +63,18 @@ suite('NotebookKernelService', () => {
 		kernelService.updateKernelNotebookAffinity(k2, u2, 1);
 
 		// updated
-		info = kernelService.getNotebookKernels({ uri: u1, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
 
 		// NOT updated
-		info = kernelService.getNotebookKernels({ uri: u2, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: u2, viewType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
 
 		// reset
 		kernelService.updateKernelNotebookAffinity(k2, u1, undefined);
-		info = kernelService.getNotebookKernels({ uri: u1, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
 		assert.ok(info.all[0] === k2);
 		assert.ok(info.all[1] === k1);
 	});
@@ -85,18 +85,18 @@ suite('NotebookKernelService', () => {
 		const kernel = new TestNotebookKernel();
 		kernelService.registerKernel(kernel);
 
-		let info = kernelService.getNotebookKernels({ uri: notebook, viewType: 'foo' });
+		let info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
 		assert.strictEqual(info.all.length, 1);
 		assert.ok(info.all[0] === kernel);
 
 		const betterKernel = new TestNotebookKernel();
 		kernelService.registerKernel(betterKernel);
 
-		info = kernelService.getNotebookKernels({ uri: notebook, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
 		assert.strictEqual(info.all.length, 2);
 
 		kernelService.updateKernelNotebookAffinity(betterKernel, notebook, 2);
-		info = kernelService.getNotebookKernels({ uri: notebook, viewType: 'foo' });
+		info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
 		assert.strictEqual(info.all.length, 2);
 		assert.ok(info.all[0] === betterKernel);
 		assert.ok(info.all[1] === kernel);
@@ -113,13 +113,13 @@ suite('NotebookKernelService', () => {
 		kernelService.registerKernel(jupyterKernel);
 		kernelService.registerKernel(dotnetKernel);
 
-		kernelService.updateNotebookInstanceKernelBinding(jupyter, jupyterKernel);
-		kernelService.updateNotebookInstanceKernelBinding(dotnet, dotnetKernel);
+		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
+		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
 
-		let info = kernelService.getNotebookKernels(dotnet);
+		let info = kernelService.getMatchingKernel(dotnet);
 		assert.strictEqual(info.selected === dotnetKernel, true);
 
-		info = kernelService.getNotebookKernels(jupyter);
+		info = kernelService.getMatchingKernel(jupyter);
 		assert.strictEqual(info.selected === jupyterKernel, true);
 	});
 
@@ -134,8 +134,8 @@ suite('NotebookKernelService', () => {
 		kernelService.registerKernel(jupyterKernel);
 		kernelService.registerKernel(dotnetKernel);
 
-		kernelService.updateNotebookInstanceKernelBinding(jupyter, jupyterKernel);
-		kernelService.updateNotebookInstanceKernelBinding(dotnet, dotnetKernel);
+		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
+		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
 
 		{
 			// open as jupyter -> bind event

@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelBindEvent, INotebookKernelMatchInfo, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelBindEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -167,7 +167,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		});
 	}
 
-	getNotebookKernels(notebook: INotebookTextModelLike): INotebookKernelMatchInfo {
+	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult {
 
 		// all applicable kernels
 		const kernels: { kernel: INotebookKernel, instanceAffinity: number, typeAffinity: number, score: number }[] = [];
@@ -195,7 +195,7 @@ export class NotebookKernelService implements INotebookKernelService {
 	}
 
 	// default kernel for notebookType
-	updateNotebookTypeKernelBinding(typeId: string, kernel: INotebookKernel): void {
+	selectKernelForNotebookType(kernel: INotebookKernel, typeId: string): void {
 		const existing = this._typeBindings.get(typeId);
 		if (existing !== kernel.id) {
 			this._typeBindings.set(typeId, kernel.id);
@@ -206,7 +206,7 @@ export class NotebookKernelService implements INotebookKernelService {
 
 	// a notebook has one kernel, a kernel has N notebooks
 	// notebook <-1----N-> kernel
-	updateNotebookInstanceKernelBinding(notebook: INotebookTextModelLike, kernel: INotebookKernel | undefined): void {
+	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void {
 		const key = NotebookTextModelLikeId.str(notebook);
 		const oldKernel = this._notebookBindings.get(key);
 		if (oldKernel !== kernel?.id) {
@@ -215,7 +215,7 @@ export class NotebookKernelService implements INotebookKernelService {
 			} else {
 				this._notebookBindings.delete(key);
 			}
-			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel?.id });
+			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel.id });
 			this._persistMementos();
 		}
 	}

@@ -15,7 +15,7 @@ export interface INotebookKernelBindEvent {
 	newKernel: string | undefined;
 }
 
-export interface INotebookKernelMatchInfo {
+export interface INotebookKernelMatchResult {
 	readonly selected: INotebookKernel | undefined;
 	readonly all: INotebookKernel[];
 }
@@ -34,20 +34,20 @@ export interface INotebookKernelService {
 
 	registerKernel(kernel: INotebookKernel): IDisposable;
 
-	getNotebookKernels(notebook: INotebookTextModelLike): INotebookKernelMatchInfo;
+	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 
 	/**
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */
-	updateNotebookInstanceKernelBinding(notebook: INotebookTextModelLike, kernel: INotebookKernel | undefined): void;
+	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
 
 	/**
 	 * Bind a notebook type to a kernel.
 	 * @param viewType
 	 * @param kernel
 	 */
-	updateNotebookTypeKernelBinding(viewType: string, kernel: INotebookKernel): void;
+	selectKernelForNotebookType(kernel: INotebookKernel, viewType: string): void;
 
 	/**
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference
