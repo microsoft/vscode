@@ -39,7 +39,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: vscode.NotebookExecuteHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
 
 		for (let data of this._kernelData.values()) {
-			if (data.controller.id === id) {
+			if (data.controller.id === id && ExtensionIdentifier.equals(extension.identifier, data.extensionId)) {
 				throw new Error(`notebook controller with id '${id}' ALREADY exist`);
 			}
 		}
@@ -56,7 +56,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id,
+			id: `${extension.identifier.value}/${id}`,
 			viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
@@ -92,7 +92,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		};
 
 		const controller: vscode.NotebookController = {
-			get id() { return data.id; },
+			get id() { return id; },
 			get viewType() { return data.viewType; },
 			onDidChangeNotebookAssociation: onDidChangeSelection.event,
 			get label() {
