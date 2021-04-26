@@ -288,7 +288,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		], xListIcon.classNamesArray);
 
 		this.addTrustButtonToElement(trustedContainer);
-		this.addUntrustedTextToElement(untrustedContainer);
+		this.addTrustedTextToElement(trustedContainer);
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
@@ -357,7 +357,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 	}
 
-	private addUntrustedTextToElement(parent: HTMLElement): void {
+	private addTrustedTextToElement(parent: HTMLElement): void {
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 		const canSetWorkspaceTrust = this.workspaceTrustManagementService.canSetWorkspaceTrust();
 
