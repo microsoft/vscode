@@ -369,7 +369,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				]
 			});
 
-			if (!trustState) {
+			if (trustState === undefined) {
 				return Promise.reject(canceled());
 			}
 		}

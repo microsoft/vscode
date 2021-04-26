@@ -3038,7 +3038,7 @@ declare module 'vscode' {
 		 * Any time trust is not given, it is recommended to use the
 		* `onDidGrantWorkspaceTrust` event to listen for trust changes.
 		 */
-		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean>;
+		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean | undefined>;
 	}
 
 	//#endregion
