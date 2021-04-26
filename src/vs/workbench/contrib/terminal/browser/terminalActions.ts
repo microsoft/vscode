@@ -1315,7 +1315,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
-				keybinding: [{
+				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
 					weight: KeybindingWeight.WorkbenchContrib,
 					mac: {
@@ -1323,7 +1323,7 @@ export function registerTerminalActions() {
 						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
 					},
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
-				}],
+				},
 				icon: Codicon.splitHorizontal,
 				menu: [
 					{
@@ -1376,6 +1376,15 @@ export function registerTerminalActions() {
 				menu: {
 					id: MenuId.TerminalTabsWidgetContext,
 					group: ContextMenuGroup.Create
+				},
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
+						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+					},
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS
 				}
 			});
 		}
