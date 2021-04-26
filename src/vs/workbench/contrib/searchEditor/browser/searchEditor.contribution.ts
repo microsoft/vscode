@@ -555,13 +555,13 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 
 	private installHandler(): void {
 		this._register(this.workingCopyEditorService.registerHandler({
-			handles: async workingCopy => {
+			handles: workingCopy => {
 				return workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme;
 			},
-			isOpen: async (workingCopy, editor) => {
+			isOpen: (workingCopy, editor) => {
 				return editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri);
 			},
-			createEditor: async workingCopy => {
+			createEditor: workingCopy => {
 				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { modelUri: workingCopy.resource, config: {} });
 				input.setDirty(true);
 
