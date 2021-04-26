@@ -20,8 +20,14 @@ function split(path: string): [string, string] | undefined {
 	return [parentPath, name];
 }
 
-function isRoot(uri: URI): boolean {
-	return /^(\/[^/]+)\/?$/.test(uri.path);
+function getRootUUID(uri: URI): string | undefined {
+	const match = /^\/([^/]+)\/[^/]+\/?$/.exec(uri.path);
+
+	if (!match) {
+		return undefined;
+	}
+
+	return match[1];
 }
 
 export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
@@ -69,26 +75,32 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	async stat(resource: URI): Promise<IStat> {
-		const handler = this.files.get(resource.authority);
+		const rootUUID = getRootUUID(resource);
 
-		if (handler) {
-			const file = await handler.getFile();
+		if (rootUUID) {
+			const fileHandle = this.files.get(rootUUID);
 
-			return {
-				type: FileType.File,
-				mtime: file.lastModified,
-				ctime: 0,
-				size: file.size
-			};
-		}
+			if (fileHandle) {
+				const file = await fileHandle.getFile();
 
-		if (isRoot(resource)) {
-			return {
-				type: FileType.Directory,
-				mtime: 0,
-				ctime: 0,
-				size: 0
-			};
+				return {
+					type: FileType.File,
+					mtime: file.lastModified,
+					ctime: 0,
+					size: file.size
+				};
+			}
+
+			const directoryHandle = this.directories.get(rootUUID);
+
+			if (directoryHandle) {
+				return {
+					type: FileType.Directory,
+					mtime: 0,
+					ctime: 0,
+					size: 0
+				};
+			}
 		}
 
 		const parent = await this.getParentDirectoryHandle(resource);
@@ -152,8 +164,10 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	private async getDirectoryHandle(uri: URI): Promise<FileSystemDirectoryHandle | undefined> {
-		if (isRoot(uri)) {
-			return this.directories.get(uri.authority);
+		const rootUUID = getRootUUID(uri);
+
+		if (rootUUID) {
+			return this.directories.get(rootUUID);
 		}
 
 		const splitResult = split(uri.path);
@@ -171,10 +185,10 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	private async getFileHandle(uri: URI): Promise<FileSystemFileHandle | undefined> {
-		const result = this.files.get(uri.authority);
+		const rootUUID = getRootUUID(uri);
 
-		if (result) {
-			return result;
+		if (rootUUID) {
+			return this.files.get(rootUUID);
 		}
 
 		const parent = await this.getParentDirectoryHandle(uri);
