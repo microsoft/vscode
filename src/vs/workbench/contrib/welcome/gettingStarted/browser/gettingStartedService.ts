@@ -31,6 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { dirname } from 'vs/base/common/path';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -360,11 +361,16 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
 					}
 					const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
+
 					return ({
 						description: description,
 						media: step.media.type === 'image'
 							? { type: 'image', altText: step.media.altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) }
-							: { type: 'markdown', path: convertExtensionPathToFileURI(step.media.path), base: extension.extensionLocation }
+							: {
+								type: 'markdown',
+								path: convertExtensionPathToFileURI(step.media.path),
+								base: convertExtensionPathToFileURI(dirname(step.media.path))
+							}
 						,
 						doneOn: step.doneOn?.command
 							? { commandExecuted: step.doneOn.command }
