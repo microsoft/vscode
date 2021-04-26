@@ -320,7 +320,7 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 		'remoteAuthority': {
 			type: 'string',
 			doNotSuggest: true,
-			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located. Only used by unsaved remote workspaces."),
+			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located."),
 		}
 	},
 	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")

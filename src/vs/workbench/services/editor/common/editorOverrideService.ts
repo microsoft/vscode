@@ -163,7 +163,13 @@ export enum ContributedEditorPriority {
 }
 
 export type ContributionPointOptions = {
+	/**
+	 * If your editor cannot be opened in multiple groups for the same resource
+	 */
 	singlePerResource?: boolean | (() => boolean);
+	/**
+	 * If your editor supports diffs
+	 */
 	canHandleDiff?: boolean | (() => boolean);
 };
 

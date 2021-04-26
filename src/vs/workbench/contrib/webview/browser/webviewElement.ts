@@ -99,6 +99,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			id: this.id,
 			extensionId: extension?.id.value ?? '', // The extensionId and purpose in the URL are used for filtering in js-debug:
 			purpose: options.purpose,
+			serviceWorkerFetchIgnoreSubdomain: options.serviceWorkerFetchIgnoreSubdomain,
 			...extraParams
 		} as const;
 

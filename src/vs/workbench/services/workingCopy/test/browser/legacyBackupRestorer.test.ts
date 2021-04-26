@@ -14,11 +14,11 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toUntypedWorkingCopyId, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { LegacyWorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
+import { LegacyWorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/legacyBackupRestorer';
 import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
-suite('WorkingCopyBackupRestorer', () => {
+suite('LegacyWorkingCopyBackupRestorer', () => {
 
 	class TestBackupRestorer extends LegacyWorkingCopyBackupRestorer {
 		override async doRestoreLegacyBackups(): Promise<void> {

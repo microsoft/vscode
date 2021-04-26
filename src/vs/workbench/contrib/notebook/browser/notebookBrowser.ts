@@ -247,6 +247,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly layoutInfo: { totalHeight: number; };
 	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
+	readonly editStateSource: string;
 	dragging: boolean;
 	handle: number;
 	uri: URI;

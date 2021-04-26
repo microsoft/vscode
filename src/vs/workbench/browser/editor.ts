@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorInput, EditorResourceAccessor, IEditorInput, IEditorInputFactoryRegistry, SideBySideEditorInput, Extensions as EditorInputExtensions, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorResourceAccessor, IEditorInput, IEditorInputFactoryRegistry, SideBySideEditorInput, EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -203,7 +203,7 @@ export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const workingCopyService = accessor.get(IWorkingCopyService);
 
-	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
+	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	return new Promise(resolve => {
 		let remainingResources = [...resources];

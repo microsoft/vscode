@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -358,6 +359,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean = true): void {
+		type TransformedEdit = {
+			edit: ICellEditOperation;
+			cellIndex: number;
+			end: number | undefined;
+			originalIndex: number;
+		};
+
+		// compress all edits which have no side effects on cell index
 		const edits = rawEdits.map((edit, index) => {
 			let cellIndex: number = -1;
 			if ('index' in edit) {
@@ -372,7 +381,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				throw new Error('Invalid cell edit');
 			}
 
-			const cell = this._cells[cellIndex];
 			return {
 				edit,
 				cellIndex,
@@ -380,8 +388,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					(edit.editType === CellEditType.DocumentMetadata)
 						? undefined
 						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : cellIndex),
-				originalIndex: index,
-				originalCellOutputsLength: cell?.outputs.length ?? 0
+				originalIndex: index
 			};
 		}).sort((a, b) => {
 			if (a.end === undefined) {
@@ -393,9 +400,40 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}
 
 			return b.end - a.end || b.originalIndex - a.originalIndex;
+		}).reduce((prev, curr) => {
+			if (!prev.length) {
+				// empty
+				prev.push([curr]);
+			} else {
+				const last = prev[prev.length - 1];
+				const index = last[0].cellIndex;
+
+				if (curr.cellIndex === index) {
+					last.push(curr);
+				} else {
+					prev.push([curr]);
+				}
+			}
+
+			return prev;
+		}, [] as TransformedEdit[][]).map(editsOnSameIndex => {
+			const replaceEdits: TransformedEdit[] = [];
+			const otherEdits: TransformedEdit[] = [];
+
+			editsOnSameIndex.forEach(edit => {
+				if (edit.edit.editType === CellEditType.Replace) {
+					replaceEdits.push(edit);
+				} else {
+					otherEdits.push(edit);
+				}
+			});
+
+			return [...otherEdits.reverse(), ...replaceEdits];
 		});
 
-		for (const { edit, cellIndex, originalCellOutputsLength } of edits) {
+		const flattenEdits = flatten(edits);
+
+		for (const { edit, cellIndex } of flattenEdits) {
 			switch (edit.editType) {
 				case CellEditType.Replace:
 					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
@@ -404,7 +442,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._assertIndex(cellIndex);
 					const cell = this._cells[cellIndex];
 					if (edit.append) {
-						this._spliceNotebookCellOutputs(cell, [[originalCellOutputsLength, 0, edit.outputs.map(op => new NotebookCellOutputTextModel(op))]], computeUndoRedo);
+						this._spliceNotebookCellOutputs(cell, [[cell.outputs.length, 0, edit.outputs.map(op => new NotebookCellOutputTextModel(op))]], computeUndoRedo);
 					} else {
 						this._spliceNotebookCellOutputs2(cell, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
 					}

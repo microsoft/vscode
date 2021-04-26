@@ -53,7 +53,7 @@ export interface IWorkingCopyService {
 	/**
 	 * All dirty working copies that are registered.
 	 */
-	readonly dirtyWorkingCopies: ReadonlyArray<IWorkingCopy>;
+	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
 
 	/**
 	 * Whether there is any registered working copy that is dirty.
@@ -78,7 +78,7 @@ export interface IWorkingCopyService {
 	/**
 	 * All working copies that are registered.
 	 */
-	readonly workingCopies: ReadonlyArray<IWorkingCopy>;
+	readonly workingCopies: readonly IWorkingCopy[];
 
 	/**
 	 * Register a new working copy with the service. This method will

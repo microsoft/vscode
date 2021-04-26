@@ -9,7 +9,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -46,8 +46,13 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 
 	protected async doRestoreLegacyBackups(): Promise<void> {
 
-		// Resolve all backup resources that exist for this window (only those without `typeId`)
-		const backups = (await this.workingCopyBackupService.getBackups()).filter(backup => backup.typeId.length === 0);
+		// Resolve all backup resources that exist for this window
+		// that have not yet adopted the working copy editor handler
+		// - any working copy without `typeId`
+		// - not `search-edior:/` (supports migration to typeId)
+		const backups = (await this.workingCopyBackupService.getBackups())
+			.filter(backup => backup.typeId.length === 0)
+			.filter(backup => backup.resource.scheme !== 'search-editor');
 
 		// Trigger `resolve` in each opened editor that can be found
 		// for the given resource and keep track of backups that are
@@ -67,7 +72,7 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 		}
 	}
 
-	private async resolveOpenedBackupEditors(backups: ReadonlyArray<IWorkingCopyIdentifier>): Promise<IWorkingCopyIdentifier[]> {
+	private async resolveOpenedBackupEditors(backups: readonly IWorkingCopyIdentifier[]): Promise<IWorkingCopyIdentifier[]> {
 		const unresolvedBackups: IWorkingCopyIdentifier[] = [];
 
 		await Promises.settled(backups.map(async backup => {

@@ -485,6 +485,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 				extensionLocation: this.extension?.location,
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
+				useRemoteAuthority: this.content.options.alwaysFetchFromRemote ? remoteAuthority : undefined
 			}, this._fileService, this._requestService, this._logService, this._resourceLoadingCts.token);
 
 			switch (result.type) {

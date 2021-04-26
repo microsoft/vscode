@@ -540,9 +540,11 @@ export class SimpleFileDialog {
 	}
 
 	private tildaReplace(value: string): URI {
+		const home = this.userHome;
 		if ((value[0] === '~') && (value.length > 1)) {
-			let home = this.userHome;
 			return resources.joinPath(home, value.substring(1));
+		} else if (value[value.length - 1] === '~') {
+			return home;
 		}
 		return this.remoteUriFrom(value);
 	}
