@@ -12,12 +12,15 @@ import { setZoomFactor, setZoomLevel, getZoomLevel } from 'vs/base/browser/brows
  * browser helper so that it can be accessed in non-electron layers.
  */
 export function applyZoom(zoomLevel: number): void {
-	webFrame.setZoomLevel(zoomLevel);
-	setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
-	// Cannot be trusted because the webFrame might take some time
-	// until it really applies the new zoom level
-	// See https://github.com/microsoft/vscode/issues/26151
-	setZoomLevel(zoomLevel, false /* isTrusted */);
+	// Zoom levels above 8 make the user experience extremely poor.
+	if (zoomLevel <= 8) {
+		webFrame.setZoomLevel(zoomLevel);
+		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
+		// Cannot be trusted because the webFrame might take some time
+		// until it really applies the new zoom level
+		// See https://github.com/microsoft/vscode/issues/26151
+		setZoomLevel(zoomLevel, false /* isTrusted */);
+	}
 }
 
 export function zoomIn(): void {

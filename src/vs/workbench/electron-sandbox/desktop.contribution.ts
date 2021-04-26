@@ -211,7 +211,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			'window.zoomLevel': {
 				'type': 'number',
 				'default': 0,
-				'description': localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity."),
+				'description': localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity. The maximum zoom level is 8."),
 				ignoreSync: true
 			},
 			'window.newWindowDimensions': {
