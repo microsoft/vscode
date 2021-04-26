@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface INotebookKernelBindEvent {
 	notebook: URI;
@@ -35,7 +35,7 @@ export interface INotebookKernelService {
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */
-	updateNotebookInstanceKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel | undefined): void;
+	updateNotebookInstanceKernelBinding(notebook: INotebookTextModelLike, kernel: INotebookKernel | undefined): void;
 
 	/**
 	 * Bind a notebook type to a kernel.
