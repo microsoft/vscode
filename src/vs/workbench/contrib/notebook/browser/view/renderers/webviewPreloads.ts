@@ -802,7 +802,7 @@ function webviewPreloads() {
 		}
 	});
 
-	/*__markdownRendererBlock__*/
+	void markdownRenderer;
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
@@ -1030,7 +1030,7 @@ export function preloadsScriptStr(styleValues: {
 		.replace(/function webviewPreloads\(\) \{/g, '')
 		.replace(/__outputNodePadding__/g, `${styleValues.outputNodePadding}`)
 		.replace(/__outputNodeLeftPadding__/g, `${styleValues.outputNodeLeftPadding}`)
-		.replace(/\/\*__markdownRendererBlock__\*\//g, `
+		.replace(/void markdownRenderer;/g, `
 			import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
 			const markdownRenderer = await markdownRendererModule.activate(JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}")))
 		`);
