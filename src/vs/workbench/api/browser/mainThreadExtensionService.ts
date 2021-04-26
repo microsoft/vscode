@@ -7,7 +7,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IExtHostContext, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionService, ExtensionActivationError, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
@@ -20,6 +20,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -34,6 +35,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		@IHostService private readonly _hostService: IHostService,
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ITimerService private readonly _timerService: ITimerService,
+		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		this._extensionHostKind = extHostContext.extensionHostKind;
 	}
@@ -59,25 +61,36 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		console.error(`[${extensionId}]${error.message}`);
 		console.error(error.stack);
 	}
-	async $onExtensionActivationError(extensionId: ExtensionIdentifier, activationError: ExtensionActivationError): Promise<void> {
-		if (typeof activationError === 'string') {
-			this._extensionService._logOrShowMessage(Severity.Error, activationError);
-		} else {
-			this._handleMissingDependency(extensionId, activationError.dependency);
-		}
-	}
+	async $onExtensionActivationError(extensionId: ExtensionIdentifier, data: SerializedError, missingExtensionDependency: MissingExtensionDependency | null): Promise<void> {
+		const error = new Error();
+		error.name = data.name;
+		error.message = data.message;
+		error.stack = data.stack;
 
-	private async _handleMissingDependency(extensionId: ExtensionIdentifier, missingDependency: string): Promise<void> {
-		const extension = await this._extensionService.getExtension(extensionId.value);
-		if (extension) {
-			const local = await this._extensionsWorkbenchService.queryLocal();
-			const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingDependency }))[0];
-			if (installedDependency) {
-				await this._handleMissingInstalledDependency(extension, installedDependency.local!);
-			} else {
-				await this._handleMissingNotInstalledDependency(extension, missingDependency);
+		this._extensionService._onDidActivateExtensionError(extensionId, error);
+
+		if (missingExtensionDependency) {
+			const extension = await this._extensionService.getExtension(extensionId.value);
+			if (extension) {
+				const local = await this._extensionsWorkbenchService.queryLocal();
+				const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }))[0];
+				if (installedDependency) {
+					await this._handleMissingInstalledDependency(extension, installedDependency.local!);
+					return;
+				} else {
+					await this._handleMissingNotInstalledDependency(extension, missingExtensionDependency.dependency);
+					return;
+				}
 			}
 		}
+
+		const isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
+		if (isDev) {
+			this._notificationService.error(error);
+			return;
+		}
+
+		console.error(error.message);
 	}
 
 	private async _handleMissingInstalledDependency(extension: IExtensionDescription, missingInstalledDependency: ILocalExtension): Promise<void> {
