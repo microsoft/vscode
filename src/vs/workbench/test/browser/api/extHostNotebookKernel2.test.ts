@@ -56,7 +56,7 @@ suite('NotebookKernel', function () {
 		assert.throws(() => (<any>kernel).viewType = 'dd');
 
 		assert.ok(kernel);
-		assert.strictEqual(kernel.id, 'nullExtensionDescription/foo');
+		assert.strictEqual(kernel.id, 'foo');
 		assert.strictEqual(kernel.label, 'Foo');
 		assert.strictEqual(kernel.viewType, '*');
 
@@ -64,7 +64,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(kernelData.size, 1);
 
 		let [first] = kernelData.values();
-		assert.strictEqual(first.id, 'foo');
+		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
 		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
 		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.viewType, '*');
@@ -90,7 +90,7 @@ suite('NotebookKernel', function () {
 
 		await rpcProtocol.sync();
 		[first] = kernelData.values();
-		assert.strictEqual(first.id, 'foo');
+		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
 		assert.strictEqual(first.label, 'Far');
 	});
 });
