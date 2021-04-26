@@ -429,7 +429,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					// that it knows that the process is not still active. Note that this is not
 					// done for regular terminals because otherwise the terminal instance would be
 					// disposed.
-					this._onExit(undefined);
+					this._onExit(-1);
 				} else {
 					// For normal terminals write a message indicating what happened and relaunch
 					// using the previous shellLaunchConfig
