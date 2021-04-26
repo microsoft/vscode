@@ -362,16 +362,23 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					}
 					const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 
+					let media: IGettingStartedStep['media'];
+					if (typeof step.media.path === 'string' && step.media.path.endsWith('.md')) {
+						media = {
+							type: 'markdown',
+							path: convertExtensionPathToFileURI(step.media.path),
+							base: convertExtensionPathToFileURI(dirname(step.media.path))
+						};
+					} else {
+						const altText = (step.media as any).altText;
+						if (!altText) {
+							console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
+						}
+						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
+					}
+
 					return ({
-						description: description,
-						media: step.media.type === 'image'
-							? { type: 'image', altText: step.media.altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) }
-							: {
-								type: 'markdown',
-								path: convertExtensionPathToFileURI(step.media.path),
-								base: convertExtensionPathToFileURI(dirname(step.media.path))
-							}
-						,
+						description, media,
 						doneOn: step.doneOn?.command
 							? { commandExecuted: step.doneOn.command }
 							: { eventFired: 'markDone:' + fullyQualifiedID },

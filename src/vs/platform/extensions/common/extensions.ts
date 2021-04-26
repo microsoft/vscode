@@ -118,8 +118,8 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string;
 	readonly media:
-	| { type: 'image', path: string | { dark: string, light: string, hc: string }, altText: string }
-	| { type: 'markdown', path: string, },
+	| { path: string | { dark: string, light: string, hc: string }, altText: string }
+	| { path: string, },
 	readonly doneOn?: { command: string };
 	readonly when?: string;
 }
