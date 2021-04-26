@@ -249,8 +249,8 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	private _trusted!: boolean;
 	private _trustRequestPromise?: Promise<boolean>;
 	private _trustRequestResolver?: (trusted: boolean) => void;
-	private _modalTrustRequestPromise?: Promise<boolean>;
-	private _modalTrustRequestResolver?: (trusted: boolean) => void;
+	private _modalTrustRequestPromise?: Promise<boolean | undefined>;
+	private _modalTrustRequestResolver?: (trusted: boolean | undefined) => void;
 	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
 	private readonly _ctxWorkspaceTrustPendingRequest: IContextKey<boolean>;
 
@@ -302,7 +302,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	cancelRequest(): void {
 		if (this._modalTrustRequestResolver) {
-			this._modalTrustRequestResolver(this.trusted);
+			this._modalTrustRequestResolver(undefined);
 
 			this._modalTrustRequestResolver = undefined;
 			this._modalTrustRequestPromise = undefined;
@@ -331,7 +331,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._onDidCompleteWorkspaceTrustRequest.fire(trusted);
 	}
 
-	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: false }): Promise<boolean> {
+	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: false }): Promise<boolean | undefined> {
 		// Trusted workspace
 		if (this.trusted) {
 			return this.trusted;

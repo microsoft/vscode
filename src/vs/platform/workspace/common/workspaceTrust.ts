@@ -62,7 +62,7 @@ export interface IWorkspaceTrustRequestService {
 
 	cancelRequest(): void;
 	completeRequest(trusted?: boolean): void;
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean>;
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 }
 
 export interface IWorkspaceTrustUriInfo {
