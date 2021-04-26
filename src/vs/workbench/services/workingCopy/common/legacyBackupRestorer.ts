@@ -67,7 +67,7 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 		}
 	}
 
-	private async resolveOpenedBackupEditors(backups: ReadonlyArray<IWorkingCopyIdentifier>): Promise<IWorkingCopyIdentifier[]> {
+	private async resolveOpenedBackupEditors(backups: readonly IWorkingCopyIdentifier[]): Promise<IWorkingCopyIdentifier[]> {
 		const unresolvedBackups: IWorkingCopyIdentifier[] = [];
 
 		await Promises.settled(backups.map(async backup => {

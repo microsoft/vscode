@@ -59,6 +59,7 @@ import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
 import 'vs/workbench/services/remote/browser/tunnelServiceImpl';
 import 'vs/workbench/services/userDataSync/browser/userDataAutoSyncEnablementService';
+import 'vs/workbench/services/files/browser/elevatedFileService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
