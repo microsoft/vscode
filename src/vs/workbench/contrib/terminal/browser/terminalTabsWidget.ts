@@ -104,6 +104,18 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			}
 		});
 
+		// Set the selection to whatever is right clicked if it is not inside the selection
+		this.onContextMenu(e => {
+			if (!e.element) {
+				this.setSelection([null]);
+				return;
+			}
+			const selection = this.getSelection();
+			if (!selection || !selection.find(s => e.element === s)) {
+				this.setSelection([e.element]);
+			}
+		});
+
 		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
 
 		this.onDidChangeSelection(e => {
