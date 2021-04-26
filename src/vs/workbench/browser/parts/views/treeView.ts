@@ -283,17 +283,6 @@ export class TreeView extends Disposable implements ITreeView {
 				}
 
 				async setParent(nodes: ITreeItem[], parentNode: ITreeItem): Promise<void> {
-					if (typeof dataProvider.setParent !== 'function') {
-						if (parentNode.children) {
-							nodes.forEach(elem => {
-								parentNode.children!.push(elem);
-							});
-						} else {
-							parentNode.children = nodes;
-						}
-					} else {
-						dataProvider.setParent(nodes, parentNode);
-					}
 				}
 			};
 			if (this._dataProvider.onDidChangeEmpty) {
@@ -826,7 +815,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	async setParent(elements: ITreeItem[], newParentElement: ITreeItem): Promise<void> {
 		if (this.treeView.dataProvider) {
 			try {
-				await this.treeView.dataProvider.setParent!(elements, newParentElement);
+				await this.withProgress(this.treeView.dataProvider.setParent!(elements, newParentElement));
 			} catch (e) {
 				if (!(<string>e.message).startsWith('Bad progress location:')) {
 					throw e;
