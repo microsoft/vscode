@@ -68,6 +68,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 					workingCopyTypeId,
 					new NotebookFileWorkingCopyModelFactory(this._notebookService)
 				);
+				this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 			}
 			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, viewType, workingCopyManager);
 			result = await model.load();

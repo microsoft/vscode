@@ -60,6 +60,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/contributedStatusBarItemController';
@@ -428,9 +429,9 @@ class NotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchC
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
 		this._register(this._workingCopyEditorService.registerHandler({
-			handles: async workingCopy => typeof this.getViewType(workingCopy) === 'string',
-			isOpen: async (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this.getViewType(workingCopy),
-			createEditor: async workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this.getViewType(workingCopy)!)
+			handles: workingCopy => typeof this.getViewType(workingCopy) === 'string',
+			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this.getViewType(workingCopy),
+			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this.getViewType(workingCopy)!)
 		}));
 	}
 

@@ -23,7 +23,7 @@ import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export enum CellKind {
 	Markdown = 1,
@@ -350,12 +350,9 @@ export const enum CellEditType {
 	Metadata = 3,
 	CellLanguage = 4,
 	DocumentMetadata = 5,
-	OutputsSplice = 6,
-	Move = 7,
-	Unknown = 8,
-	CellContent = 9,
-	OutputItems = 10,
-	PartialMetadata = 11
+	Move = 6,
+	OutputItems = 7,
+	PartialMetadata = 8
 }
 
 export interface ICellDto2 {

@@ -233,17 +233,17 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		let createEditorCounter = 0;
 
 		await tracker.restoreBackups({
-			handles: async workingCopy => {
+			handles: workingCopy => {
 				handlesCounter++;
 
 				return workingCopy.typeId === 'testBackupTypeId';
 			},
-			isOpen: async (workingCopy, editor) => {
+			isOpen: (workingCopy, editor) => {
 				isOpenCounter++;
 
 				return false;
 			},
-			createEditor: async workingCopy => {
+			createEditor: workingCopy => {
 				createEditorCounter++;
 
 				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
@@ -270,9 +270,9 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const [tracker, accessor, disposables] = await restoreBackupsInit();
 
 		await tracker.restoreBackups({
-			handles: async workingCopy => false,
-			isOpen: async (workingCopy, editor) => Promise.reject(new Error('unexpected')),
-			createEditor: async workingCopy => Promise.reject(new Error('unexpected'))
+			handles: workingCopy => false,
+			isOpen: (workingCopy, editor) => { throw new Error('unexpected'); },
+			createEditor: workingCopy => { throw new Error('unexpected'); }
 		});
 
 		assert.strictEqual(accessor.editorService.count, 0);
@@ -286,9 +286,9 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		try {
 			await tracker.restoreBackups({
-				handles: async workingCopy => true,
-				isOpen: async (workingCopy, editor) => Promise.reject(new Error('unexpected')),
-				createEditor: async workingCopy => Promise.reject(new Error('unexpected'))
+				handles: workingCopy => true,
+				isOpen: (workingCopy, editor) => { throw new Error('unexpected'); },
+				createEditor: workingCopy => { throw new Error('unexpected'); }
 			});
 		} catch (error) {
 			// ignore
@@ -303,25 +303,25 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const [tracker, accessor, disposables] = await restoreBackupsInit();
 
 		const firstHandler = tracker.restoreBackups({
-			handles: async workingCopy => {
+			handles: workingCopy => {
 				return workingCopy.typeId === 'testBackupTypeId';
 			},
-			isOpen: async (workingCopy, editor) => {
+			isOpen: (workingCopy, editor) => {
 				return false;
 			},
-			createEditor: async workingCopy => {
+			createEditor: workingCopy => {
 				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
 			}
 		});
 
 		const secondHandler = tracker.restoreBackups({
-			handles: async workingCopy => {
+			handles: workingCopy => {
 				return workingCopy.typeId.length === 0;
 			},
-			isOpen: async (workingCopy, editor) => {
+			isOpen: (workingCopy, editor) => {
 				return false;
 			},
-			createEditor: async workingCopy => {
+			createEditor: workingCopy => {
 				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
 			}
 		});
@@ -357,17 +357,17 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		editor2.resolved = false;
 
 		await tracker.restoreBackups({
-			handles: async workingCopy => {
+			handles: workingCopy => {
 				handlesCounter++;
 
 				return workingCopy.typeId === 'testBackupTypeId';
 			},
-			isOpen: async (workingCopy, editor) => {
+			isOpen: (workingCopy, editor) => {
 				isOpenCounter++;
 
 				return true;
 			},
-			createEditor: async workingCopy => Promise.reject(new Error('unexpected'))
+			createEditor: workingCopy => { throw new Error('unexpected'); }
 		});
 
 		assert.strictEqual(handlesCounter, 4);

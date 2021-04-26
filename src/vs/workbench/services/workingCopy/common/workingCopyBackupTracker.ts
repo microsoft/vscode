@@ -236,7 +236,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// associated editor.
 		const restoredBackups = new Set<IWorkingCopyIdentifier>();
 		for (const unrestoredBackup of this.unrestoredBackups) {
-			const canHandleUnrestoredBackup = await handler.handles(unrestoredBackup);
+			const canHandleUnrestoredBackup = handler.handles(unrestoredBackup);
 			if (!canHandleUnrestoredBackup) {
 				continue;
 			}
@@ -244,7 +244,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Collect already opened editors for backup
 			let hasOpenedEditorForBackup = false;
 			for (const editor of this.editorService.editors) {
-				const isUnrestoredBackupOpened = await handler.isOpen(unrestoredBackup, editor);
+				const isUnrestoredBackupOpened = handler.isOpen(unrestoredBackup, editor);
 				if (isUnrestoredBackupOpened) {
 					openedEditorsForBackups.push(editor);
 					hasOpenedEditorForBackup = true;
@@ -254,7 +254,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Otherwise, make sure to create at least one editor
 			// for the backup to show
 			if (!hasOpenedEditorForBackup) {
-				nonOpenedEditorsForBackups.push(await handler.createEditor(unrestoredBackup));
+				nonOpenedEditorsForBackups.push(handler.createEditor(unrestoredBackup));
 			}
 
 			// Remember as (potentially) restored

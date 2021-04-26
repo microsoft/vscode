@@ -76,13 +76,9 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
 								oneOf: [
 									{
-										required: ['path', 'type', 'altText'],
+										required: ['path', 'altText'],
+										additionalProperties: false,
 										properties: {
-											type: {
-												description: localize('walkthroughs.steps.media.type', "Type of media to render, either an image or markdown."),
-												enum: ['image'],
-												type: 'string',
-											},
 											path: {
 												description: localize('walkthroughs.steps.media.image.path.string', "Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
 												oneOf: [
@@ -115,13 +111,9 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											}
 										}
 									}, {
-										required: ['path', 'type'],
+										required: ['path'],
+										additionalProperties: false,
 										properties: {
-											type: {
-												description: localize('walkthroughs.steps.media.type', "Type of media to render, either an image or markdown."),
-												enum: ['markdown'],
-												type: 'string',
-											},
 											path: {
 												description: localize('walkthroughs.steps.media.markdown.path', "Path to the markdown document, relative to extension directory."),
 												type: 'string',

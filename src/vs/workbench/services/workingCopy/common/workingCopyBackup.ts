@@ -6,26 +6,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export const IWorkingCopyBackupService = createDecorator<IWorkingCopyBackupService>('workingCopyBackupService');
-
-/**
- * Working copy backup metadata that can be associated
- * with the backup.
- *
- * Some properties may be reserved as outlined here and
- * cannot be used.
- */
-export interface IWorkingCopyBackupMeta {
-	[key: string]: unknown;
-
-	/**
-	 * `typeId` is a reverved property that cannot be used
-	 * as backup metadata.
-	 */
-	typeId?: never;
-}
 
 /**
  * A resolved working copy backup carries the backup value

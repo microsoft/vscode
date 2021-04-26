@@ -8,7 +8,7 @@ import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -37,6 +37,7 @@ export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGE
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
+	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -69,7 +70,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				expandOnlyOnTwistieClick: true,
 				selectionNavigation: true,
 				additionalScrollHeight: TAB_HEIGHT
@@ -81,7 +82,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			keybindingService,
 			accessibilityService,
 		);
-
 		this._terminalService.onInstancesChanged(() => this._render());
 		this._terminalService.onInstanceTitleChanged(() => this._render());
 		this._terminalService.onActiveInstanceChanged(e => {
@@ -98,7 +98,24 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		});
 
 		this.onMouseClick(e => {
-			e.element?.focus(true);
+			// if in the midst of a multi select, don't focus the element
+			if (this.getSelection().length <= 1) {
+				e.element?.focus(true);
+			}
+		});
+
+		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
+
+		this.onDidChangeSelection(e => {
+			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
+		});
+
+		this.onDidChangeFocus(e => {
+			// catch the case when multiple elements are selected and one is focused (with a right click)
+			// that is not in the selection. this ensures that the menu will show the instance actions for the focused element
+			// and apply only to that
+			const selectionExcludesFocusedElement = e.elements.length === 1 && !this.getSelection().includes(e.elements[0]);
+			this._terminalTabsSingleSelectedContextKey.set(selectionExcludesFocusedElement);
 		});
 
 		this.onDidOpen(async e => {
