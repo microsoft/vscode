@@ -1829,8 +1829,20 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 	if (!listService.lastFocusedList?.getSelection()?.length) {
 		return undefined;
 	}
-	const instances = [];
 	const selections = listService.lastFocusedList.getSelection();
+	const focused = listService.lastFocusedList.getFocus();
+	const instances: ITerminalInstance[] = [];
+
+	if (focused.length === 1 && !selections.includes(focused[0])) {
+		// focused length is always a max of 1
+		// if the focused one is not in the selected list, return that item
+		if ('instanceId' in focused[0]) {
+			instances.push(focused[0] as ITerminalInstance);
+			return instances;
+		}
+	}
+
+	// multi-select
 	for (const instance of selections) {
 		if ('instanceId' in instance) {
 			instances.push(instance as ITerminalInstance);
