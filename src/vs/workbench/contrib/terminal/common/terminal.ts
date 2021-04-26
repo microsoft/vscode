@@ -192,6 +192,7 @@ export interface ITerminalConfiguration {
 		hideForSingle: boolean;
 		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
 		location: 'left' | 'right';
+		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
 }
