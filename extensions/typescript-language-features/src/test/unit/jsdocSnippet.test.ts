@@ -25,12 +25,12 @@ suite('typescript.jsDocSnippet', () => {
 		assert.strictEqual(
 			templateToSnippet(joinLines(
 				'/**',
-				' * ',
+				'',
 				' */'
 			)).value,
 			joinLines(
 				'/**',
-				' * $0',
+				' $0',
 				' */'
 			));
 	});
@@ -71,7 +71,7 @@ suite('typescript.jsDocSnippet', () => {
 		assert.strictEqual(
 			templateToSnippet(joinLines(
 				'/**',
-				' * ',
+				'',
 				' * @param $arg',
 				' */'
 			)).value,

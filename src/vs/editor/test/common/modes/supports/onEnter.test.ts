@@ -67,11 +67,11 @@ suite('OnEnter', () => {
 			}
 		};
 
-		testIndentAction('', '\t/**', ' */', IndentAction.IndentOutdent, ' * ');
-		testIndentAction('', '\t/**', '', IndentAction.None, ' * ');
-		testIndentAction('', '\t/** * / * / * /', '', IndentAction.None, ' * ');
-		testIndentAction('', '\t/** /*', '', IndentAction.None, ' * ');
-		testIndentAction('', '/**', '', IndentAction.None, ' * ');
+		testIndentAction('', '\t/**', ' */', IndentAction.IndentOutdent, '');
+		testIndentAction('', '\t/**', '', IndentAction.None, '');
+		testIndentAction('', '\t/** * / * / * /', '', IndentAction.None, '');
+		testIndentAction('', '\t/** /*', '', IndentAction.None, '');
+		testIndentAction('', '/**', '', IndentAction.None, '');
 		testIndentAction('', '\t/**/', '', null, null);
 		testIndentAction('', '\t/***/', '', null, null);
 		testIndentAction('', '\t/*******/', '', null, null);
@@ -97,8 +97,8 @@ suite('OnEnter', () => {
 		testIndentAction('\t * something', '\t * ', '', IndentAction.None, '* ');
 		testIndentAction('\t *', '\t * ', '', IndentAction.None, '* ');
 
-		testIndentAction('/**', ' * ', '', IndentAction.None, '* ');
-		testIndentAction(' * something', ' * ', '', IndentAction.None, '* ');
+		testIndentAction('/**', '', '', IndentAction.None, '* ');
+		testIndentAction(' * something', '', '', IndentAction.None, '* ');
 		testIndentAction(' *', ' * asdfsfagadfg', '', IndentAction.None, '* ');
 
 		testIndentAction('/**', ' * asdfsfagadfg * * * ', '', IndentAction.None, '* ');

@@ -25,16 +25,16 @@ const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 			// e.g. /** | */
 			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
 			afterText: /^\s*\*\/$/,
-			action: { indentAction: vscode.IndentAction.IndentOutdent, appendText: ' * ' },
+			action: { indentAction: vscode.IndentAction.IndentOutdent, appendText: '' },
 		}, {
 			// e.g. /** ...|
 			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-			action: { indentAction: vscode.IndentAction.None, appendText: ' * ' },
+			action: { indentAction: vscode.IndentAction.None, appendText: '' },
 		}, {
 			// e.g.  * ...|
 			beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
 			previousLineText: /(?=^(\s*(\/\*\*|\*)).*)(?=(?!(\s*\*\/)))/,
-			action: { indentAction: vscode.IndentAction.None, appendText: '* ' },
+			action: { indentAction: vscode.IndentAction.None, appendText: '' },
 		}, {
 			// e.g.  */|
 			beforeText: /^(\t|[ ])*[ ]\*\/\s*$/,
