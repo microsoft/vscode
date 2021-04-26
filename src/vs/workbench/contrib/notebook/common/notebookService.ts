@@ -62,7 +62,7 @@ export interface INotebookService {
 
 	onDidCreateNotebookDocument: Event<NotebookTextModel>;
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
-	onDidRemoveNotebookDocument: Event<URI>;
+	onDidRemoveNotebookDocument: Event<NotebookTextModel>;
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
