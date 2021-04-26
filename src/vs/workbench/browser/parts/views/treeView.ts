@@ -283,6 +283,9 @@ export class TreeView extends Disposable implements ITreeView {
 				}
 
 				async setParent(nodes: ITreeItem[], parentNode: ITreeItem): Promise<void> {
+					if (typeof dataProvider.setParent === 'function') {
+						await dataProvider.setParent(nodes, parentNode);
+					}
 				}
 			};
 			if (this._dataProvider.onDidChangeEmpty) {
