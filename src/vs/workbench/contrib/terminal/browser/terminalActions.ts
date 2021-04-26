@@ -32,7 +32,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfile, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfile, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -743,10 +743,10 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
-				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
+				title: { value: localize('workbench.action.terminal.changeIconInstance', "Change Icon"), original: 'Change Icon' },
 				f1: false,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION),
 				menu: {
 					id: MenuId.TerminalTabsWidgetContext,
 					group: ContextMenuGroup.Edit
@@ -754,7 +754,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return getFocusedTabInstance(accessor)?.changeIcon();
+			return getSelectedInstances(accessor)?.[0].changeIcon();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -790,7 +790,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION),
 				menu: [
 					{
 						id: MenuId.TerminalTabsWidgetContext,
@@ -804,7 +804,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return getFocusedTabInstance(accessor)?.rename();
+			return getSelectedInstances(accessor)?.[0].rename();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1384,9 +1384,11 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const instance = getFocusedTabInstance(accessor);
-			if (instance) {
-				accessor.get(ITerminalService).splitInstance(instance);
+			const instances = getSelectedInstances(accessor);
+			if (instances) {
+				for (const instance of instances) {
+					accessor.get(ITerminalService).splitInstance(instance);
+				}
 			}
 		}
 	});
@@ -1553,7 +1555,9 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
-				title: { value: localize('workbench.action.terminal.killWithInstance', "Kill"), original: 'Kill' },
+				title: {
+					value: localize('workbench.action.terminal.killWithInstance', "Kill"), original: 'Kill'
+				},
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN),
@@ -1564,14 +1568,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const instance = getFocusedTabInstance(accessor);
-			if (instance) {
-				const terminalService = accessor.get(ITerminalService);
-				instance.dispose(true);
-				if (terminalService.terminalInstances.length > 0) {
-					await terminalService.showPanel(true);
-				}
-			}
+			getSelectedInstances(accessor)?.forEach(instance => instance.dispose(true));
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1827,14 +1824,29 @@ interface IRemoteTerminalPick extends IQuickPickItem {
 	term: IRemoteTerminalAttachTarget;
 }
 
-function getFocusedTabInstance(accessor: ServicesAccessor): ITerminalInstance | undefined {
+function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] | undefined {
 	const listService = accessor.get(IListService);
-	if (!listService.lastFocusedList?.getFocus()?.length) {
+	if (!listService.lastFocusedList?.getSelection()?.length) {
 		return undefined;
 	}
-	const result = listService.lastFocusedList?.getFocus()[0];
-	if ('instanceId' in result) {
-		return result as ITerminalInstance;
+	const selections = listService.lastFocusedList.getSelection();
+	const focused = listService.lastFocusedList.getFocus();
+	const instances: ITerminalInstance[] = [];
+
+	if (focused.length === 1 && !selections.includes(focused[0])) {
+		// focused length is always a max of 1
+		// if the focused one is not in the selected list, return that item
+		if ('instanceId' in focused[0]) {
+			instances.push(focused[0] as ITerminalInstance);
+			return instances;
+		}
 	}
-	return undefined;
+
+	// multi-select
+	for (const instance of selections) {
+		if ('instanceId' in instance) {
+			instances.push(instance as ITerminalInstance);
+		}
+	}
+	return instances;
 }
