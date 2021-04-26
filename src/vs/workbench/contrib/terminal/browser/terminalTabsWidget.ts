@@ -133,6 +133,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
 		this._terminalService.onInstancePrimaryStatusChanged(() => this._render());
+		this._render();
 	}
 
 	private _render(): void {
