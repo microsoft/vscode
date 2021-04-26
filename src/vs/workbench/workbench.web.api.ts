@@ -403,16 +403,7 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 
 
-	//#region Diagnostics
-
-	/**
-	 * Current logging level. Default is `LogLevel.Info`.
-	 */
-	readonly logLevel?: LogLevel;
-
-	//#endregion
-
-	//#region development options
+	//#region Development options
 
 	readonly developmentOptions?: IDevelopmentOptions;
 
@@ -421,6 +412,12 @@ interface IWorkbenchConstructionOptions {
 }
 
 interface IDevelopmentOptions {
+
+	/**
+	 * Current logging level. Default is `LogLevel.Info`.
+	 */
+	readonly logLevel?: LogLevel;
+
 	/**
 	 * Location of a module containing extension tests to run once the workbench is open.
 	 */
