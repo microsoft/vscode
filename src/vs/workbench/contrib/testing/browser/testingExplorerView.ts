@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -14,7 +13,7 @@ import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRendere
 import { Action, IAction } from 'vs/base/common/actions';
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
@@ -26,7 +25,6 @@ import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -39,7 +37,6 @@ import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -76,7 +73,7 @@ export class TestingExplorerView extends ViewPane {
 	constructor(
 		options: IViewletViewOptions,
 		@IWorkspaceTestCollectionService private readonly testCollection: IWorkspaceTestCollectionService,
-		@ITestService private readonly testService: ITestService,
+		@ITestService testService: ITestService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -97,7 +94,7 @@ export class TestingExplorerView extends ViewPane {
 	 * @override
 	 */
 	public override shouldShowWelcome() {
-		return this.testService.providers === 0;
+		return this.viewModel?.shouldShowWelcome ?? true;
 	}
 
 	/**
@@ -131,6 +128,7 @@ export class TestingExplorerView extends ViewPane {
 
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription.value);
+		this._register(this.viewModel.onChangeWelcomeVisibility(() => this._onDidChangeViewWelcomeState.fire()));
 		this._register(this.viewModel);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
@@ -196,38 +194,15 @@ export class TestingExplorerView extends ViewPane {
 	}
 }
 
-class EmptyTestsWidget extends Disposable {
-	private readonly el: HTMLElement;
-	constructor(
-		container: HTMLElement,
-		@ICommandService commandService: ICommandService,
-		@IThemeService themeService: IThemeService,
-	) {
-		super();
-		const el = this.el = dom.append(container, dom.$('.testing-no-test-placeholder'));
-		const emptyParagraph = dom.append(el, dom.$('p'));
-		emptyParagraph.innerText = localize('testingNoTest', 'No tests have been found in this workspace yet.');
-		const buttonLabel = localize('testingFindExtension', 'Find Test Extensions');
-		const button = this._register(new Button(el, { title: buttonLabel }));
-		button.label = buttonLabel;
-		this._register(attachButtonStyler(button, themeService));
-		this._register(button.onDidClick(() => commandService.executeCommand('testing.searchForTestExtension')));
-	}
-
-	public setVisible(isVisible: boolean) {
-		this.el.classList.toggle('visible', isVisible);
-	}
-}
-
 export class TestingExplorerViewModel extends Disposable {
 	public tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
 	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
-	private readonly emptyTestsWidget: EmptyTestsWidget;
 	private readonly revealTimeout = new MutableDisposable();
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
+	private readonly welcomeVisibilityEmitter = new Emitter<boolean>();
 
 	/**
 	 * Whether there's a reveal request which has not yet been delivered. This
@@ -241,6 +216,15 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Fires when the selected tests change.
 	 */
 	public readonly onDidChangeSelection: Event<ITreeEvent<TestExplorerTreeElement | null>>;
+	/**
+	 * Fires when the visibility of the placeholder state changes.
+	 */
+	public readonly onChangeWelcomeVisibility = this.welcomeVisibilityEmitter.event;
+
+	/**
+	 * Gets whether the welcome should be visible.
+	 */
+	public shouldShowWelcome = this.computeShowWelcome();
 
 	public get viewMode() {
 		return this._viewMode.get() ?? TestExplorerViewMode.Tree;
@@ -270,7 +254,6 @@ export class TestingExplorerViewModel extends Disposable {
 		this.tree.resort(null);
 		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
-
 	constructor(
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
@@ -290,7 +273,6 @@ export class TestingExplorerViewModel extends Disposable {
 		super();
 
 		this.hasPendingReveal = !!filterState.reveal.value;
-		this.emptyTestsWidget = this._register(instantiationService.createInstance(EmptyTestsWidget, listContainer));
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
 
@@ -552,7 +534,7 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 	}
 
-	private shouldShowEmptyPlaceholder() {
+	private computeShowWelcome() {
 		return !!this.listener
 			&& this.listener.subscription.busyProviders === 0
 			&& this.listener.subscription.pendingRootProviders === 0
@@ -583,7 +565,12 @@ export class TestingExplorerViewModel extends Disposable {
 	}
 
 	private applyProjectionChanges() {
-		this.emptyTestsWidget.setVisible(this.shouldShowEmptyPlaceholder());
+		const shouldShowWelcome = this.computeShowWelcome();
+		if (shouldShowWelcome !== this.shouldShowWelcome) {
+			this.shouldShowWelcome = shouldShowWelcome;
+			this.welcomeVisibilityEmitter.fire(shouldShowWelcome);
+		}
+
 		this.projection.value?.applyTo(this.tree);
 
 		if (this.hasPendingReveal) {

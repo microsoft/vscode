@@ -14,7 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation, ViewContentGroups } from 'vs/workbench/common/views';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
@@ -60,7 +60,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: localize('noTestProvidersRegistered', "No test providers are registered for this workspace."),
+	content: localize('noTestProvidersRegistered', "No tests have been found in this workspace yet."),
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
@@ -69,9 +69,10 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 			key: 'searchMarketplaceForTestExtensions',
 			comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'],
 		},
-		"[Search Marketplace](command:{0})",
-		`workbench.extensions.search?${encodeURIComponent(JSON.stringify(['@tag:testing']))}`
+		"[Find Test Extensions](command:{0})",
+		'testing.searchForTestExtension'
 	),
+	order: 10
 });
 
 viewsRegistry.registerViews([{
