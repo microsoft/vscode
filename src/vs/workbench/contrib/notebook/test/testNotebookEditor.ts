@@ -20,7 +20,7 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -207,6 +207,44 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
 	return _createTestNotebookEditor(setupInstantiationService(), cells);
+}
+
+export async function withTestNotebookDiffModel<R = any>(originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+	const instantiationService = setupInstantiationService();
+	const originalNotebook = createTestNotebookEditor(originalCells);
+	const modifiedNotebook = createTestNotebookEditor(modifiedCells);
+	const originalResource = new class extends mock<IResolvedNotebookEditorModel>() {
+		override get notebook() {
+			return originalNotebook.viewModel.notebookDocument;
+		}
+	};
+
+	const modifiedResource = new class extends mock<IResolvedNotebookEditorModel>() {
+		override get notebook() {
+			return modifiedNotebook.viewModel.notebookDocument;
+		}
+	};
+
+	const model = new class extends mock<INotebookDiffEditorModel>() {
+		override get original() {
+			return originalResource;
+		}
+		override get modified() {
+			return modifiedResource;
+		}
+	};
+
+	const res = await callback(model, instantiationService);
+	if (res instanceof Promise) {
+		res.finally(() => {
+			originalNotebook.dispose();
+			modifiedNotebook.dispose();
+		});
+	} else {
+		originalNotebook.dispose();
+		modifiedNotebook.dispose();
+	}
+	return res;
 }
 
 export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
