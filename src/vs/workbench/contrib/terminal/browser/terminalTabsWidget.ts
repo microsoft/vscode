@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { KEYBINDING_CONTEXT_TERMINAL_TABS_ONE_SELECTED, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -37,7 +37,7 @@ export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGE
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
-	private _terminalTabsOneSelectedContextKey: IContextKey<boolean>;
+	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -104,15 +104,18 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			}
 		});
 
-		this._terminalTabsOneSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_ONE_SELECTED.bindTo(contextKeyService);
+		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
 
 		this.onDidChangeSelection(e => {
-			this._terminalTabsOneSelectedContextKey.set(e.elements.length === 1);
+			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
 		});
 
 		this.onDidChangeFocus(e => {
+			// catch the case when multiple elements are selected and one is focused (with a right click)
+			// that is not in the selection. this ensures that the menu will show the instance actions for the focused element
+			// and apply only to that
 			const selectionExcludesFocusedElement = e.elements.length === 1 && !this.getSelection().includes(e.elements[0]);
-			this._terminalTabsOneSelectedContextKey.set(selectionExcludesFocusedElement);
+			this._terminalTabsSingleSelectedContextKey.set(selectionExcludesFocusedElement);
 		});
 
 		this.onDidOpen(async e => {
