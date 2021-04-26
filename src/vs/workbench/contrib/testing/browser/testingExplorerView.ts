@@ -12,7 +12,7 @@ import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'v
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -53,10 +53,12 @@ import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/te
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
+import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestIdPath, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
+import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
+import { getPathForTestInResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
@@ -223,6 +225,7 @@ export class TestingExplorerViewModel extends Disposable {
 	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
 	private readonly emptyTestsWidget: EmptyTestsWidget;
+	private readonly revealTimeout = new MutableDisposable();
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 
@@ -272,6 +275,7 @@ export class TestingExplorerViewModel extends Disposable {
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		private listener: TestSubscriptionListener | undefined,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestService private readonly testService: ITestService,
@@ -379,6 +383,29 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
+		let followRunningTests = getTestingConfiguration(configurationService, TestingConfigKeys.FollowRunningTest);
+		this._register(configurationService.onDidChangeConfiguration(() => {
+			followRunningTests = getTestingConfiguration(configurationService, TestingConfigKeys.FollowRunningTest);
+		}));
+
+		this._register(testResults.onTestChanged(evt => {
+			if (!followRunningTests) {
+				return;
+			}
+
+			if (evt.reason !== TestResultItemChangeReason.OwnStateChange) {
+				return;
+			}
+
+			// follow running tests, or tests whose state changed. Tests that
+			// complete very fast may not enter the running state at all.
+			if (evt.item.ownComputedState !== TestResultState.Running && !(evt.previous === TestResultState.Queued && isStateWithResult(evt.item.ownComputedState))) {
+				return;
+			}
+
+			this.revealByIdPath(getPathForTestInResult(evt.item, evt.result), false, false);
+		}));
+
 		this._register(testResults.onResultsChanged(() => {
 			this.tree.resort(null);
 		}));
@@ -403,7 +430,7 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Tries to reveal by extension ID. Queues the request if the extension
 	 * ID is not currently available.
 	 */
-	private revealByIdPath(idPath: TestIdPath | undefined) {
+	private revealByIdPath(idPath: TestIdPath | undefined, expand = true, focus = true) {
 		if (!idPath) {
 			this.hasPendingReveal = false;
 			return;
@@ -423,19 +450,21 @@ export class TestingExplorerViewModel extends Disposable {
 				continue;
 			}
 
-			// If this 'if' is true, we're at the clostest-visible parent to the node
+			// If this 'if' is true, we're at the closest-visible parent to the node
 			// we want to expand. Expand that, and then start the loop again because
 			// we might already have children for it.
 			if (i < idPath.length - 1) {
-				this.tree.expand(element);
-				expandToLevel = i + 1; // avoid an infinite loop if the test does not exist
-				i = idPath.length - 1; // restart the loop since new children may now be visible
-				continue;
+				if (expand) {
+					this.tree.expand(element);
+					expandToLevel = i + 1; // avoid an infinite loop if the test does not exist
+					i = idPath.length - 1; // restart the loop since new children may now be visible
+					continue;
+				}
 			}
 
 			// Otherwise, we've arrived!
 
-			// If the node or any of its children are exlcuded, flip on the 'show
+			// If the node or any of its children are excluded, flip on the 'show
 			// excluded tests' checkbox automatically.
 			for (let n: TestItemTreeElement | TestTreeWorkspaceFolder = element; n instanceof TestItemTreeElement; n = n.parent) {
 				if (n.test && this.testService.excludeTests.value.has(n.test.item.extId)) {
@@ -446,9 +475,11 @@ export class TestingExplorerViewModel extends Disposable {
 
 			this.filterState.reveal.value = undefined;
 			this.hasPendingReveal = false;
-			this.tree.domFocus();
+			if (focus) {
+				this.tree.domFocus();
+			}
 
-			setTimeout(() => {
+			this.revealTimeout.value = disposableTimeout(() => {
 				// Don't scroll to the item if it's already visible
 				if (this.tree.getRelativeTop(element) === null) {
 					this.tree.reveal(element, 0.5);

@@ -23,6 +23,7 @@ export const statePriority: { [K in TestResultState]: number } = {
 };
 
 export const isFailedState = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed;
+export const isStateWithResult = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed || s === TestResultState.Passed;
 
 export const stateNodes = Object.entries(statePriority).reduce(
 	(acc, [stateStr, priority]) => {
