@@ -1660,7 +1660,6 @@ declare module 'vscode' {
 		 * @param notebook The notebook for which a priority is set.
 		 * @param affinity A controller affinity
 		 */
-		// todo@API maybe Affinity instead of Priority
 		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity): void;
 	}
 
