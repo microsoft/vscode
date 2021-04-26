@@ -890,16 +890,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		let hideInput = false;
-		let inputShownJustForScreenReader = false;
-		if (!!this._hideInput && this._items.length > 0) {
-			if (this.ui.isScreenReaderOptimized()) {
-				// Always show input if screen reader attached https://github.com/microsoft/vscode/issues/94360
-				inputShownJustForScreenReader = true;
-			} else {
-				hideInput = true;
-			}
-		}
+		const hideInput = !!this._hideInput && this._items.length > 0;
 		this.ui.container.classList.toggle('hidden-input', hideInput && !this.description);
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
@@ -927,13 +918,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
-		if (inputShownJustForScreenReader) {
-			this.ui.inputBox.ariaLabel = '';
-		} else {
-			const ariaLabel = this.ariaLabel || this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
-			if (this.ui.inputBox.ariaLabel !== ariaLabel) {
-				this.ui.inputBox.ariaLabel = ariaLabel;
-			}
+		const ariaLabel = this.ariaLabel || this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+			this.ui.inputBox.ariaLabel = ariaLabel;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
