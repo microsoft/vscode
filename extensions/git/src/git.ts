@@ -2054,21 +2054,18 @@ export class Repository {
 			return branch;
 		}
 
+		// for-each-ref will fail for repositories without a commit (i.e. empty repositories)
 		try {
-			let res4 = await this.exec(['config', '--get', 'branch.' + name + '.remote']);
+			const result2 = await this.exec(['config', '--get', 'branch.' + name + '.remote']);
+			const result3 = await this.exec(['config', '--get', 'branch.' + name + '.merge']);
 
-			if (!res4.stdout) {
-				throw new Error(`Could not fetch remote of ${name}`);
+			if (!result2.stdout || !result3.stdout) {
+				throw new Error(`Could not fetch remote (branch) of ${name}`);
 			}
 
-			const remote = res4.stdout.trim();
-			res4 = await this.exec(['config', '--get', 'branch.' + name + '.merge']);
+			const remote = result2.stdout.trim();
 
-			if (!res4.stdout) {
-				throw new Error(`Could not fetch remote branch name of ${name}`);
-			}
-
-			const longRemoteName = res4.stdout.trim();
+			const longRemoteName = result3.stdout.trim();
 			const match = /^refs\/heads\/([^/]+)$/.exec(longRemoteName);
 
 			if (!match) {
