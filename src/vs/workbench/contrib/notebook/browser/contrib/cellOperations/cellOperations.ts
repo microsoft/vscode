@@ -404,7 +404,7 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 			{ quotableLabel: 'Join Notebook Cells' }
 		);
 		viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: ret.endFocus, selections: ret.endSelections });
-		ret.cell.editState = CellEditState.Editing;
+		ret.cell.updateEditState(CellEditState.Editing, 'joinCellsWithSurrounds');
 		context.notebookEditor.revealCellRangeInView(viewModel.getFocus());
 	} else {
 		const selections = viewModel.getSelections();
@@ -461,7 +461,7 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 		);
 
 		cells.forEach(cell => {
-			cell.editState = CellEditState.Editing;
+			cell.updateEditState(CellEditState.Editing, 'joinCellsWithSurrounds');
 		});
 
 		viewModel.updateSelectionsState({ kind: SelectionStateType.Handle, primary: cell.handle, selections: cells.map(cell => cell.handle) });

@@ -6,7 +6,7 @@
 import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -14,7 +14,6 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
@@ -24,14 +23,13 @@ abstract class MainThreadKernel implements INotebookKernel {
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
-	readonly selector: NotebookSelector;
+	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
 
 	implementsInterrupt: boolean;
 	label: string;
 	description?: string;
 	detail?: string;
-	isPreferred?: boolean;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
 	localResourceRoot: URI;
@@ -46,14 +44,13 @@ abstract class MainThreadKernel implements INotebookKernel {
 
 	constructor(data: INotebookKernelDto2, private _modeService: IModeService) {
 		this.id = data.id;
-		this.selector = data.selector;
+		this.viewType = data.viewType;
 		this.extension = data.extensionId;
 
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
 		this.description = data.description;
 		this.detail = data.detail;
-		this.isPreferred = data.isPreferred;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _modeService.getRegisteredModes();
 		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
@@ -75,10 +72,6 @@ abstract class MainThreadKernel implements INotebookKernel {
 		if (data.detail !== undefined) {
 			this.detail = data.detail;
 			event.detail = true;
-		}
-		if (data.isPreferred !== undefined) {
-			this.isPreferred = data.isPreferred;
-			event.isPreferred = true;
 		}
 		if (data.supportedLanguages !== undefined) {
 			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._modeService.getRegisteredModes();
@@ -220,6 +213,13 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		if (tuple) {
 			tuple[1].dispose();
 			this._kernels.delete(handle);
+		}
+	}
+
+	$updateNotebookPriority(handle: number, notebook: UriComponents, value: number | undefined): void {
+		const tuple = this._kernels.get(handle);
+		if (tuple) {
+			this._notebookKernelService.updateKernelNotebookAffinity(tuple[0], URI.revive(notebook), value);
 		}
 	}
 }

@@ -65,7 +65,6 @@ class Kernel {
 	constructor(id: string, label: string) {
 		this.controller = vscode.notebook.createNotebookController(id, 'notebookCoreTest', label);
 		this.controller.executeHandler = this._execute.bind(this);
-		this.controller.isPreferred = true;
 		this.controller.hasExecutionOrder = true;
 		this.controller.supportedLanguages = ['typescript', 'javascript'];
 	}
@@ -170,12 +169,11 @@ suite('Notebook API tests', function () {
 
 	setup(() => {
 
-		const kernel1 = new Kernel('mainKernel', 'Notebook Test Kernel');
+		const kernel1 = new Kernel('mainKernel', 'Notebook Primary Test Kernel');
 
 		const kernel2 = new class extends Kernel {
 			constructor() {
 				super('secondaryKernel', 'Notebook Secondary Test Kernel');
-				this.controller.isPreferred = false;
 				this.controller.hasExecutionOrder = false;
 			}
 
@@ -767,7 +765,6 @@ suite('Notebook API tests', function () {
 
 			constructor() {
 				super('cancelableKernel', 'Notebook Cancelable Test Kernel');
-				this.controller.isPreferred = false;
 			}
 
 			override async _execute(cells: vscode.NotebookCell[]) {
@@ -813,7 +810,6 @@ suite('Notebook API tests', function () {
 
 			constructor() {
 				super('interruptableKernel', 'Notebook Interruptable Test Kernel');
-				this.controller.isPreferred = false;
 				this.controller.interruptHandler = this.interrupt.bind(this);
 			}
 
@@ -1196,7 +1192,6 @@ suite('Notebook API tests', function () {
 
 			constructor() {
 				super('verifyOutputSyncKernel', '');
-				this.controller.isPreferred = false;
 			}
 
 			override async _execute(cells: vscode.NotebookCell[]) {

@@ -441,7 +441,8 @@
 	white-space: pre;
 
 	height: 21px; /* Editor outline is -1px in, don't overlap */
-	margin: 0px 6px;
+	margin: 0px 3px;
+	padding: 0px 3px;
 	overflow: hidden;
 	text-overflow: clip;
 }
@@ -456,6 +457,7 @@
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .codicon {
 	font-size: 14px;
+	color: unset; /* Inherit from parent cell-status-item */
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item-show-when-active {

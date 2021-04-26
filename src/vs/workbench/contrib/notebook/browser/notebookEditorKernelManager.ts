@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class NotebookEditorKernelManager extends Disposable {
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 	}
@@ -24,6 +27,15 @@ export class NotebookEditorKernelManager extends Disposable {
 	}
 
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
+		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
+		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({
+			modal: true,
+			message
+		});
+		if (!trust) {
+			return;
+		}
+
 		if (!notebook.metadata.trusted) {
 			return;
 		}
@@ -50,7 +62,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		if (cellHandles.length > 0) {
-			this._notebookKernelService.updateNotebookKernelBinding(notebook, kernel);
+			this._notebookKernelService.updateNotebookInstanceKernelBinding(notebook, kernel);
 			await kernel.executeNotebookCellsRequest(notebook.uri, cellHandles);
 		}
 	}

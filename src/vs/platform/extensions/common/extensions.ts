@@ -113,11 +113,13 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
-export interface IWalkthroughTask {
+export interface IWalkthroughStep {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
-	readonly media: { path: string, altText: string },
+	readonly media:
+	| { path: string | { dark: string, light: string, hc: string }, altText: string }
+	| { path: string, },
 	readonly doneOn?: { command: string };
 	readonly when?: string;
 }
@@ -126,7 +128,7 @@ export interface IWalkthrough {
 	readonly id: string,
 	readonly title: string;
 	readonly description: string;
-	readonly tasks: IWalkthroughTask[];
+	readonly steps: IWalkthroughStep[];
 	readonly primary?: boolean;
 	readonly when?: string;
 }

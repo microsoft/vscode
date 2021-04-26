@@ -88,8 +88,8 @@ suite('FileWorkingCopy', function () {
 	let accessor: TestServiceAccessor;
 	let workingCopy: FileWorkingCopy<TestFileWorkingCopyModel>;
 
-	function createWorkingCopy() {
-		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', resource, basename(resource), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService);
+	function createWorkingCopy(uri: URI = resource) {
+		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
 	}
 
 	setup(() => {
@@ -101,6 +101,10 @@ suite('FileWorkingCopy', function () {
 
 	teardown(() => {
 		workingCopy.dispose();
+	});
+
+	test('requires good file system URI', async () => {
+		assert.throws(() => createWorkingCopy(URI.from({ scheme: 'unknown', path: 'somePath' })));
 	});
 
 	test('orphaned tracking', async () => {

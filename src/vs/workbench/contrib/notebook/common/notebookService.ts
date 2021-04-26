@@ -60,8 +60,9 @@ export interface INotebookService {
 	readonly _serviceBrand: undefined;
 	canResolve(viewType: string): Promise<boolean>;
 
-	onDidRemoveNotebookDocument: Event<URI>;
+	onDidCreateNotebookDocument: Event<NotebookTextModel>;
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
+	onDidRemoveNotebookDocument: Event<URI>;
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;

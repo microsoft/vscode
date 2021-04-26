@@ -1035,7 +1035,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (this.isRestored) {
 
 				// Extract possible error actions from the error
-				let errorActions: ReadonlyArray<IAction> | undefined = undefined;
+				let errorActions: readonly IAction[] | undefined = undefined;
 				if (isErrorWithActions(error)) {
 					errorActions = error.actions;
 				}
@@ -1212,7 +1212,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// A move to another group is an open first...
-		target.openEditor(editor, options);
+		target.openEditor(editor.copy(), options);
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {

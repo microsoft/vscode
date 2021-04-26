@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { GettingStartedInputSerializer, GettingStartedPage, inGettingStartedContext } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions, Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -42,7 +42,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(GettingStartedInput.ID, GettingStartedInputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(GettingStartedInput.ID, GettingStartedInputSerializer);
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		GettingStartedPage,
@@ -136,8 +136,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.markTaskComplete',
-			title: localize('gettingStarted.markTaskComplete', "Mark Task Complete"),
+			id: 'gettingStarted.markStepComplete',
+			title: localize('gettingStarted.markStepComplete', "Mark Step Complete"),
 			category,
 		});
 	}
@@ -145,15 +145,15 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor, arg: string) {
 		if (!arg) { return; }
 		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.progressTask(arg);
+		gettingStartedService.progressStep(arg);
 	}
 });
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.markTaskIncomplete',
-			title: localize('gettingStarted.markTaskInomplete', "Mark Task Incomplete"),
+			id: 'gettingStarted.markStepIncomplete',
+			title: localize('gettingStarted.markStepInomplete', "Mark Step Incomplete"),
 			category,
 		});
 	}
@@ -161,7 +161,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor, arg: string) {
 		if (!arg) { return; }
 		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.deprogressTask(arg);
+		gettingStartedService.deprogressStep(arg);
 	}
 });
 

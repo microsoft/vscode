@@ -19,6 +19,7 @@
   "browser": "./client/dist/browser/cssClientMain",
   "enableProposedApi": true,
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }

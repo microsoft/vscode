@@ -10,6 +10,8 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
@@ -18,9 +20,11 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService);
+		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService);
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {

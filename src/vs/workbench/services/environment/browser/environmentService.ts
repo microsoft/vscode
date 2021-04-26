@@ -115,7 +115,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get logsPath(): string { return this.options.logsPath.path; }
 
 	@memoize
-	get logLevel(): string | undefined { return this.payload?.get('logLevel') || (this.options.logLevel !== undefined ? LogLevelToString(this.options.logLevel) : undefined); }
+	get logLevel(): string | undefined { return this.payload?.get('logLevel') || (this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined); }
 
 	@memoize
 	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }

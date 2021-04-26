@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -98,7 +98,6 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
-
 				assert.strictEqual(textModel.cells.length, 4);
 
 				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
@@ -223,6 +222,45 @@ suite('NotebookTextModel', () => {
 				assert.strictEqual(textModel.cells[0].outputs.length, 1);
 				[first] = textModel.cells[0].outputs;
 				assert.strictEqual(first.outputId, 'someId3');
+			}
+		);
+	});
+
+	test('multiple append output in one position', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.viewModel.notebookDocument;
+
+				// append
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [{ mime: 'text/markdown', value: 'append 1' }]
+						}]
+					},
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append2',
+							outputs: [{ mime: 'text/markdown', value: 'append 2' }]
+						}]
+					}
+				], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 2);
+				const [first, second] = textModel.cells[0].outputs;
+				assert.strictEqual(first.outputId, 'append1');
+				assert.strictEqual(second.outputId, 'append2');
 			}
 		);
 	});
@@ -479,7 +517,8 @@ suite('NotebookTextModel', () => {
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
 		], async (editor) => {
 			assert.strictEqual(editor.viewModel.getVersionId(), 0);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
+			const firstAltVersion = '0_0,1;1,1';
+			assert.strictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
 			editor.viewModel.notebookDocument.applyEdits([
 				{
 					index: 0,
@@ -490,17 +529,18 @@ suite('NotebookTextModel', () => {
 				}
 			], true, undefined, () => undefined, undefined, true);
 			assert.strictEqual(editor.viewModel.getVersionId(), 1);
-			assert.notStrictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+			assert.notStrictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
+			const secondAltVersion = '1_0,1;1,1';
+			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
 
 			await editor.viewModel.undo();
 			assert.strictEqual(editor.viewModel.getVersionId(), 2);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
+			assert.strictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
 
 			await editor.viewModel.redo();
 			assert.strictEqual(editor.viewModel.getVersionId(), 3);
-			assert.notStrictEqual(editor.viewModel.getAlternativeId(), '0_0,1;1,1');
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+			assert.notStrictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
+			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
 
 			editor.viewModel.notebookDocument.applyEdits([
 				{
@@ -516,8 +556,106 @@ suite('NotebookTextModel', () => {
 
 			await editor.viewModel.undo();
 			assert.strictEqual(editor.viewModel.getVersionId(), 5);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '1_0,1;1,1');
+			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
 
+		});
+	});
+
+	test('Destructive sorting in _doApplyEdits #121994', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', value: 'test' }] }], {}]
+		], async (editor) => {
+
+			const notebook = editor.viewModel.notebookDocument;
+
+			assert.strictEqual(notebook.cells[0].outputs.length, 1);
+			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 1);
+			assert.strictEqual(notebook.cells[0].outputs[0].outputs[0].value, 'test');
+
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.Output, handle: 0, outputs: []
+				},
+				{
+					editType: CellEditType.Output, handle: 0, append: true, outputs: [{
+						outputId: 'newOutput',
+						outputs: [{ mime: 'text/plain', value: 'cba' }, { mime: 'application/foo', value: 'cba' }]
+					}]
+				}
+			];
+
+			editor.viewModel.notebookDocument.applyEdits(edits, true, undefined, () => undefined, undefined);
+
+			assert.strictEqual(notebook.cells[0].outputs.length, 1);
+			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 2);
+		});
+	});
+
+	test('Destructive sorting in _doApplyEdits #121994. cell splice between output changes', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', value: 'test' }] }], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [{ outputId: 'i43', outputs: [{ mime: 'm/ime', value: 'test' }] }], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [{ outputId: 'i44', outputs: [{ mime: 'm/ime', value: 'test' }] }], {}]
+		], async (editor) => {
+			const notebook = editor.viewModel.notebookDocument;
+
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.Output, index: 0, outputs: []
+				},
+				{
+					editType: CellEditType.Replace, index: 1, count: 1, cells: []
+				},
+				{
+					editType: CellEditType.Output, index: 2, append: true, outputs: [{
+						outputId: 'newOutput',
+						outputs: [{ mime: 'text/plain', value: 'cba' }, { mime: 'application/foo', value: 'cba' }]
+					}]
+				}
+			];
+
+			editor.viewModel.notebookDocument.applyEdits(edits, true, undefined, () => undefined, undefined);
+
+			assert.strictEqual(notebook.cells.length, 2);
+			assert.strictEqual(notebook.cells[0].outputs.length, 0);
+			assert.strictEqual(notebook.cells[1].outputs.length, 2);
+			assert.strictEqual(notebook.cells[1].outputs[0].outputId, 'i44');
+			assert.strictEqual(notebook.cells[1].outputs[1].outputId, 'newOutput');
+		});
+	});
+
+	test('Destructive sorting in _doApplyEdits #121994. cell splice between output changes 2', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', value: 'test' }] }], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [{ outputId: 'i43', outputs: [{ mime: 'm/ime', value: 'test' }] }], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [{ outputId: 'i44', outputs: [{ mime: 'm/ime', value: 'test' }] }], {}]
+		], async (editor) => {
+			const notebook = editor.viewModel.notebookDocument;
+
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.Output, index: 1, append: true, outputs: [{
+						outputId: 'newOutput',
+						outputs: [{ mime: 'text/plain', value: 'cba' }, { mime: 'application/foo', value: 'cba' }]
+					}]
+				},
+				{
+					editType: CellEditType.Replace, index: 1, count: 1, cells: []
+				},
+				{
+					editType: CellEditType.Output, index: 1, append: true, outputs: [{
+						outputId: 'newOutput2',
+						outputs: [{ mime: 'text/plain', value: 'cba' }, { mime: 'application/foo', value: 'cba' }]
+					}]
+				}
+			];
+
+			editor.viewModel.notebookDocument.applyEdits(edits, true, undefined, () => undefined, undefined);
+
+			assert.strictEqual(notebook.cells.length, 2);
+			assert.strictEqual(notebook.cells[0].outputs.length, 1);
+			assert.strictEqual(notebook.cells[1].outputs.length, 1);
+			assert.strictEqual(notebook.cells[1].outputs[0].outputId, 'i44');
 		});
 	});
 });

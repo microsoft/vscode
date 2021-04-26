@@ -249,7 +249,7 @@ export class LiveTestResult implements ITestResult {
 		getOwnState: i => i.ownComputedState,
 		getCurrentComputedState: i => i.computedState,
 		setComputedState: (i, s) => i.computedState = s,
-		getChildren: i => i.children[Symbol.iterator](),
+		getChildren: i => i.children,
 		getParents: i => {
 			const { testById: testByExtId } = this;
 			return (function* () {

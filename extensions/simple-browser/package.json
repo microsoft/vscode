@@ -28,6 +28,7 @@
     "onOpenExternalUri:https"
   ],
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }

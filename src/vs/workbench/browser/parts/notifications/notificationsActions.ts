@@ -122,7 +122,7 @@ export class ConfigureNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		public readonly configurationActions: ReadonlyArray<IAction>
+		public readonly configurationActions: readonly IAction[]
 	) {
 		super(id, label, ThemeIcon.asClassName(configureIcon));
 	}
@@ -149,12 +149,15 @@ export class CopyNotificationMessageAction extends Action {
 interface NotificationActionMetrics {
 	id: string;
 	actionLabel: string;
-	source: string | undefined;
+	source: string;
+	silent: boolean;
 }
+
 type NotificationActionMetricsClassification = {
 	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	actionLabel: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	silent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
 export class NotificationActionRunner extends ActionRunner {
@@ -170,7 +173,7 @@ export class NotificationActionRunner extends ActionRunner {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
 		if (context) {
 			// If the context is not present it is a "global" notification action. Will be captured by other events
-			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()).toString(), actionLabel: action.label, source: context.sourceId });
+			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()).toString(), actionLabel: action.label, source: context.sourceId || 'core', silent: context.silent });
 		}
 
 		// Run and make sure to notify on any error again

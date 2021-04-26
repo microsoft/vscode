@@ -33,7 +33,7 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 		cellRangesToIndexes(visibleRanges).forEach(index => {
 			const cell = this._notebookEditor.viewModel?.viewCells[index];
 
-			if (cell?.cellKind === CellKind.Markdown && cell?.editState === CellEditState.Preview && !cell.metadata?.inputCollapsed) {
+			if (cell?.cellKind === CellKind.Markdown && cell?.getEditState() === CellEditState.Preview && !cell.metadata?.inputCollapsed) {
 				this._notebookEditor.createMarkdownPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
 				const viewCell = (cell as CodeCellViewModel);

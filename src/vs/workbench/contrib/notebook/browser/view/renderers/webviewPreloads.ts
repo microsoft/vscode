@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -260,11 +260,6 @@ function webviewPreloads() {
 				id: outputId,
 				focusNext
 			});
-
-			setTimeout(() => { // Wait a tick to prevent the focus indicator blinking before webview blurs
-				// Move focus off the focus sink - single use
-				focusFirstFocusableInCell(cellId);
-			}, 50);
 		});
 
 		return element;
@@ -899,6 +894,9 @@ function webviewPreloads() {
 		});
 	}
 
+	let hasPostedRenderedMathTelemetry = false;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/g;
+
 	function updateMarkdownPreview(cellId: string, content: string | undefined) {
 		const previewContainerNode = document.getElementById(cellId);
 		if (!previewContainerNode) {
@@ -919,6 +917,21 @@ function webviewPreloads() {
 					element: previewNode,
 					content: content
 				}]);
+
+				if (!hasPostedRenderedMathTelemetry) {
+					const hasRenderedMath = previewNode.querySelector('.katex');
+					if (hasRenderedMath) {
+						hasPostedRenderedMathTelemetry = true;
+						postNotebookMessage<ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+					}
+				}
+
+				const matches = previewNode.innerText.match(unsupportedKatexTermsRegex);
+				if (matches) {
+					postNotebookMessage<ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+						latexDirective: matches[0],
+					});
+				}
 			}
 		}
 

@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -123,9 +122,10 @@ export class CellEditorStatusBar extends Disposable {
 			return;
 		}
 
-		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
+		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => this.layout()));
 		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
-		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(e => this.layout()));
+		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
+		this.layout();
 		this.updateActiveCell();
 		this.updateRenderedItems();
 	}
@@ -180,20 +180,8 @@ class CellStatusBarItem extends Disposable {
 				color;
 		};
 
-		if (this._itemModel.icon) {
-			const iconContainer = renderIcon(this._itemModel.icon);
-			if (this._itemModel.iconColor) {
-				const colorResult = resolveColor(this._itemModel.iconColor);
-				iconContainer.style.color = colorResult || '';
-			}
-
-			this.container.appendChild(iconContainer);
-		}
-
 		if (this._itemModel.text) {
-			const textContainer = $('span', undefined);
-			new SimpleIconLabel(textContainer).text = this._itemModel.text.replace(/\n/g, ' ');
-			this.container.appendChild(textContainer);
+			new SimpleIconLabel(this.container).text = this._itemModel.text.replace(/\n/g, ' ');
 		}
 
 		if (this._itemModel.color) {
@@ -243,7 +231,7 @@ class CellStatusBarItem extends Disposable {
 			this._register(DOM.addDisposableListener(this.container, DOM.EventType.CLICK, _e => {
 				this.executeCommand();
 			}));
-			this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, e => {
+			this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, e => {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
 					this.executeCommand();

@@ -7,6 +7,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put
@@ -35,6 +37,10 @@ export interface ITerminalStatus {
 	 * What to show for this status in the terminal's hover.
 	 */
 	tooltip?: string | undefined;
+	/**
+	 * Actions to expose on hover.
+	 */
+	hoverActions?: IHoverAction[];
 }
 
 export interface ITerminalStatusList {
@@ -123,5 +129,16 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		} else {
 			this.remove(status);
 		}
+	}
+}
+
+export function getColorForSeverity(severity: Severity): string {
+	switch (severity) {
+		case Severity.Error:
+			return listErrorForeground;
+		case Severity.Warning:
+			return listWarningForeground;
+		default:
+			return '';
 	}
 }

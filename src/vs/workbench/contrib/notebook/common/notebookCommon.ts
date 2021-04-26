@@ -18,12 +18,12 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export enum CellKind {
 	Markdown = 1,
@@ -350,12 +350,9 @@ export const enum CellEditType {
 	Metadata = 3,
 	CellLanguage = 4,
 	DocumentMetadata = 5,
-	OutputsSplice = 6,
-	Move = 7,
-	Unknown = 8,
-	CellContent = 9,
-	OutputItems = 10,
-	PartialMetadata = 11
+	Move = 6,
+	OutputItems = 7,
+	PartialMetadata = 8
 }
 
 export interface ICellDto2 {
@@ -758,7 +755,6 @@ export interface INotebookKernelChangeEvent {
 	label?: true;
 	description?: true;
 	detail?: true;
-	isPreferred?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
 }
@@ -766,7 +762,7 @@ export interface INotebookKernelChangeEvent {
 export interface INotebookKernel {
 
 	readonly id: string;
-	readonly selector: NotebookSelector;
+	readonly viewType: string;
 	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
 	readonly extension: ExtensionIdentifier;
 
@@ -777,7 +773,6 @@ export interface INotebookKernel {
 	label: string;
 	description?: string;
 	detail?: string;
-	isPreferred?: boolean;
 	supportedLanguages: string[]
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
@@ -816,9 +811,7 @@ export interface INotebookCellStatusBarItem {
 	readonly alignment: CellStatusbarAlignment;
 	readonly priority?: number;
 	readonly text?: string;
-	readonly icon?: ThemeIcon;
 	readonly color?: string | ThemeColor;
-	readonly iconColor?: string | ThemeColor;
 	readonly backgroundColor?: string | ThemeColor;
 	readonly tooltip?: string;
 	readonly command?: string | Command;
@@ -849,4 +842,4 @@ export interface INotebookDecorationRenderOptions {
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
-
+export const NOTEBOOK_WORKING_COPY_TYPE_PREFIX = 'notebook/';

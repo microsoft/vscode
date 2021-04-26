@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { tmpdir } from 'os';
+import { createHash } from 'crypto';
 import { insert } from 'vs/base/common/arrays';
 import { hash } from 'vs/base/common/hash';
 import { isEqual } from 'vs/base/common/resources';
@@ -15,7 +16,7 @@ import { readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -29,8 +30,7 @@ import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferRea
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { consumeStream } from 'vs/base/common/stream';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
@@ -216,6 +216,30 @@ suite('WorkingCopyBackupService', () => {
 
 			const typedBackupHash = hashIdentifier({ typeId: 'hashTest', resource: uri });
 			assert.strictEqual(typedBackupHash, '502149c7');
+
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// If these hashes collide people will lose their backed up files
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			assert.notStrictEqual(untypedBackupHash, typedBackupHash);
+		});
+
+		test('should not fail for URIs without path', () => {
+			const uri = URI.from({
+				scheme: 'vscode-fragment',
+				fragment: 'frag'
+			});
+
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// If these hashes change people will lose their backed up files
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			const untypedBackupHash = hashIdentifier(toUntypedWorkingCopyId(uri));
+			assert.strictEqual(untypedBackupHash, '-2f6b2f1b');
+			assert.strictEqual(untypedBackupHash, hash(uri.toString()).toString(16));
+
+			const typedBackupHash = hashIdentifier({ typeId: 'hashTest', resource: uri });
+			assert.strictEqual(typedBackupHash, '6e82ca57');
 
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			// If these hashes collide people will lose their backed up files
@@ -522,7 +546,7 @@ suite('WorkingCopyBackupService', () => {
 		});
 	});
 
-	suite('discardBackups', () => {
+	suite('discardBackups (all)', () => {
 		test('text file', async () => {
 			const backupId1 = toUntypedWorkingCopyId(fooFile);
 			const backupId2 = toUntypedWorkingCopyId(barFile);
@@ -562,6 +586,53 @@ suite('WorkingCopyBackupService', () => {
 			await service.discardBackups();
 			await service.backup(toUntypedWorkingCopyId(untitledFile), bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(existsSync(workspaceBackupPath), true);
+		});
+	});
+
+	suite('discardBackups (except some)', () => {
+		test('text file', async () => {
+			const backupId1 = toUntypedWorkingCopyId(fooFile);
+			const backupId2 = toUntypedWorkingCopyId(barFile);
+			const backupId3 = toTypedWorkingCopyId(barFile);
+
+			await service.backup(backupId1, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
+
+			await service.backup(backupId2, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 2);
+
+			await service.backup(backupId3, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
+
+			await service.discardBackups([backupId2, backupId3]);
+
+			let backupPath = join(workspaceBackupPath, backupId1.resource.scheme, hashIdentifier(backupId1));
+			assert.strictEqual(existsSync(backupPath), false);
+
+			backupPath = join(workspaceBackupPath, backupId2.resource.scheme, hashIdentifier(backupId2));
+			assert.strictEqual(existsSync(backupPath), true);
+
+			backupPath = join(workspaceBackupPath, backupId3.resource.scheme, hashIdentifier(backupId3));
+			assert.strictEqual(existsSync(backupPath), true);
+
+			await service.discardBackups([backupId1]);
+
+			for (const backupId of [backupId1, backupId2, backupId3]) {
+				const backupPath = join(workspaceBackupPath, backupId.resource.scheme, hashIdentifier(backupId));
+				assert.strictEqual(existsSync(backupPath), false);
+			}
+		});
+
+		test('untitled file', async () => {
+			const backupId = toUntypedWorkingCopyId(untitledFile);
+			const backupPath = join(workspaceBackupPath, backupId.resource.scheme, hashIdentifier(backupId));
+
+			await service.backup(backupId, bufferToReadable(VSBuffer.fromString('test')));
+			assert.strictEqual(existsSync(backupPath), true);
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
+
+			await service.discardBackups([backupId]);
+			assert.strictEqual(existsSync(backupPath), true);
 		});
 	});
 
@@ -903,21 +974,22 @@ suite('WorkingCopyBackupService', () => {
 		test('file with binary data', async () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 
-			const buffer = VSBuffer.alloc(3);
-			buffer.writeUInt8(10, 0);
-			buffer.writeUInt8(20, 1);
-			buffer.writeUInt8(30, 2);
+			const sourceDir = getPathFromAmdModule(require, './fixtures');
 
-			await service.backup(identifier, bufferToReadable(buffer), undefined, { binaryTest: 'true' });
+			const buffer = await promises.readFile(join(sourceDir, 'binary.txt'));
+			const hash = createHash('md5').update(buffer).digest('base64');
+
+			await service.backup(identifier, bufferToReadable(VSBuffer.wrap(buffer)), undefined, { binaryTest: 'true' });
 
 			const backup = await service.resolve(toUntypedWorkingCopyId(fooFile));
 			assert.ok(backup);
 
 			const backupBuffer = await consumeStream(backup.value, chunks => VSBuffer.concat(chunks));
 			assert.strictEqual(backupBuffer.buffer.byteLength, buffer.byteLength);
-			assert.strictEqual(backupBuffer.readUInt8(0), buffer.readUInt8(0));
-			assert.strictEqual(backupBuffer.readUInt8(1), buffer.readUInt8(1));
-			assert.strictEqual(backupBuffer.readUInt8(2), buffer.readUInt8(2));
+
+			const backupHash = createHash('md5').update(backupBuffer.buffer).digest('base64');
+
+			assert.strictEqual(hash, backupHash);
 		});
 	});
 

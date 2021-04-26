@@ -21,6 +21,15 @@ export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('t
 /** A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false, nls.localize('terminalFocusContextKey', "Whether the terminal is focused"));
 
+/** A context key that is set to the current number of integrated terminals. */
+export const KEYBINDING_CONTEXT_TERMINAL_COUNT = new RawContextKey<number>('terminalCount', 0, nls.localize('terminalCountContextKey', "The current number of terminals"));
+
+/** A context key that is set when the terminal tabs view is narrow. */
+export const KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS = new RawContextKey<boolean>('isTerminalTabsNarrow', false, true);
+
+/** A context key that is set when the integrated terminal tabs widget has focus. */
+export const KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS = new RawContextKey<boolean>('terminalTabsFocus', false, nls.localize('terminalTabsFocusContextKey', "Whether the terminal tabs widget is focused"));
+
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
 /** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined, { type: 'string', description: nls.localize('terminalShellTypeContextKey', "The shell type of the active terminal") });
@@ -50,6 +59,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolea
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.toNegated();
 
 export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false, nls.localize('terminalProcessSupportedContextKey', "Whether terminal processes can be launched"));
+
+export const KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION = new RawContextKey<boolean>('terminalTabsSingularSelection', false, nls.localize('terminalTabsSingularSelectedContextKey', "Whether one terminal tab is selected"));
 
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
@@ -128,8 +139,6 @@ export interface ITerminalConfiguration {
 		windows: string | null;
 	};
 	useWslProfiles: boolean;
-	showTabs: boolean;
-	tabsLocation: 'left' | 'right';
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -178,6 +187,13 @@ export interface ITerminalConfiguration {
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
+	tabs: {
+		enabled: boolean;
+		hideForSingle: boolean;
+		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
+		location: 'left' | 'right';
+	},
+	bellDuration: number;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -431,6 +447,7 @@ export const enum TERMINAL_COMMAND_ID {
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',
 	FOCUS_PREVIOUS_PANE = 'workbench.action.terminal.focusPreviousPane',
+	FOCUS_TABS_VIEW = 'workbench.action.terminal.focusTabsView',
 	FOCUS_NEXT_PANE = 'workbench.action.terminal.focusNextPane',
 	RESIZE_PANE_LEFT = 'workbench.action.terminal.resizePaneLeft',
 	RESIZE_PANE_RIGHT = 'workbench.action.terminal.resizePaneRight',

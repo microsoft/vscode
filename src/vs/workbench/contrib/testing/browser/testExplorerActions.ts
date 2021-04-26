@@ -591,7 +591,9 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		const pane = await editorService.openEditor({
 			resource: test.uri,
 			options: {
-				selection: test.range && { startColumn: test.range.startColumn, startLineNumber: test.range.startLineNumber },
+				selection: test.range
+					? { startColumn: test.range.startColumn, startLineNumber: test.range.startLineNumber }
+					: undefined,
 				preserveFocus,
 			},
 		});

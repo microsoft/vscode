@@ -18,6 +18,7 @@
   "browser": "./client/dist/browser/jsonClientMain",
   "enableProposedApi": true,
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }

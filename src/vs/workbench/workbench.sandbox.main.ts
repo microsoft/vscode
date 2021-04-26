@@ -67,6 +67,7 @@ import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupServ
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/platform/checksum/electron-sandbox/checksumService';
 import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
+import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -130,5 +131,8 @@ import 'vs/workbench/contrib/tags/electron-sandbox/tags.contribution';
 
 // Performance
 import 'vs/workbench/contrib/performance/electron-sandbox/performance.contribution';
+
+// Tasks
+import 'vs/workbench/contrib/tasks/electron-sandbox/taskService';
 
 //#endregion

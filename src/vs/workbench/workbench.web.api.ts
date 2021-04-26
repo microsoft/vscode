@@ -319,7 +319,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
 	 */
-	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
+	readonly staticExtensions?: readonly IStaticExtension[];
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -403,16 +403,7 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 
 
-	//#region Diagnostics
-
-	/**
-	 * Current logging level. Default is `LogLevel.Info`.
-	 */
-	readonly logLevel?: LogLevel;
-
-	//#endregion
-
-	//#region development options
+	//#region Development options
 
 	readonly developmentOptions?: IDevelopmentOptions;
 
@@ -421,6 +412,12 @@ interface IWorkbenchConstructionOptions {
 }
 
 interface IDevelopmentOptions {
+
+	/**
+	 * Current logging level. Default is `LogLevel.Info`.
+	 */
+	readonly logLevel?: LogLevel;
+
 	/**
 	 * Location of a module containing extension tests to run once the workbench is open.
 	 */
@@ -429,7 +426,7 @@ interface IDevelopmentOptions {
 	/**
 	 * Add extensions under development.
 	 */
-	readonly extensions?: ReadonlyArray<IStaticExtension>;
+	readonly extensions?: readonly IStaticExtension[];
 
 	/**
 	 * Whether to enable the smoke test driver.

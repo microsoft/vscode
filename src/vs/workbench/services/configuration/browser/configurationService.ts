@@ -14,7 +14,7 @@ import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, I
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, UntrustedSettings, filterSettingsRequireWorkspaceTrust } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, UntrustedSettings } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceInitializationPayload, IEmptyWorkspaceIdentifier, useSlashForPath, getStoredWorkspaceFolder, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
@@ -32,7 +32,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { delta, distinct } from 'vs/base/common/arrays';
 import { forEach, IStringDictionary } from 'vs/base/common/collections';
 
@@ -955,24 +955,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 }
 
-class ConfigurationWorkspaceTrustContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService
-	) {
-		super();
-		this.requestTrust();
-		this._register(configurationService.onDidChangeUntrustdSettings(() => this.requestTrust()));
-	}
-
-	private requestTrust(): void {
-		const settingsRequiringWorkspaceTrust = filterSettingsRequireWorkspaceTrust(this.configurationService.unTrustedSettings.default);
-		if (settingsRequiringWorkspaceTrust.length) {
-			this.workspaceTrustRequestService.requestWorkspaceTrust();
-		}
-	}
-}
-
 class RegisterConfigurationSchemasContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -1095,4 +1077,3 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(ConfigurationWorkspaceTrustContribution, LifecyclePhase.Starting);

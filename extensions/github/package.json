@@ -21,6 +21,7 @@
   ],
   "main": "./out/extension.js",
   "capabilities": {
+    "virtualWorkspaces": false,
     "untrustedWorkspaces": {
       "supported": true
     }

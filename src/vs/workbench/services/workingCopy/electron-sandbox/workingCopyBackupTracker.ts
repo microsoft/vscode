@@ -25,6 +25,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Promises, raceCancellation } from 'vs/base/common/async';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
 export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
@@ -38,12 +39,13 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService);
+		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService);
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -58,7 +60,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		return this.onBeforeShutdownWithoutDirty();
 	}
 
-	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, dirtyWorkingCopies: IWorkingCopy[]): Promise<boolean> {
+	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<boolean> {
 
 		// If auto save is enabled, save all non-untitled working copies
 		// and then check again for dirty copies
@@ -84,7 +86,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		return this.handleDirtyBeforeShutdown(dirtyWorkingCopies, reason);
 	}
 
-	private async handleDirtyBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
+	private async handleDirtyBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
 
 		// Trigger backup if configured
 		let backups: IWorkingCopy[] = [];
@@ -143,7 +145,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
 
-	private async backupBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[], reason: ShutdownReason): Promise<IWorkingCopy[]> {
+	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[], reason: ShutdownReason): Promise<IWorkingCopy[]> {
 
 		// When quit is requested skip the confirm callback and attempt to backup all workspaces.
 		// When quit is not requested the confirm callback should be shown when the window being
@@ -190,7 +192,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		return this.doBackupBeforeShutdown(dirtyWorkingCopies);
 	}
 
-	private async doBackupBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[]): Promise<IWorkingCopy[]> {
+	private async doBackupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<IWorkingCopy[]> {
 		const backups: IWorkingCopy[] = [];
 
 		await this.withProgressAndCancellation(async token => {
@@ -321,14 +323,24 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
+
 		// If we have proceeded enough that editors and dirty state
 		// has restored, we make sure that no backups lure around
 		// given we have no known dirty working copy. This helps
 		// to clean up stale backups as for example reported in
 		// https://github.com/microsoft/vscode/issues/92962
+		//
+		// However, we never want to discard backups that we know
+		// were not restored in the session.
 		if (this.editorGroupService.isRestored()) {
 			try {
-				await this.workingCopyBackupService.discardBackups();
+
+				// Backups without `typeId` are handed in the legacy backup
+				// restorer still and thus we explicitly don't want to keep
+				// them on shutdown, otherwise they would always come back.
+				// TODO@bpasero remove this check once typeId has been adopted.
+				const backupsToKeep = Array.from(this.unrestoredBackups).filter(unrestoredBackup => unrestoredBackup.typeId.length > 0);
+				await this.workingCopyBackupService.discardBackups(backupsToKeep);
 			} catch (error) {
 				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 			}

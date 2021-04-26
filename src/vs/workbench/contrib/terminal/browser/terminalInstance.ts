@@ -55,6 +55,8 @@ import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/work
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -138,6 +140,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	public disableLayout: boolean;
 	public get instanceId(): number { return this._instanceId; }
+	public get resource(): URI {
+		return URI.from({
+			scheme: Schemas.vscodeTerminal,
+			path: this.title,
+			fragment: this.instanceId.toString(),
+		});
+	}
 	public get cols(): number {
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
 			if (this._dimensionsOverride.forceExactSize) {
@@ -174,7 +183,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
-	public get icon(): Codicon { return this._getIcon(); }
+	public get icon(): Codicon | undefined { return this._getIcon(); }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -308,13 +317,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	private _getIcon(): Codicon {
+	private _getIcon(): Codicon | undefined {
 		if (this.shellLaunchConfig.icon) {
-			return iconRegistry.get(this.shellLaunchConfig.icon) || Codicon.terminal;
+			return iconRegistry.get(this.shellLaunchConfig.icon);
 		} else if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
-			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon) || Codicon.terminal;
+			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon);
 		}
-		return Codicon.terminal;
+		return undefined;
 	}
 
 	public addDisposable(disposable: IDisposable): void {
@@ -498,7 +507,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						severity: Severity.Warning,
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
-					}, 3000);
+					}, this._configHelper.config.bellDuration);
 				}
 			});
 		}, 1000);
@@ -1007,7 +1016,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	protected _createProcessManager(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
-		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
+		this._processManager.onProcessReady(() => {
+			this._onProcessIdReady.fire(this);
+			// Re-fire the title change event to ensure a slow resolved icon gets applied
+			this._onTitleChanged.fire(this);
+		});
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(ev => {
 			this._initialDataEvents?.push(ev.data);
@@ -1049,13 +1062,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				icon: Codicon.debugDisconnect,
 				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
 			});
-			this._onTitleChanged.fire(this);
 		});
 		this._processManager.onPtyReconnect(() => {
 			this._safeSetOption('disableStdin', false);
 			this.statusList.remove(TerminalStatus.Disconnected);
-			// TODO: Remove title change + (disconnected) from title
-			this._onTitleChanged.fire(this);
 		});
 	}
 
@@ -1670,7 +1680,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				id: TerminalStatus.RelaunchNeeded,
 				severity: Severity.Warning,
 				icon: Codicon.warning,
-				tooltip: nls.localize('relaunchNeededStatus', "Relaunch needed to update environment")
+				tooltip: info.getInfo(),
+				hoverActions: info.getActions ? info.getActions() : undefined
 			});
 		}
 		if (disposable) {

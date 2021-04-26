@@ -27,7 +27,8 @@ import { IExtUri } from 'vs/base/common/resources';
 // Static values for editor contributions
 export const EditorExtensions = {
 	Editors: 'workbench.contributions.editors',
-	Associations: 'workbench.editors.associations'
+	Associations: 'workbench.editors.associations',
+	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
 };
 
 // Editor State Context Keys
@@ -197,8 +198,19 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
+/**
+ * @deprecated obsolete
+ *
+ * TODO@bpasero remove this API and users once the generic backup restorer has been removed
+ */
 export interface ICustomEditorInputFactory {
+	/**
+	 * @deprecated obsolete
+	 */
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
+	/**
+	 * @deprecated obsolete
+	 */
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
 
@@ -216,11 +228,15 @@ export interface IEditorInputFactoryRegistry {
 
 	/**
 	 * Registers the custom editor input factory to use for custom inputs.
+	 *
+	 * @deprecated obsolete
 	 */
 	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void;
 
 	/**
 	 * Returns the custom editor input factory to use for custom inputs.
+	 *
+	 * @deprecated obsolete
 	 */
 	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
@@ -520,6 +536,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * Returns a copy of the current editor input. Used when we can't just reuse the input
+	 */
+	copy?(): IEditorInput;
 }
 
 /**
@@ -621,6 +642,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	matches(otherInput: unknown): boolean {
 		return this === otherInput;
+	}
+
+	copy(): IEditorInput {
+		return this;
 	}
 
 	isDisposed(): boolean {
@@ -1514,11 +1539,7 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	}
 }
 
-export const Extensions = {
-	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
-};
-
-Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
+Registry.add(EditorExtensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
 export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
 	if (!paths || !paths.length) {

@@ -20,12 +20,24 @@ export interface IWorkingCopyService {
 
 	//#region Events
 
+	/**
+	 * An event for when a working copy was registered.
+	 */
 	readonly onDidRegister: Event<IWorkingCopy>;
 
+	/**
+	 * An event for when a working copy was unregistered.
+	 */
 	readonly onDidUnregister: Event<IWorkingCopy>;
 
+	/**
+	 * An event for when a working copy dirty state changed.
+	 */
 	readonly onDidChangeDirty: Event<IWorkingCopy>;
 
+	/**
+	 * An event for when a working copy's content changed.
+	 */
 	readonly onDidChangeContent: Event<IWorkingCopy>;
 
 	//#endregion
@@ -33,10 +45,19 @@ export interface IWorkingCopyService {
 
 	//#region Dirty Tracking
 
+	/**
+	 * The number of dirty working copies that are registered.
+	 */
 	readonly dirtyCount: number;
 
-	readonly dirtyWorkingCopies: IWorkingCopy[];
+	/**
+	 * All dirty working copies that are registered.
+	 */
+	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
 
+	/**
+	 * Whether there is any registered working copy that is dirty.
+	 */
 	readonly hasDirty: boolean;
 
 	/**
@@ -54,7 +75,10 @@ export interface IWorkingCopyService {
 
 	//#region Registry
 
-	readonly workingCopies: IWorkingCopy[];
+	/**
+	 * All working copies that are registered.
+	 */
+	readonly workingCopies: readonly IWorkingCopy[];
 
 	/**
 	 * Register a new working copy with the service. This method will

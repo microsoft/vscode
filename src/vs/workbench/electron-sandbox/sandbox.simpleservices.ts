@@ -11,15 +11,10 @@ import { Event } from 'vs/base/common/event';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { Action } from 'vs/base/common/actions';
-import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTask, TaskIdentifier, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
-import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
@@ -33,6 +28,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 
 //#region Environment
 
@@ -312,44 +309,6 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 //#endregion
 
 
-//#region Task
-
-class SimpleTaskService implements ITaskService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidStateChange = Event.None;
-	supportsMultipleTaskExecutions = false;
-
-	configureAction(): Action { throw new Error('Method not implemented.'); }
-	run(task: CustomTask | ContributedTask | InMemoryTask | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary | undefined> { throw new Error('Method not implemented.'); }
-	inTerminal(): boolean { throw new Error('Method not implemented.'); }
-	getActiveTasks(): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	getBusyTasks(): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	terminate(task: Task): Promise<TaskTerminateResponse> { throw new Error('Method not implemented.'); }
-	tasks(filter?: TaskFilter): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	taskTypes(): string[] { throw new Error('Method not implemented.'); }
-	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>> { throw new Error('Method not implemented.'); }
-	readRecentTasks(): Promise<(CustomTask | ContributedTask | InMemoryTask | ConfiguringTask)[]> { throw new Error('Method not implemented.'); }
-	getTask(workspaceFolder: string | IWorkspace | IWorkspaceFolder, alias: string | TaskIdentifier, compareId?: boolean): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
-	tryResolveTask(configuringTask: ConfiguringTask): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
-	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void { throw new Error('Method not implemented.'); }
-	createSorter(): TaskSorter { throw new Error('Method not implemented.'); }
-	getTaskDescription(task: CustomTask | ContributedTask | InMemoryTask | ConfiguringTask): string | undefined { throw new Error('Method not implemented.'); }
-	customize(task: CustomTask | ContributedTask | ConfiguringTask, properties?: {}, openConfig?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
-	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> { throw new Error('Method not implemented.'); }
-	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable { throw new Error('Method not implemented.'); }
-	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void { throw new Error('Method not implemented.'); }
-	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void { throw new Error('Method not implemented.'); }
-	setJsonTasksSupported(areSuppored: Promise<boolean>): void { throw new Error('Method not implemented.'); }
-	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void> { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(ITaskService, SimpleTaskService);
-
-//#endregion
-
-
 //#region Terminal Instance
 
 class SimpleTerminalInstanceService extends TerminalInstanceService { }
@@ -357,6 +316,23 @@ class SimpleTerminalInstanceService extends TerminalInstanceService { }
 registerSingleton(ITerminalInstanceService, SimpleTerminalInstanceService);
 
 //#endregion
+
+
+//#region Terminal Profile Resolver Service
+
+class SimpleTerminalProfileResolverService implements ITerminalProfileResolverService {
+
+	_serviceBrand: undefined;
+
+	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void { }
+	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> { }
+	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { throw new Error('Method not implemented.'); }
+	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { throw new Error('Method not implemented.'); }
+	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { throw new Error('Method not implemented.'); }
+	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
+}
+
+registerSingleton(ITerminalProfileResolverService, SimpleTerminalProfileResolverService);
 
 
 //#region Search Service
