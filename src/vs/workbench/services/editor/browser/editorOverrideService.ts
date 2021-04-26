@@ -74,7 +74,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// If it was an override before we await for the extensions to activate and then proceed with overriding or else they won't be registered
 		if (this.cache && editor.resource && this.resourceMatchesCache(editor.resource)) {
 			await this.extensionService.whenInstalledExtensionsRegistered();
-			this.cache = undefined;
 		}
 
 		if (options?.override === EditorOverride.DISABLED) {
