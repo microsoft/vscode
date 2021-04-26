@@ -172,10 +172,10 @@ export class NotebookKernelService implements INotebookKernelService {
 
 	// default kernel for notebookType
 	updateNotebookTypeKernelBinding(typeId: string, kernel: INotebookKernel): void {
-		const existing = this._notebookInstanceBindings.map.get(typeId);
+		const existing = this._notebookTypeBindings.map.get(typeId);
 		if (existing !== kernel.id) {
 			this._notebookTypeBindings.map.set(typeId, kernel.id);
-			this._notebookInstanceBindings.store();
+			this._notebookTypeBindings.store();
 			this._onDidChangeNotebookAffinity.fire();
 		}
 	}
