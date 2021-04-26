@@ -134,6 +134,8 @@ import { EditorOverrideService } from 'vs/workbench/services/editor/browser/edit
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -241,6 +243,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(ILocalTerminalService, new TestLocalTerminalService());
+	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
 
 	return instantiationService;
 }
@@ -271,7 +274,8 @@ export class TestServiceAccessor {
 		@IInstantiationService public instantitionService: IInstantiationService,
 		@INotificationService public notificationService: INotificationService,
 		@IWorkingCopyEditorService public workingCopyEditorService: IWorkingCopyEditorService,
-		@IInstantiationService public instantiationService: IInstantiationService
+		@IInstantiationService public instantiationService: IInstantiationService,
+		@IElevatedFileService public elevatedFileService: IElevatedFileService
 	) { }
 }
 
@@ -297,7 +301,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IElevatedFileService elevatedFileService: IElevatedFileService
 	) {
 		super(
 			fileService,
@@ -316,7 +321,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			workingCopyFileService,
 			uriIdentityService,
 			modeService,
-			logService
+			logService,
+			elevatedFileService
 		);
 	}
 

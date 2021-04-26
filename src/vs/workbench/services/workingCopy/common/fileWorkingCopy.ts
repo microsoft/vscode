@@ -24,9 +24,9 @@ import { hash } from 'vs/base/common/hash';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { isWindows } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 
 export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 
@@ -373,7 +373,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
 		super();
 
@@ -1136,7 +1137,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
 			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
-			const canSaveElevated = false /* not yet supported for file working copy */ && this.resource.scheme === Schemas.file; // currently only supported for local schemes (https://github.com/microsoft/vscode/issues/48659)
+			const canSaveElevated = this.elevatedFileService.isSupported(this.resource);
 
 			// Save Elevated
 			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {
