@@ -336,7 +336,7 @@ export class HoverWidget extends Widget {
 
 				// Otherwise show the pointer at the center of hover
 				else {
-					this._hoverPointer.style.top = `${(hoverHeight / 2) - 3}px`;
+					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - 3}px`;
 				}
 
 				break;
@@ -352,7 +352,7 @@ export class HoverWidget extends Widget {
 
 				// Otherwise show the pointer at the center of hover
 				else {
-					this._hoverPointer.style.left = `${(hoverWidth / 2) - 3}px`;
+					this._hoverPointer.style.left = `${Math.round((hoverWidth / 2)) - 3}px`;
 				}
 				break;
 		}
