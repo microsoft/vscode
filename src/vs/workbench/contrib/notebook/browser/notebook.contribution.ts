@@ -429,9 +429,9 @@ class NotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchC
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
 		this._register(this._workingCopyEditorService.registerHandler({
-			handles: async workingCopy => typeof this.getViewType(workingCopy) === 'string',
-			isOpen: async (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this.getViewType(workingCopy),
-			createEditor: async workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this.getViewType(workingCopy)!)
+			handles: workingCopy => typeof this.getViewType(workingCopy) === 'string',
+			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this.getViewType(workingCopy),
+			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this.getViewType(workingCopy)!)
 		}));
 	}
 

@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { tmpdir } from 'os';
+import { createHash } from 'crypto';
 import { insert } from 'vs/base/common/arrays';
 import { hash } from 'vs/base/common/hash';
 import { isEqual } from 'vs/base/common/resources';
@@ -15,7 +16,7 @@ import { readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -29,8 +30,7 @@ import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferRea
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { consumeStream } from 'vs/base/common/stream';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
@@ -974,21 +974,22 @@ suite('WorkingCopyBackupService', () => {
 		test('file with binary data', async () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 
-			const buffer = VSBuffer.alloc(3);
-			buffer.writeUInt8(10, 0);
-			buffer.writeUInt8(20, 1);
-			buffer.writeUInt8(30, 2);
+			const sourceDir = getPathFromAmdModule(require, './fixtures');
 
-			await service.backup(identifier, bufferToReadable(buffer), undefined, { binaryTest: 'true' });
+			const buffer = await promises.readFile(join(sourceDir, 'binary.txt'));
+			const hash = createHash('md5').update(buffer).digest('base64');
+
+			await service.backup(identifier, bufferToReadable(VSBuffer.wrap(buffer)), undefined, { binaryTest: 'true' });
 
 			const backup = await service.resolve(toUntypedWorkingCopyId(fooFile));
 			assert.ok(backup);
 
 			const backupBuffer = await consumeStream(backup.value, chunks => VSBuffer.concat(chunks));
 			assert.strictEqual(backupBuffer.buffer.byteLength, buffer.byteLength);
-			assert.strictEqual(backupBuffer.readUInt8(0), buffer.readUInt8(0));
-			assert.strictEqual(backupBuffer.readUInt8(1), buffer.readUInt8(1));
-			assert.strictEqual(backupBuffer.readUInt8(2), buffer.readUInt8(2));
+
+			const backupHash = createHash('md5').update(backupBuffer.buffer).digest('base64');
+
+			assert.strictEqual(hash, backupHash);
 		});
 	});
 
