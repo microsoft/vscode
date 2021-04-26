@@ -277,7 +277,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 	private readonly _onDidCreateNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 	private readonly _onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
-	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<URI>());
+	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 
 	readonly onDidCreateNotebookDocument = this._onDidCreateNotebookDocument.event;
 	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
@@ -552,7 +552,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		if (modelData) {
 			this._models.delete(model.uri);
 			modelData.dispose();
-			this._onDidRemoveNotebookDocument.fire(modelData.model.uri);
+			this._onDidRemoveNotebookDocument.fire(modelData.model);
 		}
 	}
 

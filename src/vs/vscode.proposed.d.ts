@@ -1549,7 +1549,7 @@ declare module 'vscode' {
 	export interface NotebookController {
 
 		/**
-		 * The unique identifier of this notebook controller.
+		 * The identifier of this notebook controller.
 		 */
 		readonly id: string;
 
@@ -1660,7 +1660,6 @@ declare module 'vscode' {
 		 * @param notebook The notebook for which a priority is set.
 		 * @param affinity A controller affinity
 		 */
-		// todo@API maybe Affinity instead of Priority
 		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity): void;
 	}
 
@@ -1674,7 +1673,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new notebook controller.
 		 *
-		 * @param id Unique identifier of the controller
+		 * @param id Extension-unique identifier of the controller
 		 * @param selector A notebook selector to narrow down notebook type or path
 		 * @param label The label of the controller
 		 * @param handler

@@ -566,12 +566,13 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 export class NotebookFileWorkingCopyModelFactory implements IFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
 
 	constructor(
-		@INotebookService private readonly _notebookService: INotebookService
+		private readonly _viewType: string,
+		@INotebookService private readonly _notebookService: INotebookService,
 	) { }
 
 	async createModel(resource: URI, stream: VSBufferReadableStream, token: CancellationToken): Promise<NotebookFileWorkingCopyModel> {
 
-		const info = await this._notebookService.withNotebookDataProvider(resource);
+		const info = await this._notebookService.withNotebookDataProvider(resource, this._viewType);
 		if (!(info instanceof SimpleNotebookProviderInfo)) {
 			throw new Error('CANNOT open file notebook with this provider');
 		}
