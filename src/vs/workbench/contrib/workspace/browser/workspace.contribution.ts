@@ -39,6 +39,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { splitName } from 'vs/base/common/labels';
+import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 
 /*
  * Trust Request UX Handler
@@ -258,9 +259,8 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
 		const text = workspaceTrustToString(trusted);
-		const backgroundColor = trusted ?
-			'transparent' : new ThemeColor('statusBarItem.prominentBackground');
-		const color = trusted ? '#00dd3b' : '#ff5462';
+		const backgroundColor = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
+		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
 
 		return {
 			text: trusted ? `$(shield)` : `$(shield) ${text}`,
