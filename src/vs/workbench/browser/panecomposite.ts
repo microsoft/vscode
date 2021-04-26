@@ -67,11 +67,11 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		return this.getViewPaneContainer()?.getActionsContext();
 	}
 
-	override getContextMenuActions(): ReadonlyArray<IAction> {
+	override getContextMenuActions(): readonly IAction[] {
 		return this.viewPaneContainer?.menuActions?.getContextMenuActions() ?? [];
 	}
 
-	override getActions(): ReadonlyArray<IAction> {
+	override getActions(): readonly IAction[] {
 		const result = [];
 		if (this.viewPaneContainer?.menuActions) {
 			result.push(...this.viewPaneContainer.menuActions.getPrimaryActions());
@@ -82,7 +82,7 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		return result;
 	}
 
-	override getSecondaryActions(): ReadonlyArray<IAction> {
+	override getSecondaryActions(): readonly IAction[] {
 		if (!this.viewPaneContainer?.menuActions) {
 			return [];
 		}

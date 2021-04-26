@@ -319,7 +319,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
 	 */
-	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
+	readonly staticExtensions?: readonly IStaticExtension[];
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -429,7 +429,7 @@ interface IDevelopmentOptions {
 	/**
 	 * Add extensions under development.
 	 */
-	readonly extensions?: ReadonlyArray<IStaticExtension>;
+	readonly extensions?: readonly IStaticExtension[];
 
 	/**
 	 * Whether to enable the smoke test driver.

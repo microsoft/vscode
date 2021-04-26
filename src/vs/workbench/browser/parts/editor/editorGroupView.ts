@@ -1035,7 +1035,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (this.isRestored) {
 
 				// Extract possible error actions from the error
-				let errorActions: ReadonlyArray<IAction> | undefined = undefined;
+				let errorActions: readonly IAction[] | undefined = undefined;
 				if (isErrorWithActions(error)) {
 					errorActions = error.actions;
 				}

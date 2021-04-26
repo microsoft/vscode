@@ -131,19 +131,19 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.visibleEditors` for access to the visible editor inputs
 	 */
-	readonly visibleEditorPanes: ReadonlyArray<IVisibleEditorPane>;
+	readonly visibleEditorPanes: readonly IVisibleEditorPane[];
 
 	/**
 	 * All editors that are currently visible. An editor is visible when it is opened in an
 	 * editor group and active in that group. Multiple editor groups can be opened at the same time.
 	 */
-	readonly visibleEditors: ReadonlyArray<IEditorInput>;
+	readonly visibleEditors: readonly IEditorInput[];
 
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
 	 * widget is either a text or a diff editor.
 	 */
-	readonly visibleTextEditorControls: ReadonlyArray<IEditor | IDiffEditor>;
+	readonly visibleTextEditorControls: readonly (IEditor | IDiffEditor)[];
 
 	/**
 	 * All editors that are opened across all editor groups in sequential order
@@ -151,7 +151,7 @@ export interface IEditorService {
 	 *
 	 * This includes active as well as inactive editors in each editor group.
 	 */
-	readonly editors: ReadonlyArray<IEditorInput>;
+	readonly editors: readonly IEditorInput[];
 
 	/**
 	 * The total number of editors that are opened either inactive or active.
@@ -165,7 +165,7 @@ export interface IEditorService {
 	 * @param order the order of the editors to use
 	 * @param options whether to exclude sticky editors or not
 	 */
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[];
 
 	/**
 	 * Open an editor in an editor group.
@@ -194,8 +194,8 @@ export interface IEditorService {
 	 * @returns the editors that opened. The array can be empty or have less elements for editors
 	 * that failed to open or were instructed to open as inactive.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditorPane>>;
-	openEditors(editors: IResourceEditorInputType[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditorPane>>;
+	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<readonly IEditorPane[]>;
+	openEditors(editors: IResourceEditorInputType[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<readonly IEditorPane[]>;
 
 	/**
 	 * Replaces editors in an editor group with the provided replacement.
@@ -228,9 +228,9 @@ export interface IEditorService {
 	 * same resource is opened in different editors. To find the specific
 	 * editor, use the `IResourceEditorInputIdentifier` as input.
 	 */
-	findEditors(resource: URI): ReadonlyArray<IEditorIdentifier>;
-	findEditors(resource: IResourceEditorInputIdentifier): ReadonlyArray<IEditorIdentifier>;
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): ReadonlyArray<IEditorInput>;
+	findEditors(resource: URI): readonly IEditorIdentifier[];
+	findEditors(resource: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
 	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
 
 	/**

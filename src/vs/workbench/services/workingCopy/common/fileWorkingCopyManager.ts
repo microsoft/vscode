@@ -62,7 +62,7 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	/**
 	 * Access to all known file working copies within the manager.
 	 */
-	readonly workingCopies: ReadonlyArray<IFileWorkingCopy<T>>;
+	readonly workingCopies: readonly IFileWorkingCopy<T>[];
 
 	/**
 	 * Returns the file working copy for the provided resource

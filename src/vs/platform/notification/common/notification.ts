@@ -75,7 +75,7 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The id of the notification. If provided, will be used to compare
 	 * notifications with others to decide whether a notification is
-	 * duplicate or not. 
+	 * duplicate or not.
 	 */
 	readonly id?: string;
 
@@ -124,14 +124,14 @@ export interface INotificationActions {
 	 *
 	 * Pass `ActionWithMenuAction` for an action that has additional menu actions.
 	 */
-	readonly primary?: ReadonlyArray<IAction>;
+	readonly primary?: readonly IAction[];
 
 	/**
 	 * Secondary actions are meant to provide additional configuration or context
 	 * for the notification and will show up less prominent. A notification does not
 	 * close automatically when invoking a secondary action.
 	 */
-	readonly secondary?: ReadonlyArray<IAction>;
+	readonly secondary?: readonly IAction[];
 }
 
 export interface INotificationProgressProperties {
