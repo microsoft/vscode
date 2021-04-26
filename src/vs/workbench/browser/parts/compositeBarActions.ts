@@ -21,7 +21,7 @@ import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDr
 import { Color } from 'vs/base/common/color';
 import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
-import { IHoverService, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { domEvent } from 'vs/base/browser/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -415,15 +415,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.hover.value) {
 			return;
 		}
-		const { bottom } = this.container.getBoundingClientRect();
 		const hoverPosition = this.options.hoverOptions!.position();
-		const target: IHoverTarget | HTMLElement = hoverPosition === HoverPosition.LEFT || hoverPosition === HoverPosition.RIGHT ? {
-			targetElements: [this.container],
-			y: bottom - 10,
-			dispose: () => { }
-		} : this.container;
 		this.hover.value = this.hoverService.showHover({
-			target,
+			target: this.container,
 			hoverPosition,
 			text: this.computeTitle(),
 			showPointer: true,
