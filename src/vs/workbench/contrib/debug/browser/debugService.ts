@@ -407,7 +407,7 @@ export class DebugService implements IDebugService {
 		const unresolvedConfig = deepClone(config);
 
 		if (!type) {
-			const guess = await this.adapterManager.guessDebugger();
+			const guess = await this.adapterManager.guessDebugger(false);
 			if (guess) {
 				type = guess.type;
 			}

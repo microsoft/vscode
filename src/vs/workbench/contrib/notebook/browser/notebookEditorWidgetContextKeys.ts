@@ -29,12 +29,10 @@ export class NotebookEditorContextKeys {
 		this._interruptibleKernel = NOTEBOOK_INTERRUPTIBLE_KERNEL.bindTo(contextKeyService);
 		this._someCellRunning = NOTEBOOK_HAS_RUNNING_CELL.bindTo(contextKeyService);
 
-		this._disposables.add(_editor.onDidChangeModel(() => this._initCellListeners()));
-		this._initCellListeners();
-
-		this._updateKernelContext();
+		this._disposables.add(_editor.onDidChangeModel(this._handleDidChangeModel, this));
 		this._disposables.add(_notebookKernelService.onDidAddKernel(this._updateKernelContext, this));
 		this._disposables.add(_notebookKernelService.onDidChangeNotebookKernelBinding(this._updateKernelContext, this));
+		this._handleDidChangeModel();
 	}
 
 	dispose(): void {
@@ -45,12 +43,13 @@ export class NotebookEditorContextKeys {
 		this._someCellRunning.reset();
 	}
 
-	private _initCellListeners(): void {
+	private _handleDidChangeModel(): void {
+
+		this._updateKernelContext();
 
 		this._viewModelDisposables.clear();
 		dispose(this._cellStateListeners);
 		this._cellStateListeners.length = 0;
-		this._updateKernelContext();
 
 		if (!this._editor.hasModel()) {
 			return;

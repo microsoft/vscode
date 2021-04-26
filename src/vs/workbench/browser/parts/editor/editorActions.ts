@@ -23,6 +23,7 @@ import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecent
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { Schemas } from 'vs/base/common/network';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1913,7 +1914,14 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		await this.editorService.openEditor(activeInput, { ...options, override: EditorOverride.PICK }, group);
+		await this.editorService.replaceEditors([
+			{
+				editor: activeInput,
+				replacement: activeInput,
+				forceReplaceDirty: activeInput.resource?.scheme === Schemas.untitled,
+				options: { ...options, override: EditorOverride.PICK }
+			}
+		], group);
 	}
 }
 

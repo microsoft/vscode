@@ -6,6 +6,7 @@
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -71,7 +72,7 @@ export interface IActionableTestTreeElement {
 	/**
 	 * Test children of this item.
 	 */
-	children: Set<TestItemTreeElement>;
+	children: Set<TestExplorerTreeElement>;
 
 	/**
 	 * Depth of the element in the tree.
@@ -163,7 +164,7 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly children = new Set<this>();
+	public readonly children = new Set<TestExplorerTreeElement>();
 
 	/**
 	 * @inheritdoc
@@ -234,8 +235,19 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 
 export class TestTreeErrorMessage {
 	public readonly treeId = getId();
+	public readonly children = new Set<never>();
 
-	constructor(public readonly message: string) { }
+	public get description() {
+		return typeof this.message === 'string' ? this.message : this.message.value;
+	}
+
+	constructor(
+		public readonly message: string | IMarkdownString,
+		public readonly parent: TestExplorerTreeElement,
+	) { }
 }
+
+export const isActionableTestTreeElement = (t: unknown): t is (TestItemTreeElement | TestTreeWorkspaceFolder) =>
+	t instanceof TestItemTreeElement || t instanceof TestTreeWorkspaceFolder;
 
 export type TestExplorerTreeElement = TestItemTreeElement | TestTreeWorkspaceFolder | TestTreeErrorMessage;

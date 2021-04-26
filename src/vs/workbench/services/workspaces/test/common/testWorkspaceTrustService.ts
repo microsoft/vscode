@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 
 
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
@@ -60,5 +60,29 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 			this.trusted = trusted;
 			this._onDidChangeTrust.fire(this.trusted);
 		}
+	}
+}
+
+export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
+	_serviceBrand: any;
+
+	private readonly _onDidInitiateWorkspaceTrustRequest = new Emitter<WorkspaceTrustRequestOptions>();
+	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
+
+	private readonly _onDidCompleteWorkspaceTrustRequest = new Emitter<boolean>();
+	readonly onDidCompleteWorkspaceTrustRequest = this._onDidCompleteWorkspaceTrustRequest.event;
+
+	constructor(private readonly _trusted: boolean) { }
+
+	cancelRequest(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	completeRequest(trusted?: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+
+	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
+		return this._trusted;
 	}
 }

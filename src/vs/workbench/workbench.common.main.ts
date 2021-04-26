@@ -86,6 +86,7 @@ import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import 'vs/workbench/services/views/browser/viewDescriptorService';
 import 'vs/workbench/services/quickinput/browser/quickInputService';
@@ -122,8 +123,6 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
-import { EditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
@@ -140,12 +139,14 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IEditorOverrideService, EditorOverrideService);
 
 //#endregion
 
 
 //#region --- workbench contributions
+
+// Editor Override
+import 'vs/workbench/services/editor/browser/editorOverrideService';
 
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';

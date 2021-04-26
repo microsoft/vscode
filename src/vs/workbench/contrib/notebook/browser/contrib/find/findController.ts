@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notebookFind';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
+import * as strings from 'vs/base/common/strings';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { Range } from 'vs/editor/common/core/range';
+import { MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -28,9 +32,11 @@ import { INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/not
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/findWidget';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
+let MAX_MATCHES_COUNT_WIDTH = 69;
 
 
 export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
@@ -116,18 +122,33 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			return;
 		}
 
+		// let currCell;
 		if (!this._findMatchesStarts) {
 			this.set(this._findMatches, true);
 		} else {
+			// const currIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
+			// currCell = this._findMatches[currIndex.index].cell;
+
 			const totalVal = this._findMatchesStarts.getTotalValue();
 			const nextVal = (this._currentMatch + (previous ? -1 : 1) + totalVal) % totalVal;
 			this._currentMatch = nextVal;
 		}
 
-
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
+		// const newFocusedCell = this._findMatches[nextIndex.index].cell;
 		this.setCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 		this.revealCellRange(nextIndex.index, nextIndex.remainder);
+
+		this._state.changeMatchInfo(
+			this._currentMatch,
+			this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+			undefined
+		);
+
+		// if (currCell && currCell !== newFocusedCell && currCell.getEditState() === CellEditState.Editing && currCell.editStateSource === 'find') {
+		// 	currCell.updateEditState(CellEditState.Preview, 'find');
+		// }
+		// this._updateMatchesCount();
 	}
 
 	protected replaceOne() {
@@ -159,7 +180,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 	}
 
 	private revealCellRange(cellIndex: number, matchIndex: number) {
-		this._findMatches[cellIndex].cell.editState = CellEditState.Editing;
+		this._findMatches[cellIndex].cell.updateEditState(CellEditState.Editing, 'find');
 		this._notebookEditor.focusElement(this._findMatches[cellIndex].cell);
 		this._notebookEditor.setCellEditorSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 		this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
@@ -221,6 +242,12 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this._currentMatch = 0;
 			this.setCurrentFindMatchDecoration(0, 0);
 		}
+
+		this._state.changeMatchInfo(
+			this._currentMatch,
+			this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+			undefined
+		);
 	}
 
 	private setCurrentFindMatchDecoration(cellIndex: number, matchIndex: number) {
@@ -335,6 +362,55 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this._previousFocusElement.focus();
 			this._previousFocusElement = undefined;
 		}
+
+		this._notebookEditor.viewModel?.viewCells.forEach(cell => {
+			if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
+				cell.updateEditState(CellEditState.Preview, 'find');
+			}
+		});
+	}
+
+	override _updateMatchesCount(): void {
+		if (!this._findMatches) {
+			return;
+		}
+
+		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.title = '';
+
+		// remove previous content
+		if (this._matchesCount.firstChild) {
+			this._matchesCount.removeChild(this._matchesCount.firstChild);
+		}
+
+		let label: string;
+
+		if (this._state.matchesCount > 0) {
+			let matchesCount: string = String(this._state.matchesCount);
+			if (this._state.matchesCount >= MATCHES_LIMIT) {
+				matchesCount += '+';
+			}
+			let matchesPosition: string = this._currentMatch < 0 ? '?' : String((this._currentMatch + 1));
+			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+		} else {
+			label = NLS_NO_RESULTS;
+		}
+
+		this._matchesCount.appendChild(document.createTextNode(label));
+
+		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
+		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
+	}
+
+	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
+		if (label === NLS_NO_RESULTS) {
+			return searchString === ''
+				? localize('ariaSearchNoResultEmpty', "{0} found", label)
+				: localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
+		}
+
+		// TODO@rebornix, aria for `cell ${index}, line {line}`
+		return localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
 	}
 
 	clear() {

@@ -104,6 +104,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			&& isEqual(this.resource, other.resource));
 	}
 
+	override copy(): IEditorInput {
+		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
+	}
+
 	@memoize
 	private get shortTitle(): string {
 		return this.getName();

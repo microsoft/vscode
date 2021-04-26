@@ -18,6 +18,7 @@
   "main": "./client/out/node/htmlClientMain",
   "browser": "./client/dist/browser/htmlClientMain",
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }

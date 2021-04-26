@@ -80,7 +80,7 @@ import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQui
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -257,6 +257,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -905,6 +906,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
+	// runTaskPromise is used for queueing calls to run so that we don't end up with the same task runnin
+	private runTaskPromise: Promise<ITaskSummary | undefined> = Promise.resolve(undefined);
 	public async run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
 		if (!(await this.trust())) {
 			return;
@@ -914,7 +917,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
 
-		return new Promise<ITaskSummary | undefined>(async (resolve) => {
+		return this.runTaskPromise = this.runTaskPromise.then(() => new Promise<ITaskSummary | undefined>(async (resolve) => {
 			let resolver = this.createResolver();
 			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
 				const toExecute = await this.attachProblemMatcher(task);
@@ -929,14 +932,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
 				this.getWorkspaceTasks().then(workspaceTasks => {
-					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, this.workspaceTrustRequestService, this.openerService, workspaceTasks);
+					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, this.workspaceTrustManagementService, this.openerService, workspaceTasks);
 				});
 			}
 			return value;
 		}, (error) => {
 			this.handleError(error);
 			return Promise.reject(error);
-		});
+		}));
 	}
 
 	private isProvideTasksEnabled(): boolean {

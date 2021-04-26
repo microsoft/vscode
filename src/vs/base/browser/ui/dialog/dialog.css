@@ -34,6 +34,7 @@
 
 /** Dialog: Title Actions Row */
 .monaco-dialog-box .dialog-toolbar-row {
+	height: 22px;
 	padding-bottom: 4px;
 }
 
@@ -136,6 +137,10 @@
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons {
 	display: flex;
 	overflow: hidden;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons.centered {
+	justify-content: center;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {

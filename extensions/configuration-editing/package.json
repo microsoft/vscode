@@ -24,6 +24,7 @@
     "vscode-nls": "^4.1.1"
   },
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }

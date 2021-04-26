@@ -173,7 +173,7 @@ suite('NotebookCellList', () => {
 			});
 	});
 
-	test.skip('updateElementHeight with anchor', async function () {
+	test('updateElementHeight with anchor #121723', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
@@ -211,8 +211,90 @@ suite('NotebookCellList', () => {
 				cellList.updateElementHeight2(viewModel.cellAt(0)!, 100);
 				assert.deepStrictEqual(cellList.scrollHeight, 400);
 
-				// bug!
+				// the first cell grows, but it's partially visible, so we won't push down the focused cell
 				assert.deepStrictEqual(cellList.scrollTop, 55);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 265);
+
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 50);
+				assert.deepStrictEqual(cellList.scrollTop, 5);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+
+				// focus won't be visible after cell 0 grow to 250, so let's try to keep the focused cell visible
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 250);
+				assert.deepStrictEqual(cellList.scrollTop, 250 + 100 - cellList.renderHeight);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 250 + 100 - cellList.renderHeight + 210);
+			});
+	});
+
+	test('updateElementHeight with anchor #121723: focus element out of viewport', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['# header c', 'markdown', CellKind.Markdown, [], {}]
+			],
+			async (editor) => {
+				// await new Promise(c => setTimeout(c, 3000));
+
+				const viewModel = editor.viewModel;
+				viewModel.restoreEditorViewState({
+					editingCells: [false, false, false, false, false],
+					editorViewStates: [null, null, null, null, null],
+					cellTotalHeights: [50, 100, 50, 100, 50]
+				});
+
+				const cellList = createNotebookCellList(instantiationService);
+				cellList.attachViewModel(viewModel);
+
+				// render height 210, it can render 3 full cells and 1 partial cell
+				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+
+				// init scrollTop and scrollBottom
+				assert.deepStrictEqual(cellList.scrollTop, 0);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+
+				cellList.setFocus([4]);
+				cellList.updateElementHeight2(viewModel.cellAt(1)!, 130);
+				// the focus cell is not in the viewport, the scrolltop should not change at all
+				assert.deepStrictEqual(cellList.scrollTop, 0);
+			});
+	});
+
+	test('updateElementHeight of cells out of viewport should not trigger scroll #121140', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['# header c', 'markdown', CellKind.Markdown, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.restoreEditorViewState({
+					editingCells: [false, false, false, false, false],
+					editorViewStates: [null, null, null, null, null],
+					cellTotalHeights: [50, 100, 50, 100, 50]
+				});
+
+				const cellList = createNotebookCellList(instantiationService);
+				cellList.attachViewModel(viewModel);
+
+				// render height 210, it can render 3 full cells and 1 partial cell
+				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+
+				// init scrollTop and scrollBottom
+				assert.deepStrictEqual(cellList.scrollTop, 0);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+
+				cellList.setFocus([1]);
+				cellList.scrollTop = 80;
+				assert.deepStrictEqual(cellList.scrollTop, 80);
+
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 30);
+				assert.deepStrictEqual(cellList.scrollTop, 60);
 			});
 	});
 });

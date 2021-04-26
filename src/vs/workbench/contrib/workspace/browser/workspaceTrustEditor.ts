@@ -26,6 +26,7 @@ import { ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/co
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
+import product from 'vs/platform/product/common/product';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -154,7 +155,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			return localize('trustedDescription', "All features are enabled because trust has been granted to the workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
 		}
 
-		return localize('untrustedDescription', "Some features are disabled until trust is granted to the workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
+		return localize('untrustedDescription', "{0} is in a restricted mode optimized for browsing code safely. [Learn more](https://aka.ms/vscode-workspace-trust).", product.nameShort);
 	}
 
 	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
@@ -271,7 +272,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		], checkListIcon.classNamesArray);
 
 		const untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted'));
-		this.renderLimitationsHeaderElement(untrustedContainer, localize('untrustedWorkspace', "Untrusted Workspace"), this.getHeaderTitleIconClassNames(false));
+		this.renderLimitationsHeaderElement(untrustedContainer, localize('untrustedWorkspace', "Restricted Mode"), this.getHeaderTitleIconClassNames(false));
 
 		this.renderLimitationsListElement(untrustedContainer, [
 			localize('untrustedTasks', "Tasks will be disabled"),

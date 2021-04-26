@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorInput, IEditorInputFactoryRegistry, IEditorIdentifier, GroupIdentifier, Extensions, IEditorPartOptionsChangeEvent, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorInputFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -380,7 +380,7 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private serialize(): ISerializedEditorsList {
-		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
+		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 		const entries = [...this.mostRecentEditorsMap.values()];
 		const mapGroupToSerializableEditorsOfGroup = new Map<IEditorGroup, IEditorInput[]>();

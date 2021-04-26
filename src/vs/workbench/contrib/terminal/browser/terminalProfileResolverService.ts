@@ -64,7 +64,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		shellLaunchConfig.executable = resolvedProfile.path;
 		shellLaunchConfig.args = resolvedProfile.args;
-		shellLaunchConfig.icon = shellLaunchConfig.icon || resolvedProfile.icon;
+		shellLaunchConfig.icon = shellLaunchConfig.icon || resolvedProfile.icon || Codicon.terminal.id;
 	}
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {

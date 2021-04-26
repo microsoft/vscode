@@ -25,7 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -40,6 +40,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
+import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
+import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -51,6 +53,7 @@ export class TerminalService implements ITerminalService {
 
 	private _isShuttingDown: boolean;
 	private _terminalFocusContextKey: IContextKey<boolean>;
+	private _terminalCountContextKey: IContextKey<number>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _terminalTabs: ITerminalTab[] = [];
@@ -152,6 +155,7 @@ export class TerminalService implements ITerminalService {
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
+		this._terminalCountContextKey = KEYBINDING_CONTEXT_TERMINAL_COUNT.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
@@ -163,6 +167,7 @@ export class TerminalService implements ITerminalService {
 		// update detected profiles so for example we detect if you've installed a pwsh
 		// this avoids having poll routinely
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
+		this.onInstancesChanged(() => this._terminalCountContextKey.set(this._terminalInstances.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
@@ -707,6 +712,12 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	public async focusTabsView(): Promise<void> {
+		await this.showPanel(true);
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		pane?.terminalTabbedView?.focusTabsView();
+	}
+
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
@@ -810,7 +821,7 @@ export class TerminalService implements ITerminalService {
 		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 	}
 
-	public async showProfileQuickPick(type: 'setDefault' | 'createInstance'): Promise<void> {
+	public async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
 		let keyMods: IKeyMods | undefined;
 		const profiles = await this._detectProfiles(false);
 		const platformKey = await this._getPlatformKey();
@@ -886,14 +897,15 @@ export class TerminalService implements ITerminalService {
 			if (keyMods?.alt && activeInstance) {
 				// create split, only valid if there's an active instance
 				if (activeInstance) {
-					instance = this.splitInstance(activeInstance, value.profile);
+					instance = this.splitInstance(activeInstance, value.profile, cwd);
 				}
 			} else {
-				instance = this.createTerminal(value.profile);
+				instance = this.createTerminal(value.profile, cwd);
 			}
 			if (instance) {
 				this.showPanel(true);
 				this.setActiveInstance(instance);
+				return instance;
 			}
 		} else { // setDefault
 			if ('command' in value.profile) {
@@ -916,6 +928,7 @@ export class TerminalService implements ITerminalService {
 			// Set the default profile
 			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		}
+		return undefined;
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
@@ -977,9 +990,13 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	public createTerminal(profile: ITerminalProfile): ITerminalInstance;
-	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile): ITerminalInstance {
+	public createTerminal(profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance;
+	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): ITerminalInstance {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+
+		if (cwd) {
+			shellLaunchConfig.cwd = cwd;
+		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
@@ -989,6 +1006,15 @@ export class TerminalService implements ITerminalService {
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
+		}
+
+		// Add welcome message and title annotation for local terminals launched within remote or
+		// virtual workspaces
+		const isRemoteWorkspace = !!VirtualWorkspaceContext.getValue(this._contextKeyService) ||
+			this._remoteAgentService.getConnection() && (typeof shellLaunchConfig.cwd === 'string' || shellLaunchConfig.cwd?.scheme === Schemas.file);
+		if (isRemoteWorkspace) {
+			shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminal', "Warning: This shell is running on your local machine"), true);
+			shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
 		}
 
 		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shellLaunchConfig);

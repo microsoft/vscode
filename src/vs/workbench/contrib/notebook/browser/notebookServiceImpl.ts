@@ -22,7 +22,6 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -67,8 +66,6 @@ export class NotebookProviderInfoStore extends Disposable {
 			this.add(new NotebookProviderInfo(info));
 		}
 
-		this._updateProviderExtensionsInfo();
-
 		this._register(extensionService.onDidRegisterExtensions(() => {
 			if (!this._handled) {
 				// there is no extension point registered for notebook content provider
@@ -76,8 +73,6 @@ export class NotebookProviderInfoStore extends Disposable {
 				this._clear();
 				mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = [];
 				this._memento.saveMemento();
-
-				this._updateProviderExtensionsInfo();
 			}
 		}));
 
@@ -113,22 +108,6 @@ export class NotebookProviderInfoStore extends Disposable {
 		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 		this._memento.saveMemento();
-
-		this._updateProviderExtensionsInfo();
-	}
-
-	private _updateProviderExtensionsInfo() {
-		NotebookViewTypesExtensionRegistry.viewTypes.length = 0;
-		NotebookViewTypesExtensionRegistry.viewTypeDescriptions.length = 0;
-
-		for (const contribute of this._contributedEditors) {
-			if (contribute[1].providerExtensionId) {
-				NotebookViewTypesExtensionRegistry.viewTypes.push(contribute[1].id);
-				NotebookViewTypesExtensionRegistry.viewTypeDescriptions.push(`${contribute[1].displayName}`);
-			}
-		}
-
-		updateNotebookKernelProvideAssociationSchema();
 	}
 
 	private _convertPriority(priority?: string) {
@@ -296,8 +275,11 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	private readonly _markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
 	private readonly _models = new ResourceMap<ModelData>();
 
+	private readonly _onDidCreateNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 	private readonly _onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<URI>());
+
+	readonly onDidCreateNotebookDocument = this._onDidCreateNotebookDocument.event;
 	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
 	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
 
@@ -548,6 +530,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		}
 		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
 		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
+		this._onDidCreateNotebookDocument.fire(notebookModel);
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		return notebookModel;
 	}

@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorOverride, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorOptions, EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -19,6 +19,8 @@ import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } fro
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface IContributedEditorInput extends IEditorInput {
 	viewType?: string;
@@ -44,6 +46,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -103,6 +106,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 		// Add the group as we might've changed it with the quickpick
 		if (input) {
+			this.sendOverrideTelemetry(input.editor);
 			return { ...input, group };
 		}
 		return input;
@@ -234,19 +238,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			this.closeExistingEditorsForResource(resource, selectedContribution.editorInfo.id, group);
 		}
 
-		// If an existing editor for a resource exists within the group and we're reopening it, replace it.
-		const existing = firstOrDefault(group.findEditors(resource));
-		if (existing) {
-			if (!input.matches(existing)) {
-				await group.replaceEditors([{
-					editor: existing,
-					replacement: input,
-					forceReplaceDirty: existing.resource?.scheme === Schemas.untitled,
-					options: options ? EditorOptions.create(options) : undefined,
-				}]);
-				return;
-			}
-		}
 		return { editor: input };
 	}
 
@@ -469,4 +460,18 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 		return undefined;
 	}
+
+	private sendOverrideTelemetry(chosenInput: IContributedEditorInput): void {
+		type editorOverrideClassification = {
+			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+		};
+		type editorOverrideEvent = {
+			viewType: string
+		};
+		if (chosenInput.viewType) {
+			this.telemetryService.publicLog2<editorOverrideEvent, editorOverrideClassification>('override.viewType', { viewType: chosenInput.viewType });
+		}
+	}
 }
+
+registerSingleton(IEditorOverrideService, EditorOverrideService);

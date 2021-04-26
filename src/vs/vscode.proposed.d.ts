@@ -1530,16 +1530,20 @@ declare module 'vscode' {
 
 	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
-	export interface NotebookExecutionHandler {
+	export interface NotebookExecuteHandler {
 		/**
-		 * @param cells The notebook cells to execute
+		 * @param cells The notebook cells to execute.
+		 * @param notebook The notebook for which the execute handler is being called.
 		 * @param controller The controller that the handler is attached to
 		 */
-		(this: NotebookController, cells: NotebookCell[], controller: NotebookController): void | Thenable<void>
+		(this: NotebookController, cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
 	}
 
 	export interface NotebookInterruptHandler {
-		(this: NotebookController): void | Thenable<void>;
+		/**
+		 * @param notebook The notebook for which the interrupt handler is being called.
+		 */
+		(this: NotebookController, notebook: NotebookDocument): void | Thenable<void>;
 	}
 
 	export interface NotebookController {
@@ -1557,7 +1561,13 @@ declare module 'vscode' {
 		 * documents of the type `notebook.test`, whereas `{ pattern: '/my/file/test.nb' }`
 		 * selects only the notebook with the path `/my/file/test.nb`.
 		 */
-		readonly selector: NotebookSelector;
+		readonly viewType: string;
+
+		/**
+		 * An array of language identifiers that are supported by this
+		 * controller. When falsy all languages are supported.
+		 */
+		supportedLanguages?: string[];
 
 		/**
 		 * The human-readable label of this notebook controller.
@@ -1575,21 +1585,6 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
-		 * Marks this notebook controller as preferred.
-		 *
-		 * When multiple notebook controller apply to a single notebook then
-		 * users can select one - preferred controllers will be shows more
-		 * prominent then.
-		 */
-		isPreferred?: boolean;
-
-		/**
-		 * An array of language identifiers that are supported by this
-		 * controller.
-		 */
-		supportedLanguages: string[];
-
-		/**
 		 * Whether this controller supports execution order so that the
 		 * editor can render placeholders for them.
 		 */
@@ -1600,7 +1595,7 @@ declare module 'vscode' {
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
 		 * Run Selection etc.
 		 */
-		executeHandler: NotebookExecutionHandler;
+		executeHandler: NotebookExecuteHandler;
 
 		/**
 		 * The interrupt handler is invoked the interrupt all execution. This is contrary to cancellation (available via
@@ -1633,6 +1628,7 @@ declare module 'vscode' {
 		 */
 		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 
+		// todo@API find a better name than "preloads"
 		// todo@API allow add, not remove
 		// ipc
 		readonly preloads: NotebookKernelPreload[];
@@ -1656,6 +1652,21 @@ declare module 'vscode' {
 
 		//todo@API validate this works
 		asWebviewUri(localResource: Uri): Uri;
+
+		/**
+		 * A controller can set affinities for specific notebook documents. This allows a controller
+		 * to be more important for some notebooks.
+		 *
+		 * @param notebook The notebook for which a priority is set.
+		 * @param affinity A controller affinity
+		 */
+		// todo@API maybe Affinity instead of Priority
+		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity): void;
+	}
+
+	export enum NotebookControllerAffinity {
+		Default = 1,
+		Preferred = 2
 	}
 
 	export namespace notebook {
@@ -1669,7 +1680,7 @@ declare module 'vscode' {
 		 * @param handler
 		 * @param preloads
 		 */
-		export function createNotebookController(id: string, selector: NotebookSelector, label: string, handler?: NotebookExecutionHandler, preloads?: NotebookKernelPreload[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, preloads?: NotebookKernelPreload[]): NotebookController;
 	}
 
 	//#endregion

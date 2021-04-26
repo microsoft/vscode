@@ -247,12 +247,12 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly layoutInfo: { totalHeight: number; };
 	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
+	readonly editStateSource: string;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
 	language: string;
 	cellKind: CellKind;
-	editState: CellEditState;
 	lineNumbers: 'on' | 'off' | 'inherit';
 	focusMode: CellFocusMode;
 	outputIsHovered: boolean;
@@ -266,6 +266,8 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	getSelectionsStartPosition(): IPosition[] | undefined;
 	getCellDecorations(): INotebookCellDecorationOptions[];
 	getCellStatusBarItems(): INotebookCellStatusBarItem[];
+	getEditState(): CellEditState;
+	updateEditState(state: CellEditState, source: string): void;
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {

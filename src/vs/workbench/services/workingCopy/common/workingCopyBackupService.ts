@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
 import { isReadableStream, peekStream } from 'vs/base/common/stream';
@@ -20,10 +20,10 @@ import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { WorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
+import { LegacyWorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/legacyBackupRestorer';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class WorkingCopyBackupsModel {
 
@@ -161,8 +161,8 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		return this.impl.discardBackup(identifier);
 	}
 
-	discardBackups(): Promise<void> {
-		return this.impl.discardBackups();
+	discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
+		return this.impl.discardBackups(except);
 	}
 
 	getBackups(): Promise<IWorkingCopyIdentifier[]> {
@@ -307,12 +307,29 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		return `${identifier.resource.toString()}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify({ ...meta, typeId: identifier.typeId })}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER}`;
 	}
 
-	async discardBackups(): Promise<void> {
+	async discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
 		const model = await this.ready;
 
-		await this.deleteIgnoreFileNotFound(this.backupWorkspaceHome);
+		// Discard all but some backups
+		if (Array.isArray(except) && except.length > 0) {
+			const exceptMap = new ResourceMap<boolean>();
+			for (const exceptWorkingCopy of except) {
+				exceptMap.set(this.toBackupResource(exceptWorkingCopy), true);
+			}
 
-		model.clear();
+			for (const backupResource of model.get()) {
+				if (!exceptMap.has(backupResource)) {
+					await this.doDiscardBackup(backupResource);
+				}
+			}
+		}
+
+		// Discard all backups
+		else {
+			await this.deleteIgnoreFileNotFound(this.backupWorkspaceHome);
+
+			model.clear();
+		}
 	}
 
 	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
@@ -514,8 +531,21 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 		this.backups.delete(this.toBackupResource(identifier));
 	}
 
-	async discardBackups(): Promise<void> {
-		this.backups.clear();
+	async discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
+		if (Array.isArray(except) && except.length > 0) {
+			const exceptMap = new ResourceMap<boolean>();
+			for (const exceptWorkingCopy of except) {
+				exceptMap.set(this.toBackupResource(exceptWorkingCopy), true);
+			}
+
+			for (const backup of await this.getBackups()) {
+				if (!exceptMap.has(this.toBackupResource(backup))) {
+					await this.discardBackup(backup);
+				}
+			}
+		} else {
+			this.backups.clear();
+		}
 	}
 
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
@@ -536,7 +566,11 @@ export function hashIdentifier(identifier: IWorkingCopyIdentifier): string {
 	let resource: URI;
 	if (identifier.typeId.length > 0) {
 		const typeIdHash = hashString(identifier.typeId);
-		resource = joinPath(identifier.resource, typeIdHash);
+		if (identifier.resource.path) {
+			resource = joinPath(identifier.resource, typeIdHash);
+		} else {
+			resource = identifier.resource.with({ path: typeIdHash });
+		}
 	} else {
 		resource = identifier.resource;
 	}
@@ -555,4 +589,4 @@ function hashString(str: string): string {
 }
 
 // Register Backup Restorer
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkingCopyBackupRestorer, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyWorkingCopyBackupRestorer, LifecyclePhase.Starting);

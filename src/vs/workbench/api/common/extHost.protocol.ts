@@ -907,13 +907,12 @@ export interface MainThreadNotebookDocumentsShape extends IDisposable {
 
 export interface INotebookKernelDto2 {
 	id: string;
-	selector: NotebookSelector;
+	viewType: string;
 	extensionId: ExtensionIdentifier;
 	extensionLocation: UriComponents;
 	label: string;
 	detail?: string;
 	description?: string;
-	isPreferred?: boolean;
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
 	hasExecutionOrder?: boolean;
@@ -925,6 +924,7 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
 	$removeKernel(handle: number): void;
+	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1338,8 +1338,8 @@ export interface IWillRunFileOperationParticipation {
 
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
-	$onDidRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[]): void;
+	$onWillRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
+	$onDidRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[]): void;
 }
 
 export interface ObjectIdentifier {

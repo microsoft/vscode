@@ -11,8 +11,8 @@ import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeServi
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { cellStatusIconSuccess, cellStatusIconError } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { successStateIcon, errorStateIcon, pendingStateIcon, executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { executingStateIcon, pendingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -122,16 +122,16 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 	private _getItemForState(runState: NotebookCellExecutionState | undefined, lastRunSuccess: boolean | undefined): INotebookCellStatusBarItem | undefined {
 		if (runState === NotebookCellExecutionState.Idle && lastRunSuccess) {
 			return <INotebookCellStatusBarItem>{
-				icon: successStateIcon,
-				iconColor: themeColorFromId(cellStatusIconSuccess),
+				text: '$(notebook-state-success)',
+				color: themeColorFromId(cellStatusIconSuccess),
 				tooltip: localize('notebook.cell.status.success', "Success"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
 			};
-		} else if (runState === NotebookCellExecutionState.Idle && !lastRunSuccess) {
+		} else if (runState === NotebookCellExecutionState.Idle && lastRunSuccess === false) {
 			return <INotebookCellStatusBarItem>{
-				icon: errorStateIcon,
-				iconColor: themeColorFromId(cellStatusIconError),
+				text: '$(notebook-state-error)',
+				color: themeColorFromId(cellStatusIconError),
 				tooltip: localize('notebook.cell.status.failed', "Failed"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER

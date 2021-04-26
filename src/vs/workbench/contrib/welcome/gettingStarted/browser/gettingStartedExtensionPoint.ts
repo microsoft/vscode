@@ -11,12 +11,12 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 	extensionPoint: 'walkthroughs',
 	jsonSchema: {
 		doNotSuggest: true,
-		description: localize('walkthroughs', "Contribute collections of tasks to help users with your extension. Experimental, available in VS Code Insiders only."),
+		description: localize('walkthroughs', "Contribute collections of steps to help users with your extension. Experimental, available in VS Code Insiders only."),
 		type: 'array',
 		items: {
 			type: 'object',
-			required: ['id', 'title', 'description', 'tasks'],
-			defaultSnippets: [{ body: { 'id': '$1', 'title': '$2', 'description': '$3', 'tasks': [] } }],
+			required: ['id', 'title', 'description', 'steps'],
+			defaultSnippets: [{ body: { 'id': '$1', 'title': '$2', 'description': '$3', 'steps': [] } }],
 			properties: {
 				id: {
 					type: 'string',
@@ -39,8 +39,11 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					description: localize('walkthroughs.when', "Context key expression to control the visibility of this walkthrough.")
 				},
 				tasks: {
+					deprecationMessage: localize('usesteps', "Deprecated. Use `steps` instead")
+				},
+				steps: {
 					type: 'array',
-					description: localize('walkthroughs.tasks', "Tasks to complete as part of this walkthrough."),
+					description: localize('walkthroughs.steps', "Steps to complete as part of this walkthrough."),
 					items: {
 						type: 'object',
 						required: ['id', 'title', 'description', 'media'],
@@ -48,56 +51,92 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
 								'doneOn': { 'command': '$5' },
-								'media': { 'path': '$6', 'altText': '$7' }
+								'media': { 'path': '$6', 'type': '$7' }
 							}
 						}],
 						properties: {
 							id: {
 								type: 'string',
-								description: localize('walkthroughs.tasks.id', "Unique identifier for this task. This is used to keep track of which tasks have been completed."),
+								description: localize('walkthroughs.steps.id', "Unique identifier for this step. This is used to keep track of which steps have been completed."),
 							},
 							title: {
 								type: 'string',
-								description: localize('walkthroughs.tasks.title', "Title of task.")
+								description: localize('walkthroughs.steps.title', "Title of step.")
 							},
 							description: {
 								type: 'string',
-								description: localize('walkthroughs.tasks.description', "Description of task. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms). Links on their own line will be rendered as buttons.")
+								description: localize('walkthroughs.steps.description', "Description of step. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms). Links on their own line will be rendered as buttons.")
 							},
 							button: {
-								deprecationMessage: localize('walkthroughs.tasks.button.deprecated', "Deprecated. Use markdown links in the description instead, i.e. [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms), "),
+								deprecationMessage: localize('walkthroughs.steps.button.deprecated', "Deprecated. Use markdown links in the description instead, i.e. [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms), "),
 							},
 							media: {
 								type: 'object',
-								required: ['path', 'altText'],
-								description: localize('walkthroughs.tasks.media', "Image to show alongside this task."),
-								defaultSnippets: [{ 'body': { 'altText': '$1', 'path': '$2' } }],
-								properties: {
-									path: {
-										description: localize('walkthroughs.tasks.media.path', "Path to an image, relative to extension directory."),
-										type: 'string',
-									},
-									altText: {
-										type: 'string',
-										description: localize('walkthroughs.tasks.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+								description: localize('walkthroughs.steps.media', "Media to show alongside this step, either an image or markdown content."),
+								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
+								oneOf: [
+									{
+										required: ['path', 'altText'],
+										additionalProperties: false,
+										properties: {
+											path: {
+												description: localize('walkthroughs.steps.media.image.path.string', "Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
+												oneOf: [
+													{
+														type: 'string',
+													},
+													{
+														type: 'object',
+														required: ['dark', 'light', 'hc'],
+														properties: {
+															dark: {
+																description: localize('walkthroughs.steps.media.image.path.dark.string', "Path to the image for dark themes, relative to extension directory."),
+																type: 'string',
+															},
+															light: {
+																description: localize('walkthroughs.steps.media.image.path.light.string', "Path to the image for light themes, relative to extension directory."),
+																type: 'string',
+															},
+															hc: {
+																description: localize('walkthroughs.steps.media.image.path.hc.string', "Path to the image for hc themes, relative to extension directory."),
+																type: 'string',
+															}
+														}
+													}
+												]
+											},
+											altText: {
+												type: 'string',
+												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+											}
+										}
+									}, {
+										required: ['path'],
+										additionalProperties: false,
+										properties: {
+											path: {
+												description: localize('walkthroughs.steps.media.markdown.path', "Path to the markdown document, relative to extension directory."),
+												type: 'string',
+											}
+										}
 									}
-								}
+								]
 							},
 							doneOn: {
-								description: localize('walkthroughs.tasks.doneOn', "Signal to mark task as complete."),
+								description: localize('walkthroughs.steps.doneOn', "Signal to mark step as complete."),
 								type: 'object',
 								required: ['command'],
 								defaultSnippets: [{ 'body': { command: '$1' } }],
 								properties: {
 									'command': {
-										description: localize('walkthroughs.tasks.oneOn.command', "Mark task done when the specified command is executed."),
+										description: localize('walkthroughs.steps.oneOn.command', "Mark step done when the specified command is executed."),
 										type: 'string'
 									}
 								},
 							},
 							when: {
 								type: 'string',
-								description: localize('walkthroughs.tasks.when', "Context key expression to control the visibility of this task.")
+								description: localize('walkthroughs.steps.when', "Context key expression to control the visibility of this step.")
 							}
 						}
 					}

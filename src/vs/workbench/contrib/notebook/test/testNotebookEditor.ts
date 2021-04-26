@@ -37,6 +37,11 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -138,6 +143,9 @@ export function setupInstantiationService() {
 	instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IListService, instantiationService.createInstance(ListService));
 	instantiationService.stub(IClipboardService, new BrowserClipboardService());
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IStorageService, new TestStorageService());
+	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
 
 	return instantiationService;
 }

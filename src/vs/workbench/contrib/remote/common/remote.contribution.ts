@@ -7,7 +7,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
-import { OperatingSystem, isWeb } from 'vs/base/common/platform';
+import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -30,18 +30,20 @@ export class LabelContribution implements IWorkbenchContribution {
 
 	private registerFormatters(): void {
 		this.remoteAgentService.getEnvironment().then(remoteEnvironment => {
+			const os = remoteEnvironment?.os || OS;
+			const formatting: ResourceLabelFormatting = {
+				label: '${path}',
+				separator: os === OperatingSystem.Windows ? '\\' : '/',
+				tildify: os !== OperatingSystem.Windows,
+				normalizeDriveLetter: os === OperatingSystem.Windows,
+				workspaceSuffix: isWeb ? undefined : Schemas.vscodeRemote
+			};
+			this.labelService.registerFormatter({
+				scheme: Schemas.vscodeRemote,
+				formatting
+			});
+
 			if (remoteEnvironment) {
-				const formatting: ResourceLabelFormatting = {
-					label: '${path}',
-					separator: remoteEnvironment.os === OperatingSystem.Windows ? '\\' : '/',
-					tildify: remoteEnvironment.os !== OperatingSystem.Windows,
-					normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows,
-					workspaceSuffix: isWeb ? undefined : Schemas.vscodeRemote
-				};
-				this.labelService.registerFormatter({
-					scheme: Schemas.vscodeRemote,
-					formatting
-				});
 				this.labelService.registerFormatter({
 					scheme: Schemas.userData,
 					formatting

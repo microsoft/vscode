@@ -17,6 +17,7 @@
     "onAuthenticationRequest:microsoft"
   ],
   "capabilities": {
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }

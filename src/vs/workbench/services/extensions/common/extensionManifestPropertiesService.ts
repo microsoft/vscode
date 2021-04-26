@@ -13,7 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionUntrustedWorkspaceSupport } from 'vs/base/common/product';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EXTENSION_UNTRUSTED_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
@@ -44,7 +44,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	private _productVirtualWorkspaceSupportMap: Map<string, { default?: boolean, override?: boolean }> | null = null;
 	private _configuredVirtualWorkspaceSupportMap: Map<string, boolean> | null = null;
 
-	private readonly _configuredExtensionWorkspaceTrustRequestMap: Map<string, { request: ExtensionUntrustedWorkpaceSupportType, version?: string }>;
+	private readonly _configuredExtensionWorkspaceTrustRequestMap: Map<string, { supported: ExtensionUntrustedWorkpaceSupportType, version?: string }>;
 	private readonly _productExtensionWorkspaceTrustRequestMap: Map<string, ExtensionUntrustedWorkspaceSupport>;
 
 	constructor(
@@ -54,8 +54,8 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		super();
 
 		// Workspace trust request type (settings.json)
-		this._configuredExtensionWorkspaceTrustRequestMap = new Map<string, { request: ExtensionUntrustedWorkpaceSupportType, version?: string }>();
-		const configuredExtensionWorkspaceTrustRequests = configurationService.inspect<{ [key: string]: { request: ExtensionUntrustedWorkpaceSupportType, version?: string } }>(WORKSPACE_TRUST_EXTENSION_UNTRUSTED_SUPPORT).userValue || {};
+		this._configuredExtensionWorkspaceTrustRequestMap = new Map<string, { supported: ExtensionUntrustedWorkpaceSupportType, version?: string }>();
+		const configuredExtensionWorkspaceTrustRequests = configurationService.inspect<{ [key: string]: { supported: ExtensionUntrustedWorkpaceSupportType, version?: string } }>(WORKSPACE_TRUST_EXTENSION_SUPPORT).userValue || {};
 		for (const id of Object.keys(configuredExtensionWorkspaceTrustRequests)) {
 			this._configuredExtensionWorkspaceTrustRequestMap.set(ExtensionIdentifier.toKey(id), configuredExtensionWorkspaceTrustRequests[id]);
 		}
@@ -290,7 +290,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		const extensionWorkspaceTrustRequest = this._configuredExtensionWorkspaceTrustRequestMap.get(ExtensionIdentifier.toKey(extensionId));
 
 		if (extensionWorkspaceTrustRequest && (extensionWorkspaceTrustRequest.version === undefined || extensionWorkspaceTrustRequest.version === manifest.version)) {
-			return extensionWorkspaceTrustRequest.request;
+			return extensionWorkspaceTrustRequest.supported;
 		}
 
 		return undefined;

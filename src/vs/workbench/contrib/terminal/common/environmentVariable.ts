@@ -106,6 +106,6 @@ export interface IEnvironmentVariableInfo {
 		label: string;
 		commandId: string;
 		iconClass?: string;
-		run(target: HTMLElement): void;
+		run(target: any): void;
 	}[];
 }

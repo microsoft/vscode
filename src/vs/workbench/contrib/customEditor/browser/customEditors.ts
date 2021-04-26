@@ -16,7 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorExtensions, EditorInput, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, EditorExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
@@ -41,7 +41,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	public readonly onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
 
-	private readonly _fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
+	private readonly _fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,

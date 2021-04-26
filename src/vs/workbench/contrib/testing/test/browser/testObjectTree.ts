@@ -100,7 +100,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 			onDiff: this.onDiff.event,
 			onFolderChange: this.onFolderChange.event,
 		} as any));
-		this.tree = this._register(new TestObjectTree(t => 'label' in t ? t.label : t.message));
+		this.tree = this._register(new TestObjectTree(t => 'label' in t ? t.label : t.message.toString()));
 		this._register(this.tree.onDidChangeCollapseState(evt => {
 			if (evt.node.element instanceof TestItemTreeElement) {
 				this.projection.expandElement(evt.node.element, evt.deep ? Infinity : 0);

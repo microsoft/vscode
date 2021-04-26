@@ -15,8 +15,6 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
-import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -29,7 +27,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.selectKernel',
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
+			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Controller"), original: 'Select Notebook Controller' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
@@ -62,7 +60,6 @@ registerAction2(class extends Action2 {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const configurationService = accessor.get(IConfigurationService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.hasModel()) {
@@ -96,10 +93,10 @@ registerAction2(class extends Action2 {
 			type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 			const configButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
-				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel.viewType)
+				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.viewModel.viewType)
 			};
 			const picks = all.map(kernel => {
-				return <KernelPick>{
+				const res = <KernelPick>{
 					kernel,
 					picked: kernel.id === bound?.id,
 					label: kernel.label,
@@ -107,27 +104,18 @@ registerAction2(class extends Action2 {
 					detail: kernel.detail,
 					buttons: [configButton]
 				};
+				if (kernel.id === bound?.id) {
+					if (!res.description) {
+						res.description = nls.localize('current1', "Currently Selected");
+					} else {
+						res.description = nls.localize('current2', "{0} - Currently Selected", res.description);
+					}
+				}
+				{ return res; }
 			});
 			const pick = await quickInputService.pick(picks, {
 				onDidTriggerItemButton: (context) => {
-					newKernel = context.item.kernel;
-
-					const newAssociation: NotebookKernelProviderAssociation = { viewType: notebook.viewType, kernelProvider: context.item.kernel.extension.value };
-					const currentAssociations = [...configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId)];
-
-					// First try updating existing association
-					for (let i = 0; i < currentAssociations.length; ++i) {
-						const existing = currentAssociations[i];
-						if (existing.viewType === newAssociation.viewType) {
-							currentAssociations.splice(i, 1, newAssociation);
-							configurationService.updateValue(notebookKernelProviderAssociationsSettingId, currentAssociations);
-							return;
-						}
-					}
-
-					// Otherwise, create a new one
-					currentAssociations.unshift(newAssociation);
-					configurationService.updateValue(notebookKernelProviderAssociationsSettingId, currentAssociations);
+					notebookKernelService.updateNotebookTypeKernelBinding(notebook.viewType, context.item.kernel);
 				}
 			});
 
@@ -137,7 +125,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (newKernel) {
-			notebookKernelService.updateNotebookKernelBinding(notebook, newKernel);
+			notebookKernelService.updateNotebookInstanceKernelBinding(notebook, newKernel);
 		}
 	}
 });
@@ -177,6 +165,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 		this._editorDisposables.add(this._notebookKernelService.onDidAddKernel(updateStatus));
 		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookKernelBinding(updateStatus));
+		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookAffinity(updateStatus));
 		this._editorDisposables.add(activeEditor.onDidChangeModel(updateStatus));
 		updateStatus();
 	}
@@ -184,6 +173,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	private _showKernelStatus(notebook: INotebookTextModel) {
 
 		let { bound, all } = this._notebookKernelService.getNotebookKernels(notebook);
+		let isSuggested = false;
 
 		if (all.length === 0) {
 			this._kernelInfoElement.clear();
@@ -192,17 +182,20 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 		if (!bound) {
 			bound = all[0];
+			isSuggested = true;
 		}
 
+		const text = `$(notebook-kernel-select) ${bound.label}`;
+		const tooltip = bound.description ?? bound.detail ?? bound.label;
 		const registration = this._statusbarService.addEntry(
 			{
-				text: `$(notebook-kernel-select) ${bound.label}`,
+				text,
 				ariaLabel: bound.label,
-				tooltip: bound.description ?? bound.detail ?? bound.label,
+				tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 				command: all.length > 1 ? 'notebook.selectKernel' : undefined,
 			},
 			'notebook.selectKernel',
-			nls.localize('notebook.info', "Notebook Kernel Info"),
+			nls.localize('notebook.info', "Notebook Controller Info"),
 			StatusbarAlignment.RIGHT,
 			100
 		);

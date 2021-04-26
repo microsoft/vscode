@@ -239,6 +239,11 @@
 	padding-right: 0
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-entry .codicon {
+	/* Force inherit when no text is showing as the regular icon gets replaced by the status icon */
+	color: inherit;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .codicon {
 	vertical-align: text-bottom;
 }
@@ -255,6 +260,23 @@
 	padding: 2px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-list-row:hover .actions {
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-list-row:hover .actions,
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget:focus-within .monaco-list-row.selected .actions,
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget:focus-within .monaco-list-row.focused .actions {
 	display: block;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab {
+	display: flex !important;
+	align-items: center;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab .codicon:first-child {
+	margin-right: 4px;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab .codicon:nth-child(2) {
+	margin-left: 4px;
+	font-size: 14px;
+	color: inherit;
 }

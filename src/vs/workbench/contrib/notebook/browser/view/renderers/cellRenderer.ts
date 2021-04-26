@@ -384,7 +384,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private getDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
-		if (templateData.currentRenderedCell?.editState === CellEditState.Editing) {
+		if (templateData.currentRenderedCell?.getEditState() === CellEditState.Editing) {
 			return this.getEditDragImage(templateData);
 		} else {
 			return this.getMarkdownDragImage(templateData);
