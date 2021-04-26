@@ -21,7 +21,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -52,7 +51,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleService private readonly lifeCycleService: ILifecycleService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
@@ -61,10 +59,15 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
 		this.storageService.remove(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL);
 
-		this._register(this.lifeCycleService.onWillShutdown(() => {
+		this._register(this.storageService.onWillSaveState(() => {
 			// We want to store the glob patterns we would activate on, this allows us to know if we need to await the ext host on startup for opening a resource
 			this.cacheContributionPoints();
 		}));
+
+		// When extensions have registered we no longer need the cache
+		this.extensionService.onDidRegisterExtensions(() => {
+			this.cache = undefined;
+		});
 	}
 
 	async resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined> {
