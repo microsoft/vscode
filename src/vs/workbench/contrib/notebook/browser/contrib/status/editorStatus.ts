@@ -72,7 +72,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.viewModel.notebookDocument;
-		const { bound, all } = notebookKernelService.getNotebookKernels(notebook);
+		const { selected: bound, all } = notebookKernelService.getNotebookKernels(notebook);
 
 		if (bound && context && bound.id === context.id && ExtensionIdentifier.equals(bound.extension, context.extension)) {
 			// current kernel is wanted kernel -> done
@@ -172,7 +172,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private _showKernelStatus(notebook: INotebookTextModel) {
 
-		let { bound, all } = this._notebookKernelService.getNotebookKernels(notebook);
+		let { selected: bound, all } = this._notebookKernelService.getNotebookKernels(notebook);
 		let isSuggested = false;
 
 		if (all.length === 0) {

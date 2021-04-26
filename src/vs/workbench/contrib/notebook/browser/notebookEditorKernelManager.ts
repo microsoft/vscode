@@ -23,7 +23,7 @@ export class NotebookEditorKernelManager extends Disposable {
 
 	getActiveKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
 		const info = this._notebookKernelService.getNotebookKernels(notebook);
-		return info.bound ?? info.all[0];
+		return info.selected ?? info.all[0];
 	}
 
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {

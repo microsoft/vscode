@@ -167,7 +167,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		});
 	}
 
-	getNotebookKernels(notebook: INotebookTextModelLike): { bound: INotebookKernel | undefined, all: INotebookKernel[] } {
+	getNotebookKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined, all: INotebookKernel[] } {
 
 		// all applicable kernels
 		const kernels: { kernel: INotebookKernel, instanceAffinity: number, typeAffinity: number, score: number }[] = [];
@@ -188,10 +188,10 @@ export class NotebookKernelService implements INotebookKernelService {
 			.map(obj => obj.kernel);
 
 		// bound kernel
-		const boundId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
-		const bound = boundId ? this._kernels.get(boundId)?.kernel : undefined;
+		const selectedId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
+		const selected = selectedId ? this._kernels.get(selectedId)?.kernel : undefined;
 
-		return { all, bound };
+		return { all, selected };
 	}
 
 	// default kernel for notebookType

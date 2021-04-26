@@ -117,10 +117,10 @@ suite('NotebookKernelService', () => {
 		kernelService.updateNotebookInstanceKernelBinding(dotnet, dotnetKernel);
 
 		let info = kernelService.getNotebookKernels(dotnet);
-		assert.strictEqual(info.bound === dotnetKernel, true);
+		assert.strictEqual(info.selected === dotnetKernel, true);
 
 		info = kernelService.getNotebookKernels(jupyter);
-		assert.strictEqual(info.bound === jupyterKernel, true);
+		assert.strictEqual(info.selected === jupyterKernel, true);
 	});
 
 	test('onDidChangeNotebookAssociation not fired on initial notebook open #121904, p2', async function () {

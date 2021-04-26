@@ -29,7 +29,7 @@ export interface INotebookKernelService {
 
 	registerKernel(kernel: INotebookKernel): IDisposable;
 
-	getNotebookKernels(notebook: INotebookTextModelLike): { bound: INotebookKernel | undefined, all: INotebookKernel[] }
+	getNotebookKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined, all: INotebookKernel[] }
 
 	/**
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
