@@ -359,7 +359,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		});
 	}
 
-	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup) {
+	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup, alwaysUpdateSetting?: boolean) {
 		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all contribution points
 		let contributionPoints = resource.scheme === Schemas.untitled ? distinct(flatten(Array.from(this._contributionPoints.values())), (contrib) => contrib.editorInfo.id) : this.findMatchingContributions(resource);
@@ -390,7 +390,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				label: contribPoint.editorInfo.label,
 				description: isActive ? localize('promptOpenWith.currentlyActive', "Currently Active") : undefined,
 				detail: contribPoint.editorInfo.detail ?? contribPoint.editorInfo.priority,
-				buttons: [{
+				buttons: alwaysUpdateSetting ? [] : [{
 					iconClass: Codicon.gear.classNames,
 					tooltip: localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", extname(resource))
 				}],
@@ -419,11 +419,14 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// Text editor has the lowest priority because we
-		const editorOverridePicks = this.mapContributionsToQuickPickEntry(resource, group);
+		const editorOverridePicks = this.mapContributionsToQuickPickEntry(resource, group, alwaysUpdateSetting);
 
 		// Create editor override picker
 		const editorOverridePicker = this.quickInputService.createQuickPick<IQuickPickItem>();
-		editorOverridePicker.placeholder = localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
+		const placeHolderMessage = alwaysUpdateSetting ?
+			localize('prompOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", basename(resource)) :
+			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
+		editorOverridePicker.placeholder = placeHolderMessage;
 		editorOverridePicker.canAcceptInBackground = true;
 		editorOverridePicker.items = editorOverridePicks;
 		const firstItem = editorOverridePicker.items.find(item => item.type === 'item') as IQuickPickItem | undefined;
