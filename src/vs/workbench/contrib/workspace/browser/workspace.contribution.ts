@@ -70,6 +70,16 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		return this.configurationService.getValue(WORKSPACE_TRUST_STARTUP_PROMPT);
 	}
 
+	private get useWorkspaceLanguage(): boolean {
+		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
+	}
+
+	private get modalTitle(): string {
+		return this.useWorkspaceLanguage ?
+			localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
+			localize('folderTrust', "Do you trust the authors of the files in this folder?");
+	}
+
 	private async doShowModal(question: string, trustedOption: { label: string, sublabel: string }, untrustedOption: { label: string, sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
 		const result = await this.dialogService.show(
 			Severity.Info,
@@ -133,16 +143,14 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		// Show Workspace Trust Start Dialog
 		this.doShowModal(
-			!isSingleFolderWorkspace ?
-				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
-				localize('folderTrust', "Do you trust the authors of the files in this folder?"),
+			this.modalTitle,
 			{ label: localize('trustOption', "Yes, I trust the authors"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "Trust folder and enable all features") : localize('trustWorkspaceOptionDescription', "Trust workspace and enable all features") },
 			{ label: localize('dontTrustOption', "No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
 			[
 				!isSingleFolderWorkspace ?
 					localize('workspaceStartupTrustDetails', "{0} provides advanced editing features that may automatically execute files in this workspace.", product.nameShort) :
 					localize('folderStartupTrustDetails', "{0} provides advanced editing features that may automatically execute files in this folder.", product.nameShort),
-				localize('learnMore', "If you don't trust the authors of these files we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+				localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
 			],
 			checkboxText
 		);
@@ -157,8 +165,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 				// Buttons
 				const buttons = requestOptions.buttons ?? [
-					{ label: localize('grantWorkspaceTrustButton', "Trust Workspace & Continue"), type: 'ContinueWithTrust' },
-					{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
+					{ label: this.useWorkspaceLanguage ? localize('grantWorkspaceTrustButton', "Trust Workspace & Continue") : localize('grantFolderTrustButton', "Trust Folder & Continue"), type: 'ContinueWithTrust' },
+					{ label: localize('manageWorkspaceTrustButton', "Manage"), type: 'Manage' }
 				];
 				// Add Cancel button if not provided
 				if (!buttons.some(b => b.type === 'Cancel')) {
@@ -168,12 +176,17 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				// Dialog
 				const result = await this.dialogService.show(
 					Severity.Info,
-					localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
+					this.modalTitle,
 					buttons.map(b => b.label),
 					{
 						cancelId: buttons.findIndex(b => b.type === 'Cancel'),
-						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Using an untrusted workspace may compromise your device or personal information.", message),
-						custom: { icon: Codicon.shield }
+						custom: {
+							icon: Codicon.shield,
+							markdownDetails: [
+								{ markdown: new MarkdownString(message) },
+								{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
+							]
+						}
 					}
 				);
 
@@ -212,10 +225,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					if (!addedFoldersTrustInfo.map(i => i.trusted).every(trusted => trusted)) {
 						const result = await this.dialogService.show(
 							Severity.Info,
-							localize('addWorkspaceFolderMessage', "Do you trust the files in this folder?"),
+							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
 							[localize('yes', 'Yes'), localize('no', 'No')],
 							{
-								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you want to trust the new files?"),
+								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you trust the authors of these new files?"),
 								cancelId: 1,
 								custom: { icon: Codicon.shield }
 							}
