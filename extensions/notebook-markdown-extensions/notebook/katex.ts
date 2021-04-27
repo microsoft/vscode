@@ -4,11 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as markdownIt from 'markdown-it';
 
-declare const extendMarkdownIt: undefined | (
-	(f: (md: markdownIt.MarkdownIt) => void) => void
-);
-
-const styleHref = (document.currentScript as any).src.replace(/katex.js$/, 'katex.min.css');
+const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
 const link = document.createElement('link');
 link.rel = 'stylesheet';
@@ -17,12 +13,8 @@ link.href = styleHref;
 
 document.head.append(link);
 
-(function () {
-	const katex = require('@iktakahiro/markdown-it-katex');
-	if (typeof extendMarkdownIt !== 'undefined') {
+const katex = require('@iktakahiro/markdown-it-katex');
 
-		extendMarkdownIt((md: markdownIt.MarkdownIt) => {
-			md.use(katex);
-		});
-	}
-}());
+export function extendMarkdownIt(md: markdownIt.MarkdownIt) {
+	return md.use(katex);
+}
