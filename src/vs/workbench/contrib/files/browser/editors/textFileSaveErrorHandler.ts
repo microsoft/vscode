@@ -30,7 +30,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
-import { GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { hash } from 'vs/base/common/hash';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -136,7 +136,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
 			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
-			const canSaveElevated = resource.scheme === Schemas.file; // https://github.com/microsoft/vscode/issues/48659 TODO
+			const canSaveElevated = resource.scheme === Schemas.file; // currently only supported for local schemes (https://github.com/microsoft/vscode/issues/48659)
 
 			// Save Elevated
 			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {
@@ -175,7 +175,12 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
+		const handle = this.notificationService.notify({
+			id: `${hash(model.resource.toString())}`, // unique per model (https://github.com/microsoft/vscode/issues/121539)
+			severity: Severity.Error,
+			message,
+			actions
+		});
 		Event.once(handle.onDidClose)(() => { dispose(primaryActions); dispose(secondaryActions); });
 		this.messages.set(model.resource, handle);
 	}
@@ -205,7 +210,7 @@ class ResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMore', localize('learnMore', "Learn More"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		await this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=868264'));
 	}
 }
@@ -218,7 +223,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', localize('dontShowAgain', "Don't Show Again"));
 	}
 
-	async override run(notification: IDisposable): Promise<void> {
+	override async run(notification: IDisposable): Promise<void> {
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
 
 		// Hide notification
@@ -238,7 +243,7 @@ class ResolveSaveConflictAction extends Action {
 		super('workbench.files.action.resolveConflict', localize('compareChanges', "Compare"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.resource;
 			const name = basename(resource);
@@ -249,6 +254,7 @@ class ResolveSaveConflictAction extends Action {
 			// Show additional help how to resolve the save conflict
 			const actions = { primary: [this.instantiationService.createInstance(ResolveConflictLearnMoreAction)] };
 			const handle = this.notificationService.notify({
+				id: `${hash(resource.toString())}`, // unique per model
 				severity: Severity.Info,
 				message: conflictEditorHelp,
 				actions,
@@ -269,7 +275,7 @@ class SaveModelElevatedAction extends Action {
 		super('workbench.files.action.saveModelElevated', triedToUnlock ? isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") : isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({
 				writeElevated: true,
@@ -288,7 +294,7 @@ class RetrySaveModelAction extends Action {
 		super('workbench.files.action.saveModel', localize('retry', "Retry"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({ reason: SaveReason.EXPLICIT });
 		}
@@ -303,7 +309,7 @@ class DiscardModelAction extends Action {
 		super('workbench.files.action.discardModel', localize('discard', "Discard"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.revert();
 		}
@@ -314,13 +320,12 @@ class SaveModelAsAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorService private editorService: IEditorService
 	) {
 		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			const editor = this.findEditor();
 			if (editor) {
@@ -331,25 +336,22 @@ class SaveModelAsAction extends Action {
 
 	private findEditor(): IEditorIdentifier | undefined {
 		let preferredMatchingEditor: IEditorIdentifier | undefined;
-		let otherMatchingEditors: IEditorIdentifier[] = [];
 
-		FindEditorLoop: for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			const editors = this.editorService.findEditors(this.model.resource, group);
-			for (const editor of editors) {
-				if (editor instanceof FileEditorInput) {
-					// We prefer a `FileEditorInput` for "Save As", but it is possible
-					// that a custom editor is leveraging the text file model and as
-					// such we need to fallback to any other editor having the resource
-					// opened for running the save.
-					preferredMatchingEditor = { editor, groupId: group.id };
-					break FindEditorLoop;
-				}
-
-				otherMatchingEditors.push({ editor, groupId: group.id });
+		const editors = this.editorService.findEditors(this.model.resource);
+		for (const identifier of editors) {
+			if (identifier.editor instanceof FileEditorInput) {
+				// We prefer a `FileEditorInput` for "Save As", but it is possible
+				// that a custom editor is leveraging the text file model and as
+				// such we need to fallback to any other editor having the resource
+				// opened for running the save.
+				preferredMatchingEditor = identifier;
+				break;
+			} else if (!preferredMatchingEditor) {
+				preferredMatchingEditor = identifier;
 			}
 		}
 
-		return preferredMatchingEditor || otherMatchingEditors[0];
+		return preferredMatchingEditor;
 	}
 }
 
@@ -361,7 +363,7 @@ class UnlockModelAction extends Action {
 		super('workbench.files.action.unlock', localize('overwrite', "Overwrite"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({ writeUnlock: true, reason: SaveReason.EXPLICIT });
 		}
@@ -376,7 +378,7 @@ class SaveModelIgnoreModifiedSinceAction extends Action {
 		super('workbench.files.action.saveIgnoreModifiedSince', localize('overwrite', "Overwrite"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 		}
@@ -391,7 +393,7 @@ class ConfigureSaveConflictAction extends Action {
 		super('workbench.files.action.configureSaveConflict', localize('configure', "Configure"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.preferencesService.openSettings(undefined, 'files.saveConflictResolution');
 	}
 }

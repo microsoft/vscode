@@ -382,7 +382,7 @@ export class ConfigurationManager implements IConfigurationManager {
 				const providers = (await this.getDynamicProviders()).filter(p => p.type === type);
 				this.getSelectedConfig = async () => {
 					const activatedProviders = await Promise.all(providers.map(p => p.getProvider()));
-					const provider = activatedProviders.find(p => p && p.type === type);
+					const provider = activatedProviders.length > 0 ? activatedProviders[0] : undefined;
 					if (provider && launch && launch.workspace) {
 						const token = new CancellationTokenSource();
 						const dynamicConfigs = await provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
@@ -513,7 +513,7 @@ abstract class AbstractLaunch {
 
 	async getInitialConfigurationContent(folderUri?: uri, type?: string, token?: CancellationToken): Promise<string> {
 		let content = '';
-		const adapter = await this.adapterManager.guessDebugger(type);
+		const adapter = await this.adapterManager.guessDebugger(true, type);
 		if (adapter) {
 			const initialConfigs = await this.configurationManager.provideDebugConfigurations(folderUri, adapter.type, token || CancellationToken.None);
 			content = await adapter.getInitialConfigurationContent(initialConfigs);

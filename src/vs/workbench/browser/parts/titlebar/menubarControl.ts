@@ -464,7 +464,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 			case StateType.Idle:
 				return new Action('update.check', localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates(this.environmentService.sessionId));
+					this.updateService.checkForUpdates(true));
 
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', localize('checkingForUpdates', "Checking for Updates..."), undefined, false);

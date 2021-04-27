@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/style';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground, toolbarHoverOutline } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
@@ -184,18 +184,37 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	// Action bars
-	collector.addRule(`
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`
 		.monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
-			background-color: ${theme.getColor(toolbarHoverBackground)};
+			background-color: ${toolbarHoverBackgroundColor};
+		}
+		.monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
+			background-color: ${toolbarHoverBackgroundColor};
 		}
 	`);
+	}
 
-	collector.addRule(`
+	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
+	if (toolbarActiveBackgroundColor) {
+		collector.addRule(`
 		.monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
 		.monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
-			background-color: ${theme.getColor(toolbarActiveBackground)};
+			background-color: ${toolbarActiveBackgroundColor};
 		}
 	`);
+	}
+
+	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
+	if (toolbarHoverOutlineColor) {
+		collector.addRule(`
+			.monaco-action-bar:not(.vertical) .action-item:hover .action-label:not(.disabled) {
+				outline: 1px dashed ${toolbarHoverOutlineColor};
+				outline-offset: -1px;
+			}
+		`);
+	}
 });
 
 /**

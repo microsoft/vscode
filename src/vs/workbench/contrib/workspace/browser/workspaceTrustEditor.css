@@ -41,18 +41,14 @@
 	margin-right: 8px;
 }
 
-.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-trusted-icon {
-	color: var(--workspace-trust-state-trusted-color) !important;
-}
-
-.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-untrusted-icon {
-	color: var(--workspace-trust-state-untrusted-color) !important;
+.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
+	color: var(--workspace-trust-selected-state-color) !important;
 }
 
 .workspace-trust-editor .workspace-trust-header .workspace-trust-description {
 	cursor: default;
 	user-select: text;
-	max-width: 500px;
+	max-width: 600px;
 }
 
 .workspace-trust-editor .workspace-trust-section-title {
@@ -82,19 +78,17 @@
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations {
-	border: 2px solid rgba(0, 0, 0, 0);
-	margin: 0px 4px;
-	display: flex;
-	flex-direction: column;
-	padding: 0px 40px;
+	min-height: 295px;
 }
 
 .workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted {
-	border-color: var(--workspace-trust-state-trusted-color) !important;
+	border-width: 2px;
+	border-color: var(--workspace-trust-selected-state-color) !important;
 }
 
 .workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted {
-	border-color: var(--workspace-trust-state-untrusted-color) !important;
+	border-width: 2px;
+	border-color: var(--workspace-trust-selected-state-color) !important;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations ul {
@@ -113,12 +107,12 @@
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.trusted .list-item-icon {
-	color: var(--workspace-trust-state-trusted-color) !important;
+	color: var(--workspace-trust-trusted-color) !important;
 	font-size: 18px;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.untrusted .list-item-icon {
-	color: var(--workspace-trust-state-untrusted-color) !important;
+	color: var(--workspace-trust-untrusted-color) !important;
 	font-size: 20px;
 }
 
@@ -144,14 +138,22 @@
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
 	font-size: 24px;
 	margin-right: 8px;
+	display: none;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon.codicon-workspace-trusted-icon {
-	color: var(--workspace-trust-state-trusted-color) !important;
+.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
+	display: unset;
+	color: var(--workspace-trust-selected-state-color) !important;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon.codicon-workspace-untrusted-icon {
-	color: var(--workspace-trust-state-untrusted-color) !important;
+.workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
+	display: unset;
+	color: var(--workspace-trust-selected-state-color) !important;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-untrusted-description {
+	font-style: italic;
+	padding-bottom: 10px;
 }
 
 /** Buttons Container */
@@ -163,6 +165,10 @@
 	overflow: hidden; /* buttons row should never overflow */
 	white-space: nowrap;
 	margin-top: auto;
+}
+
+.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-buttons-row {
+	display: none;
 }
 
 /** Buttons */
@@ -232,4 +238,24 @@
 .workspace-trust-editor .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
 	margin-left: 4px;
 	min-width: 20%;
+}
+
+.workspace-trust-intro-dialog {
+	min-width: min(50vw, 500px);
+	padding-right: 24px;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row p {
+	display: flex;
+	align-items: center;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.badge-row img {
+	max-height: 40px;
+	padding-right: 10px;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.status-bar img {
+	max-height: 32px;
+	padding-right: 10px;
 }

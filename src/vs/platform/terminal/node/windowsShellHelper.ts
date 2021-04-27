@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import type * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { debounce } from 'vs/base/common/decorators';
 import { timeout } from 'vs/base/common/async';
+import { isWindows, platform } from 'vs/base/common/platform';
 
 export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChanged: Event<string>;
@@ -51,8 +51,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	) {
 		super();
 
-		if (!platform.isWindows) {
-			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
+		if (!isWindows) {
+			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform}`);
 		}
 
 		this._isDisposed = false;
@@ -69,7 +69,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 
 	@debounce(500)
 	async checkShell(): Promise<void> {
-		if (platform.isWindows) {
+		if (isWindows) {
 			// Wait to give the shell some time to actually launch a process, this
 			// could lead to a race condition but it would be recovered from when
 			// data stops and should cover the majority of cases

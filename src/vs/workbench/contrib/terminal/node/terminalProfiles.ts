@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as platform from 'vs/base/common/platform';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -16,6 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
@@ -24,10 +24,10 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, fsProvi
 		existsFile: pfs.SymlinkSupport.existsFile,
 		readFile: fs.promises.readFile
 	};
-	if (platform.isWindows) {
+	if (isWindows) {
 		return detectAvailableWindowsProfiles(configuredProfilesOnly, fsProvider, logService, config?.useWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder);
 	}
-	return detectAvailableUnixProfiles(fsProvider, logService, configuredProfilesOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
+	return detectAvailableUnixProfiles(fsProvider, logService, configuredProfilesOnly, isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
 }
 
 async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, fsProvider: IFsProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
@@ -115,7 +115,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 			icon = profile.icon || source.icon;
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
-			args = platform.isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
+			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
 			icon = profile.icon;
 		}
 
@@ -203,10 +203,10 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 					path: wslPath,
 					args: [`-d`, `${distroName}`]
 				};
-				// TODO: Use Ubuntu icon
-				// if (distroName.includes('Ubuntu')) {
-				// }
-				if (distroName.includes('Debian')) {
+				if (distroName.includes('Ubuntu')) {
+					profile.icon = 'terminal-ubuntu';
+				}
+				else if (distroName.includes('Debian')) {
 					profile.icon = 'terminal-debian';
 				} else {
 					profile.icon = 'terminal-linux';

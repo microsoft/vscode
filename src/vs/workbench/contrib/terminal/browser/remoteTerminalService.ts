@@ -6,6 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -49,7 +50,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel = channel;
 
 			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			channel.onProcessBinary(e => this._ptys.get(e.id)?.processBinary(e.event));
 			channel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
@@ -65,8 +65,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 
+			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 			channel.onExecuteCommand(async e => {
 				const reqId = e.reqId;
+				const commandId = e.commandId;
+				if (!allowedCommands.includes(commandId)) {
+					channel!.sendCommandResult(reqId, true, 'Invalid remote cli command: ' + commandId);
+					return;
+				}
 				const commandArgs = e.commandArgs.map(arg => revive(arg));
 				try {
 					const result = await this._commandService.executeCommand(e.commandId, ...commandArgs);
@@ -139,14 +145,12 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env
 		};
-		const isWorkspaceShellAllowed = configHelper.checkIsProcessLaunchSafe(remoteEnv.os);
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
 			activeWorkspaceRootUri,
 			shouldPersist,
 			cols,
 			rows,
-			isWorkspaceShellAllowed,
 		);
 		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 		this._ptys.set(result.persistentTerminalId, pty);
@@ -178,9 +182,18 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				title: termDto.title,
 				cwd: termDto.cwd,
 				workspaceId: termDto.workspaceId,
-				workspaceName: termDto.workspaceName
+				workspaceName: termDto.workspaceName,
+				icon: termDto.icon
 			};
 		});
+	}
+
+	public async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
+	}
+
+	public async getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._remoteTerminalChannel?.getShellEnvironment() || {};
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {

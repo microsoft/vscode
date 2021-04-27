@@ -62,7 +62,7 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	/**
 	 * Access to all known file working copies within the manager.
 	 */
-	readonly workingCopies: IFileWorkingCopy<T>[];
+	readonly workingCopies: readonly IFileWorkingCopy<T>[];
 
 	/**
 	 * Returns the file working copy for the provided resource
@@ -199,6 +199,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 	private readonly workingCopyResolveQueue = this._register(new ResourceQueue());
 
 	constructor(
+		private readonly workingCopyTypeId: string,
 		private readonly modelFactory: IFileWorkingCopyModelFactory<T>,
 		@IFileService private readonly fileService: IFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -458,7 +459,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		else {
 			didCreateWorkingCopy = true;
 
-			const newWorkingCopy = workingCopy = this.instantiationService.createInstance(FileWorkingCopy, resource, this.labelService.getUriBasenameLabel(resource), this.modelFactory) as unknown as IFileWorkingCopy<T>;
+			const newWorkingCopy = workingCopy = this.instantiationService.createInstance(FileWorkingCopy, this.workingCopyTypeId, resource, this.labelService.getUriBasenameLabel(resource), this.modelFactory) as unknown as IFileWorkingCopy<T>;
 			workingCopyResolve = workingCopy.resolve(options);
 
 			this.registerWorkingCopy(newWorkingCopy);

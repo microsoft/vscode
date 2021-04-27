@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
@@ -44,6 +44,7 @@ export interface IPtyHostAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
+	icon: string | undefined;
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
@@ -94,6 +95,8 @@ export interface IOffProcessTerminalService {
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getShellEnvironment(): Promise<IProcessEnvironment>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
@@ -113,7 +116,6 @@ export interface IPtyService {
 	readonly onPtyHostUnresponsive?: Event<void>;
 	readonly onPtyHostResponsive?: Event<void>;
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
-	readonly onProcessBinary: Event<{ id: number, event: string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
@@ -158,6 +160,8 @@ export interface IPtyService {
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
 
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getShellEnvironment(): Promise<IProcessEnvironment>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
@@ -196,6 +200,11 @@ export interface IShellLaunchConfig {
 	 * The name of the terminal, if this is not set the name of the process will be used.
 	 */
 	name?: string;
+
+	/**
+	 * An string to follow the name of the terminal with, indicating a special kind of terminal
+	 */
+	description?: string;
 
 	/**
 	 * The shell executable (bash, cmd, etc.).
@@ -251,7 +260,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -405,7 +414,11 @@ export const enum FlowControlConstants {
 
 export interface IProcessDataEvent {
 	data: string;
-	sync: boolean;
+	trackCommit: boolean;
+	/**
+	 * When trackCommit is set, this will be set to a promise that resolves when the data is parsed.
+	 */
+	writePromise?: Promise<void>;
 }
 
 export interface ITerminalDimensions {

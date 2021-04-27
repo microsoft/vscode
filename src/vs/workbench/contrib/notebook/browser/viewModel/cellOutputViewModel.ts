@@ -38,8 +38,8 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 		return this._outputRawData.outputs.every(op => mimeTypeIsMergeable(op.mime));
 	}
 
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number] {
-		const mimeTypes = this._notebookService.getMimeTypeInfo(textModel, this.model);
+	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number] {
+		const mimeTypes = this._notebookService.getMimeTypeInfo(textModel, kernelProvides, this.model);
 		if (this._pickedMimeType === -1) {
 			// there is at least one mimetype which is safe and can be rendered by the core
 			this._pickedMimeType = Math.max(mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE && mimeType.isTrusted), 0);

@@ -3,28 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { TestItem, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestItemImpl, TestItemStatus, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
-export class StubTestItem extends TestItem {
-	parent: StubTestItem | undefined;
+export { TestItemImpl, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+export * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 
-	constructor(id: string, label: string, private readonly pendingChildren: StubTestItem[]) {
-		super(id, label, URI.file('/'), pendingChildren.length > 0);
+export const stubTest = (label: string, idPrefix = 'id-', children: TestItemImpl[] = [], uri = URI.file('/')): TestItemImpl => {
+	const item = new TestItemImpl(idPrefix + label, label, uri, undefined);
+	if (children.length) {
+		item.status = TestItemStatus.Pending;
+		item.resolveHandler = () => {
+			for (const child of children) {
+				item.addChild(child);
+			}
+
+			item.status = TestItemStatus.Resolved;
+		};
 	}
 
-	public override discoverChildren(progress: IProgress<{ busy: boolean }>) {
-		for (const child of this.pendingChildren) {
-			this.children.add(child);
+	return item;
+};
+
+export const testStubsChain = (stub: TestItemImpl, path: string[], slice = 0) => {
+	const tests = [stub];
+	for (const segment of path) {
+		if (stub.status !== TestItemStatus.Resolved) {
+			stub.resolveHandler!(CancellationToken.None);
 		}
 
-		progress.report({ busy: false });
-	}
-}
+		stub = stub.children.get(segment)!;
+		if (!stub) {
+			throw new Error(`missing child ${segment}`);
+		}
 
-export const stubTest = (label: string, idPrefix = 'id-', children: StubTestItem[] = []): StubTestItem => {
-	return new StubTestItem(idPrefix + label, label, children);
+		tests.push(stub);
+	}
+
+	return tests.slice(slice);
 };
 
 export const testStubs = {

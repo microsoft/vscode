@@ -24,6 +24,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { whenTextEditorClosed } from 'vs/workbench/browser/editor';
+import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 
 suite('Files - TextFileEditorTracker', () => {
 
@@ -115,7 +117,7 @@ suite('Files - TextFileEditorTracker', () => {
 	async function testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource: URI, autoSave: boolean, error: boolean): Promise<void> {
 		const accessor = await createTracker(autoSave);
 
-		assert.ok(!accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
+		assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID }));
 
 		if (error) {
 			accessor.textFileService.setWriteErrorOnce(new FileOperationError('fail to write', FileOperationResult.FILE_OTHER_ERROR));
@@ -129,13 +131,13 @@ suite('Files - TextFileEditorTracker', () => {
 			await model.save();
 			await timeout(100);
 			if (error) {
-				assert.ok(accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
+				assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID }));
 			} else {
-				assert.ok(!accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
+				assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID }));
 			}
 		} else {
 			await awaitEditorOpening(accessor.editorService);
-			assert.ok(accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
+			assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID }));
 		}
 	}
 
@@ -145,12 +147,12 @@ suite('Files - TextFileEditorTracker', () => {
 		const untitledEditor = accessor.editorService.createEditorInput({ forceUntitled: true }) as UntitledTextEditorInput;
 		const model = disposables.add(await untitledEditor.resolve());
 
-		assert.ok(!accessor.editorService.isOpen(untitledEditor));
+		assert.ok(!accessor.editorService.isOpened(untitledEditor));
 
 		model.textEditorModel?.setValue('Super Good');
 
 		await awaitEditorOpening(accessor.editorService);
-		assert.ok(accessor.editorService.isOpen(untitledEditor));
+		assert.ok(accessor.editorService.isOpened(untitledEditor));
 	});
 
 	function awaitEditorOpening(editorService: IEditorService): Promise<void> {
@@ -179,5 +181,27 @@ suite('Files - TextFileEditorTracker', () => {
 				}
 			});
 		});
+	}
+
+	test('whenTextEditorClosed (single editor)', async function () {
+		return testWhenTextEditorClosed(toResource.call(this, '/path/index.txt'));
+	});
+
+	test('whenTextEditorClosed (multiple editor)', async function () {
+		return testWhenTextEditorClosed(toResource.call(this, '/path/index.txt'), toResource.call(this, '/test.html'));
+	});
+
+	async function testWhenTextEditorClosed(...resources: URI[]): Promise<void> {
+		const accessor = await createTracker(false);
+
+		for (const resource of resources) {
+			await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+		}
+
+		const closedPromise = accessor.instantitionService.invokeFunction(accessor => whenTextEditorClosed(accessor, resources));
+
+		accessor.editorGroupService.activeGroup.closeAllEditors();
+
+		await closedPromise;
 	}
 });

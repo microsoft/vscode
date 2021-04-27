@@ -53,13 +53,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return WebglAddon;
 	}
 
-	public getDefaultShellAndArgs(useAutomationShell: boolean,): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return new Promise(r => this._onRequestDefaultShellAndArgs.fire({
-			useAutomationShell,
-			callback: (shell, args) => r({ shell, args })
-		}));
-	}
-
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return {};
 	}

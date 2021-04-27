@@ -22,7 +22,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { Schemas } from 'vs/base/common/network';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
-	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
+	static override readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
 	override get typeId(): string {
 		return PreferencesEditorInput.ID;
@@ -34,7 +34,7 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 }
 
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
-	static readonly ID = 'workbench.editorinputs.defaultpreferences';
+	static override readonly ID = 'workbench.editorinputs.defaultpreferences';
 	constructor(
 		defaultSettingsResource: URI,
 		@ITextModelService textModelResolverService: ITextModelService,
@@ -92,7 +92,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	async override resolve(): Promise<KeybindingsEditorModel> {
+	override async resolve(): Promise<KeybindingsEditorModel> {
 		return this.keybindingsModel;
 	}
 
@@ -137,7 +137,7 @@ export class SettingsEditor2Input extends EditorInput {
 		return nls.localize('settingsEditor2InputName', "Settings");
 	}
 
-	async override resolve(): Promise<Settings2EditorModel> {
+	override async resolve(): Promise<Settings2EditorModel> {
 		return this._settingsModel;
 	}
 

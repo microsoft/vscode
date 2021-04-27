@@ -481,8 +481,6 @@ abstract class AbstractElementRenderer extends Disposable {
 			const keys = new Set([...Object.keys(newMetadataObj)]);
 			for (let key of keys) {
 				switch (key as keyof NotebookCellMetadata) {
-					case 'breakpointMargin':
-					case 'editable':
 					case 'inputCollapsed':
 					case 'outputCollapsed':
 						// boolean
@@ -494,7 +492,6 @@ abstract class AbstractElementRenderer extends Disposable {
 						break;
 
 					case 'executionOrder':
-					case 'lastRunDuration':
 						// number
 						if (typeof newMetadataObj[key] === 'number') {
 							result[key] = newMetadataObj[key];
@@ -505,14 +502,6 @@ abstract class AbstractElementRenderer extends Disposable {
 					case 'runState':
 						// enum
 						if (typeof newMetadataObj[key] === 'number' && [1, 2, 3, 4].indexOf(newMetadataObj[key]) >= 0) {
-							result[key] = newMetadataObj[key];
-						} else {
-							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
-						}
-						break;
-					case 'statusMessage':
-						// string
-						if (typeof newMetadataObj[key] === 'string') {
 							result[key] = newMetadataObj[key];
 						} else {
 							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
@@ -765,11 +754,15 @@ abstract class AbstractElementRenderer extends Disposable {
 }
 
 abstract class SingleSideDiffElement extends AbstractElementRenderer {
+
+	override readonly cell: SingleSideDiffElementViewModel;
+	override readonly templateData: CellDiffSingleSideRenderTemplate;
+
 	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideDiffElementViewModel,
-		readonly templateData: CellDiffSingleSideRenderTemplate,
-		readonly style: 'left' | 'right' | 'full',
+		notebookEditor: INotebookTextDiffEditor,
+		cell: SingleSideDiffElementViewModel,
+		templateData: CellDiffSingleSideRenderTemplate,
+		style: 'left' | 'right' | 'full',
 		instantiationService: IInstantiationService,
 		modeService: IModeService,
 		modelService: IModelService,
@@ -780,9 +773,6 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		menuService: IMenuService,
 		contextKeyService: IContextKeyService,
 		configurationService: IConfigurationService,
-
-
-
 	) {
 		super(
 			notebookEditor,
@@ -800,6 +790,8 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			contextKeyService,
 			configurationService
 		);
+		this.cell = cell;
+		this.templateData = templateData;
 	}
 
 	init() {
@@ -960,9 +952,9 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 export class DeletedElement extends SingleSideDiffElement {
 	private _editor!: CodeEditorWidget;
 	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideDiffElementViewModel,
-		readonly templateData: CellDiffSingleSideRenderTemplate,
+		notebookEditor: INotebookTextDiffEditor,
+		cell: SingleSideDiffElementViewModel,
+		templateData: CellDiffSingleSideRenderTemplate,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
@@ -1112,9 +1104,9 @@ export class DeletedElement extends SingleSideDiffElement {
 export class InsertElement extends SingleSideDiffElement {
 	private _editor!: CodeEditorWidget;
 	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideDiffElementViewModel,
-		readonly templateData: CellDiffSingleSideRenderTemplate,
+		notebookEditor: INotebookTextDiffEditor,
+		cell: SingleSideDiffElementViewModel,
+		templateData: CellDiffSingleSideRenderTemplate,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
@@ -1266,10 +1258,13 @@ export class ModifiedElement extends AbstractElementRenderer {
 	protected _toolbar!: ToolBar;
 	protected _menu!: IMenu;
 
+	override readonly cell: SideBySideDiffElementViewModel;
+	override readonly templateData: CellDiffSideBySideRenderTemplate;
+
 	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SideBySideDiffElementViewModel,
-		readonly templateData: CellDiffSideBySideRenderTemplate,
+		notebookEditor: INotebookTextDiffEditor,
+		cell: SideBySideDiffElementViewModel,
+		templateData: CellDiffSideBySideRenderTemplate,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
@@ -1282,6 +1277,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		this.cell = cell;
+		this.templateData = templateData;
 	}
 
 	init() { }

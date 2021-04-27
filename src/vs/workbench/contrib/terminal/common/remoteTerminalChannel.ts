@@ -21,28 +21,23 @@ import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection
 import { IProcessDataEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
-export interface ISingleTerminalConfiguration<T> {
-	userValue: T | undefined;
-	value: T | undefined;
-	defaultValue: T | undefined;
-}
-
 export interface ICompleteTerminalConfiguration {
-	'terminal.integrated.automationShell.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.automationShell.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.automationShell.linux': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.linux': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.linux': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.env.windows': ISingleTerminalConfiguration<ITerminalEnvironment>;
-	'terminal.integrated.env.osx': ISingleTerminalConfiguration<ITerminalEnvironment>;
-	'terminal.integrated.env.linux': ISingleTerminalConfiguration<ITerminalEnvironment>;
+	'terminal.integrated.automationShell.windows': string;
+	'terminal.integrated.automationShell.osx': string;
+	'terminal.integrated.automationShell.linux': string;
+	'terminal.integrated.shell.windows': string;
+	'terminal.integrated.shell.osx': string;
+	'terminal.integrated.shell.linux': string;
+	'terminal.integrated.shellArgs.windows': string | string[];
+	'terminal.integrated.shellArgs.osx': string | string[];
+	'terminal.integrated.shellArgs.linux': string | string[];
+	'terminal.integrated.env.windows': ITerminalEnvironment;
+	'terminal.integrated.env.osx': ITerminalEnvironment;
+	'terminal.integrated.env.linux': ITerminalEnvironment;
 	'terminal.integrated.inheritEnv': boolean;
 	'terminal.integrated.cwd': string;
 	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
@@ -69,7 +64,6 @@ export interface ICreateTerminalProcessArguments {
 	shouldPersistTerminal: boolean;
 	cols: number;
 	rows: number;
-	isWorkspaceShellAllowed: boolean;
 	resolverEnv: { [key: string]: string | null; } | undefined
 }
 
@@ -94,9 +88,6 @@ export class RemoteTerminalChannelClient {
 	}
 	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
 		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
-	}
-	public get onProcessBinary(): Event<{ id: number, event: string }> {
-		return this._channel.listen<{ id: number, event: string }>('$onProcessBinary');
 	}
 	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
 		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
@@ -139,37 +130,28 @@ export class RemoteTerminalChannelClient {
 		@ILabelService private readonly _labelService: ILabelService,
 	) { }
 
-	private _readSingleTerminalConfiguration<T>(key: string): ISingleTerminalConfiguration<T> {
-		const result = this._configurationService.inspect<T>(key);
-		return {
-			userValue: result.userValue,
-			value: result.value,
-			defaultValue: result.defaultValue,
-		};
-	}
-
 	restartPtyHost(): Promise<void> {
 		return this._channel.call('$restartPtyHost', []);
 	}
 
-	public async createProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ICreateTerminalProcessResult> {
+	public async createProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
 
 		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		const configuration: ICompleteTerminalConfiguration = {
-			'terminal.integrated.automationShell.windows': this._readSingleTerminalConfiguration('terminal.integrated.automationShell.windows'),
-			'terminal.integrated.automationShell.osx': this._readSingleTerminalConfiguration('terminal.integrated.automationShell.osx'),
-			'terminal.integrated.automationShell.linux': this._readSingleTerminalConfiguration('terminal.integrated.automationShell.linux'),
-			'terminal.integrated.shell.windows': this._readSingleTerminalConfiguration('terminal.integrated.shell.windows'),
-			'terminal.integrated.shell.osx': this._readSingleTerminalConfiguration('terminal.integrated.shell.osx'),
-			'terminal.integrated.shell.linux': this._readSingleTerminalConfiguration('terminal.integrated.shell.linux'),
-			'terminal.integrated.shellArgs.windows': this._readSingleTerminalConfiguration('terminal.integrated.shellArgs.windows'),
-			'terminal.integrated.shellArgs.osx': this._readSingleTerminalConfiguration('terminal.integrated.shellArgs.osx'),
-			'terminal.integrated.shellArgs.linux': this._readSingleTerminalConfiguration('terminal.integrated.shellArgs.linux'),
-			'terminal.integrated.env.windows': this._readSingleTerminalConfiguration('terminal.integrated.env.windows'),
-			'terminal.integrated.env.osx': this._readSingleTerminalConfiguration('terminal.integrated.env.osx'),
-			'terminal.integrated.env.linux': this._readSingleTerminalConfiguration('terminal.integrated.env.linux'),
+			'terminal.integrated.automationShell.windows': this._configurationService.getValue('terminal.integrated.automationShell.windows'),
+			'terminal.integrated.automationShell.osx': this._configurationService.getValue('terminal.integrated.automationShell.osx'),
+			'terminal.integrated.automationShell.linux': this._configurationService.getValue('terminal.integrated.automationShell.linux'),
+			'terminal.integrated.shell.windows': this._configurationService.getValue('terminal.integrated.shell.windows'),
+			'terminal.integrated.shell.osx': this._configurationService.getValue('terminal.integrated.shell.osx'),
+			'terminal.integrated.shell.linux': this._configurationService.getValue('terminal.integrated.shell.linux'),
+			'terminal.integrated.shellArgs.windows': this._configurationService.getValue('terminal.integrated.shellArgs.windows'),
+			'terminal.integrated.shellArgs.osx': this._configurationService.getValue('terminal.integrated.shellArgs.osx'),
+			'terminal.integrated.shellArgs.linux': this._configurationService.getValue('terminal.integrated.shellArgs.linux'),
+			'terminal.integrated.env.windows': this._configurationService.getValue('terminal.integrated.env.windows'),
+			'terminal.integrated.env.osx': this._configurationService.getValue('terminal.integrated.env.osx'),
+			'terminal.integrated.env.linux': this._configurationService.getValue('terminal.integrated.env.linux'),
 			'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
 			'terminal.integrated.cwd': terminalConfig.cwd,
 			'terminal.integrated.detectLocale': terminalConfig.detectLocale
@@ -226,7 +208,6 @@ export class RemoteTerminalChannelClient {
 			shouldPersistTerminal,
 			cols,
 			rows,
-			isWorkspaceShellAllowed,
 			resolverEnv
 		};
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
@@ -269,7 +250,15 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$orphanQuestionReply', [id]);
 	}
 	public sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
-		return this._channel.call<void>('$sendCommandResult', [reqId, isError, payload]);
+		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
+	}
+
+	public getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+		return this._channel.call('$getDefaultSystemShell', [osOverride]);
+	}
+
+	public getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._channel.call('$getShellEnvironment');
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {

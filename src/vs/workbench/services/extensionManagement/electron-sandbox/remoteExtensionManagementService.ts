@@ -21,6 +21,7 @@ import { WebRemoteExtensionManagementService } from 'vs/workbench/services/exten
 import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Promises } from 'vs/base/common/async';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export class NativeRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
@@ -33,19 +34,20 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(channel, galleryService, configurationService, productService);
+		super(channel, galleryService, configurationService, productService, extensionManifestPropertiesService);
 		this.localExtensionManagementService = localExtensionManagementServer.extensionManagementService;
 	}
 
-	async override install(vsix: URI): Promise<ILocalExtension> {
+	override async install(vsix: URI): Promise<ILocalExtension> {
 		const local = await super.install(vsix);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
-	async override installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	override async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		const local = await this.doInstallFromGallery(extension, installOptions);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
@@ -125,7 +127,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		for (let idx = 0; idx < extensions.length; idx++) {
 			const extension = extensions[idx];
 			const manifest = manifests[idx];
-			if (manifest && this.extensionKindController.prefersExecuteOnUI(manifest) === uiExtension) {
+			if (manifest && this.extensionManifestPropertiesService.prefersExecuteOnUI(manifest) === uiExtension) {
 				result.set(extension.identifier.id.toLowerCase(), extension);
 				extensionsManifests.push(manifest);
 			}

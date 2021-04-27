@@ -651,9 +651,6 @@ suite('ExtHostTypes', function () {
 
 	test('NotebookMetadata - defaults', function () {
 		const obj = new types.NotebookDocumentMetadata();
-		assert.strictEqual(obj.cellEditable, notebookDocumentMetadataDefaults.cellEditable);
-		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
-		assert.strictEqual(obj.editable, notebookDocumentMetadataDefaults.editable);
 		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
 	});
 
@@ -667,18 +664,42 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(newObj.trusted, false);
 	});
 
+	test('NotebookMetadata - with custom', function () {
+		const obj = new types.NotebookDocumentMetadata();
+		const newObj = obj.with({ trusted: false, mycustom: { display: 'hello' } });
+		assert.ok(obj !== newObj);
+		const sameObj = newObj.with({ trusted: false });
+		assert.ok(newObj === sameObj);
+		assert.strictEqual(obj.trusted, true);
+		assert.strictEqual(newObj.trusted, false);
+		assert.deepStrictEqual(newObj.mycustom, { display: 'hello' });
+	});
+
 	test('NotebookCellMetadata - with', function () {
 		const obj = new types.NotebookCellMetadata(true, true);
 
-		const newObj = obj.with({ statusMessage: 'hello' });
+		const newObj = obj.with({ inputCollapsed: false });
 		assert.ok(obj !== newObj);
-		assert.strictEqual(obj.statusMessage, undefined);
-		assert.strictEqual(obj.editable, true);
+		assert.strictEqual(obj.inputCollapsed, true);
 		assert.strictEqual(obj.custom, undefined);
 
-		assert.strictEqual(newObj.statusMessage, 'hello');
-		assert.strictEqual(newObj.editable, true);
+		assert.strictEqual(newObj.inputCollapsed, false);
 		assert.strictEqual(newObj.custom, undefined);
+	});
 
+	test('NotebookCellMetadata - with custom', function () {
+		const obj = new types.NotebookCellMetadata(true, true);
+		const newObj = obj.with({ inputCollapsed: false, custom: { display: 'hello' } });
+		assert.ok(obj !== newObj);
+		const sameObj = newObj.with({ inputCollapsed: false });
+		assert.ok(newObj === sameObj);
+		assert.strictEqual(obj.inputCollapsed, true);
+		assert.strictEqual(newObj.inputCollapsed, false);
+		assert.deepStrictEqual(newObj.custom, { display: 'hello' });
+
+		const newCustom = newObj.with({ anotherCustom: { display: 'hello2' } });
+		assert.strictEqual(newCustom.inputCollapsed, false);
+		assert.deepStrictEqual(newCustom.mycustom, undefined);
+		assert.deepStrictEqual(newCustom.anotherCustom, { display: 'hello2' });
 	});
 });

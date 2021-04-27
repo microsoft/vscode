@@ -15,7 +15,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
@@ -30,7 +30,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService) {
 		super();
 		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		const isWorkspaceTrusted = workspaceTrustManagementService.getWorkspaceTrustState() === WorkspaceTrustState.Trusted;
+		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkpaceTrusted();
 		this.tryRunTasks(isFolderAutomaticAllowed && isWorkspaceTrusted);
 	}
 
@@ -115,9 +115,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return { tasks, taskNames, locations };
 	}
 
-	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustRequestService: IWorkspaceTrustRequestService,
+	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		openerService: IOpenerService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
-		const isWorkspaceTrusted = await workspaceTrustRequestService.requestWorkspaceTrust({ modal: false }) === WorkspaceTrustState.Trusted;
+		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkpaceTrusted;
 		if (!isWorkspaceTrusted) {
 			return;
 		}

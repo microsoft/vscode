@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, ConfigurationScope, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
@@ -66,12 +66,22 @@ export interface IHTTPConfiguration {
 	};
 }
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-	.registerConfiguration({
+export function updateProxyConfigurationsScope(scope: ConfigurationScope): void {
+	registerProxyConfigurations(scope);
+}
+
+let proxyConfiguration: IConfigurationNode | undefined;
+function registerProxyConfigurations(scope: ConfigurationScope): void {
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	if (proxyConfiguration) {
+		configurationRegistry.deregisterConfigurations([proxyConfiguration]);
+	}
+	proxyConfiguration = {
 		id: 'http',
 		order: 15,
 		title: localize('httpConfigurationTitle', "HTTP"),
 		type: 'object',
+		scope,
 		properties: {
 			'http.proxy': {
 				type: 'string',
@@ -93,10 +103,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			},
 			'http.proxySupport': {
 				type: 'string',
-				enum: ['off', 'on', 'override'],
+				enum: ['off', 'on', 'fallback', 'override'],
 				enumDescriptions: [
 					localize('proxySupportOff', "Disable proxy support for extensions."),
 					localize('proxySupportOn', "Enable proxy support for extensions."),
+					localize('proxySupportFallback', "Enable proxy support for extensions, fall back to request options, when no proxy found."),
 					localize('proxySupportOverride', "Enable proxy support for extensions, override request options."),
 				],
 				default: 'override',
@@ -110,4 +121,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				requireTrust: true
 			}
 		}
-	});
+	};
+	configurationRegistry.registerConfiguration(proxyConfiguration);
+}
+
+registerProxyConfigurations(ConfigurationScope.MACHINE);

@@ -1665,6 +1665,12 @@ declare module 'vscode' {
 	 * Options to configure the behavior of the quick pick UI.
 	 */
 	export interface QuickPickOptions {
+
+		/**
+		 * An optional string that represents the title of the quick pick.
+		 */
+		title?: string;
+
 		/**
 		 * An optional flag to include the description when filtering the picks.
 		 */
@@ -1846,6 +1852,11 @@ declare module 'vscode' {
 	 * Options to configure the behavior of the input box UI.
 	 */
 	export interface InputBoxOptions {
+
+		/**
+		 * An optional string that represents the title of the input box.
+		 */
+		title?: string;
 
 		/**
 		 * The value to prefill in the input box.
@@ -10686,6 +10697,16 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean, readonly isReadonly?: boolean }): Disposable;
+
+		/**
+		 * When true, the user has explicitly trusted the contents of the workspace.
+		 */
+		export const isTrusted: boolean;
+
+		/**
+		 * Event that fires when the current workspace has been trusted.
+		 */
+		export const onDidGrantWorkspaceTrust: Event<void>;
 	}
 
 	/**

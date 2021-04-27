@@ -13,7 +13,7 @@
 	bootstrapWindow.load(['vs/code/electron-sandbox/processExplorer/processExplorerMain'], function (processExplorer, configuration) {
 		return processExplorer.startup(configuration);
 	}, {
-		configureDeveloperKeybindings: function () {
+		configureDeveloperSettings: function () {
 			return {
 				forceEnableDeveloperKeybindings: true
 			};
@@ -28,7 +28,11 @@
 	 *     modules: string[],
 	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
 	 *     options?: {
-	 *       configureDeveloperKeybindings?: (config: ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 			forceEnableDeveloperKeybindings?: boolean,
+	 * 			disallowReloadKeybinding?: boolean,
+	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 		 },
 	 * 	     canModifyDOM?: (config: ISandboxConfiguration) => void,
 	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *       beforeRequire?: () => void

@@ -72,7 +72,7 @@ export class OpenWindowSessionLogFileAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const sessionResult = await this.quickInputService.pick(
 			this.getSessions().then(sessions => sessions.map((s, index) => (<IQuickPickItem>{
 				id: s.toString(),

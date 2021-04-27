@@ -131,6 +131,7 @@ import { assertNoRpc } from '../utils';
 
 		suite('CustomExecution', () => {
 			test('task should start and shutdown successfully', async () => {
+				window.terminals.forEach(terminal => terminal.dispose());
 				interface CustomTestingTaskDefinition extends TaskDefinition {
 					/**
 					 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -203,7 +204,10 @@ import { assertNoRpc } from '../utils';
 
 				// Dispose the terminal
 				await new Promise<void>(r => {
-					disposables.push(window.onDidCloseTerminal(() => {
+					disposables.push(window.onDidCloseTerminal((e) => {
+						if (e !== terminal) {
+							return;
+						}
 						assert.strictEqual(testOrder, TestOrder.TerminalWritten);
 						testOrder = TestOrder.TerminalClosed;
 						// Pseudoterminal.close should have fired by now, additionally we want

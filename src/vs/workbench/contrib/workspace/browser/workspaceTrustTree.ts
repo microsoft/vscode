@@ -28,7 +28,6 @@ import { NonCollapsibleObjectTreeModel } from 'vs/workbench/contrib/preferences/
 import { AbstractListSettingWidget, focusedRowBackground, focusedRowBorder, ISettingListChangeEvent, rowHoverBackground, settingsHeaderForeground, settingsSelectBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { attachButtonStyler, attachInputBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IWorkspaceTrustStateInfo, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { IAction } from 'vs/base/common/actions';
 import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -573,24 +572,13 @@ export class WorkspaceTrustTreeModel {
 
 	settings: WorkspaceTrustSettingsTreeEntry[] = [];
 
-	update(trustInfo: IWorkspaceTrustStateInfo): void {
+	update(trustedFolders: URI[]): void {
 		this.settings = [];
-		if (trustInfo.uriTrustInfo) {
-			const trustedFolders = trustInfo.uriTrustInfo.filter(folder => folder.trustState === WorkspaceTrustState.Trusted).map(folder => folder.uri);
-			const untrustedFolders = trustInfo.uriTrustInfo.filter(folder => folder.trustState === WorkspaceTrustState.Untrusted).map(folder => folder.uri);
-
-			this.settings.push(new WorkspaceTrustSettingsTreeEntry(
-				'trustedFolders',
-				localize('trustedFolders', "Trusted Folders"),
-				localize('trustedFoldersDescription', "All workspaces under the following folders will be trusted. In the event of a conflict with untrusted folders, the nearest parent will determine trust."),
-				trustedFolders));
-
-			this.settings.push(new WorkspaceTrustSettingsTreeEntry(
-				'untrustedFolders',
-				localize('untrustedFolders', "Untrusted Folders"),
-				localize('untrustedFoldersDescription', "All workspaces under the following folders will not be trusted. In the event of a conflict with trusted folders, the nearest parent will determine trust."),
-				untrustedFolders));
-		}
+		this.settings.push(new WorkspaceTrustSettingsTreeEntry(
+			'trustedFolders',
+			localize('trustedFolders', "Trusted Folders"),
+			localize('trustedFoldersDescription', "You trust the following folders and their children: "),
+			trustedFolders));
 	}
 }
 

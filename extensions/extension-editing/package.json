@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.4.0"
   },
+  "icon": "images/icon.png",
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:markdown",
@@ -15,7 +16,12 @@
   ],
   "main": "./out/extensionEditingMain",
   "browser": "./dist/browser/extensionEditingBrowserMain",
-  "workspaceTrust": { "request": "never" },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "scripts": {
     "compile": "gulp compile-extension:extension-editing",
     "watch": "gulp watch-extension:extension-editing"

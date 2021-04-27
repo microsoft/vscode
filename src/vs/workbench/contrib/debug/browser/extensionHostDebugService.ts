@@ -55,7 +55,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		if (environmentService.options && environmentService.options.workspaceProvider) {
 			this.workspaceProvider = environmentService.options.workspaceProvider;
 		} else {
-			this.workspaceProvider = { open: async () => undefined, workspace: undefined, trusted: undefined };
+			this.workspaceProvider = { open: async () => true, workspace: undefined, trusted: undefined };
 			logService.warn('Extension Host Debugging not available due to missing workspace provider.');
 		}
 
@@ -86,7 +86,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		}
 	}
 
-	async override openExtensionDevelopmentHostWindow(args: string[], _env: INullableProcessEnvironment | undefined, _debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+	override async openExtensionDevelopmentHostWindow(args: string[], _env: INullableProcessEnvironment | undefined, _debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 
 		// Add environment parameters required for debug to work
 		const environment = new Map<string, string>();
@@ -161,12 +161,12 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		}
 
 		// Open debug window as new window. Pass arguments over.
-		await this.workspaceProvider.open(debugWorkspace, {
+		const success = await this.workspaceProvider.open(debugWorkspace, {
 			reuse: false, 								// debugging always requires a new window
 			payload: Array.from(environment.entries())	// mandatory properties to enable debugging
 		});
 
-		return {};
+		return { success };
 	}
 
 	private findArgument(key: string, args: string[]): string | undefined {

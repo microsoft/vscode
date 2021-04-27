@@ -8,7 +8,8 @@ import { getNotebookEditorFromEditorPane, INotebookEditor, NotebookEditorOptions
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
-import { ICellEditOperation, ICellRange, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellEditOperation, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
@@ -19,11 +20,13 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/objects';
 
-class MainThreadEditor {
+class MainThreadNotebook {
+
 	constructor(
 		readonly editor: INotebookEditor,
 		readonly disposables: DisposableStore
 	) { }
+
 	dispose() {
 		this.disposables.dispose();
 	}
@@ -34,7 +37,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _mainThreadEditors = new Map<string, MainThreadEditor>();
+	private readonly _mainThreadEditors = new Map<string, MainThreadNotebook>();
 
 	private _currentViewColumnInfo?: INotebookEditorViewColumnInfo;
 
@@ -75,18 +78,8 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 				this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { selections: { selections: editor.getSelections() } });
 			}));
 
-			editorDisposables.add(editor.onDidChangeKernel(() => {
-				if (!editor.hasModel()) {
-					return;
-				}
-				this._proxy.$acceptNotebookActiveKernelChange({
-					uri: editor.viewModel.uri,
-					providerHandle: editor.activeKernel?.providerHandle,
-					kernelFriendlyId: editor.activeKernel?.friendlyId
-				});
-			}));
-
-			this._mainThreadEditors.set(editor.getId(), new MainThreadEditor(editor, editorDisposables));
+			const wrapper = new MainThreadNotebook(editor, editorDisposables);
+			this._mainThreadEditors.set(editor.getId(), wrapper);
 		}
 	}
 
@@ -128,9 +121,11 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		return editor.textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
 	}
 
+
+
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
 		const editorOptions = new NotebookEditorOptions({
-			cellSelections: options.selection && [options.selection],
+			cellSelections: options.selections,
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
 			// selection: options.selection,

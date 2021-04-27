@@ -27,8 +27,6 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	private _variableResolverPromise: Promise<ExtHostVariableResolverService>;
 	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
-	// TODO: Pull this from main side
-	private _isWorkspaceShellAllowed: boolean = false;
 	private _defaultShell: string | undefined;
 
 	constructor(
@@ -43,7 +41,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// Getting the SystemShell is an async operation, however, the ExtHost terminal service is mostly synchronous
 		// and the API `vscode.env.shell` is also synchronous. The default shell _should_ be set when extensions are
 		// starting up but if not, we run getSystemShellSync below which gets a sane default.
-		getSystemShell(platform.platform, process.env as platform.IProcessEnvironment).then(s => this._defaultShell = s);
+		getSystemShell(platform.OS, process.env as platform.IProcessEnvironment).then(s => this._defaultShell = s);
 
 		this._updateLastActiveWorkspace();
 		this._variableResolverPromise = this._updateVariableResolver();
@@ -77,44 +75,31 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
-		const fetchSetting = (key: string): { userValue: string | string[] | undefined, value: string | string[] | undefined, defaultValue: string | string[] | undefined } => {
-			const setting = configProvider
+		const fetchSetting = (key: string): string | undefined => {
+			return configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
-				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
-			return this._apiInspectConfigToPlain<string | string[]>(setting);
+				.get<string>(key.substr(key.lastIndexOf('.') + 1));
 		};
 
 		return terminalEnvironment.getDefaultShell(
 			fetchSetting,
-			this._isWorkspaceShellAllowed,
-			this._defaultShell ?? getSystemShellSync(platform.platform, process.env as platform.IProcessEnvironment),
+			this._defaultShell ?? getSystemShellSync(platform.OS, process.env as platform.IProcessEnvironment),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
-			terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver),
+			terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, process.env, this._variableResolver),
 			this._logService,
 			useAutomationShell
 		);
 	}
 
 	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
-		const fetchSetting = (key: string): { userValue: string | string[] | undefined, value: string | string[] | undefined, defaultValue: string | string[] | undefined } => {
-			const setting = configProvider
+		const fetchSetting = (key: string): string | string[] | undefined => {
+			return configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
-				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
-			return this._apiInspectConfigToPlain<string | string[]>(setting);
+				.get<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 		};
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, useAutomationShell, terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver), this._logService);
-	}
-
-	private _apiInspectConfigToPlain<T>(
-		config: { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, workspaceFolderValue?: T } | undefined
-	): { userValue: T | undefined, value: T | undefined, defaultValue: T | undefined } {
-		return {
-			userValue: config ? config.globalValue : undefined,
-			value: config ? config.workspaceValue : undefined,
-			defaultValue: config ? config.defaultValue : undefined,
-		};
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, useAutomationShell, terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, process.env, this._variableResolver), this._logService);
 	}
 
 	private _registerListeners(): void {
@@ -149,9 +134,5 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			shell: this.getDefaultShell(useAutomationShell, configProvider),
 			args: this.getDefaultShellArgs(useAutomationShell, configProvider)
 		};
-	}
-
-	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
-		this._isWorkspaceShellAllowed = isAllowed;
 	}
 }

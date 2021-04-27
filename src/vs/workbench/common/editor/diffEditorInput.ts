@@ -21,7 +21,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	static readonly ID = 'workbench.editors.diffEditorInput';
+	static override readonly ID = 'workbench.editors.diffEditorInput';
 
 	override get typeId(): string {
 		return DiffEditorInput.ID;
@@ -88,7 +88,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return undefined;
 	}
 
-	async override resolve(): Promise<EditorModel> {
+	override async resolve(): Promise<EditorModel> {
 
 		// Create Model - we never reuse our cached model if refresh is true because we cannot
 		// decide for the inputs within if the cached model can be reused or not. There may be

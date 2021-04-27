@@ -66,6 +66,8 @@ export namespace Schemas {
 
 	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
 
+	export const vscodeTerminal = 'vscode-terminal';
+
 	export const webviewPanel = 'webview-panel';
 
 	/**
@@ -83,6 +85,11 @@ export namespace Schemas {
 	 * files with our custom protocol handler (desktop only).
 	 */
 	export const vscodeFileResource = 'vscode-file';
+
+	/**
+	 * Scheme used for temporary resources
+	 */
+	export const tmp = 'tmp';
 }
 
 class RemoteAuthoritiesImpl {

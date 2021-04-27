@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -28,8 +28,6 @@ declare class ResizeObserver {
 
 declare const __outputNodePadding__: number;
 declare const __outputNodeLeftPadding__: number;
-declare const __previewNodePadding__: number;
-declare const __leftMargin__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -184,7 +182,7 @@ function webviewPreloads() {
 						if (observedElementInfo.output) {
 							let height = 0;
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${observedElementInfo.output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 								height = entry.contentRect.height + __outputNodePadding__ * 2;
 							} else {
 								entry.target.style.padding = `0px`;
@@ -193,8 +191,7 @@ function webviewPreloads() {
 								isOutput: true
 							});
 						} else {
-							// entry.contentRect does not include padding
-							dimensionUpdater.update(observedElementInfo.id, entry.contentRect.height + __previewNodePadding__ * 2, {
+							dimensionUpdater.update(observedElementInfo.id, entry.target.clientHeight, {
 								isOutput: false
 							});
 						}
@@ -215,7 +212,7 @@ function webviewPreloads() {
 
 	function scrollWillGoToParent(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
-			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('output_container')) {
+			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('output_container')) {
 				return false;
 			}
 
@@ -263,11 +260,6 @@ function webviewPreloads() {
 				id: outputId,
 				focusNext
 			});
-
-			setTimeout(() => { // Wait a tick to prevent the focus indicator blinking before webview blurs
-				// Move focus off the focus sink - single use
-				focusFirstFocusableInCell(cellId);
-			}, 50);
 		});
 
 		return element;
@@ -601,7 +593,7 @@ function webviewPreloads() {
 						const newElement = document.createElement('div');
 
 						newElement.id = data.cellId;
-						newElement.classList.add('output_container');
+						newElement.classList.add('cell_container');
 
 						container.appendChild(newElement);
 						cellOutputContainer = newElement;
@@ -613,10 +605,17 @@ function webviewPreloads() {
 					cellOutputContainer.style.position = 'absolute';
 					cellOutputContainer.style.top = data.cellTop + 'px';
 
+					const outputContainer = document.createElement('div');
+					outputContainer.classList.add('output_container');
+					outputContainer.style.position = 'absolute';
+					outputContainer.style.overflow = 'hidden';
+					outputContainer.style.maxHeight = '0px';
+					outputContainer.style.top = `${data.outputOffset}px`;
+
 					const outputNode = document.createElement('div');
 					outputNode.classList.add('output');
 					outputNode.style.position = 'absolute';
-					outputNode.style.top = `${data.outputOffset}px`;
+					outputNode.style.top = `0px`;
 					outputNode.style.left = data.left + 'px';
 					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
 					// outputNode.style.minHeight = '32px';
@@ -629,7 +628,8 @@ function webviewPreloads() {
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 						outputNode.innerHTML = trustedHtml as string;
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 						domEval(outputNode);
 					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
 						outputNode.innerText = `Error loading preloads:`;
@@ -642,7 +642,8 @@ function webviewPreloads() {
 							}
 						}
 						outputNode.appendChild(errList);
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 					} else {
 						const { metadata, mimeType, value } = content;
 						onDidCreateOutput.fire([data.apiNamespace, {
@@ -666,7 +667,8 @@ function webviewPreloads() {
 								};
 							},
 						} as ICreateCellInfo]);
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 					}
 
 					resizeObserver.observe(outputNode, outputId, true);
@@ -701,10 +703,10 @@ function webviewPreloads() {
 					for (const request of event.data.widgets) {
 						const widget = document.getElementById(request.outputId);
 						if (widget) {
-							widget.parentElement!.style.top = `${request.cellTop}px`;
-							widget.style.top = `${request.outputOffset}px`;
+							widget.parentElement!.parentElement!.style.top = `${request.cellTop}px`;
+							widget.parentElement!.style.top = `${request.outputOffset}px`;
 							if (request.forceDisplay) {
-								widget.parentElement!.style.visibility = 'visible';
+								widget.parentElement!.parentElement!.style.visibility = 'visible';
 							}
 						}
 					}
@@ -738,7 +740,7 @@ function webviewPreloads() {
 				break;
 			case 'hideOutput':
 				enqueueOutputAction(event.data, ({ outputId }) => {
-					const container = document.getElementById(outputId)?.parentElement;
+					const container = document.getElementById(outputId)?.parentElement?.parentElement;
 					if (container) {
 						container.style.visibility = 'hidden';
 					}
@@ -748,8 +750,8 @@ function webviewPreloads() {
 				enqueueOutputAction(event.data, ({ outputId, cellTop: top, }) => {
 					const output = document.getElementById(outputId);
 					if (output) {
-						output.parentElement!.style.visibility = 'visible';
-						output.parentElement!.style.top = top + 'px';
+						output.parentElement!.parentElement!.style.visibility = 'visible';
+						output.parentElement!.parentElement!.style.top = top + 'px';
 
 						dimensionUpdater.update(outputId, output.clientHeight, {
 							isOutput: true,
@@ -757,6 +759,16 @@ function webviewPreloads() {
 					}
 				});
 				break;
+			case 'ack-dimension':
+				{
+					const { outputId, height } = event.data;
+					const output = document.getElementById(outputId);
+					if (output) {
+						output.parentElement!.style.maxHeight = `${height}px`;
+						output.parentElement!.style.height = `${height}px`;
+					}
+					break;
+				}
 			case 'preload':
 				const resources = event.data.resources;
 				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
@@ -882,6 +894,9 @@ function webviewPreloads() {
 		});
 	}
 
+	let hasPostedRenderedMathTelemetry = false;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/g;
+
 	function updateMarkdownPreview(cellId: string, content: string | undefined) {
 		const previewContainerNode = document.getElementById(cellId);
 		if (!previewContainerNode) {
@@ -902,6 +917,21 @@ function webviewPreloads() {
 					element: previewNode,
 					content: content
 				}]);
+
+				if (!hasPostedRenderedMathTelemetry) {
+					const hasRenderedMath = previewNode.querySelector('.katex');
+					if (hasRenderedMath) {
+						hasPostedRenderedMathTelemetry = true;
+						postNotebookMessage<ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+					}
+				}
+
+				const matches = previewNode.innerText.match(unsupportedKatexTermsRegex);
+				if (matches) {
+					postNotebookMessage<ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+						latexDirective: matches[0],
+					});
+				}
 			}
 		}
 
@@ -988,12 +1018,8 @@ function webviewPreloads() {
 export function preloadsScriptStr(values: {
 	outputNodePadding: number;
 	outputNodeLeftPadding: number;
-	previewNodePadding: number;
-	leftMargin: number;
 }) {
 	return `(${webviewPreloads})()`
 		.replace(/__outputNodePadding__/g, `${values.outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`)
-		.replace(/__previewNodePadding__/g, `${values.previewNodePadding}`)
-		.replace(/__leftMargin__/g, `${values.leftMargin}`);
+		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`);
 }

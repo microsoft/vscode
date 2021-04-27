@@ -11,7 +11,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_BOTTOM_PADDING, EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR } from 'vs/workbench/contrib/notebook/browser/constants';
-import { EditorTopPaddingChangeEvent, getEditorTopPadding, getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EditorTopPaddingChangeEvent, getEditorTopPadding, getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -143,7 +143,8 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			menu: [{
 				id: MenuId.EditorTitle,
 				group: 'LineNumber',
-				order: 0
+				order: 0,
+				when: NOTEBOOK_IS_ACTIVE_EDITOR
 			}],
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			f1: true,
@@ -174,7 +175,7 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [{
 				id: MenuId.NotebookCellTitle,
-				group: 'LineNumber',
+				group: 'View',
 				order: 1
 			}],
 			toggled: ContextKeyExpr.or(

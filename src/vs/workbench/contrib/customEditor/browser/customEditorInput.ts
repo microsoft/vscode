@@ -51,7 +51,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		});
 	}
 
-	public static typeId = 'workbench.editors.webviewEditor';
+	public static override readonly typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
 	private _defaultDirtyState: boolean | undefined;
@@ -102,6 +102,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this === other || (other instanceof CustomEditorInput
 			&& this.viewType === other.viewType
 			&& isEqual(this.resource, other.resource));
+	}
+
+	override copy(): IEditorInput {
+		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
 	}
 
 	@memoize
@@ -159,7 +163,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._modelRef.object.isDirty();
 	}
 
-	public async override save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -176,7 +180,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this;
 	}
 
-	public async override saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -194,7 +198,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this.rename(groupId, target)?.editor;
 	}
 
-	public async override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	public override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		if (this._modelRef) {
 			return this._modelRef.object.revert(options);
 		}
@@ -202,7 +206,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._onDidChangeDirty.fire();
 	}
 
-	public async override resolve(): Promise<null> {
+	public override async resolve(): Promise<null> {
 		await super.resolve();
 
 		if (this.isDisposed()) {

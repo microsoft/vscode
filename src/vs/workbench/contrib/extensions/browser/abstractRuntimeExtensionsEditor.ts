@@ -477,7 +477,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 		super(id, label);
 	}
 
-	public async override run(e?: any): Promise<any> {
+	public override async run(e?: any): Promise<any> {
 		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
 	}
 }

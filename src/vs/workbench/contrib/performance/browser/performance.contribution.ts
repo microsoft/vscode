@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as Input, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -21,7 +21,7 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 	LifecyclePhase.Ready
 );
 
-Registry.as<IEditorInputFactoryRegistry>(Input.EditorInputFactories).registerEditorInputSerializer(
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
 	PerfviewInput.Id,
 	class implements IEditorInputSerializer {
 		canSerialize(): boolean {

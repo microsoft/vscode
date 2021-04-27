@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { isMacintosh, isWindows, Platform } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const terminalProfileSchema: IJSONSchema = {
@@ -59,6 +59,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.automationShell.linux': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -67,6 +70,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.automationShell.osx': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.osx',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -75,6 +81,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.automationShell.windows': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.windows',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -83,6 +92,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.shellArgs.linux': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
@@ -91,6 +103,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: []
 		},
 		'terminal.integrated.shellArgs.osx': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
@@ -102,6 +117,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: ['-l']
 		},
 		'terminal.integrated.shellArgs.windows': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			'anyOf': [
 				{
@@ -119,6 +137,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: []
 		},
 		'terminal.integrated.profiles.windows': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profiles.windows',
@@ -178,6 +199,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.profiles.osx': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.osx',
@@ -188,7 +212,8 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'bash': {
-					path: 'bash'
+					path: 'bash',
+					icon: 'terminal-bash'
 				},
 				'zsh': {
 					path: 'zsh'
@@ -213,6 +238,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.profiles.linux': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.linux',
@@ -247,21 +275,56 @@ export const terminalConfiguration: IConfigurationNode = {
 				]
 			}
 		},
+		'terminal.integrated.defaultProfile.linux': {
+			description: localize('terminal.integrated.defaultProfile.linux', 'The default profile used on Linux. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			type: ['string', 'null'],
+			default: null,
+			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
+		},
+		'terminal.integrated.defaultProfile.osx': {
+			description: localize('terminal.integrated.defaultProfile.osx', 'The default profile used on macOS. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			type: ['string', 'null'],
+			default: null,
+			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
+		},
+		'terminal.integrated.defaultProfile.windows': {
+			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			type: ['string', 'null'],
+			default: null,
+			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
+		},
 		'terminal.integrated.useWslProfiles': {
 			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.showTabs': {
-			description: localize('terminal.integrated.showTabs', 'Controls whether or not the terminal tabs widget is shown'),
+		'terminal.integrated.tabs.enabled': {
+			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
 			type: 'boolean',
-			default: false
+			default: true,
 		},
-		'terminal.integrated.tabsLocation': {
-			'type': 'string',
-			'enum': ['left', 'right'],
-			'default': 'left',
-			'description': localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either left or right of the terminal container.")
+		'terminal.integrated.tabs.hideForSingle': {
+			description: localize('terminal.integrated.tabs.hideForSingle', 'Hides the terminal tabs view when there is only a single terminal instance.'),
+			type: 'boolean',
+			default: true
+		},
+		'terminal.integrated.tabs.showActiveTerminal': {
+			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),
+			type: 'string',
+			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
+			default: 'singleTerminalOrNarrow',
+		},
+		'terminal.integrated.tabs.location': {
+			type: 'string',
+			enum: ['left', 'right'],
+			default: 'right',
+			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
+		},
+		'terminal.integrated.tabs.focusMode': {
+			type: 'string',
+			enum: ['singleClick', 'doubleClick'],
+			default: 'doubleClick',
+			description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
@@ -327,6 +390,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaY` of mouse wheel scroll events."),
 			type: 'number',
 			default: 1
+		},
+		'terminal.integrated.bellDuration': {
+			markdownDescription: localize('terminal.integrated.bellDuration', "The number of milliseconds to show the bell within a terminal tab when triggered."),
+			type: 'number',
+			default: 1000
 		},
 		'terminal.integrated.fontWeight': {
 			'anyOf': [
@@ -431,7 +499,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.enableBell': {
-			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled."),
+			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
 			type: 'boolean',
 			default: false
 		},
@@ -459,6 +527,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.env.osx': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -467,6 +538,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: {}
 		},
 		'terminal.integrated.env.linux': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -475,6 +549,9 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: {}
 		},
 		'terminal.integrated.env.windows': {
+			requireTrust: true,
+			// TODO: Remove when workspace trust is enabled by default
+			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -596,16 +673,25 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 		type: 'object',
 		properties: {
 			'terminal.integrated.shell.linux': {
+				requireTrust: true,
+				// TODO: Remove when workspace trust is enabled by default
+				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: linux,
 				type: ['string', 'null'],
 				default: null
 			},
 			'terminal.integrated.shell.osx': {
+				requireTrust: true,
+				// TODO: Remove when workspace trust is enabled by default
+				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: osx,
 				type: ['string', 'null'],
 				default: null
 			},
 			'terminal.integrated.shell.windows': {
+				requireTrust: true,
+				// TODO: Remove when workspace trust is enabled by default
+				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: windows,
 				type: ['string', 'null'],
 				default: null
@@ -621,9 +707,9 @@ export function getNoDefaultTerminalShellConfiguration(): IConfigurationNode {
 		localize('terminal.integrated.shell.windows.noDefault', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."));
 }
 
-export async function getTerminalShellConfiguration(getSystemShell: (p: Platform) => Promise<string>): Promise<IConfigurationNode> {
+export async function getTerminalShellConfiguration(getSystemShell: (os: OperatingSystem) => Promise<string>): Promise<IConfigurationNode> {
 	return getTerminalShellConfigurationStub(
-		localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Linux)),
-		localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Mac)),
-		localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Windows)));
+		localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(OperatingSystem.Linux)),
+		localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(OperatingSystem.Macintosh)),
+		localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(OperatingSystem.Windows)));
 }

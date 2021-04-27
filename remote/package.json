@@ -13,12 +13,12 @@
     "jschardet": "2.3.0",
     "minimist": "^1.2.5",
     "native-watchdog": "1.3.0",
-    "node-pty": "0.10.0-beta19",
+    "node-pty": "0.10.1",
     "nsfw": "2.1.2",
     "spdlog": "^0.11.1",
     "tas-client-umd": "0.1.4",
     "vscode-oniguruma": "1.3.1",
-    "vscode-proxy-agent": "^0.8.2",
+    "vscode-proxy-agent": "^0.11.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-ripgrep": "^1.11.3",
     "vscode-textmate": "5.2.0",
@@ -30,7 +30,6 @@
     "yazl": "^2.4.3"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "0.3.0",
     "vscode-windows-registry": "1.0.2",
     "windows-process-tree": "0.2.4"
   }

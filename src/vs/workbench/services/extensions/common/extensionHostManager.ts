@@ -71,7 +71,7 @@ export class ExtensionHostManager extends Disposable {
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
 			(err) => {
-				console.error('Error received from starting extension host');
+				console.error(`Error received from starting extension host (kind: ${this.kind})`);
 				console.error(err);
 				return null;
 			}

@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEncodingSupport, ISaveOptions, IModeSupport } from 'vs/workbench/common/editor';
+import { ISaveOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { ITextModel } from 'vs/editor/common/model';
+import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -23,6 +24,8 @@ import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getCharContainingOffset } from 'vs/base/common/strings';
+import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
+import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -73,6 +76,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
+	//#region Events
+
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
@@ -87,6 +92,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
+
+	//#endregion
+
+	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
@@ -119,7 +128,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		private preferredEncoding: string | undefined,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -237,6 +246,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return false;
 	}
 
+
+	//#region Dirty
+
 	isDirty(): boolean {
 		return this.dirty;
 	}
@@ -249,6 +261,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this.dirty = dirty;
 		this._onDidChangeDirty.fire();
 	}
+
+	//#endregion
+
+
+	//#region Save / Revert / Backup
 
 	async save(options?: ISaveOptions): Promise<boolean> {
 		const target = await this.textFileService.save(this.resource, options);
@@ -269,25 +286,44 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-		return { content: withNullAsUndefined(this.createSnapshot()) };
+
+		// Fill in content the same way we would do when
+		// saving the file via the text file service
+		// encoding support (hardcode UTF-8)
+		const content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+
+		return { content };
 	}
 
-	async override resolve(): Promise<void> {
+	//#endregion
 
-		// Check for backups
-		const backup = await this.backupFileService.resolve(this.resource);
 
-		let untitledContents: ITextBufferFactory;
-		if (backup) {
-			untitledContents = backup.value;
-		} else {
-			untitledContents = createTextBufferFactory(this.initialValue || '');
-		}
+	//#region Resolve
+
+	override async resolve(): Promise<void> {
 
 		// Create text editor model if not yet done
 		let createdUntitledModel = false;
+		let hasBackup = false;
 		if (!this.textEditorModel) {
-			this.createTextEditorModel(untitledContents, this.resource, this.preferredMode);
+			let untitledContents: VSBufferReadableStream;
+
+			// Check for backups or use initial value or empty
+			const backup = await this.workingCopyBackupService.resolve(this);
+			if (backup) {
+				untitledContents = backup.value;
+				hasBackup = true;
+			} else {
+				untitledContents = bufferToStream(VSBuffer.fromString(this.initialValue || ''));
+			}
+
+			// Determine untitled contents based on backup
+			// or initial value. We must use text file service
+			// to create the text factory to respect encodings
+			// accordingly.
+			const untitledContentsFactory = await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, untitledContents, { encoding: UTF8 }));
+
+			this.createTextEditorModel(untitledContentsFactory, this.resource, this.preferredMode);
 			createdUntitledModel = true;
 		}
 
@@ -308,16 +344,16 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		if (createdUntitledModel) {
 
 			// Name
-			if (backup || this.initialValue) {
+			if (hasBackup || this.initialValue) {
 				this.updateNameFromFirstLine(textEditorModel);
 			}
 
 			// Untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this.hasAssociatedFilePath || !!backup || !!this.initialValue);
+			this.setDirty(this.hasAssociatedFilePath || !!hasBackup || !!this.initialValue);
 
 			// If we have initial contents, make sure to emit this
 			// as the appropiate events to the outside.
-			if (backup || this.initialValue) {
+			if (hasBackup || this.initialValue) {
 				this._onDidChangeContent.fire();
 			}
 		}
@@ -383,4 +419,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this._onDidChangeName.fire();
 		}
 	}
+
+	//#endregion
 }

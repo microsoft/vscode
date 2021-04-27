@@ -24,7 +24,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath, dirname, basename } from 'vs/base/common/resources';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -45,7 +45,6 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
-import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -263,13 +262,14 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('add folders triggers change event', async () => {
 		const target = sinon.spy();
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 
 		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
 		await testObject.addFolders(addedFolders);
 
-		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
 		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
 		assert.deepStrictEqual(actual_1.removed, []);
 		assert.deepStrictEqual(actual_1.changed, []);
@@ -285,12 +285,13 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('remove folders triggers change event', async () => {
 		const target = sinon.spy();
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		const removedFolder = testObject.getWorkspace().folders[0];
 		await testObject.removeFolders([removedFolder.uri]);
 
-		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
 		assert.deepStrictEqual(actual_1.added, []);
 		assert.deepStrictEqual(actual_1.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
 		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
@@ -318,13 +319,14 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('update folders (remove last and add to end)', async () => {
 		const target = sinon.spy();
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
 		const removedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
 		await testObject.updateFolders(addedFolders, removedFolders);
 
-		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
 		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
 		assert.deepStrictEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
 		assert.deepStrictEqual(actual_1.changed, []);
@@ -332,13 +334,14 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('update folders (rename first via add and remove)', async () => {
 		const target = sinon.spy();
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		const addedFolders = [{ uri: joinPath(ROOT, 'a'), name: 'The Folder' }];
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
 		await testObject.updateFolders(addedFolders, removedFolders, 0);
 
-		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
 		assert.deepStrictEqual(actual_1.added, []);
 		assert.deepStrictEqual(actual_1.removed, []);
 		assert.deepStrictEqual(actual_1.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
@@ -346,14 +349,15 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('update folders (remove first and add to end)', async () => {
 		const target = sinon.spy();
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
 		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
 		const changedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
 		await testObject.updateFolders(addedFolders, removedFolders);
 
-		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
 		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
 		assert.deepStrictEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
 		assert.deepStrictEqual(actual_1.changed.map(r_2 => r_2.uri.toString()), changedFolders.map(a_2 => a_2.toString()));
@@ -361,13 +365,14 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('reorder folders trigger change event', async () => {
 		const target = sinon.spy();
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.path }, { path: testObject.getWorkspace().folders[0].uri.path }] };
 		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
 		assert.deepStrictEqual(actual_1.added, []);
 		assert.deepStrictEqual(actual_1.removed, []);
 		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
@@ -375,13 +380,14 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 	test('rename folders trigger change event', async () => {
 		const target = sinon.spy();
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.path, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.path }] };
 		fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
+		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
+		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
 		assert.deepStrictEqual(actual_1.added, []);
 		assert.deepStrictEqual(actual_1.removed, []);
 		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
@@ -450,7 +456,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	teardown(() => disposables.clear());
 
-	test('initialize a folder workspace from an empty workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with no configuration changes', async () => {
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
@@ -458,6 +464,7 @@ suite('WorkspaceService - Initialization', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
 		testObject.onDidChangeWorkspaceName(target);
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		testObject.onDidChangeConfiguration(target);
 
@@ -465,16 +472,16 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(convertToWorkspacePayload(folder));
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'userValue');
-		assert.strictEqual(target.callCount, 3);
+		assert.strictEqual(target.callCount, 4);
 		assert.deepStrictEqual(target.args[0], [WorkbenchState.FOLDER]);
 		assert.deepStrictEqual(target.args[1], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(f => f.uri.toString()), [folder.toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(f => f.uri.toString()), [folder.toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 
 	});
 
-	test('initialize a folder workspace from an empty workspace with configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with configuration changes', async () => {
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
@@ -482,6 +489,7 @@ suite('WorkspaceService - Initialization', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
 		testObject.onDidChangeWorkspaceName(target);
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		testObject.onDidChangeConfiguration(target);
 
@@ -490,17 +498,17 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(convertToWorkspacePayload(folder));
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue');
-		assert.strictEqual(target.callCount, 4);
+		assert.strictEqual(target.callCount, 5);
 		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.FOLDER]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(f => f.uri.toString()), [folder.toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(f => f.uri.toString()), [folder.toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
 
 	});
 
-	test('initialize a multi root workspace from an empty workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a multi root workspace from an empty workspace with no configuration changes', async () => {
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
@@ -508,21 +516,22 @@ suite('WorkspaceService - Initialization', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
 		testObject.onDidChangeWorkspaceName(target);
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		testObject.onDidChangeConfiguration(target);
 
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
-		assert.strictEqual(target.callCount, 3);
+		assert.strictEqual(target.callCount, 4);
 		assert.deepStrictEqual(target.args[0], [WorkbenchState.WORKSPACE]);
 		assert.deepStrictEqual(target.args[1], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 
 	});
 
-	test('initialize a multi root workspace from an empty workspace with configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a multi root workspace from an empty workspace with configuration changes', async () => {
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
@@ -530,6 +539,7 @@ suite('WorkspaceService - Initialization', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
 		testObject.onDidChangeWorkspaceName(target);
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		testObject.onDidChangeConfiguration(target);
 
@@ -537,17 +547,17 @@ suite('WorkspaceService - Initialization', () => {
 		await fileService.writeFile(joinPath(ROOT, 'b', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting2": "workspaceValue2" }'));
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
-		assert.strictEqual(target.callCount, 4);
+		assert.strictEqual(target.callCount, 5);
 		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
 
 	});
 
-	test('initialize a folder workspace from a folder workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a folder workspace from a folder workspace with no configuration changes', async () => {
 
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
@@ -555,25 +565,27 @@ suite('WorkspaceService - Initialization', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
 		testObject.onDidChangeWorkspaceName(target);
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		testObject.onDidChangeConfiguration(target);
 
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'b')));
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'userValue');
-		assert.strictEqual(target.callCount, 1);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).changed, []);
+		assert.strictEqual(target.callCount, 2);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).changed, []);
 
 	});
 
-	test('initialize a folder workspace from a folder workspace with configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a folder workspace from a folder workspace with configuration changes', async () => {
 
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
 		testObject.onDidChangeWorkspaceName(target);
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		testObject.onDidChangeConfiguration(target);
 
@@ -581,32 +593,33 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'b')));
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
-		assert.strictEqual(target.callCount, 2);
+		assert.strictEqual(target.callCount, 3);
 		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).changed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
 
 	});
 
-	test('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', async () => {
+	(isMacintosh ? test.skip : test)('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', async () => {
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
 		testObject.onDidChangeWorkspaceName(target);
+		testObject.onWillChangeWorkspaceFolders(target);
 		testObject.onDidChangeWorkspaceFolders(target);
 		testObject.onDidChangeConfiguration(target);
 
 		await fileService.writeFile(joinPath(ROOT, 'a', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue2" }'));
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
-		assert.strictEqual(target.callCount, 4);
+		assert.strictEqual(target.callCount, 5);
 		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
 	});
 
 });
@@ -1110,14 +1123,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is read from workspace when workspace is trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.strictEqual(testObject.unTrustedSettings.all, undefined);
+		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
@@ -1125,16 +1138,16 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is not read from workspace when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
-		assert.deepStrictEqual(testObject.unTrustedSettings.all, ['configurationService.folder.untrustedSetting']);
+		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.folder.untrustedSetting'));
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.folder.untrustedSetting']);
@@ -1143,29 +1156,29 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('change event is triggered when workspace is changed to untrusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		const event = await promise;
-		assert.deepStrictEqual(event.affectedKeys, ['configurationService.folder.untrustedSetting']);
+		assert.ok(event.affectedKeys.includes('configurationService.folder.untrustedSetting'));
 		assert.ok(event.affectsConfiguration('configurationService.folder.untrustedSetting'));
 	});
 
 	test('untrusted setting is not read from workspace when workspace is not trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
-		assert.deepStrictEqual(testObject.unTrustedSettings.all, ['configurationService.folder.untrustedSetting']);
+		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.folder.untrustedSetting'));
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.folder.untrustedSetting']);
@@ -1174,16 +1187,16 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is read when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.strictEqual(testObject.unTrustedSettings.all, undefined);
+		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
@@ -1191,23 +1204,23 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('change event is triggered when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		const event = await promise;
-		assert.deepStrictEqual(event.affectedKeys, ['configurationService.folder.untrustedSetting']);
+		assert.ok(event.affectedKeys.includes('configurationService.folder.untrustedSetting'));
 		assert.ok(event.affectsConfiguration('configurationService.folder.untrustedSetting'));
 	});
 
 	test('adding an untrusted setting triggers change event', async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		const promise = Event.toPromise(testObject.onDidChangeUntrustdSettings);
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
@@ -1829,7 +1842,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('untrusted setting is read from workspace folders when workspace is trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting1": "userValue", "configurationService.workspace.testUntrustedSetting2": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testUntrustedSetting1': 'workspaceValue' } }], true);
@@ -1838,7 +1851,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'workspaceValue');
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'workspaceFolder2Value');
-		assert.strictEqual(testObject.unTrustedSettings.all, undefined);
+		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
@@ -1846,7 +1859,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('untrusted setting is not read from workspace when workspace is not trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting1": "userValue", "configurationService.workspace.testUntrustedSetting2": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testUntrustedSetting1': 'workspaceValue' } }], true);
@@ -1855,7 +1868,8 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'userValue');
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'userValue');
-		assert.deepStrictEqual(testObject.unTrustedSettings.all, ['configurationService.workspace.testUntrustedSetting1', 'configurationService.workspace.testUntrustedSetting2']);
+		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.workspace.testUntrustedSetting1'));
+		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.workspace.testUntrustedSetting2'));
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.workspace.testUntrustedSetting1']);

@@ -50,6 +50,7 @@ export async function loadLocalResource(
 		extensionLocation: URI | undefined;
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
+		useRemoteAuthority?: string;
 	},
 	fileService: IFileService,
 	requestService: IRequestService,
@@ -58,7 +59,7 @@ export async function loadLocalResource(
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.extensionLocation);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.extensionLocation, options.useRemoteAuthority);
 
 	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -118,22 +119,23 @@ function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
 	extensionLocation: URI | undefined,
+	useRemoteAuthority: string | undefined
 ): URI | undefined {
 	for (const root of roots) {
 		if (containsResource(root, requestUri)) {
-			return normalizeResourcePath(requestUri, extensionLocation);
+			return normalizeResourcePath(requestUri, extensionLocation, useRemoteAuthority);
 		}
 	}
 
 	return undefined;
 }
 
-function normalizeResourcePath(resource: URI, extensionLocation: URI | undefined): URI {
+function normalizeResourcePath(resource: URI, extensionLocation: URI | undefined, useRemoteAuthority: string | undefined): URI {
 	// If we are loading a file resource from a webview created by a remote extension, rewrite the uri to go remote
-	if (resource.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote) {
+	if (useRemoteAuthority || (resource.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote)) {
 		return URI.from({
 			scheme: Schemas.vscodeRemote,
-			authority: extensionLocation.authority,
+			authority: useRemoteAuthority ?? extensionLocation!.authority,
 			path: '/vscode-resource',
 			query: JSON.stringify({
 				requestResourcePath: resource.path

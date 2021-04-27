@@ -301,7 +301,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		super();
 	}
 
-	async override runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	override async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -1439,9 +1439,9 @@ registerAction2(ExpandAllRepositoriesAction);
 
 class SCMInputWidget extends Disposable {
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
-		[InputValidationType.Information]: 15000,
-		[InputValidationType.Warning]: 18000,
-		[InputValidationType.Error]: 20000
+		[InputValidationType.Information]: 5000,
+		[InputValidationType.Warning]: 8000,
+		[InputValidationType.Error]: 10000
 	};
 
 	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
@@ -1541,7 +1541,7 @@ class SCMInputWidget extends Disposable {
 			this.inputEditor.setPosition(position);
 			this.inputEditor.revealPositionInCenterIfOutsideViewport(position);
 		}));
-		this.repositoryDisposables.add(input.onDidChangeFocus(() => this.inputEditor.focus()));
+		this.repositoryDisposables.add(input.onDidChangeFocus(() => this.focus()));
 		this.repositoryDisposables.add(input.onDidChangeValidationMessage((e) => this.setValidation(e, { focus: true, timeout: true })));
 
 		// Keep API in sync with model, update placeholder visibility and validate
@@ -1608,10 +1608,11 @@ class SCMInputWidget extends Disposable {
 		}
 
 		this.validation = validation;
-		if (options?.focus) {
-			this.inputEditor.focus();
-		}
 		this.renderValidation();
+
+		if (options?.focus && !this.hasFocus()) {
+			this.focus();
+		}
 
 		if (validation && options?.timeout) {
 			this._validationTimer = setTimeout(() => this.setValidation(undefined), SCMInputWidget.ValidationTimeouts[validation.type]);
