@@ -810,7 +810,7 @@ export interface INotebookDiffResult {
 export interface INotebookCellStatusBarItem {
 	readonly alignment: CellStatusbarAlignment;
 	readonly priority?: number;
-	readonly text?: string;
+	readonly text: string;
 	readonly color?: string | ThemeColor;
 	readonly backgroundColor?: string | ThemeColor;
 	readonly tooltip?: string;
