@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as platform from 'vs/base/common/platform';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -14,6 +13,9 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostD
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
+import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { Codicon } from 'vs/base/common/codicons';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
@@ -22,10 +24,10 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, fsProvi
 		existsFile: pfs.SymlinkSupport.existsFile,
 		readFile: fs.promises.readFile
 	};
-	if (platform.isWindows) {
+	if (isWindows) {
 		return detectAvailableWindowsProfiles(configuredProfilesOnly, fsProvider, logService, config?.useWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder);
 	}
-	return detectAvailableUnixProfiles(fsProvider, logService, configuredProfilesOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
+	return detectAvailableUnixProfiles(fsProvider, logService, configuredProfilesOnly, isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
 }
 
 async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, fsProvider: IFsProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
@@ -48,7 +50,16 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 
 	// Add auto detected profiles
 	if (!configuredProfilesOnly) {
-		detectedProfiles.set('PowerShell', { source: ProfileSource.Pwsh, isAutoDetected: true });
+		detectedProfiles.set('PowerShell', {
+			source: ProfileSource.Pwsh,
+			icon: Codicon.terminalPowershell.id,
+			isAutoDetected: true
+		});
+		detectedProfiles.set('Windows PowerShell', {
+			path: `${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`,
+			icon: Codicon.terminalPowershell.id,
+			isAutoDetected: true
+		});
 		detectedProfiles.set('Git Bash', { source: ProfileSource.GitBash, isAutoDetected: true });
 		detectedProfiles.set('Cygwin', {
 			path: [
@@ -60,7 +71,8 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 		});
 		detectedProfiles.set('Command Prompt',
 			{
-				path: [`${system32Path}\\cmd.exe`],
+				path: `${system32Path}\\cmd.exe`,
+				icon: Codicon.terminalCmd.id,
 				isAutoDetected: true
 			},
 		);
@@ -103,7 +115,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 			icon = profile.icon || source.icon;
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
-			args = platform.isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
+			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
 			icon = profile.icon;
 		}
 
@@ -112,7 +124,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		for (let i = 0; i < paths.length; i++) {
 			paths[i] = await variableResolver?.resolveAsync(workspaceFolder, paths[i]) || paths[i];
 		}
-		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.overrideName, profile.isAutoDetected, logService);
+		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			validatedProfile.icon = icon;
@@ -141,21 +153,11 @@ async function initializeWindowsProfiles(): Promise<void> {
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
 		],
 		args: ['--login']
-	}
-	);
-	profileSources.set('Cygwin', {
-		profileName: 'Cygwin',
-		paths: [
-			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
-		],
-		args: ['--login']
 	});
-
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
 		paths: await getPowershellPaths(),
-		icon: 'plug'
+		icon: 'terminal-powershell'
 	});
 }
 
@@ -173,7 +175,7 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 	if (useWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
 			// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
-			cp.exec('wsl.exe -l', { encoding: 'utf16le' }, (err, stdout) => {
+			cp.exec('wsl.exe -l -q', { encoding: 'utf16le' }, (err, stdout) => {
 				if (err) {
 					return reject('Problem occurred when getting wsl distros');
 				}
@@ -183,12 +185,7 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 		if (distroOutput) {
 			const regex = new RegExp(/[\r?\n]/);
 			const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
-			// don't need the Windows Subsystem for Linux Distributions header
-			distroNames.shift();
 			for (let distroName of distroNames) {
-				// Remove default from distro name
-				distroName = distroName.replace(/ \(Default\)$/, '');
-
 				// Skip empty lines
 				if (distroName === '') {
 					continue;
@@ -206,12 +203,13 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 					path: wslPath,
 					args: [`-d`, `${distroName}`]
 				};
-				// TODO: Use proper icons
 				if (distroName.includes('Ubuntu')) {
-					profile.icon = 'ruby';
+					profile.icon = 'terminal-ubuntu';
 				}
-				if (distroName.includes('Debian')) {
-					profile.icon = 'star-full';
+				else if (distroName.includes('Debian')) {
+					profile.icon = 'terminal-debian';
+				} else {
+					profile.icon = 'terminal-linux';
 				}
 
 				// Add the profile
@@ -261,16 +259,16 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProf
 	}
 }
 
-async function validateProfilePaths(profileName: string, potentialPaths: string[], fsProvider: IFsProvider, args?: string[] | string, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, potentialPaths: string[], fsProvider: IFsProvider, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
 	const path = potentialPaths.shift()!;
 	if (path === '') {
-		return validateProfilePaths(profileName, potentialPaths, fsProvider, args, overrideName, isAutoDetected);
+		return validateProfilePaths(profileName, potentialPaths, fsProvider, args, env, overrideName, isAutoDetected);
 	}
 
-	const profile = { profileName, path, args, overrideName, isAutoDetected };
+	const profile: ITerminalProfile = { profileName, path, args, env, overrideName, isAutoDetected };
 
 	// For non-absolute paths, check if it's available on $PATH
 	if (basename(path) === path) {
@@ -288,7 +286,7 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 		return profile;
 	}
 
-	return validateProfilePaths(profileName, potentialPaths, fsProvider, args, overrideName, isAutoDetected);
+	return validateProfilePaths(profileName, potentialPaths, fsProvider, args, env, overrideName, isAutoDetected);
 }
 
 export interface IFsProvider {

@@ -113,7 +113,7 @@ export class VariablesView extends ViewPane {
 		}, 400);
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -182,12 +182,12 @@ export class VariablesView extends ViewPane {
 		}));
 	}
 
-	layoutBody(width: number, height: number): void {
+	override layoutBody(width: number, height: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
 
-	focus(): void {
+	override focus(): void {
 		this.tree.domFocus();
 	}
 

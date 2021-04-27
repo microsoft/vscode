@@ -63,7 +63,11 @@ export class RequestService extends Disposable implements IRequestService {
 		this.logService.trace('RequestService#request', options.url);
 
 		const { proxyUrl, strictSSL } = this;
-		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', await resolveShellEnv(this.logService, this.environmentService.args, process.env), { proxyUrl, strictSSL });
+		const env = {
+			...process.env,
+			...(await resolveShellEnv(this.logService, this.environmentService.args, process.env)),
+		};
+		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', env, { proxyUrl, strictSSL });
 
 		options.agent = agent;
 		options.strictSSL = strictSSL;

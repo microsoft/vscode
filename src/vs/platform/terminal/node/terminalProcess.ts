@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
 import type * as pty from 'node-pty';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -17,6 +16,8 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { timeout } from 'vs/base/common/async';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -44,6 +45,23 @@ const enum ShutdownConstants {
 	MaximumShutdownTime = 5000
 }
 
+const enum Constants {
+	/**
+	 * The minimum duration between kill and spawn calls on Windows/conpty as a mitigation for a
+	 * hang issue. See:
+	 * - https://github.com/microsoft/vscode/issues/71966
+	 * - https://github.com/microsoft/vscode/issues/117956
+	 * - https://github.com/microsoft/vscode/issues/121336
+	 */
+	KillSpawnThrottleInterval = 250,
+	/**
+	 * The amount of time to wait when a call is throttles beyond the exact amount, this is used to
+	 * try prevent early timeouts causing a kill/spawn call to happen at double the regular
+	 * interval.
+	 */
+	KillSpawnSpacingDuration = 50,
+}
+
 interface IWriteObject {
 	data: string,
 	isBinary: boolean
@@ -52,6 +70,8 @@ interface IWriteObject {
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
+
+	private static _lastKillOrStart = 0;
 
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
@@ -91,17 +111,17 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		cwd: string,
 		cols: number,
 		rows: number,
-		env: platform.IProcessEnvironment,
+		env: IProcessEnvironment,
 		/**
 		 * environment used for `findExecutable`
 		 */
-		private readonly _executableEnv: platform.IProcessEnvironment,
+		private readonly _executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		let name: string;
-		if (platform.isWindows) {
+		if (isWindows) {
 			name = path.basename(this._shellLaunchConfig.executable || '');
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
@@ -122,7 +142,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
 		};
 		// Delay resizes to avoid conpty not respecting very early resize calls
-		if (platform.isWindows) {
+		if (isWindows) {
 			if (useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
 				this._delayedResizer = new DelayedResizer();
 				this._register(this._delayedResizer.onTrigger(dimensions => {
@@ -193,6 +213,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				if (!executable) {
 					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 				}
+				// Set the executable explicitly here so that node-pty doesn't need to search the
+				// $PATH too.
+				slc.executable = executable;
 			}
 		}
 		return undefined;
@@ -200,6 +223,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
 		const args = shellLaunchConfig.args || [];
+		await this._throttleKillSpawn();
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
@@ -219,7 +243,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
-				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 			this._windowsShellHelper?.checkShell();
@@ -232,7 +255,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._sendProcessId(ptyProcess.pid);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposed = true;
 		if (this._titleInterval) {
 			clearInterval(this._titleInterval);
@@ -245,7 +268,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Send initial timeout async to give event listeners a chance to init
 		setTimeout(() => this._sendProcessTitle(ptyProcess), 0);
 		// Setup polling for non-Windows, for Windows `process` doesn't change
-		if (!platform.isWindows) {
+		if (!isWindows) {
 			this._titleInterval = setInterval(() => {
 				if (this._currentTitle !== ptyProcess.process) {
 					this._sendProcessTitle(ptyProcess);
@@ -277,6 +300,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// point but we want to make sure
 		try {
 			if (this._ptyProcess) {
+				await this._throttleKillSpawn();
 				this._logService.trace('IPty#kill');
 				this._ptyProcess.kill();
 			}
@@ -285,6 +309,19 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		this._onProcessExit.fire(this._exitCode || 0);
 		this.dispose();
+	}
+
+	private async _throttleKillSpawn(): Promise<void> {
+		// Only throttle on Windows/conpty
+		if (!isWindows || !('useConpty' in this._ptyOptions) || !this._ptyOptions.useConpty) {
+			return;
+		}
+		// Use a loop to ensure multiple calls in a single interval space out
+		while (Date.now() - TerminalProcess._lastKillOrStart < Constants.KillSpawnThrottleInterval) {
+			this._logService.trace('Throttling kill/spawn call');
+			await timeout(Constants.KillSpawnThrottleInterval - (Date.now() - TerminalProcess._lastKillOrStart) + Constants.KillSpawnSpacingDuration);
+		}
+		TerminalProcess._lastKillOrStart = Date.now();
 	}
 
 	private _sendProcessId(pid: number) {
@@ -300,7 +337,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public shutdown(immediate: boolean): void {
-		if (immediate) {
+		// don't force immediate disposal of the terminal processes on Windows as an additional
+		// mitigation for https://github.com/microsoft/vscode/issues/71966 which causes the pty host
+		// to become unresponsive, disconnecting all terminals across all windows.
+		if (immediate && !isWindows) {
 			this._kill();
 		} else {
 			if (!this._closeTimeout && !this._isDisposed) {
@@ -422,7 +462,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public getCwd(): Promise<string> {
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			// Disable cwd lookup on macOS Big Sur due to spawn blocking thread (darwin v20 is macOS
 			// Big Sur) https://github.com/Microsoft/vscode/issues/105446
 			const osRelease = os.release().split('.');
@@ -445,7 +485,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 		}
 
-		if (platform.isLinux) {
+		if (isLinux) {
 			return new Promise<string>(resolve => {
 				if (!this._ptyProcess) {
 					resolve(this._initialCwd);
@@ -494,7 +534,7 @@ class DelayedResizer extends Disposable {
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		clearTimeout(this._timeout);
 	}

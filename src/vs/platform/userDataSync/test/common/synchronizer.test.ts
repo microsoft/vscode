@@ -28,20 +28,20 @@ class TestSynchroniser extends AbstractSynchroniser {
 	onDoSyncCall: Emitter<void> = this._register(new Emitter<void>());
 	failWhenGettingLatestRemoteUserData: boolean = false;
 
-	readonly resource: SyncResource = SyncResource.Settings;
+	override readonly resource: SyncResource = SyncResource.Settings;
 	protected readonly version: number = 1;
 
 	private cancelled: boolean = false;
 	readonly localResource = joinPath(this.environmentService.userRoamingDataHome, 'testResource.json');
 
-	protected getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
+	protected override getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
 		if (this.failWhenGettingLatestRemoteUserData) {
 			throw new Error();
 		}
 		return super.getLatestRemoteUserData(manifest, lastSyncUserData);
 	}
 
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
+	protected override async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
 		this.cancelled = false;
 		this.onDoSyncCall.fire();
 		await this.syncBarrier.wait();
@@ -145,18 +145,18 @@ class TestSynchroniser extends AbstractSynchroniser {
 		await this.updateLastSyncUserData(remoteUserData);
 	}
 
-	async stop(): Promise<void> {
+	override async stop(): Promise<void> {
 		this.cancelled = true;
 		this.syncBarrier.open();
 		super.stop();
 	}
 
-	async triggerLocalChange(): Promise<void> {
+	override async triggerLocalChange(): Promise<void> {
 		super.triggerLocalChange();
 	}
 
 	onDidTriggerLocalChangeCall: Emitter<void> = this._register(new Emitter<void>());
-	protected async doTriggerLocalChange(): Promise<void> {
+	protected override async doTriggerLocalChange(): Promise<void> {
 		await super.doTriggerLocalChange();
 		this.onDidTriggerLocalChangeCall.fire();
 	}

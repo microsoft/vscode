@@ -14,10 +14,10 @@ import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions, getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookSearchOptions, ShowCellStatusBarKey, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -47,20 +47,34 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _editState: CellEditState = CellEditState.Preview;
 
-	get editState(): CellEditState {
-		return this._editState;
+	// get editState(): CellEditState {
+	// 	return this._editState;
+	// }
+
+	// set editState(newState: CellEditState) {
+	// 	if (newState === this._editState) {
+	// 		return;
+	// 	}
+
+	// 	this._editState = newState;
+	// 	this._onDidChangeState.fire({ editStateChanged: true });
+	// 	if (this._editState === CellEditState.Preview) {
+	// 		this.focusMode = CellFocusMode.Container;
+	// 	}
+	// }
+
+	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
+	get lineNumbers(): 'on' | 'off' | 'inherit' {
+		return this._lineNumbers;
 	}
 
-	set editState(newState: CellEditState) {
-		if (newState === this._editState) {
+	set lineNumbers(lineNumbers: 'on' | 'off' | 'inherit') {
+		if (lineNumbers === this._lineNumbers) {
 			return;
 		}
 
-		this._editState = newState;
-		this._onDidChangeState.fire({ editStateChanged: true });
-		if (this._editState === CellEditState.Preview) {
-			this.focusMode = CellFocusMode.Container;
-		}
+		this._lineNumbers = lineNumbers;
+		this._onDidChangeState.fire({ cellLineNumberChanged: true });
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -87,6 +101,11 @@ export abstract class BaseCellViewModel extends Disposable {
 	}>();
 	private _lastDecorationId: number = 0;
 
+	private _cellStatusBarItems = new Map<string, INotebookCellStatusBarItem>();
+	private _onDidChangeCellStatusBarItems = new Emitter<void>();
+	readonly onDidChangeCellStatusBarItems: Event<void> = this._onDidChangeCellStatusBarItems.event;
+	private _lastStatusBarId: number = 0;
+
 	get textModel(): model.ITextModel | undefined {
 		return this.model.textModel;
 	}
@@ -110,7 +129,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		public id: string,
-		private readonly _configurationService: IConfigurationService
+		private readonly _configurationService: IConfigurationService,
+		private readonly _modelService: ITextModelService,
 	) {
 		super();
 
@@ -122,6 +142,10 @@ export abstract class BaseCellViewModel extends Disposable {
 			if (e.affectsConfiguration(ShowCellStatusBarKey)) {
 				this.layoutChange({});
 			}
+
+			if (e.affectsConfiguration('notebook.lineNumbers')) {
+				this.lineNumbers = 'inherit';
+			}
 		}));
 	}
 
@@ -130,7 +154,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		return showCellStatusBar ? CELL_STATUSBAR_HEIGHT : 0;
 	}
 
-	// abstract resolveTextModel(): Promise<model.ITextModel>;
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
@@ -192,7 +215,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this.model.textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
@@ -306,6 +328,30 @@ export abstract class BaseCellViewModel extends Disposable {
 		return ret;
 	}
 
+	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookCellStatusBarItem[]): string[] {
+		oldItems.forEach(id => {
+			const item = this._cellStatusBarItems.get(id);
+			if (item) {
+				this._cellStatusBarItems.delete(id);
+			}
+		});
+
+		const newIds = newItems.map(item => {
+			const id = ++this._lastStatusBarId;
+			const itemId = `_cell_${this.id};${id}`;
+			this._cellStatusBarItems.set(itemId, item);
+			return itemId;
+		});
+
+		this._onDidChangeCellStatusBarItems.fire();
+
+		return newIds;
+	}
+
+	getCellStatusBarItems(): INotebookCellStatusBarItem[] {
+		return Array.from(this._cellStatusBarItems.values());
+	}
+
 	revealRangeInCenter(range: Range) {
 		this._textEditor?.revealRangeInCenter(range, editorCommon.ScrollType.Immediate);
 	}
@@ -350,34 +396,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForPosition(line, column) + getEditorTopPadding();
 	}
 
-	cursorAtBeginEnd(): boolean {
-		if (!this._textEditor) {
-			return false;
-		}
-
-		if (!this.textModel) {
-			return false;
-		}
-
-		// only validate primary cursor
-		const selection = this._textEditor.getSelection();
-
-		// only validate empty cursor
-		if (!selection || !selection.isEmpty()) {
-			return false;
-		}
-
-		if (selection.startLineNumber === 1 && selection.startColumn === 1) {
-			return true;
-		}
-
-		if (selection.startLineNumber === this.textModel?.getLineCount() && selection.startColumn === this.textModel?.getLineMaxColumn(selection.startLineNumber)) {
-			return true;
-		}
-
-		return false;
-	}
-
 	cursorAtBoundary(): CursorAtBoundary {
 		if (!this._textEditor) {
 			return CursorAtBoundary.None;
@@ -414,11 +432,50 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 	}
 
+	private _editStateSource: string = '';
+
+	get editStateSource(): string {
+		return this._editStateSource;
+	}
+
+	updateEditState(newState: CellEditState, source: string) {
+		this._editStateSource = source;
+		if (newState === this._editState) {
+			return;
+		}
+
+		this._editState = newState;
+		this._onDidChangeState.fire({ editStateChanged: true });
+		if (this._editState === CellEditState.Preview) {
+			this.focusMode = CellFocusMode.Container;
+		}
+	}
+
+	getEditState() {
+		return this._editState;
+	}
+
 	get textBuffer() {
 		return this.model.textBuffer;
 	}
 
-	abstract resolveTextModel(): Promise<model.ITextModel>;
+	/**
+	 * Text model is used for editing.
+	 */
+	async resolveTextModel(): Promise<model.ITextModel> {
+		if (!this._textModelRef || !this.textModel) {
+			this._textModelRef = await this._modelService.createModelReference(this.uri);
+			if (!this._textModelRef) {
+				throw new Error(`Cannot resolve text model for ${this.uri}`);
+			}
+
+			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+		}
+
+		return this.textModel!;
+	}
+
+	protected abstract onDidChangeTextModelContent(): void;
 
 	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
@@ -447,23 +504,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		return cellMatches;
 	}
 
-	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
-		const editable = this.metadata?.editable ??
-			documentMetadata.cellEditable;
-
-		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
-			documentMetadata.cellHasExecutionOrder;
-
-		return {
-			...(this.metadata || {}),
-			...{
-				editable,
-				hasExecutionOrder
-			}
-		};
-	}
-
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		if (this._textModelRef) {

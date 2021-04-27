@@ -1,0 +1,82 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html>
+
+<head>
+	<script>
+		performance.mark('code/didStartRenderer')
+	</script>
+	<meta charset="utf-8" />
+
+	<!-- Disable pinch zooming -->
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+	<!-- Workbench Configuration -->
+	<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
+
+	<!-- Workbench Auth Session -->
+	<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
+
+	<!-- Builtin Extensions (running out of sources) -->
+	<meta id="vscode-workbench-builtin-extensions" data-settings="{{WORKBENCH_BUILTIN_EXTENSIONS}}">
+
+	<!-- Workbench Icon/Manifest/CSS -->
+	<link rel="icon" href="{{WORKBENCH_WEB_BASE_URL}}/favicon.ico" type="image/x-icon" />
+	<link rel="manifest" href="{{WORKBENCH_WEB_BASE_URL}}/manifest.json">
+	<link data-name="vs/workbench/workbench.web.api" rel="stylesheet"
+		href="{{WORKBENCH_WEB_BASE_URL}}/out/vs/workbench/workbench.web.api.css">
+
+</head>
+
+<body aria-label="">
+</body>
+
+<!-- Startup (do not modify order of script tags!) -->
+<script>
+	var baseUrl = '{{WORKBENCH_WEB_BASE_URL}}';
+	self.require = {
+		baseUrl: `${baseUrl}/out`,
+		recordStats: true,
+		trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
+			createScriptURL(value) {
+				if (value.startsWith(baseUrl)) {
+					return value;
+				}
+				throw new Error(`Invalid script url: ${value}`)
+			}
+		}),
+		paths: {
+			'vscode-textmate': `${baseUrl}/node_modules/vscode-textmate/release/main`,
+			'vscode-oniguruma': `${baseUrl}/node_modules/vscode-oniguruma/release/main`,
+			'xterm': `${baseUrl}/node_modules/xterm/lib/xterm.js`,
+			'xterm-addon-search': `${baseUrl}/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+			'xterm-addon-unicode11': `${baseUrl}/node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
+			'xterm-addon-webgl': `${baseUrl}/node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+			'tas-client-umd': `${baseUrl}/node_modules/tas-client-umd/lib/tas-client-umd.js`,
+			'iconv-lite-umd': `${baseUrl}/node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
+			'jschardet': `${baseUrl}/node_modules/jschardet/dist/jschardet.min.js`,
+		}
+	};
+</script>
+<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/loader.js"></script>
+<script>
+	performance.mark('code/willLoadWorkbenchMain');
+
+	function injectScript(src) {
+		return new Promise((resolve, reject) => {
+			const script = document.createElement('script');
+			script.src = src;
+			script.addEventListener('load', resolve);
+			script.addEventListener('error', e => reject(e.error));
+			document.head.appendChild(script);
+		});
+	}
+
+</script>
+
+<script>
+	require(['vs/code/browser/workbench/workbench'], function () { });
+</script>
+
+</html>

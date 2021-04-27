@@ -195,15 +195,15 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 }
 
 class StderrRendererContrib extends StreamRendererContrib {
-	getType() {
+	override getType() {
 		return RenderOutputType.Mainframe;
 	}
 
-	getMimetypes() {
+	override getMimetypes() {
 		return ['application/x.notebook.stderr'];
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	override render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const result = super.render(output, items, container, notebookUri);
 		container.classList.add('error');
 		return result;

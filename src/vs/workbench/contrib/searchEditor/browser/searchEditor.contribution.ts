@@ -19,9 +19,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -34,6 +34,9 @@ import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browse
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -91,7 +94,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 					return undefined;
 				}
 
-				if (editor instanceof SearchEditorInput && group.isOpened(editor)) {
+				if (editor instanceof SearchEditorInput && group.contains(editor)) {
 					return undefined;
 				}
 
@@ -164,7 +167,7 @@ class SearchEditorInputSerializer implements IEditorInputSerializer {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
 	SearchEditorInput.ID,
 	SearchEditorInputSerializer);
 //#endregion
@@ -536,4 +539,37 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 		return openSearchEditor(accessor);
 	}
 });
+//#endregion
+
+//#region Search Editor Working Copy Editor Handler
+class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+	) {
+		super();
+
+		this.installHandler();
+	}
+
+	private installHandler(): void {
+		this._register(this.workingCopyEditorService.registerHandler({
+			handles: workingCopy => {
+				return workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme;
+			},
+			isOpen: (workingCopy, editor) => {
+				return editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri);
+			},
+			createEditor: workingCopy => {
+				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { modelUri: workingCopy.resource, config: {} });
+				input.setDirty(true);
+
+				return input;
+			}
+		}));
+	}
+}
+
+workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
 //#endregion

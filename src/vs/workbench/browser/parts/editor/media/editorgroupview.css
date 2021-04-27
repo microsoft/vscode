@@ -80,6 +80,14 @@
 	display: block;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .actions-container {
+	justify-content: flex-end;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .action-item {
+	margin-right: 6px;
+}
+
 /* Editor */
 
 .monaco-workbench .part.editor > .content .editor-group-container.empty > .editor-container  {

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_FOCUSED, INotebookEditor, NOTEBOOK_CELL_EDITOR_FOCUSED, CellFocusMode, NotebookCellExecutionStateContext } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_FOCUSED, INotebookEditor, NOTEBOOK_CELL_EDITOR_FOCUSED, CellFocusMode, NotebookCellExecutionStateContext, NOTEBOOK_CELL_LINE_NUMBERS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -21,6 +21,7 @@ export class CellContextKeyManager extends Disposable {
 	private cellHasOutputs!: IContextKey<boolean>;
 	private cellContentCollapsed!: IContextKey<boolean>;
 	private cellOutputCollapsed!: IContextKey<boolean>;
+	private cellLineNumbers!: IContextKey<'on' | 'off' | 'inherit'>;
 
 	private markdownEditMode!: IContextKey<boolean>;
 
@@ -29,7 +30,6 @@ export class CellContextKeyManager extends Disposable {
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
 		private readonly notebookEditor: INotebookEditor,
-		private readonly notebookTextModel: INotebookTextModel,
 		private element: CodeCellViewModel | MarkdownCellViewModel
 	) {
 		super();
@@ -45,6 +45,7 @@ export class CellContextKeyManager extends Disposable {
 			this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
 			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this.contextKeyService);
 			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this.contextKeyService);
+			this.cellLineNumbers = NOTEBOOK_CELL_LINE_NUMBERS.bindTo(this.contextKeyService);
 
 			this.updateForElement(element);
 		});
@@ -76,6 +77,7 @@ export class CellContextKeyManager extends Disposable {
 			this.updateForOutputs();
 
 			this.viewType.set(this.element.viewType);
+			this.cellLineNumbers.set(this.element.lineNumbers);
 		});
 	}
 
@@ -91,6 +93,10 @@ export class CellContextKeyManager extends Disposable {
 
 			if (e.focusModeChanged) {
 				this.updateForFocusState();
+			}
+
+			if (e.cellLineNumberChanged) {
+				this.cellLineNumbers.set(this.element.lineNumbers);
 			}
 
 			// if (e.collapseStateChanged) {
@@ -112,8 +118,8 @@ export class CellContextKeyManager extends Disposable {
 	}
 
 	private updateForMetadata() {
-		const metadata = this.element.getEvaluatedMetadata(this.notebookTextModel.metadata);
-		this.cellEditable.set(!!metadata.editable);
+		const metadata = this.element.metadata;
+		this.cellEditable.set(!this.notebookEditor.viewModel?.options.isReadOnly);
 
 		const runState = metadata.runState ?? NotebookCellExecutionState.Idle;
 		if (runState === NotebookCellExecutionState.Idle) {
@@ -133,7 +139,7 @@ export class CellContextKeyManager extends Disposable {
 
 	private updateForEditState() {
 		if (this.element instanceof MarkdownCellViewModel) {
-			this.markdownEditMode.set(this.element.editState === CellEditState.Editing);
+			this.markdownEditMode.set(this.element.getEditState() === CellEditState.Editing);
 		} else {
 			this.markdownEditMode.set(false);
 		}

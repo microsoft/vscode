@@ -481,9 +481,6 @@ abstract class AbstractElementRenderer extends Disposable {
 			const keys = new Set([...Object.keys(newMetadataObj)]);
 			for (let key of keys) {
 				switch (key as keyof NotebookCellMetadata) {
-					case 'breakpointMargin':
-					case 'editable':
-					case 'hasExecutionOrder':
 					case 'inputCollapsed':
 					case 'outputCollapsed':
 						// boolean
@@ -495,7 +492,6 @@ abstract class AbstractElementRenderer extends Disposable {
 						break;
 
 					case 'executionOrder':
-					case 'lastRunDuration':
 						// number
 						if (typeof newMetadataObj[key] === 'number') {
 							result[key] = newMetadataObj[key];
@@ -506,14 +502,6 @@ abstract class AbstractElementRenderer extends Disposable {
 					case 'runState':
 						// enum
 						if (typeof newMetadataObj[key] === 'number' && [1, 2, 3, 4].indexOf(newMetadataObj[key]) >= 0) {
-							result[key] = newMetadataObj[key];
-						} else {
-							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
-						}
-						break;
-					case 'statusMessage':
-						// string
-						if (typeof newMetadataObj[key] === 'string') {
 							result[key] = newMetadataObj[key];
 						} else {
 							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
@@ -745,7 +733,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this.templateData.bottomBorder.style.top = `${this.cell.layoutInfo.totalHeight - 32}px`;
 	}
 
-	dispose() {
+	override dispose() {
 		if (this._outputEditor) {
 			this.cell.saveOutputEditorViewState(this._outputEditor.saveViewState());
 		}
@@ -766,24 +754,25 @@ abstract class AbstractElementRenderer extends Disposable {
 }
 
 abstract class SingleSideDiffElement extends AbstractElementRenderer {
+
+	override readonly cell: SingleSideDiffElementViewModel;
+	override readonly templateData: CellDiffSingleSideRenderTemplate;
+
 	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideDiffElementViewModel,
-		readonly templateData: CellDiffSingleSideRenderTemplate,
-		readonly style: 'left' | 'right' | 'full',
-		protected readonly instantiationService: IInstantiationService,
-		protected readonly modeService: IModeService,
-		protected readonly modelService: IModelService,
-		protected readonly textModelService: ITextModelService,
-		protected readonly contextMenuService: IContextMenuService,
-		protected readonly keybindingService: IKeybindingService,
-		protected readonly notificationService: INotificationService,
-		protected readonly menuService: IMenuService,
-		protected readonly contextKeyService: IContextKeyService,
-		protected readonly configurationService: IConfigurationService,
-
-
-
+		notebookEditor: INotebookTextDiffEditor,
+		cell: SingleSideDiffElementViewModel,
+		templateData: CellDiffSingleSideRenderTemplate,
+		style: 'left' | 'right' | 'full',
+		instantiationService: IInstantiationService,
+		modeService: IModeService,
+		modelService: IModelService,
+		textModelService: ITextModelService,
+		contextMenuService: IContextMenuService,
+		keybindingService: IKeybindingService,
+		notificationService: INotificationService,
+		menuService: IMenuService,
+		contextKeyService: IContextKeyService,
+		configurationService: IConfigurationService,
 	) {
 		super(
 			notebookEditor,
@@ -801,13 +790,15 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			contextKeyService,
 			configurationService
 		);
+		this.cell = cell;
+		this.templateData = templateData;
 	}
 
 	init() {
 		this._diagonalFill = this.templateData.diagonalFill;
 	}
 
-	buildBody() {
+	override buildBody() {
 		const body = this.templateData.body;
 		this._diffEditorContainer = this.templateData.diffEditorContainer;
 		body.classList.remove('left', 'right', 'full');
@@ -961,19 +952,19 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 export class DeletedElement extends SingleSideDiffElement {
 	private _editor!: CodeEditorWidget;
 	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideDiffElementViewModel,
-		readonly templateData: CellDiffSingleSideRenderTemplate,
-		@IModeService readonly modeService: IModeService,
-		@IModelService readonly modelService: IModelService,
-		@ITextModelService readonly textModelService: ITextModelService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IKeybindingService protected readonly keybindingService: IKeybindingService,
-		@INotificationService protected readonly notificationService: INotificationService,
-		@IMenuService protected readonly menuService: IMenuService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		notebookEditor: INotebookTextDiffEditor,
+		cell: SingleSideDiffElementViewModel,
+		templateData: CellDiffSingleSideRenderTemplate,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 
 	) {
 		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
@@ -1004,7 +995,7 @@ export class DeletedElement extends SingleSideDiffElement {
 			}
 		}));
 
-		originalCell.textModel.resolveTextModelRef().then(ref => {
+		this.textModelService.createModelReference(originalCell.uri).then(ref => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -1101,7 +1092,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		}
 	}
 
-	dispose() {
+	override dispose() {
 		if (this._editor) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
@@ -1113,19 +1104,19 @@ export class DeletedElement extends SingleSideDiffElement {
 export class InsertElement extends SingleSideDiffElement {
 	private _editor!: CodeEditorWidget;
 	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SingleSideDiffElementViewModel,
-		readonly templateData: CellDiffSingleSideRenderTemplate,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IModeService readonly modeService: IModeService,
-		@IModelService readonly modelService: IModelService,
-		@ITextModelService readonly textModelService: ITextModelService,
-		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IKeybindingService protected readonly keybindingService: IKeybindingService,
-		@INotificationService protected readonly notificationService: INotificationService,
-		@IMenuService protected readonly menuService: IMenuService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		notebookEditor: INotebookTextDiffEditor,
+		cell: SingleSideDiffElementViewModel,
+		templateData: CellDiffSingleSideRenderTemplate,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
@@ -1157,7 +1148,7 @@ export class InsertElement extends SingleSideDiffElement {
 			}
 		}));
 
-		modifiedCell.textModel.resolveTextModelRef().then(ref => {
+		this.textModelService.createModelReference(modifiedCell.uri).then(ref => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -1251,7 +1242,7 @@ export class InsertElement extends SingleSideDiffElement {
 		});
 	}
 
-	dispose() {
+	override dispose() {
 		if (this._editor) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
@@ -1267,22 +1258,27 @@ export class ModifiedElement extends AbstractElementRenderer {
 	protected _toolbar!: ToolBar;
 	protected _menu!: IMenu;
 
+	override readonly cell: SideBySideDiffElementViewModel;
+	override readonly templateData: CellDiffSideBySideRenderTemplate;
+
 	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: SideBySideDiffElementViewModel,
-		readonly templateData: CellDiffSideBySideRenderTemplate,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IModeService readonly modeService: IModeService,
-		@IModelService readonly modelService: IModelService,
-		@ITextModelService readonly textModelService: ITextModelService,
-		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IKeybindingService protected readonly keybindingService: IKeybindingService,
-		@INotificationService protected readonly notificationService: INotificationService,
-		@IMenuService protected readonly menuService: IMenuService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		notebookEditor: INotebookTextDiffEditor,
+		cell: SideBySideDiffElementViewModel,
+		templateData: CellDiffSideBySideRenderTemplate,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		this.cell = cell;
+		this.templateData = templateData;
 	}
 
 	init() { }
@@ -1525,8 +1521,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const originalCell = this.cell.original!;
 		const modifiedCell = this.cell.modified!;
 
-		const originalRef = await originalCell.textModel.resolveTextModelRef();
-		const modifiedRef = await modifiedCell.textModel.resolveTextModelRef();
+		const originalRef = await this.textModelService.createModelReference(originalCell.uri);
+		const modifiedRef = await this.textModelService.createModelReference(modifiedCell.uri);
 
 		if (this._isDisposed) {
 			return;
@@ -1598,7 +1594,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		});
 	}
 
-	dispose() {
+	override dispose() {
 		if (this._editor) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}

@@ -40,7 +40,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		}
 	}
 
-	public hide() {
+	public override hide() {
 		super.hide();
 		this._delegate.stopFind(true);
 		this._delegate.focus();

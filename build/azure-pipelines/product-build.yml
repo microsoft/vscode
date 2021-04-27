@@ -271,7 +271,7 @@ stages:
               VSCODE_ARCH: arm64
             steps:
               - template: darwin/product-build-darwin.yml
-        - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+          - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
             - job: macOSARM64Sign
               dependsOn:
                 - macOSARM64

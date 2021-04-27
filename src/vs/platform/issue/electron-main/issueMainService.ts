@@ -11,7 +11,7 @@ import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron'
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IDiagnosticsService, PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh, IProcessEnvironment, browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
@@ -239,7 +239,7 @@ export class IssueMainService implements ICommonIssueService {
 				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
 				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
-				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
+				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, data.styles.backgroundColor, localize('processExplorer', "Process Explorer"), data.zoomLevel);
 
 				// Store into config object URL
 				processExplorerWindowConfigUrl.update({
@@ -288,8 +288,8 @@ export class IssueMainService implements ICommonIssueService {
 			backgroundColor: backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
-				v8CacheOptions: 'bypassHeatCheck',
+				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, '--context-isolation' /* TODO@bpasero: Use process.contextIsolateed when 13-x-y is adopted (https://github.com/electron/electron/pull/28030) */],
+				v8CacheOptions: browserCodeLoadingCacheStrategy,
 				enableWebSQL: false,
 				enableRemoteModule: false,
 				spellcheck: false,

@@ -465,6 +465,7 @@
 		"statusBar.noFolderBackground": "#EEE8D5",
 		// "statusBar.foreground": "",
 		"statusBarItem.remoteBackground": "#AC9D57",
+		"ports.iconRunningProcessforeground": "#2AA19899",
 		"statusBarItem.prominentBackground": "#DDD6C1",
 		"statusBarItem.prominentHoverBackground": "#DDD6C199",
 		// "statusBarItem.activeBackground": "",

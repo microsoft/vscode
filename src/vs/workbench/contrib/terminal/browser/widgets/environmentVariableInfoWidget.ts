@@ -65,7 +65,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 		});
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		this._domNode?.parentElement?.removeChild(this._domNode);
 		this._mouseMoveListener?.dispose();

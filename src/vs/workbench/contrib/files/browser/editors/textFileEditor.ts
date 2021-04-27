@@ -88,7 +88,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
+	protected override onWillCloseEditorInGroup(editor: IEditorInput): void {
 
 		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
@@ -96,15 +96,15 @@ export class TextFileEditor extends BaseTextEditor {
 		this.doSaveOrClearTextEditorViewState(editor);
 	}
 
-	getTitle(): string {
+	override getTitle(): string {
 		return this.input ? this.input.getName() : localize('textFileEditor', "Text File Editor");
 	}
 
-	get input(): FileEditorInput | undefined {
+	override get input(): FileEditorInput | undefined {
 		return this._input as FileEditorInput;
 	}
 
-	async setInput(input: FileEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: FileEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -229,7 +229,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 
 		// Update/clear editor view state in settings
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -244,7 +244,7 @@ export class TextFileEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Update/clear editor view State
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -259,7 +259,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
-		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.isOpened(input))) {
+		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input))) {
 			this.clearTextEditorViewState([input.resource], this.group);
 		}
 

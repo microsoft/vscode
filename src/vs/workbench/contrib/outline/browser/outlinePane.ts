@@ -118,18 +118,18 @@ export class OutlinePane extends ViewPane {
 		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 		this._editorDisposables.dispose();
 		this._editorListener.dispose();
 		super.dispose();
 	}
 
-	focus(): void {
+	override focus(): void {
 		this._tree?.domFocus();
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._domNode = container;
@@ -158,7 +158,7 @@ export class OutlinePane extends ViewPane {
 		}));
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._tree?.layout(height, width);
 		this._treeDimensions = new dom.Dimension(width, height);

@@ -54,7 +54,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (this.productService.releaseNotesUrl) {
 			const uri = URI.parse(this.productService.releaseNotesUrl);
 			await this.openerService.open(uri);
@@ -75,7 +75,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.enabled) {
 			return;
 		}
@@ -212,7 +212,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 		this.state = updateService.state;
@@ -241,14 +241,14 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.registerGlobalActivityActions();
 	}
 
-	private onUpdateStateChange(state: UpdateState): void {
+	private async onUpdateStateChange(state: UpdateState): Promise<void> {
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.environmentService.sessionId) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.explicit && await this.hostService.hadLastFocus()) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -437,7 +437,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerGlobalActivityActions(): void {
-		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.environmentService.sessionId));
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '7_update',
 			command: {
@@ -611,7 +611,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							nls.localize('cancel', "Cancel"),
 						],
 						{
-							detail: nls.localize('selectSyncService.detail', "Insiders version of VSCode will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
+							detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
 							cancelId: 2
 						}
 					);
@@ -630,14 +630,12 @@ export class CheckForVSCodeUpdateAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IUpdateService private readonly updateService: IUpdateService,
 	) {
 		super(id, label, undefined, true);
 	}
 
-	run(): Promise<void> {
-		return this.updateService.checkForUpdates(this.environmentService.sessionId);
+	override run(): Promise<void> {
+		return this.updateService.checkForUpdates(true);
 	}
 }
-

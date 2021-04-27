@@ -75,7 +75,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected readonly storageService: IStorageService,
 		private readonly telemetryService: ITelemetryService,
 		protected readonly contextMenuService: IContextMenuService,
-		protected readonly layoutService: IWorkbenchLayoutService,
+		layoutService: IWorkbenchLayoutService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly instantiationService: IInstantiationService,
 		themeService: IThemeService,
@@ -374,7 +374,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite;
 	}
 
-	createTitleArea(parent: HTMLElement): HTMLElement {
+	override createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
@@ -421,7 +421,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		};
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		// Forward to title label
@@ -449,7 +449,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return null;
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentContainer = append(parent, $('.content'));
 
 		this.progressBar = this._register(new ProgressBar(contentContainer));
@@ -469,7 +469,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return AnchorAlignment.RIGHT;
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		super.layout(width, height);
 
 		// Layout contents
@@ -498,7 +498,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return true;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.mapCompositeToCompositeContainer.clear();
 		this.mapActionsBindingToComposite.clear();
 

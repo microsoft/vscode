@@ -71,6 +71,10 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
+	getProvider(scheme: string): IFileSystemProvider | undefined {
+		return this.provider.get(scheme);
+	}
+
 	async activateProvider(scheme: string): Promise<void> {
 
 		// Emit an event that we are about to activate a provider with the given scheme.
@@ -1000,7 +1004,7 @@ export class FileService extends Disposable implements IFileService {
 		].join();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.activeWatchers.forEach(watcher => dispose(watcher.disposable));

@@ -7,31 +7,14 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
 export interface IConfigurationResolverService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * @deprecated Use the async version of `resolve` instead.
-	 */
-	resolve(folder: IWorkspaceFolder | undefined, value: string): string;
-	/**
-	 * @deprecated Use the async version of `resolve` instead.
-	 */
-	resolve(folder: IWorkspaceFolder | undefined, value: string[]): string[];
-	/**
-	 * @deprecated Use the async version of `resolve` instead.
-	 */
-	resolve(folder: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
-
-	/**
-	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
-	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
-	 * @deprecated Use the async version of `resolveAny` instead.
-	 */
-	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any;
+	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): string;
 
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;

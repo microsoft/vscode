@@ -67,7 +67,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 		parent.appendChild(this.domNode);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
@@ -199,7 +199,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 
 	private useSearchInEditorsBox!: Checkbox;
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.useSearchInEditorsBox.dispose();
 	}
@@ -212,11 +212,11 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		this.useSearchInEditorsBox.checked = value;
 	}
 
-	protected getSubcontrolsWidth(): number {
+	protected override getSubcontrolsWidth(): number {
 		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
 	}
 
-	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useSearchInEditorsBox = this._register(new Checkbox({
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
@@ -249,7 +249,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	private useExcludesAndIgnoreFilesBox!: Checkbox;
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.useExcludesAndIgnoreFilesBox.dispose();
 	}
@@ -263,11 +263,11 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 		this._onChangeIgnoreBoxEmitter.fire();
 	}
 
-	protected getSubcontrolsWidth(): number {
+	protected override getSubcontrolsWidth(): number {
 		return super.getSubcontrolsWidth() + this.useExcludesAndIgnoreFilesBox.width();
 	}
 
-	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
 			icon: Codicon.exclude,
 			actionClassName: 'useExcludesAndIgnoreFiles',

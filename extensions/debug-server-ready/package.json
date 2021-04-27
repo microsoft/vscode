@@ -8,9 +8,16 @@
   "engines": {
     "vscode": "^1.32.0"
   },
+  "icon": "media/icon.png",
   "activationEvents": [
     "onDebugResolve"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "enableProposedApi": true,
   "main": "./out/extension",
   "scripts": {

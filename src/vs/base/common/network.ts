@@ -66,17 +66,14 @@ export namespace Schemas {
 
 	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
 
+	export const vscodeTerminal = 'vscode-terminal';
+
 	export const webviewPanel = 'webview-panel';
 
 	/**
 	 * Scheme used for loading the wrapper html and script in webviews.
 	 */
 	export const vscodeWebview = 'vscode-webview';
-
-	/**
-	 * Scheme used for loading resources inside of webviews.
-	 */
-	export const vscodeWebviewResource = 'vscode-webview-resource';
 
 	/**
 	 * Scheme used for extension pages
@@ -88,6 +85,11 @@ export namespace Schemas {
 	 * files with our custom protocol handler (desktop only).
 	 */
 	export const vscodeFileResource = 'vscode-file';
+
+	/**
+	 * Scheme used for temporary resources
+	 */
+	export const tmp = 'tmp';
 }
 
 class RemoteAuthoritiesImpl {

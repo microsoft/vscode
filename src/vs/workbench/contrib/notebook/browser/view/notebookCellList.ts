@@ -21,7 +21,8 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, cellRangesToIndexes, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ISplice } from 'vs/base/common/sequence';
@@ -123,9 +124,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
-		const notebookEditorCursorAtBeginEndContext = NOTEBOOK_EDITOR_CURSOR_BEGIN_END.bindTo(contextKeyService);
-		notebookEditorCursorAtBeginEndContext.set(false);
-
 		let cursorSelectionListener: IDisposable | null = null;
 		let textEditorAttachListener: IDisposable | null = null;
 
@@ -143,12 +141,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				default:
 					notebookEditorCursorAtBoundaryContext.set('none');
 					break;
-			}
-
-			if (element.cursorAtBeginEnd()) {
-				notebookEditorCursorAtBeginEndContext.set(true);
-			} else {
-				notebookEditorCursorAtBeginEndContext.set(false);
 			}
 
 			return;
@@ -186,7 +178,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const focus = this.getFocusedElements()[0];
 
 			if (focus && focus.cellKind === CellKind.Markdown && !focus.metadata?.inputCollapsed) {
-				focus.editState = CellEditState.Editing;
+				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}
 		}));
@@ -625,19 +617,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.setSelection(indices);
 	}
 
-	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
+	override focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusNext(() => {
 			super.focusNext(n, loop, browserEvent, filter);
 		});
 	}
 
-	focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
+	override focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusPrevious(() => {
 			super.focusPrevious(n, loop, browserEvent, filter);
 		});
 	}
 
-	setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
+	override setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
 		if (ignoreTextModelUpdate) {
 			super.setFocus(indexes, browserEvent);
 			return;
@@ -665,7 +657,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.setFocus(indexes, browserEvent);
 	}
 
-	setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
+	override setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
 		if (ignoreTextModelUpdate) {
 			super.setSelection(indexes, browserEvent);
 			return;
@@ -863,11 +855,31 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const focused = this.getFocus();
-		this.view.updateElementHeight(index, size, focused.length ? focused[0] : null);
+		if (!focused.length) {
+			this.view.updateElementHeight(index, size, null);
+			return;
+		}
+
+		const focus = focused[0];
+
+		if (focus <= index) {
+			this.view.updateElementHeight(index, size, focus);
+			return;
+		}
+
+		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
+		// then we should make sure that the `element`'s visual view position doesn't change.
+
+		if (this.view.elementTop(index) > this.view.scrollTop) {
+			this.view.updateElementHeight(index, size, index);
+			return;
+		}
+
+		this.view.updateElementHeight(index, size, focus);
 	}
 
 	// override
-	domFocus() {
+	override domFocus() {
 		const focused = this.getFocusedElements()[0];
 		const focusedDomElement = focused && this.domElementOfElement(focused);
 
@@ -1045,7 +1057,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const element = this.view.element(viewIndex);
 
 		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
-		if (element.editState === CellEditState.Editing && !element.editorAttached) {
+		if (element.getEditState() === CellEditState.Editing && !element.editorAttached) {
 			return getEditorAttachedPromise(element);
 		}
 
@@ -1128,7 +1140,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 
-	style(styles: IListStyles) {
+	override style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
 			this.styleElement = DOM.createStyleSheet(this.view.domNode);
@@ -1251,7 +1263,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return this.view.renderHeight;
 	}
 
-	layout(height?: number, width?: number): void {
+	override layout(height?: number, width?: number): void {
 		this._isInLayout = true;
 		super.layout(height, width);
 		if (this.renderHeight === 0) {
@@ -1262,7 +1274,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._isInLayout = false;
 	}
 
-	dispose() {
+	override dispose() {
 		this._isDisposed = true;
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();

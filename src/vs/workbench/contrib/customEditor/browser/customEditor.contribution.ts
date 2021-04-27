@@ -7,20 +7,15 @@ import { Schemas } from 'vs/base/common/network';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { customEditorInputFactory, CustomEditorInputSerializer } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditor } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CustomEditorInput } from './customEditorInput';
-import { CustomEditorContribution, CustomEditorService } from './customEditors';
+import { CustomEditorService } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(CustomEditorContribution, LifecyclePhase.Starting);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(
@@ -32,10 +27,10 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 		new SyncDescriptor(CustomEditorInput)
 	]);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)
 	.registerEditorInputSerializer(
 		CustomEditorInputSerializer.ID,
 		CustomEditorInputSerializer);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)
 	.registerCustomEditorInputFactory(Schemas.vscodeCustomEditor, customEditorInputFactory);
