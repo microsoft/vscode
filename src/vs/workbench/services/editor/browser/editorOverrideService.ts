@@ -333,8 +333,18 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 					if (!picked) {
 						return;
 					}
-					// Resolve the new override and open that instead (this always triggers a replace as it's the same resource, so opening is implicitly called here)
-					this.resolveEditorOverride(currentEditor, picked[0], picked[1] ?? group);
+					const replacementEditor = await this.resolveEditorOverride(currentEditor, picked[0], picked[1] ?? group);
+					if (!replacementEditor) {
+						return;
+					}
+					// Replace the current editor with the picked one
+					(replacementEditor.group ?? picked[1] ?? group).replaceEditors([
+						{
+							editor: currentEditor,
+							replacement: replacementEditor.editor,
+							options: replacementEditor.options ?? picked[0],
+						}
+					]);
 				}
 			},
 			{
