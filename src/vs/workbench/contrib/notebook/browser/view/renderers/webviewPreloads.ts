@@ -802,7 +802,10 @@ function webviewPreloads() {
 		}
 	});
 
-	void markdownRenderer;
+	// This expression is replaced later on by the markup renderer imports.
+	// Due to optimization passes, we need to use an expression instead of a comment
+	// or other placeholder
+	console.log('__markdown_renderer_block__');
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
@@ -1027,10 +1030,10 @@ export function preloadsScriptStr(styleValues: {
 
 	return `${webviewPreloads}`
 		.slice(0, -1)
-		.replace(/function webviewPreloads\(\) \{/g, '')
+		.replace(/^function \w+\(\) \{/gm, '')
 		.replace(/__outputNodePadding__/g, `${styleValues.outputNodePadding}`)
 		.replace(/__outputNodeLeftPadding__/g, `${styleValues.outputNodeLeftPadding}`)
-		.replace(/void markdownRenderer;/g, `
+		.replace(/console.log\('__markdown_renderer_block__'\);/g, `
 			import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
 			const markdownRenderer = await markdownRendererModule.activate(JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}")))
 		`);
