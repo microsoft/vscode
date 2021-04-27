@@ -56,7 +56,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				getHeight: () => TAB_HEIGHT,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER))],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelection())],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -166,6 +166,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _labels: ResourceLabels,
+		private readonly _getSelection: () => (ITerminalInstance | null)[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -302,12 +303,30 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
-		const split = new Action(TERMINAL_COMMAND_ID.SPLIT, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => this._terminalService.splitInstance(instance));
-		const kill = new Action(TERMINAL_COMMAND_ID.KILL, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => instance.dispose(true));
+		// If the instance is within the selection, split all selected
+		const split = new Action(TERMINAL_COMMAND_ID.SPLIT_INSTANCE, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+			this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
+		});
+		const kill = new Action(TERMINAL_COMMAND_ID.KILL_INSTANCE, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+			this._runForSelectionOrInstance(instance, e => e.dispose());
+		});
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();
 		template.actionBar.push(split, { icon: true, label: false });
 		template.actionBar.push(kill, { icon: true, label: false });
+	}
+
+	private _runForSelectionOrInstance(instance: ITerminalInstance, callback: (instance: ITerminalInstance) => void) {
+		const selection = this._getSelection();
+		if (selection.includes(instance)) {
+			for (const s of selection) {
+				if (s) {
+					callback(s);
+				}
+			}
+		} else {
+			callback(instance);
+		}
 	}
 }
 
