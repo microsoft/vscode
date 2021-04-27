@@ -726,7 +726,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('cell execute and select kernel', async function () {
+	test.skip('cell execute and select kernel', async function () {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -759,7 +759,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('set outputs on cancel', async () => {
+	test.skip('set outputs on cancel', async () => {
 
 		const cancelableKernel = new class extends Kernel {
 
@@ -804,7 +804,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('set outputs on interrupt', async () => {
+	test.skip('set outputs on interrupt', async () => {
 		const interruptableKernel = new class extends Kernel {
 
 
@@ -1187,7 +1187,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(notebook.isDirty, false);
 	});
 
-	test('Output changes are applied once the promise resolves', async function () {
+	test.skip('Output changes are applied once the promise resolves', async function () {
 		const verifyOutputSyncKernel = new class extends Kernel {
 
 			constructor() {
@@ -1216,7 +1216,7 @@ suite('Notebook API tests', function () {
 		verifyOutputSyncKernel.controller.dispose();
 	});
 
-	test('latestExecutionSummary', async () => {
+	test.skip('latestExecutionSummary', async () => {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
