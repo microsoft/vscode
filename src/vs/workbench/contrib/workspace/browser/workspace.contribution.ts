@@ -128,7 +128,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace())!;
 		const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
-			checkboxText = localize('checkboxString', "I trust the author of all files in the parent folder");
+			checkboxText = localize('checkboxString', "I trust the authors of all files in the parent folder");
 		}
 
 		// Show Workspace Trust Start Dialog
@@ -142,7 +142,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				!isSingleFolderWorkspace ?
 					localize('workspaceStartupTrustDetails', "{0} provides advanced editing features that may automatically execute files in this workspace.", product.nameShort) :
 					localize('folderStartupTrustDetails', "{0} provides advanced editing features that may automatically execute files in this folder.", product.nameShort),
-				localize('learnMore', "If you don't trust the author of these files we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+				localize('learnMore', "If you don't trust the authors of these files we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
 			],
 			checkboxText
 		);
