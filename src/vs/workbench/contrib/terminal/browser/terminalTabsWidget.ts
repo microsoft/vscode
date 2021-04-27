@@ -185,7 +185,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 				showHover: options => {
 					return this._hoverService.showHover({
 						...options,
-						actions: context.hoverActions
+						actions: context.hoverActions,
+						hideOnHover: true
 					});
 				}
 			}
