@@ -170,7 +170,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 	}
 
@@ -304,16 +305,19 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
-		const split = new Action(TERMINAL_COMMAND_ID.SPLIT_INSTANCE, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
-			this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
-		});
-		const kill = new Action(TERMINAL_COMMAND_ID.KILL_INSTANCE, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
-			this._runForSelectionOrInstance(instance, e => e.dispose());
-		});
+		const actions = [
+			new Action(TERMINAL_COMMAND_ID.SPLIT_INSTANCE, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+				this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
+			}),
+			new Action(TERMINAL_COMMAND_ID.KILL_INSTANCE, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+				this._runForSelectionOrInstance(instance, e => e.dispose());
+			})
+		];
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();
-		template.actionBar.push(split, { icon: true, label: false });
-		template.actionBar.push(kill, { icon: true, label: false });
+		for (const action of actions) {
+			template.actionBar.push(action, { icon: true, label: false, keybinding: this._keybindingService.lookupKeybinding(action.id)?.getLabel() });
+		}
 	}
 
 	private _runForSelectionOrInstance(instance: ITerminalInstance, callback: (instance: ITerminalInstance) => void) {
