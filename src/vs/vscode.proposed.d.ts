@@ -1869,14 +1869,13 @@ declare module 'vscode' {
 		Right = 2
 	}
 
-	// todo@API remove readonlyness.
 	export class NotebookCellStatusBarItem {
-		readonly text: string;
-		readonly alignment: NotebookCellStatusBarAlignment;
-		readonly command?: string | Command;
-		readonly tooltip?: string;
-		readonly priority?: number;
-		readonly accessibilityInformation?: AccessibilityInformation;
+		text: string;
+		alignment: NotebookCellStatusBarAlignment;
+		command?: string | Command;
+		tooltip?: string;
+		priority?: number;
+		accessibilityInformation?: AccessibilityInformation;
 
 		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
 	}
