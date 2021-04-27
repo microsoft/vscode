@@ -214,7 +214,6 @@ suite('Workbench - TerminalProfiles', () => {
 				if (path !== '/etc/shells') {
 					fail('Unexected path');
 				}
-				console.log('readfile', etcShellsContent);
 				return etcShellsContent;
 			}
 		};
