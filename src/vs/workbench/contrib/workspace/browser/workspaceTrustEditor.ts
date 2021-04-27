@@ -284,7 +284,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			localize('untrustedTasks', "Tasks will be disabled"),
 			localize('untrustedDebugging', "Debugging will be disabled"),
 			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) will not be applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust will not be applied"),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or limit functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
+			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
 		], xListIcon.classNamesArray);
 
 		this.addTrustButtonToElement(trustedContainer);
