@@ -4,8 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as markdownIt from 'markdown-it';
 
-const emoji = require('markdown-it-emoji');
+declare const extendMarkdownIt: undefined | (
+	(f: (md: markdownIt.MarkdownIt) => void) => void
+);
 
-export function extendMarkdownIt(md: markdownIt.MarkdownIt) {
-	return md.use(emoji);
-}
+(function () {
+	if (typeof extendMarkdownIt !== 'undefined') {
+		const emoji = require('markdown-it-emoji');
+
+		extendMarkdownIt((md: markdownIt.MarkdownIt) => {
+			md.use(emoji);
+		});
+	}
+}());
+
