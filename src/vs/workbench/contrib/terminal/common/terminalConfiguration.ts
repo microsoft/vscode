@@ -101,7 +101,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				type: 'string'
 			},
 			default: [],
-			deprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
+			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
 		},
 		'terminal.integrated.shellArgs.osx': {
 			requireTrust: true,
@@ -116,7 +116,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			// is the reason terminals on macOS typically run login shells by default which set up
 			// the environment. See http://unix.stackexchange.com/a/119675/115410
 			default: ['-l'],
-			deprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
+			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
 		},
 		'terminal.integrated.shellArgs.windows': {
 			requireTrust: true,
@@ -137,7 +137,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			],
 			default: [],
-			deprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
+			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
 		},
 		'terminal.integrated.profiles.windows': {
 			requireTrust: true,
@@ -682,7 +682,7 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 				markdownDescription: linux,
 				type: ['string', 'null'],
 				default: null,
-				deprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
+				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
 			},
 			'terminal.integrated.shell.osx': {
 				requireTrust: true,
@@ -691,7 +691,7 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 				markdownDescription: osx,
 				type: ['string', 'null'],
 				default: null,
-				deprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
+				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
 			},
 			'terminal.integrated.shell.windows': {
 				requireTrust: true,
@@ -700,7 +700,7 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 				markdownDescription: windows,
 				type: ['string', 'null'],
 				default: null,
-				deprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
+				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
 			}
 		}
 	};
