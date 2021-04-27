@@ -1158,7 +1158,7 @@ var requirejs = (function() {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache,
-			alwaysFetchFromRemote: true
+			useRootAuthority: true
 		}, undefined);
 
 		let resolveFunc: () => void;
