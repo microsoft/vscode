@@ -125,7 +125,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		if (conflictingDefault && input) {
 			// Wait one second to give the user ample time to see the current editor then ask them to configure a default
 			setTimeout(() => {
-				this.doHandleConflictingDefaults(input.editor, input.options ?? options, group);
+				this.doHandleConflictingDefaults(selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
 			}, 1200);
 		}
 		// Add the group as we might've changed it with the quickpick
@@ -315,7 +315,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return out;
 	}
 
-	private async doHandleConflictingDefaults(currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
+	private async doHandleConflictingDefaults(editorName: string, currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
 		const makeCurrentEditorDefault = () => {
 			const viewType = currentEditor.viewType;
 			if (viewType) {
@@ -348,7 +348,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				}
 			},
 			{
-				label: localize('editorOverride.keepDefault', 'Keep Current'),
+				label: localize('editorOverride.keepDefault', 'Keep {0}', editorName),
 				run: makeCurrentEditorDefault
 			}
 			]);
