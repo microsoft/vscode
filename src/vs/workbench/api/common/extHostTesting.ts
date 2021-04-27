@@ -111,10 +111,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	}
 
 	/**
-	 * Implements vscode.test.createTestRunTask
+	 * Implements vscode.test.createTestRun
 	 */
-	public createTestRunTask<T>(extensionId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist = true): vscode.TestRunTask<T> {
-		return this.runQueue.createTestRunTask(extensionId, request, name, persist);
+	public createTestRun<T>(extensionId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist = true): vscode.TestRun<T> {
+		return this.runQueue.createTestRun(extensionId, request, name, persist);
 	}
 
 	/**
@@ -318,7 +318,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 /**
  * Queues runs for a single extension and provides the currently-executing
- * run so that `createTestRunTask` can be properly correlated.
+ * run so that `createTestRun` can be properly correlated.
  */
 class TestRunQueue {
 	private readonly state = new Map</* extensionId */ string, {
@@ -375,9 +375,9 @@ class TestRunQueue {
 	}
 
 	/**
-	 * Implements the public `createTestRunTask` API.
+	 * Implements the public `createTestRun` API.
 	 */
-	public createTestRunTask<T>(extensionId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist: boolean): vscode.TestRunTask<T> {
+	public createTestRun<T>(extensionId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist: boolean): vscode.TestRun<T> {
 		const state = this.state.get(extensionId);
 		// If the request is for the currently-executing `runTests`, then correlate
 		// it to that existing run. Otherwise return a new, detached run.
@@ -466,7 +466,7 @@ class TestRunDto {
 	}
 }
 
-class TestRunTask<T> implements vscode.TestRunTask<T> {
+class TestRunTask<T> implements vscode.TestRun<T> {
 	readonly #proxy: MainThreadTestingShape;
 	readonly #req: TestRunDto;
 	readonly #taskId = generateUuid();

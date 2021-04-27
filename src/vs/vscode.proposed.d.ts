@@ -2284,7 +2284,7 @@ declare module 'vscode' {
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
 
 		/**
-		 * Creates a {@link TestRunTask<T>}. This should be called by the
+		 * Creates a {@link TestRun<T>}. This should be called by the
 		 * {@link TestRunner} when a request is made to execute tests, and may also
 		 * be called if a test run is detected externally. Once created, tests
 		 * that are included in the results will be moved into the
@@ -2299,7 +2299,7 @@ declare module 'vscode' {
 		 * persisted in VS Code. This may be false if the results are coming from
 		 * a file already saved externally, such as a coverage information file.
 		 */
-		export function createTestRunTask<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRunTask<T>;
+		export function createTestRun<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRun<T>;
 
 		/**
 		 * Creates a new managed {@link TestItem} instance.
@@ -2420,7 +2420,7 @@ declare module 'vscode' {
 
 		/**
 		 * Starts a test run. When called, the controller should call
-		 * {@link vscode.test.createTestRunTask}. All tasks associated with the
+		 * {@link vscode.test.createTestRun}. All tasks associated with the
 		 * run should be created before the function returns or the reutrned
 		 * promise is resolved.
 		 *
@@ -2457,7 +2457,7 @@ declare module 'vscode' {
 	/**
 	 * Options given to {@link TestController.runTests}
 	 */
-	export interface TestRunTask<T = void> {
+	export interface TestRun<T = void> {
 		/**
 		 * The human-readable name of the run. This can be used to
 		 * disambiguate multiple sets of results in a test run. It is useful if
@@ -3036,7 +3036,7 @@ declare module 'vscode' {
 		 * Any time trust is not given, it is recommended to use the
 		* `onDidGrantWorkspaceTrust` event to listen for trust changes.
 		 */
-		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean>;
+		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean | undefined>;
 	}
 
 	//#endregion

@@ -429,7 +429,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					// that it knows that the process is not still active. Note that this is not
 					// done for regular terminals because otherwise the terminal instance would be
 					// disposed.
-					this._onExit(undefined);
+					this._onExit(-1);
 				} else {
 					// For normal terminals write a message indicating what happened and relaunch
 					// using the previous shellLaunchConfig
@@ -472,7 +472,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	public async write(data: string): Promise<void> {
 		await this.ptyProcessReady;
-		this._dataFilter.triggerSwap();
+		this._dataFilter.disableSeamlessRelaunch();
 		this._hasWrittenData = true;
 		if (this.shellProcessId || this._processType === ProcessType.PsuedoTerminal) {
 			if (this._process) {
@@ -487,7 +487,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	public async processBinary(data: string): Promise<void> {
 		await this.ptyProcessReady;
-		this._dataFilter.triggerSwap();
+		this._dataFilter.disableSeamlessRelaunch();
 		this._hasWrittenData = true;
 		this._process?.processBinary(data);
 	}
@@ -589,8 +589,8 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	private _secondDisposable?: IDisposable;
 	private _dataListener?: IDisposable;
 	private _activeProcess?: ITerminalChildProcess;
+	private _disableSeamlessRelaunch: boolean = false;
 
-	private _recordingTimeout?: number;
 	private _swapTimeout?: number;
 
 	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
@@ -609,16 +609,18 @@ class SeamlessRelaunchDataFilter extends Disposable {
 
 		this._activeProcess = process;
 
-		// If the process is new, relaunch has timed out or the terminal should not reset, start
-		// listening and firing data events immediately
-		if (!this._firstRecorder || !reset) {
+		// Start firing events immediately if:
+		// - there's no recorder, which means it's a new terminal
+		// - this is not a reset, so seamless relaunch isn't necessary
+		// - seamless relaunch is disabled because the terminal has accepted input
+		if (!this._firstRecorder || !reset || this._disableSeamlessRelaunch) {
 			this._firstDisposable?.dispose();
 			[this._firstRecorder, this._firstDisposable] = this._createRecorder(process);
-			this._dataListener = process.onProcessData(e => this._onProcessData.fire(e));
-			if (this._recordingTimeout) {
-				window.clearTimeout(this._recordingTimeout);
+			if (this._disableSeamlessRelaunch && reset) {
+				this._onProcessData.fire('\x1bc');
 			}
-			this._recordingTimeout = window.setTimeout(() => this._stopRecording(), SeamlessRelaunchConstants.RecordTerminalDuration);
+			this._dataListener = process.onProcessData(e => this._onProcessData.fire(e));
+			this._disableSeamlessRelaunch = false;
 			return;
 		}
 
@@ -638,6 +640,15 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	}
 
 	/**
+	 * Disables seamless relaunch for the active process
+	 */
+	disableSeamlessRelaunch() {
+		this._disableSeamlessRelaunch = true;
+		this._stopRecording();
+		this.triggerSwap();
+	}
+
+	/**
 	 * Trigger the swap of the processes if needed (eg. timeout, input)
 	 */
 	triggerSwap() {
@@ -651,7 +662,6 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		if (!this._firstRecorder) {
 			return;
 		}
-
 		// Clear the first recorder if no second process was attached before the swap trigger
 		if (!this._secondRecorder) {
 			this._firstRecorder = undefined;
@@ -681,10 +691,6 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		this._firstDisposable?.dispose();
 		this._firstDisposable = this._secondDisposable;
 		this._secondRecorder = undefined;
-		if (this._recordingTimeout) {
-			window.clearTimeout(this._recordingTimeout);
-		}
-		this._recordingTimeout = window.setTimeout(() => this._stopRecording(), SeamlessRelaunchConstants.RecordTerminalDuration);
 	}
 
 	private _stopRecording() {
@@ -692,13 +698,6 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		if (this._swapTimeout) {
 			return;
 		}
-
-		// Clear the timeout
-		if (this._recordingTimeout) {
-			window.clearTimeout(this._recordingTimeout);
-			this._recordingTimeout = undefined;
-		}
-
 		// Stop recording
 		this._firstRecorder = undefined;
 		this._firstDisposable?.dispose();

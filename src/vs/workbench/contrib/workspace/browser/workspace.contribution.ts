@@ -38,7 +38,7 @@ import product from 'vs/platform/product/common/product';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
-import { splitName } from 'vs/base/common/labels';
+import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 
 /*
  * Trust Request UX Handler
@@ -99,8 +99,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				this.workspaceTrustRequestService.cancelRequest();
 				break;
 		}
-
-		await this.commandService.executeCommand('workbench.trust.manage');
 	}
 
 	private showModalOnStart(): void {
@@ -112,9 +110,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace())!;
 		const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
-			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
-			const { name } = splitName(parentPath);
-			checkboxText = localize('checkboxString', "I trust the author of all files in '{0}'", name);
+			checkboxText = localize('checkboxString', "I trust the author of all files in the parent folder");
 		}
 
 		// Show Workspace Trust Start Dialog
@@ -226,7 +222,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
  * Status Bar Entry
  */
 class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContribution {
-	private static readonly ID = 'status.workspaceTrust';
+	private readonly entryId = `status.workspaceTrust.${this.workspaceService.getWorkspace().id}`;
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 	private pendingRequestContextKey = WorkspaceTrustContext.PendingRequest.key;
 	private contextKeys = new Set([this.pendingRequestContextKey]);
@@ -235,6 +231,7 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
@@ -243,7 +240,7 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 		if (isWorkspaceTrustEnabled(configurationService)) {
 			const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
-			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, WorkspaceTrustStatusbarItem.ID, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 			this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.updateStatusbarEntry(trusted)));
 			this._register(this.contextKeyService.onDidChangeContext((contextChange) => {
 				if (contextChange.affectsSome(this.contextKeys)) {
@@ -257,14 +254,13 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
 		const text = workspaceTrustToString(trusted);
-		const backgroundColor = trusted ?
-			'transparent' : new ThemeColor('statusBarItem.prominentBackground');
-		const color = trusted ? '#00dd3b' : '#ff5462';
+		const backgroundColor = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
+		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
 
 		return {
 			text: trusted ? `$(shield)` : `$(shield) ${text}`,
-			ariaLabel: localize('status.WorkspaceTrust', "Workspace Trust"),
-			tooltip: localize('status.WorkspaceTrust', "Workspace Trust"),
+			ariaLabel: trusted ? localize('status.ariaTrusted', "This workspace is trusted.") : localize('status.ariaUntrusted', "Restricted Mode: Some features are disabled because this workspace is not trusted."),
+			tooltip: trusted ? localize('status.tooltipTrusted', "This workspace is trusted.") : localize('status.tooltipUntrusted', "Some features are disabled because this workspace is not trusted."),
 			command: 'workbench.trust.manage',
 			backgroundColor,
 			color
@@ -273,7 +269,7 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 	private updateVisibility(trusted: boolean): void {
 		const pendingRequest = this.contextKeyService.getContextKeyValue(this.pendingRequestContextKey) === true;
-		this.statusbarService.updateEntryVisibility(WorkspaceTrustStatusbarItem.ID, !trusted || pendingRequest);
+		this.statusbarService.updateEntryVisibility(this.entryId, !trusted || pendingRequest);
 	}
 
 	private updateStatusbarEntry(trusted: boolean): void {

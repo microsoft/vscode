@@ -369,8 +369,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				]
 			});
 
-			if (!trustState) {
-				Promise.reject(canceled());
+			if (trustState === undefined) {
+				return Promise.reject(canceled());
 			}
 		}
 

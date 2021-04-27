@@ -12,6 +12,7 @@ export const enum TestingConfigKeys {
 	AutoRunMode = 'testing.autoRun.mode',
 	AutoOpenPeekView = 'testing.automaticallyOpenPeekView',
 	AutoOpenPeekViewDuringAutoRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
+	FollowRunningTest = 'testing.followRunningTest',
 }
 
 export const enum AutoOpenPeekViewWhen {
@@ -65,6 +66,11 @@ export const testingConfiguation: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 		},
+		[TestingConfigKeys.FollowRunningTest]: {
+			description: localize('testing.followRunningTest', 'Controls whether the running test should be followed in the test explorer view'),
+			type: 'boolean',
+			default: true,
+		},
 	}
 };
 
@@ -73,6 +79,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.AutoRunDelay]: number;
 	[TestingConfigKeys.AutoOpenPeekView]: AutoOpenPeekViewWhen;
 	[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: boolean;
+	[TestingConfigKeys.FollowRunningTest]: boolean;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

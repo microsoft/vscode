@@ -34,11 +34,11 @@ import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/cont
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { getPathForTestInResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getAllTestsInHierarchy, getTestByPath, ITestService, waitForAllRoots } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
@@ -853,21 +853,6 @@ abstract class RunOrDebugExtsById extends Action2 {
 	protected abstract filter(node: InternalTestItem): boolean;
 
 	protected abstract runTest(service: ITestService, node: InternalTestItem[]): Promise<ITestResult>;
-
-	protected getPathForTest(test: TestResultItem, results: ITestResult) {
-		const path = [test];
-		while (true) {
-			const parentId = path[0].parent;
-			const parent = parentId && results.getStateById(parentId);
-			if (!parent) {
-				break;
-			}
-
-			path.unshift(parent);
-		}
-
-		return path.map(t => t.item.extId);
-	}
 }
 
 abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
@@ -881,7 +866,7 @@ abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
 		for (let i = results.length - 1; i >= 0; i--) {
 			const resultSet = results[i];
 			for (const test of resultSet.tests) {
-				const path = this.getPathForTest(test, resultSet).join(sep);
+				const path = getPathForTestInResult(test, resultSet).join(sep);
 				if (isFailedState(test.ownComputedState)) {
 					paths.add(path);
 				} else {
@@ -906,7 +891,7 @@ abstract class RunOrDebugLastRun extends RunOrDebugExtsById {
 
 		for (const test of lastResult.tests) {
 			if (test.direct) {
-				yield this.getPathForTest(test, lastResult);
+				yield getPathForTestInResult(test, lastResult);
 			}
 		}
 	}

@@ -126,11 +126,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		});
 
 		this.onDidChangeFocus(e => {
-			// catch the case when multiple elements are selected and one is focused (with a right click)
-			// that is not in the selection. this ensures that the menu will show the instance actions for the focused element
-			// and apply only to that
-			const selectionExcludesFocusedElement = e.elements.length === 1 && !this.getSelection().includes(e.elements[0]);
-			this._terminalTabsSingleSelectedContextKey.set(selectionExcludesFocusedElement);
+			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
 		});
 
 		this.onDidOpen(async e => {

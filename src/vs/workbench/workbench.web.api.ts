@@ -324,7 +324,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
-	 * Defaults to false on serverful and true on serverless.
+	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
 
