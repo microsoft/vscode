@@ -327,7 +327,7 @@ suite('Untitled text editors', () => {
 
 		// encoding
 		const model = await input.resolve();
-		model.setEncoding('utf16');
+		await model.setEncoding('utf16');
 		assert.strictEqual(counter, 1);
 		input.dispose();
 		model.dispose();
@@ -534,10 +534,10 @@ suite('Untitled text editors', () => {
 		const model = await input.resolve();
 		model.onDidChangeEncoding(() => counter++);
 
-		model.setEncoding('utf16');
+		await model.setEncoding('utf16');
 
 		assert.strictEqual(counter, 1, 'Dirty model should trigger event');
-		model.setEncoding('utf16');
+		await model.setEncoding('utf16');
 
 		assert.strictEqual(counter, 1, 'Another change to same encoding does not fire event');
 
