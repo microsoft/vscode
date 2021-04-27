@@ -46,7 +46,8 @@ const enum ContextMenuGroup {
 	Create = '1_create',
 	Edit = '2_edit',
 	Clear = '3_clear',
-	Kill = '4_kill'
+	Kill = '4_kill',
+	Config = '5_config'
 }
 
 export const enum ContextMenuTabsGroup {
@@ -209,6 +210,30 @@ export function registerTerminalActions() {
 			title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile")
 		},
 		group: ContextMenuGroup.Create
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SHOW_TABS,
+				title: { value: localize('workbench.action.terminal.showTabs', "Show Tabs"), original: 'Show Tabs' },
+				f1: false,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.showTabs();
+		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SHOW_TABS,
+			title: localize('workbench.action.terminal.showsTabs', "Show Tabs")
+		},
+		when: ContextKeyExpr.not('config.terminal.integrated.tabs.enabled'),
+		group: ContextMenuGroup.Config
 	});
 
 	registerAction2(class extends Action2 {
@@ -388,7 +413,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FOCUS_TABS_VIEW,
+				id: TERMINAL_COMMAND_ID.FOCUS_TABS,
 				title: { value: localize('workbench.action.terminal.focus.tabsView', "Focus Terminal Tabs View"), original: 'Focus Terminal Tabs View' },
 				f1: true,
 				category,
@@ -401,7 +426,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).focusTabsView();
+			accessor.get(ITerminalService).focusTabs();
 		}
 	});
 	registerAction2(class extends Action2 {

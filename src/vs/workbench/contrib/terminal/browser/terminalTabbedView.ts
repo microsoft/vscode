@@ -471,7 +471,7 @@ export class TerminalTabbedView extends Disposable {
 		];
 	}
 
-	public focusTabsView(): void {
+	public focusTabs(): void {
 		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabsWidget.getSelection();
 		this._tabsWidget.domFocus();

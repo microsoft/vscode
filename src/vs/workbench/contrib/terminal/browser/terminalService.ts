@@ -709,10 +709,14 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	public async focusTabsView(): Promise<void> {
+	public async focusTabs(): Promise<void> {
 		await this.showPanel(true);
 		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.focusTabsView();
+		pane?.terminalTabbedView?.focusTabs();
+	}
+
+	public showTabs() {
+		this._configurationService.updateValue('terminal.integrated.tabs.enabled', true);
 	}
 
 	private _getIndexFromId(terminalId: number): number {
