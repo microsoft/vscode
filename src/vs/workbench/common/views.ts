@@ -634,7 +634,7 @@ export interface ITreeView extends IDisposable {
 
 	canSelectMany: boolean;
 
-	enableDragAndDrop: boolean;
+	canDragAndDrop: boolean;
 
 	message?: string;
 

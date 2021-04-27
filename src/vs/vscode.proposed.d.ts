@@ -886,7 +886,7 @@ declare module 'vscode' {
 		/**
 		 * * Whether the tree supports drag and drop.
 		 */
-		enableDragAndDrop?: boolean;
+		canDragAndDrop?: boolean;
 	}
 
 	export interface TreeDataProvider<T> {

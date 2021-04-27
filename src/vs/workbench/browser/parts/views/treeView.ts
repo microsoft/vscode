@@ -159,7 +159,7 @@ export class TreeView extends Disposable implements ITreeView {
 	private treeContainer!: HTMLElement;
 	private _messageValue: string | undefined;
 	private _canSelectMany: boolean = false;
-	private _enableDragAndDrop = false;
+	private _canDragAndDrop = false;
 	private messageElement!: HTMLDivElement;
 	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
@@ -283,7 +283,7 @@ export class TreeView extends Disposable implements ITreeView {
 				}
 
 				async setParent(nodes: ITreeItem[], parentNode: ITreeItem): Promise<void> {
-					if (typeof dataProvider.setParent === 'function') {
+					if (dataProvider.setParent) {
 						await dataProvider.setParent(nodes, parentNode);
 					}
 				}
@@ -339,12 +339,12 @@ export class TreeView extends Disposable implements ITreeView {
 		this._canSelectMany = canSelectMany;
 	}
 
-	get enableDragAndDrop(): boolean {
-		return this._enableDragAndDrop;
+	get canDragAndDrop(): boolean {
+		return this._canDragAndDrop;
 	}
 
-	set enableDragAndDrop(enableDragAndDrop: boolean) {
-		this._enableDragAndDrop = enableDragAndDrop;
+	set canDragAndDrop(canDragAndDrop: boolean) {
+		this._canDragAndDrop = canDragAndDrop;
 	}
 
 	get hasIconForParentNode(): boolean {
@@ -521,7 +521,7 @@ export class TreeView extends Disposable implements ITreeView {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
 			},
 			multipleSelectionSupport: this.canSelectMany,
-			dnd: this.enableDragAndDrop ? this.instantiationService.createInstance(CustomTreeViewDragAndDrop, dataSource) : undefined,
+			dnd: this.canDragAndDrop ? this.instantiationService.createInstance(CustomTreeViewDragAndDrop, dataSource) : undefined,
 			overrideStyles: {
 				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 			}
@@ -816,9 +816,9 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 
 	async setParent(elements: ITreeItem[], newParentElement: ITreeItem): Promise<void> {
-		if (this.treeView.dataProvider) {
+		if (this.treeView.dataProvider && this.treeView.dataProvider.setParent) {
 			try {
-				await this.withProgress(this.treeView.dataProvider.setParent!(elements, newParentElement));
+				await this.withProgress(this.treeView.dataProvider.setParent(elements, newParentElement));
 			} catch (e) {
 				if (!(<string>e.message).startsWith('Bad progress location:')) {
 					throw e;
@@ -1216,14 +1216,14 @@ export class CustomTreeView extends TreeView {
 }
 
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
-	constructor(private dataSource: TreeDataSource) { }
+	constructor(private dataSource: TreeDataSource, @ILabelService private readonly labelService: ILabelService) { }
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: true };
 	}
 
 	getDragURI(element: ITreeItem): string | null {
-		return element.tooltip ? element.tooltip.toString() : null;
+		return element.resourceUri ? URI.revive(element.resourceUri).fsPath : null;
 	}
 
 	getDragLabel?(elements: ITreeItem[]): string | undefined {
@@ -1231,13 +1231,15 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			return String(elements.length);
 		}
 		const element = elements[0];
-		return element.label ? element.label.label : undefined;
+		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
 	}
 
 	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
-		const elements = (data as ElementsDragAndDropData<ITreeItem>).elements;
-		if (targetNode) {
-			await this.dataSource.setParent(elements, targetNode);
+		if (data instanceof ElementsDragAndDropData) {
+			const elements = data.elements;
+			if (targetNode) {
+				await this.dataSource.setParent(elements, targetNode);
+			}
 		}
 	}
 }

@@ -84,7 +84,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, enableDragAndDrop: !!options.enableDragAndDrop });
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, canDragAndDrop: !!options.canDragAndDrop });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -378,9 +378,12 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	setParent(treeItemHandleOrNodes: TreeItemHandle[], newParentHandleOrNode: TreeItemHandle): Promise<void> {
-		const elements = treeItemHandleOrNodes.map(item => this.getExtensionElement(item)!);
-		const newParentElement = this.getExtensionElement(newParentHandleOrNode)!;
-		return asPromise(() => this.dataProvider.setParent!(elements, newParentElement));
+		const elements = <T[]>treeItemHandleOrNodes.map(item => this.getExtensionElement(item)).filter(element => !isUndefinedOrNull(element));
+		const newParentElement = this.getExtensionElement(newParentHandleOrNode);
+		if (this.dataProvider.setParent && elements && newParentElement) {
+			return asPromise(() => this.dataProvider.setParent!(elements, newParentElement));
+		}
+		return Promise.resolve(undefined);
 	}
 
 	get hasResolve(): boolean {
