@@ -93,7 +93,9 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 
 		this.onMouseDblClick(e => {
 			if (this.getFocus().length === 0) {
-				this._terminalService.createTerminal();
+				const instance = this._terminalService.createTerminal();
+				this.setSelection([instance]);
+				this.setFocus([instance]);
 			}
 		});
 
