@@ -85,6 +85,11 @@ export namespace Schemas {
 	 * files with our custom protocol handler (desktop only).
 	 */
 	export const vscodeFileResource = 'vscode-file';
+
+	/**
+	 * Scheme used for temporary resources
+	 */
+	export const tmp = 'tmp';
 }
 
 class RemoteAuthoritiesImpl {
