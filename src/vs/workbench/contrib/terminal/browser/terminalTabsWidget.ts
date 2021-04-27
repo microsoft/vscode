@@ -91,11 +91,11 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			}
 		});
 
-		this.onMouseDblClick(e => {
+		this.onMouseDblClick(async () => {
 			if (this.getFocus().length === 0) {
 				const instance = this._terminalService.createTerminal();
-				this.setSelection([instance]);
-				this.setFocus([instance]);
+				this._terminalService.setActiveInstance(instance);
+				await instance.focusWhenReady();
 			}
 		});
 
