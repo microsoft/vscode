@@ -402,11 +402,8 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		// Force dispose of all terminal instances, don't force immediate disposal of the terminal
-		// processes on Windows as an additional mitigation for https://github.com/microsoft/vscode/issues/71966
-		// which causes the pty host to become unresponsive, disconnecting all terminals across all
-		// windows
-		this.terminalInstances.forEach(instance => instance.dispose(!isWindows));
+		// Force dispose of all terminal instances
+		this.terminalInstances.forEach(instance => instance.dispose(true));
 
 		this._localTerminalService?.setTerminalLayoutInfo(undefined);
 	}
