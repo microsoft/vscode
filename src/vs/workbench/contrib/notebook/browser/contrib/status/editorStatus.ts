@@ -81,8 +81,9 @@ registerAction2(class extends Action2 {
 
 		let newKernel: INotebookKernel | undefined;
 		if (context) {
+			const wantedId = `${context.extension}/${context.id}`;
 			for (let candidate of all) {
-				if (candidate.id === context.id && ExtensionIdentifier.equals(candidate.extension, context.extension)) {
+				if (candidate.id === wantedId) {
 					newKernel = candidate;
 					break;
 				}
