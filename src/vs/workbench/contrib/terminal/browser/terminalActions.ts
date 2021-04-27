@@ -1415,7 +1415,6 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const instances = getSelectedInstances(accessor);
-			console.log('instances', instances);
 			if (instances) {
 				for (const instance of instances) {
 					accessor.get(ITerminalService).splitInstance(instance);
