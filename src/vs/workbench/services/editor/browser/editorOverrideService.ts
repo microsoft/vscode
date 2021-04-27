@@ -504,7 +504,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// Store just the relative pattern pieces without any path info
 		for (const globPattern of this._contributionPoints.keys()) {
 			const contribPoint = this._contributionPoints.get(globPattern)!;
-			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== ContributedEditorPriority.option);
+			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== ContributedEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
 			if (!nonOptional) {
 				continue;
