@@ -442,7 +442,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
-		element.srcset = sources[themeType].toString() + ' 1.5x';
+		element.srcset = sources[themeType].toString().replace(/ /g, '%20') + ' 1.5x';
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
