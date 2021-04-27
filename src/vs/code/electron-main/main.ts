@@ -151,7 +151,6 @@ class CodeMain {
 		services.set(IFileService, fileService);
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		process.once('exit', () => diskFileSystemProvider.dispose());
 
 		// Logger
 		services.set(ILoggerService, new LoggerService(logService, fileService));
