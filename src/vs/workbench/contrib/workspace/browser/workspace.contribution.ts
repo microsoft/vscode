@@ -99,8 +99,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				this.workspaceTrustRequestService.cancelRequest();
 				break;
 		}
-
-		await this.commandService.executeCommand('workbench.trust.manage');
 	}
 
 	private showModalOnStart(): void {
