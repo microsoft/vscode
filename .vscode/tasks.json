@@ -7,7 +7,8 @@
 			"label": "Build VS Code Core",
 			"isBackground": true,
 			"presentation": {
-				"reveal": "never"
+				"reveal": "never",
+				"group": "buildWatchers"
 			},
 			"problemMatcher": {
 				"owner": "typescript",
@@ -33,7 +34,8 @@
 			"label": "Build VS Code Extensions",
 			"isBackground": true,
 			"presentation": {
-				"reveal": "never"
+				"reveal": "never",
+				"group": "buildWatchers"
 			},
 			"problemMatcher": {
 				"owner": "typescript",
@@ -71,7 +73,8 @@
 			"label": "Kill Build VS Code Core",
 			"group": "build",
 			"presentation": {
-				"reveal": "never"
+				"reveal": "never",
+				"group": "buildKillers"
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -81,7 +84,8 @@
 			"label": "Kill Build VS Code Extensions",
 			"group": "build",
 			"presentation": {
-				"reveal": "never"
+				"reveal": "never",
+				"group": "buildKillers"
 			},
 			"problemMatcher": "$tsc"
 		},
