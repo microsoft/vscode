@@ -493,7 +493,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 						h1 {
 							font-size: 26px;
-							padding-bottom: 8px;
 							line-height: 31px;
 							margin: 0;
 							margin-bottom: 13px;
