@@ -3212,7 +3212,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async upgrade(): Promise<void> {
-		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
+		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
 			return;
 		}
 
@@ -3251,9 +3251,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.updateSetup();
 
 		this.notificationService.prompt(Severity.Warning,
-			nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diffs to review the upgrade."),
+			fileDiffs.length === 1 ?
+				nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diff to review the upgrade.")
+				: nls.localize('taskService.upgradeVersionPlural', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diffs to review the upgrade."),
 			[{
-				label: nls.localize('taskService.openDiffs', "Open diffs"),
+				label: fileDiffs.length === 1 ? nls.localize('taskService.openDiff', "Open diff") : nls.localize('taskService.openDiffs', "Open diffs"),
 				run: async () => {
 					for (const upgrade of fileDiffs) {
 						await this.editorService.openEditor({
