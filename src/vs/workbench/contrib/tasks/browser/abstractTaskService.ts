@@ -3227,6 +3227,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
+		if (!(await this.trust())) {
+			return;
+		}
+
 		const tasks = await this.getGroupedTasks();
 		const fileDiffs: [URI, URI][] = [];
 		for (const folder of this.workspaceFolders) {
