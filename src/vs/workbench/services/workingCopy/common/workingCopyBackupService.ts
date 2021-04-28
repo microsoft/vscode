@@ -190,7 +190,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 	private readonly ioOperationQueues = this._register(new ResourceQueue()); // queue IO operations to ensure write/delete file order
 
 	private ready!: Promise<WorkingCopyBackupsModel>;
-	private model!: WorkingCopyBackupsModel;
+	private model: WorkingCopyBackupsModel | undefined = undefined;
 
 	constructor(
 		private backupWorkspaceHome: URI,
@@ -256,6 +256,10 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 	}
 
 	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
+		if (!this.model) {
+			return false;
+		}
+
 		const backupResource = this.toBackupResource(identifier);
 
 		return this.model.has(backupResource, versionId);
