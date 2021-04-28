@@ -1565,7 +1565,18 @@ declare module 'vscode' {
 
 		/**
 		 * An array of language identifiers that are supported by this
-		 * controller. When falsy all languages are supported.
+		 * controller. Any language identifier from [`getLanguages`](#languages.getLanguages)
+		 * is possible. When falsy all languages are supported.
+		 *
+		 * Samples:
+		 * ```js
+		 * // support JavaScript and TypeScript
+		 * myController.supportedLanguages = ['javascript', 'typescript']
+		 *
+		 * // support all languages
+		 * myController.supportedLanguages = undefined; // falsy
+		 * myController.supportedLanguages = []; // falsy
+		 * ```
 		 */
 		supportedLanguages?: string[];
 
