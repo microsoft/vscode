@@ -137,6 +137,11 @@ interface TaskCustomizationTelemetryEvent {
 	properties: string[];
 }
 
+interface CommandUpgrade {
+	command?: string;
+	args?: string[];
+}
+
 class TaskMap {
 	private _store: Map<string, Task[]> = new Map();
 
@@ -3166,7 +3171,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return undefined;
 	}
 
-	private upgradeTask(task: Task): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
+	private upgradeTask(task: Task, suppressTaskName: boolean, globalConfig: { windows?: CommandUpgrade, osx?: CommandUpgrade, linux?: CommandUpgrade }): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
 		if (!CustomTask.is(task)) {
 			return;
 		}
@@ -3181,11 +3186,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (task.command.runtime === RuntimeType.Shell) {
 				configElement.type = RuntimeType.toString(RuntimeType.Shell);
 			}
-			if (task.command.name) {
+			if (task.command.name && !suppressTaskName && !globalConfig.windows?.command && !globalConfig.osx?.command && !globalConfig.linux?.command) {
 				configElement.command = task.command.name;
+			} else if (suppressTaskName) {
+				configElement.command = task._source.config.element.command;
 			}
 			if (task.command.args && (!Types.isArray(task.command.args) || (task.command.args.length > 0))) {
-				configElement.args = task.command.args;
+				if (!globalConfig.windows?.args && !globalConfig.osx?.args && !globalConfig.linux?.args) {
+					configElement.args = task.command.args;
+				} else {
+					configElement.args = task._source.config.element.args;
+				}
 			}
 		}
 
@@ -3216,6 +3227,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
+		if (!(await this.trust())) {
+			return;
+		}
+
 		const tasks = await this.getGroupedTasks();
 		const fileDiffs: [URI, URI][] = [];
 		for (const folder of this.workspaceFolders) {
@@ -3228,8 +3243,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			const configTasks: (TaskConfig.CustomTask | TaskConfig.ConfiguringTask)[] = [];
+			const suppressTaskName = !!this.configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri });
+			const globalConfig = {
+				windows: <CommandUpgrade>this.configurationService.getValue('tasks.windows', { resource: folder.uri }),
+				osx: <CommandUpgrade>this.configurationService.getValue('tasks.osx', { resource: folder.uri }),
+				linux: <CommandUpgrade>this.configurationService.getValue('tasks.linux', { resource: folder.uri })
+			};
 			tasks.get(folder).forEach(task => {
-				const configTask = this.upgradeTask(task);
+				const configTask = this.upgradeTask(task, suppressTaskName, globalConfig);
 				if (configTask) {
 					configTasks.push(configTask);
 				}

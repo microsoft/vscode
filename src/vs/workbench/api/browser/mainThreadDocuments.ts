@@ -16,7 +16,6 @@ import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocum
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { Emitter } from 'vs/base/common/event';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -126,7 +125,6 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IPathService private readonly _pathService: IPathService
 	) {
 		super();
@@ -156,12 +154,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			}
 		}));
 
-		this._register(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			if (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE) {
-				for (const { source } of e.files) {
-					if (source) {
-						this._modelReferenceCollection.remove(source);
-					}
+		this._register(fileService.onDidRunOperation(e => {
+			const isMove = e.isOperation(FileOperation.MOVE);
+			if (isMove || e.isOperation(FileOperation.DELETE)) {
+				const removed = isMove ? e.target?.resource : e.resource;
+				if (removed) {
+					this._modelReferenceCollection.remove(removed);
 				}
 			}
 		}));

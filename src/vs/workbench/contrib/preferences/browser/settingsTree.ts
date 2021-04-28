@@ -285,7 +285,7 @@ export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGrou
 
 export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, configurationService: IWorkbenchConfigurationService): ISetting[] {
 	const allSettings = getFlatSettings(groups);
-	return [...allSettings].filter(setting => setting.requireTrust && inspectSetting(setting.key, target, configurationService).isConfigured);
+	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
 }
 
 export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {
@@ -1541,7 +1541,7 @@ export class SettingUntrustedRenderer extends AbstractSettingRenderer implements
 			untrustedWorkspaceIcon.style.setProperty('--workspace-trust-state-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
 		}));
 		const element = DOM.append(trustLabelElement, $('span'));
-		element.textContent = localize('trustLabel', "This setting can be applied only in the trusted workspace.");
+		element.textContent = localize('trustLabel', "This setting can only be applied in a trusted workspace");
 		const linkElement: HTMLAnchorElement = DOM.append(trustLabelElement, $('a'));
 		linkElement.textContent = manageWorkspaceTrustLabel;
 		linkElement.setAttribute('tabindex', '0');

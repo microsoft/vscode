@@ -131,7 +131,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private registerListeners(): void {
 		this._register(this.extensionWorkbenchService.onChange(() => this.render()));
-		this._register(this.configurationService.onDidChangeUntrustdSettings(() => this.render()));
+		this._register(this.configurationService.onDidChangeRestrictedSettings(() => this.render()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this.render()));
 	}
@@ -206,7 +206,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.headerContainer.className = this.getHeaderContainerClass(isWorkspaceTrusted);
 
 		// Settings
-		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.unTrustedSettings.default).length;
+		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.restrictedSettings.default).length;
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
@@ -316,7 +316,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
 			const parentIsTrusted = this.workspaceTrustManagementService.getFolderTrustInfo(URI.file(parentPath)).trusted;
-			console.log(`Parent (${parentPath}) is trusted: ${parentIsTrusted}`);
 			if (parentIsTrusted) {
 				return false;
 			}
