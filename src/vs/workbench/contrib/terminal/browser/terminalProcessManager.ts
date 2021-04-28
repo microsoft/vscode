@@ -16,7 +16,6 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -27,7 +26,7 @@ import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminal
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -117,7 +116,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
@@ -335,8 +333,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	// Fetch any extension environment additions and apply them
 	private async _setupEnvVariableInfo(variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
-		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
-		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
+		// const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+		// this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
+		const envFromConfigValue = this._terminalProfileResolverService.getSafeConfigValue('env', OS) as ITerminalEnvironment | undefined;
 		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = await (this._configHelper.config.inheritEnv
 			? this._terminalProfileResolverService.getShellEnvironment(this.remoteAuthority)
