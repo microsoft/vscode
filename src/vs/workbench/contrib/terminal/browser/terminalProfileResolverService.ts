@@ -64,6 +64,13 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		shellLaunchConfig.executable = resolvedProfile.path;
 		shellLaunchConfig.args = resolvedProfile.args;
+		if (resolvedProfile.env) {
+			if (shellLaunchConfig.env) {
+				shellLaunchConfig.env = { ...shellLaunchConfig.env, ...resolvedProfile.env };
+			} else {
+				shellLaunchConfig.env = resolvedProfile.env;
+			}
+		}
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
