@@ -5,7 +5,8 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { splitName } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -16,7 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
@@ -49,8 +50,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _isWorkspaceTrusted: boolean = false;
 	private _trustStateInfo: IWorkspaceTrustInfo;
 
+	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
+
 	constructor(
-		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -61,6 +64,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._trustStateInfo = this.loadTrustInfo();
 		this._isWorkspaceTrusted = this.calculateWorkspaceTrust();
 
+		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
+
 		this.registerListeners();
 	}
 
@@ -68,7 +73,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		if (this._isWorkspaceTrusted === trusted) { return; }
 		this._isWorkspaceTrusted = trusted;
 
-		this._onDidChangeTrust.fire(trusted);
+		// Invoke all workspace trust transition participants
+		this._trustTransitionManager.participate(trusted).then(() => {
+			this._onDidChangeTrust.fire(trusted);
+		});
 	}
 
 	private registerListeners(): void {
@@ -77,9 +85,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._register(this.storageService.onDidChangeValue(changeEvent => {
 			if (changeEvent.key === this.storageKey) {
 				this._trustStateInfo = this.loadTrustInfo();
-				this.currentTrustState = this.calculateWorkspaceTrust();
-
 				this._onDidChangeTrustedFolders.fire();
+
+				this.currentTrustState = this.calculateWorkspaceTrust();
 			}
 		}));
 	}
@@ -157,7 +165,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return folderURIs;
 	}
 
-	public getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		return this._trustTransitionManager.addWorkspaceTrustTransitionParticipant(participant);
+	}
+
+	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
 		let resultState = false;
 		let maxLength = -1;
 
@@ -367,6 +379,26 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._onDidInitiateWorkspaceTrustRequest.fire(options);
 
 		return options.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
+	}
+}
+
+export class WorkspaceTrustTransitionManager extends Disposable {
+
+	private readonly participants = new LinkedList<IWorkspaceTrustTransitionParticipant>();
+
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		const remove = this.participants.push(participant);
+		return toDisposable(() => remove());
+	}
+
+	async participate(trusted: boolean): Promise<void> {
+		for (const participant of this.participants) {
+			await participant.participate(trusted);
+		}
+	}
+
+	override dispose(): void {
+		this.participants.clear();
 	}
 }
 
