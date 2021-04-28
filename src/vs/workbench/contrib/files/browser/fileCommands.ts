@@ -144,7 +144,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 				return await fileService.resolve(resource);
 			}));
-			let files = items.filter(i => !i.isDirectory);
+			const files = items.filter(i => !i.isDirectory);
 			const editors = files.map(f => ({
 				resource: f.resource,
 				options: { pinned: true }
