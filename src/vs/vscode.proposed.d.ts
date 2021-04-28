@@ -1554,12 +1554,7 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The selector allows to narrow down on specific notebook types or
-		 * instances.
-		 *
-		 * For instance `{ viewType: 'notebook.test' }` selects all notebook
-		 * documents of the type `notebook.test`, whereas `{ pattern: '/my/file/test.nb' }`
-		 * selects only the notebook with the path `/my/file/test.nb`.
+		 * The notebook view type this controller is for.
 		 */
 		readonly viewType: string;
 
@@ -1685,7 +1680,7 @@ declare module 'vscode' {
 		 * Creates a new notebook controller.
 		 *
 		 * @param id Extension-unique identifier of the controller
-		 * @param selector A notebook selector to narrow down notebook type or path
+		 * @param viewType A notebook type for which this controller is for.
 		 * @param label The label of the controller
 		 * @param handler
 		 * @param preloads
