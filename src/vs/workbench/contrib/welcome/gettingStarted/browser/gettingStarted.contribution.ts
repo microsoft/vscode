@@ -191,7 +191,7 @@ if (product.quality !== 'stable') {
 				scope: ConfigurationScope.APPLICATION,
 				type: 'boolean',
 				default: false,
-				description: localize('workbench.welcomePage.experimental.extensionContributions', "When enabled, allow extensions to contribute items to the \"Getting Started\" and \"Start\" sections of the welcome page. Expermental, subject to breakage as api changes.")
+				description: localize('workbench.welcomePage.experimental.extensionContributions', "When enabled, allow extensions to contribute items to the \"Getting Started\" and \"Start\" sections of the welcome page. Experimental, subject to breakage as api changes.")
 			}
 		}
 	});
