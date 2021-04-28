@@ -1115,7 +1115,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		return {
 			severity: MarkerSeverity.Warning,
 			...setting.range,
-			message: nls.localize('untrustedSetting', "This setting can be applied only in the trusted workspace.")
+			message: nls.localize('untrustedSetting', "This setting can only be applied in a trusted workspace.")
 		};
 	}
 

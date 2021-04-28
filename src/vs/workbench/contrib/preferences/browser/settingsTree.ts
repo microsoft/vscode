@@ -1541,7 +1541,7 @@ export class SettingUntrustedRenderer extends AbstractSettingRenderer implements
 			untrustedWorkspaceIcon.style.setProperty('--workspace-trust-state-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
 		}));
 		const element = DOM.append(trustLabelElement, $('span'));
-		element.textContent = localize('trustLabel', "This setting can be applied only in the trusted workspace.");
+		element.textContent = localize('trustLabel', "This setting can only be applied in a trusted workspace");
 		const linkElement: HTMLAnchorElement = DOM.append(trustLabelElement, $('a'));
 		linkElement.textContent = manageWorkspaceTrustLabel;
 		linkElement.setAttribute('tabindex', '0');
