@@ -131,7 +131,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private registerListeners(): void {
 		this._register(this.extensionWorkbenchService.onChange(() => this.render()));
-		this._register(this.configurationService.onDidChangeUntrustdSettings(() => this.render()));
+		this._register(this.configurationService.onDidChangeRestrictedSettings(() => this.render()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this.render()));
 	}
@@ -206,7 +206,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.headerContainer.className = this.getHeaderContainerClass(isWorkspaceTrusted);
 
 		// Settings
-		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.unTrustedSettings.default).length;
+		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.restrictedSettings.default).length;
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);

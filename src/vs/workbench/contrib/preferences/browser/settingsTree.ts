@@ -285,7 +285,7 @@ export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGrou
 
 export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, configurationService: IWorkbenchConfigurationService): ISetting[] {
 	const allSettings = getFlatSettings(groups);
-	return [...allSettings].filter(setting => setting.requireTrust && inspectSetting(setting.key, target, configurationService).isConfigured);
+	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
 }
 
 export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {

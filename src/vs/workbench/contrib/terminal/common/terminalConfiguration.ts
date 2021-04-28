@@ -59,7 +59,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.automationShell.linux': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
@@ -70,7 +70,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.automationShell.osx': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
@@ -81,7 +81,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.automationShell.windows': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
@@ -92,7 +92,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.shellArgs.linux': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
@@ -104,7 +104,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
 		},
 		'terminal.integrated.shellArgs.osx': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
@@ -119,7 +119,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
 		},
 		'terminal.integrated.shellArgs.windows': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
@@ -140,7 +140,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
 		},
 		'terminal.integrated.profiles.windows': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
@@ -202,7 +202,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.profiles.osx': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
@@ -241,7 +241,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.profiles.linux': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
@@ -530,7 +530,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.env.osx': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
@@ -541,7 +541,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: {}
 		},
 		'terminal.integrated.env.linux': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
@@ -552,7 +552,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: {}
 		},
 		'terminal.integrated.env.windows': {
-			requireTrust: true,
+			restricted: true,
 			// TODO: Remove when workspace trust is enabled by default
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
@@ -676,7 +676,7 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 		type: 'object',
 		properties: {
 			'terminal.integrated.shell.linux': {
-				requireTrust: true,
+				restricted: true,
 				// TODO: Remove when workspace trust is enabled by default
 				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: linux,
@@ -685,7 +685,7 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
 			},
 			'terminal.integrated.shell.osx': {
-				requireTrust: true,
+				restricted: true,
 				// TODO: Remove when workspace trust is enabled by default
 				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: osx,
@@ -694,7 +694,7 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
 			},
 			'terminal.integrated.shell.windows': {
-				requireTrust: true,
+				restricted: true,
 				// TODO: Remove when workspace trust is enabled by default
 				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: windows,
