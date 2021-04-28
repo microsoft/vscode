@@ -262,7 +262,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			this.closeExistingEditorsForResource(resource, selectedContribution.editorInfo.id, group);
 		}
 
-		return { editor: input };
+		return { editor: input, options };
 	}
 
 	private closeExistingEditorsForResource(
