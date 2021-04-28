@@ -292,23 +292,41 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
 			type: 'string',
 			enum: ['never', 'singleTerminal'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.hideCondition.never', "Never hide the terminal tabs view"),
+				localize('terminal.integrated.tabs.hideCondition.singleTerminal', "Hide the terminal tabs view when there is only a single terminal opened"),
+			],
 			default: 'singleTerminal',
 		},
 		'terminal.integrated.tabs.showActiveTerminal': {
 			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),
 			type: 'string',
 			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.showActiveTerminal.always', "Always show the active terminal"),
+				localize('terminal.integrated.tabs.showActiveTerminal.singleTerminal', "Show the active terminal when it is the only terminal opened"),
+				localize('terminal.integrated.tabs.showActiveTerminal.singleTerminalOrNarrow', "Show the active terminal when it is the only terminal opened or when the tabs view is in its narrow textless state"),
+				localize('terminal.integrated.tabs.showActiveTerminal.never', "Never show the active terminal"),
+			],
 			default: 'singleTerminalOrNarrow',
 		},
 		'terminal.integrated.tabs.location': {
 			type: 'string',
 			enum: ['left', 'right'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.location.left', "Show the terminal tabs view to the left of the terminal"),
+				localize('terminal.integrated.tabs.location.right', "Show the terminal tabs view to the right of the terminal")
+			],
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
 		'terminal.integrated.tabs.focusMode': {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.focusMode.singleClick', "Focus the terminal when clicking a terminal tab"),
+				localize('terminal.integrated.tabs.focusMode.doubleClick', "Focus the terminal when double clicking a terminal tab")
+			],
 			default: 'doubleClick',
 			description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
 		},
