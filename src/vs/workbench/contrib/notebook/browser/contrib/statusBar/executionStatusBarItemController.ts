@@ -174,11 +174,11 @@ class TimerCellStatusBarHelper extends Disposable {
 	) {
 		super();
 
+		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarHelper.UPDATE_INTERVAL));
 		this._update();
 		this._register(
 			Event.filter(this._cell.model.onDidChangeMetadata, e => !!e.runStateChanged)
 				(() => this._update()));
-		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarHelper.UPDATE_INTERVAL));
 	}
 
 	private async _update() {
