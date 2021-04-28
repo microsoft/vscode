@@ -3184,7 +3184,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (task.command.name) {
 				configElement.command = task.command.name;
 			}
-			if (task.command.args) {
+			if (task.command.args && (!Types.isArray(task.command.args) || (task.command.args.length > 0))) {
 				configElement.args = task.command.args;
 			}
 		}
@@ -3195,7 +3195,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (task.configurationProperties.isBackground) {
 			configElement.isBackground = task.configurationProperties.isBackground;
 		}
-		if (task.configurationProperties.problemMatchers) {
+		if (task.configurationProperties.problemMatchers &&
+			(!Types.isArray(task.configurationProperties.problemMatchers) || (task.configurationProperties.problemMatchers.length > 0))) {
 			configElement.problemMatcher = task._source.config.element.problemMatcher;
 		}
 		if (task.configurationProperties.group) {
