@@ -751,7 +751,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return targetGroup;
 	}
 
-	public findSideBySideGroup(): IEditorGroup {
+	private findSideBySideGroup(): IEditorGroup {
 		const direction = preferredSideBySideGroupDirection(this.configurationService);
 
 		let neighbourGroup = this.editorGroupService.findGroup({ direction });
@@ -784,7 +784,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
 
 		// Convert to typed editors and options
-		const typedEditors: IEditorInputWithOptions[] = editors.map(editor => {
+		let typedEditors: IEditorInputWithOptions[] = editors.map(editor => {
 			if (isEditorInputWithOptions(editor)) {
 				return editor;
 			}
@@ -798,7 +798,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Find target groups to open
 		const mapGroupToEditorsCandidates = new Map<IEditorGroup, IEditorInputWithOptions[]>();
 		if (group === SIDE_GROUP) {
+			// Custom editors which are open and only support one editor per resource should just move
+			const singletonEditors = this.getEditors(EditorsOrder.SEQUENTIAL).filter(e => typedEditors.find(t => isEqual(e.editor.resource, t.editor.resource)) && !e.editor.canSplit());
+			// We remove the singleton editors from the opening list
+			typedEditors = typedEditors.filter(t => !singletonEditors.find(e => isEqual(e.editor.resource, t.editor.resource)));
 			mapGroupToEditorsCandidates.set(this.findSideBySideGroup(), typedEditors);
+			// Move the editors which are opened and can't be opened again to the side
+			singletonEditors.forEach(e => this.editorGroupService.getGroup(e.groupId)?.moveEditor(e.editor, this.findSideBySideGroup()));
 		} else {
 			for (const typedEditor of typedEditors) {
 				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
@@ -1369,7 +1375,6 @@ export class DelegatingEditorService implements IEditorService {
 	get editors(): readonly IEditorInput[] { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }
 
-	findSideBySideGroup(): IEditorGroup { return this.editorService.findSideBySideGroup(); }
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[] { return this.editorService.getEditors(order, options); }
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
