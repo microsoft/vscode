@@ -338,6 +338,7 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 		});
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onActiveInstanceChanged(() => this.updateLabel()));
+		this._register(this._terminalService.onInstancesChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
 			if (e === this._terminalService.getActiveInstance()) {
 				this.updateLabel();
