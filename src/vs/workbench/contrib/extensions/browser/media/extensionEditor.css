@@ -158,6 +158,10 @@
 	min-width: 0;
 }
 
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action {
+	margin-bottom: 2px; /* margin for outline */
+}
+
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
 	margin-left: 2px; /* margin for outline */
 }
