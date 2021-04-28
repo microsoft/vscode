@@ -910,7 +910,7 @@ function webviewPreloads() {
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');
-				previewContainerNode.innerText = '';
+				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
 				onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
