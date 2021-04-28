@@ -45,6 +45,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { hash } from 'vs/base/common/hash';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 // Commands
 
@@ -128,7 +129,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const listService = accessor.get(IListService);
 		const fileService = accessor.get(IFileService);
 		const explorerService = accessor.get(IExplorerService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const resources = getMultiSelectedResources(resource, listService, editorService, explorerService);
+
+		const currentlyOpenedEditors = editorService.getEditors(EditorsOrder.SEQUENTIAL);
 
 		// Set side input
 		if (resources.length) {
@@ -144,13 +148,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 				return await fileService.resolve(resource);
 			}));
-			const files = items.filter(i => !i.isDirectory);
+			let files = items.filter(i => !i.isDirectory);
+			// Custom editors which are open and only support one editor per resource should just move
+			const singletonEditors = currentlyOpenedEditors.filter(e => files.find(f => isEqual(e.editor.resource, f.resource)) && e.editor.typeId === CustomEditorInput.typeId && !e.editor.canSplit());
+			// We remove the singleton editors from the opening list
+			files = files.filter(f => !singletonEditors.find(e => isEqual(e.editor.resource, f.resource)));
 			const editors = files.map(f => ({
 				resource: f.resource,
 				options: { pinned: true }
 			})).concat(...untitledResources.map(untitledResource => ({ resource: untitledResource, options: { pinned: true } })));
 
 			await editorService.openEditors(editors, SIDE_GROUP);
+			singletonEditors.forEach(e => editorGroupsService.getGroup(e.groupId)?.moveEditor(e.editor, editorService.findSideBySideGroup()));
 		}
 	}
 });

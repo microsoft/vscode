@@ -751,7 +751,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return targetGroup;
 	}
 
-	private findSideBySideGroup(): IEditorGroup {
+	public findSideBySideGroup(): IEditorGroup {
 		const direction = preferredSideBySideGroupDirection(this.configurationService);
 
 		let neighbourGroup = this.editorGroupService.findGroup({ direction });
@@ -1369,6 +1369,7 @@ export class DelegatingEditorService implements IEditorService {
 	get editors(): readonly IEditorInput[] { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }
 
+	findSideBySideGroup(): IEditorGroup { return this.editorService.findSideBySideGroup(); }
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[] { return this.editorService.getEditors(order, options); }
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;

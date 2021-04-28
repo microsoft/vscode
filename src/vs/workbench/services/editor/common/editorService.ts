@@ -159,6 +159,11 @@ export interface IEditorService {
 	readonly count: number;
 
 	/**
+	 * Fidns the group to the side of the current one. Respects the users preferred direction
+	 */
+	findSideBySideGroup(): IEditorGroup
+
+	/**
 	 * All editors that are opened across all editor groups with their group
 	 * identifier.
 	 *

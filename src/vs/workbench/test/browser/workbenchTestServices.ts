@@ -790,6 +790,7 @@ export class TestEditorService implements EditorServiceImpl {
 	count = this.editors.length;
 
 	constructor(private editorGroupService?: IEditorGroupsService) { }
+	findSideBySideGroup(): IEditorGroup { throw new Error('Method not implemented.'); }
 	getEditors() { return []; }
 	findEditors() { return [] as any; }
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
