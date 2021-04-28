@@ -70,6 +70,7 @@ const HasInstalledWebExtensionsContext = new RawContextKey<boolean>('hasInstalle
 const BuiltInExtensionsContext = new RawContextKey<boolean>('builtInExtensions', false);
 const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltInExtensions', false);
 const TrustRequiredExtensionsContext = new RawContextKey<boolean>('trustRequiredExtensions', false);
+const SearchTrustRequiredExtensionsContext = new RawContextKey<boolean>('searchTrustRequiredExtensions', false);
 const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
@@ -341,6 +342,16 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchBuiltInExtensions')),
 		});
 
+		/*
+		 * View used for searching trustRequired extensions
+		 */
+		viewDescriptors.push({
+			id: 'workbench.views.extensions.searchTrustRequired',
+			name: localize('trustRequired', "Trust Required"),
+			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchTrustRequiredExtensions')),
+		});
+
 		return viewDescriptors;
 	}
 
@@ -429,6 +440,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private builtInExtensionsContextKey: IContextKey<boolean>;
 	private searchBuiltInExtensionsContextKey: IContextKey<boolean>;
 	private trustRequiredExtensionsContextKey: IContextKey<boolean>;
+	private searchTrustRequiredExtensionsContextKey: IContextKey<boolean>;
 	private recommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: Delayer<void>;
@@ -465,6 +477,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.searchMarketplaceExtensionsContextKey = SearchMarketplaceExtensionsContext.bindTo(contextKeyService);
 		this.searchInstalledExtensionsContextKey = SearchIntalledExtensionsContext.bindTo(contextKeyService);
 		this.trustRequiredExtensionsContextKey = TrustRequiredExtensionsContext.bindTo(contextKeyService);
+		this.searchTrustRequiredExtensionsContextKey = SearchTrustRequiredExtensionsContext.bindTo(contextKeyService);
 		this.searchOutdatedExtensionsContextKey = SearchOutdatedExtensionsContext.bindTo(contextKeyService);
 		this.searchEnabledExtensionsContextKey = SearchEnabledExtensionsContext.bindTo(contextKeyService);
 		this.searchDisabledExtensionsContextKey = SearchDisabledExtensionsContext.bindTo(contextKeyService);
@@ -657,6 +670,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.searchDisabledExtensionsContextKey.set(ExtensionsListView.isDisabledExtensionsQuery(value));
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isSearchBuiltInExtensionsQuery(value));
 		this.trustRequiredExtensionsContextKey.set(ExtensionsListView.isTrustRequiredExtensionsQuery(value));
+		this.searchTrustRequiredExtensionsContextKey.set(ExtensionsListView.isSearchTrustRequiredExtensionsQuery(value));
 		this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
 		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
