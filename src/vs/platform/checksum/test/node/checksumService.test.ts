@@ -15,17 +15,19 @@ import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('Checksum Service', () => {
 
+	let diskFileSystemProvider: DiskFileSystemProvider;
 	let fileService: IFileService;
 
 	setup(() => {
 		const logService = new NullLogService();
 		fileService = new FileService(logService);
 
-		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 	});
 
 	teardown(() => {
+		diskFileSystemProvider.dispose();
 		fileService.dispose();
 	});
 
