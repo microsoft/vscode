@@ -78,6 +78,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			if (changeEvent.key === this.storageKey) {
 				this._trustStateInfo = this.loadTrustInfo();
 				this.currentTrustState = this.calculateWorkspaceTrust();
+
+				this._onDidChangeTrustedFolders.fire();
 			}
 		}));
 	}
@@ -110,7 +112,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private saveTrustInfo(): void {
 		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		this._onDidChangeTrustedFolders.fire();
 	}
 
 	private calculateWorkspaceTrust(): boolean {

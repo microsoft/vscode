@@ -316,7 +316,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
 			const parentIsTrusted = this.workspaceTrustManagementService.getFolderTrustInfo(URI.file(parentPath)).trusted;
-			console.log(`Parent (${parentPath}) is trusted: ${parentIsTrusted}`);
 			if (parentIsTrusted) {
 				return false;
 			}
