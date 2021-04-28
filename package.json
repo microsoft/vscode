@@ -44,7 +44,6 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
-    "no-implicit-override-watch": "tsc --watch -p src/tsconfig.json --noEmit --noImplicitOverride",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node resources/web/code-web.js",
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
