@@ -3195,8 +3195,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (task.configurationProperties.isBackground) {
 			configElement.isBackground = task.configurationProperties.isBackground;
 		}
-		if (task.configurationProperties.problemMatchers &&
-			(!Types.isArray(task.configurationProperties.problemMatchers) || (task.configurationProperties.problemMatchers.length > 0))) {
+		if (task.configurationProperties.problemMatchers) {
 			configElement.problemMatcher = task._source.config.element.problemMatcher;
 		}
 		if (task.configurationProperties.group) {
@@ -3213,7 +3212,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async upgrade(): Promise<void> {
-		if (this.executionEngine !== ExecutionEngine.Process) {
+		if (this._schemaVersion === JsonSchemaVersion.V2_0_0) {
 			return;
 		}
 
