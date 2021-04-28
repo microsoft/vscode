@@ -293,9 +293,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		if (this.isTrustedExplicitlyOnly()) {
-			this.addDontTrustButtonToElement(trustedContainer);
+			this.addDontTrustButtonToElement(untrustedContainer);
 		} else {
-			this.addTrustedTextToElement(trustedContainer);
+			this.addTrustedTextToElement(untrustedContainer);
 		}
 	}
 
