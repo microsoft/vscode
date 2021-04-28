@@ -154,6 +154,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 export class PortRestore implements IWorkbenchContribution {
 	constructor(
 		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
+		@ILogService readonly logService: ILogService
 	) {
 		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
 			Event.once(this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet)(async () => {
@@ -165,6 +166,7 @@ export class PortRestore implements IWorkbenchContribution {
 	}
 
 	private async restore() {
+		this.logService.trace('ForwardedPorts: Doing first restore.');
 		return this.remoteExplorerService.restore();
 	}
 }

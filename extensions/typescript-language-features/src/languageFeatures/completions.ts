@@ -60,6 +60,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		public readonly tsEntry: Proto.CompletionEntry,
 		private readonly completionContext: CompletionContext,
 		public readonly metadata: any | undefined,
+		client: ITypeScriptServiceClient,
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
 
@@ -79,9 +80,9 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 
 		// @ts-expect-error until 4.3 protocol update
-		if (tsEntry.sourceDisplay) {
-			// @ts-expect-error
-			this.label2 = { name: tsEntry.name, qualifier: Previewer.plain(tsEntry.sourceDisplay) };
+		const { sourceDisplay, isSnippet } = tsEntry;
+		if (sourceDisplay) {
+			this.label2 = { name: tsEntry.name, qualifier: Previewer.plainWithLinks(sourceDisplay, client) };
 		}
 
 		this.preselect = tsEntry.isRecommended;
@@ -90,10 +91,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
-		// @ts-expect-error until 4.3 protocol update
-		this.insertText = tsEntry.isSnippet && tsEntry.insertText
-			? new vscode.SnippetString(tsEntry.insertText)
-			: tsEntry.insertText;
+		this.insertText = isSnippet && tsEntry.insertText ? new vscode.SnippetString(tsEntry.insertText) : tsEntry.insertText;
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext && !(this.insertText instanceof vscode.SnippetString)) {
@@ -786,7 +784,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		const items: MyCompletionItem[] = [];
 		for (const entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
-				const item = new MyCompletionItem(position, document, entry, completionContext, metadata);
+				const item = new MyCompletionItem(position, document, entry, completionContext, metadata, this.client);
 				item.command = {
 					command: ApplyCompletionCommand.ID,
 					title: '',
@@ -845,7 +843,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 			case ' ':
 				// @ts-expect-error until 4.3.0 protocol update
-				return this.client.apiVersion.gte(API.v430) ? ' ' : undefined;
+				const space: Proto.CompletionsTriggerCharacter = ' ';
+				return this.client.apiVersion.gte(API.v430) ? space : undefined;
 
 			case '.':
 			case '"':

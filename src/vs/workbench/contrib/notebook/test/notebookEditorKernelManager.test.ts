@@ -59,7 +59,7 @@ suite('NotebookEditorKernelManager', () => {
 		await withTestNotebook(
 			[],
 			async (viewModel) => {
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { activeKernel: undefined, viewModel });
+				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
