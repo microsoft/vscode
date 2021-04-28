@@ -7,6 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { splitName } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { isWeb } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -31,6 +32,10 @@ export const WorkspaceTrustContext = {
 };
 
 export function isWorkspaceTrustEnabled(configurationService: IConfigurationService): boolean {
+	if (isWeb) {
+		return false;
+	}
+
 	return configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
 }
 
