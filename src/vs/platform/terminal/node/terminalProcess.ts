@@ -243,7 +243,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
-				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 			this._windowsShellHelper?.checkShell();
@@ -338,7 +337,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public shutdown(immediate: boolean): void {
-		if (immediate) {
+		// don't force immediate disposal of the terminal processes on Windows as an additional
+		// mitigation for https://github.com/microsoft/vscode/issues/71966 which causes the pty host
+		// to become unresponsive, disconnecting all terminals across all windows.
+		if (immediate && !isWindows) {
 			this._kill();
 		} else {
 			if (!this._closeTimeout && !this._isDisposed) {

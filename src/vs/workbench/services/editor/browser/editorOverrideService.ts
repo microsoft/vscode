@@ -125,7 +125,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		if (conflictingDefault && input) {
 			// Wait one second to give the user ample time to see the current editor then ask them to configure a default
 			setTimeout(() => {
-				this.doHandleConflictingDefaults(input.editor, input.options ?? options, group);
+				this.doHandleConflictingDefaults(selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
 			}, 1200);
 		}
 		// Add the group as we might've changed it with the quickpick
@@ -262,7 +262,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			this.closeExistingEditorsForResource(resource, selectedContribution.editorInfo.id, group);
 		}
 
-		return { editor: input };
+		return { editor: input, options };
 	}
 
 	private closeExistingEditorsForResource(
@@ -315,7 +315,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return out;
 	}
 
-	private async doHandleConflictingDefaults(currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
+	private async doHandleConflictingDefaults(editorName: string, currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
 		const makeCurrentEditorDefault = () => {
 			const viewType = currentEditor.viewType;
 			if (viewType) {
@@ -333,12 +333,22 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 					if (!picked) {
 						return;
 					}
-					// Resolve the new override and open that instead (this always triggers a replace as it's the same resource, so opening is implicitly called here)
-					this.resolveEditorOverride(currentEditor, picked[0], picked[1] ?? group);
+					const replacementEditor = await this.resolveEditorOverride(currentEditor, picked[0], picked[1] ?? group);
+					if (!replacementEditor) {
+						return;
+					}
+					// Replace the current editor with the picked one
+					(replacementEditor.group ?? picked[1] ?? group).replaceEditors([
+						{
+							editor: currentEditor,
+							replacement: replacementEditor.editor,
+							options: replacementEditor.options ?? picked[0],
+						}
+					]);
 				}
 			},
 			{
-				label: localize('editorOverride.keepDefault', 'Keep Current'),
+				label: localize('editorOverride.keepDefault', 'Keep {0}', editorName),
 				run: makeCurrentEditorDefault
 			}
 			]);
@@ -349,7 +359,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		});
 	}
 
-	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup) {
+	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup, alwaysUpdateSetting?: boolean) {
 		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all contribution points
 		let contributionPoints = resource.scheme === Schemas.untitled ? distinct(flatten(Array.from(this._contributionPoints.values())), (contrib) => contrib.editorInfo.id) : this.findMatchingContributions(resource);
@@ -380,7 +390,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				label: contribPoint.editorInfo.label,
 				description: isActive ? localize('promptOpenWith.currentlyActive', "Currently Active") : undefined,
 				detail: contribPoint.editorInfo.detail ?? contribPoint.editorInfo.priority,
-				buttons: [{
+				buttons: alwaysUpdateSetting ? [] : [{
 					iconClass: Codicon.gear.classNames,
 					tooltip: localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", extname(resource))
 				}],
@@ -409,11 +419,14 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// Text editor has the lowest priority because we
-		const editorOverridePicks = this.mapContributionsToQuickPickEntry(resource, group);
+		const editorOverridePicks = this.mapContributionsToQuickPickEntry(resource, group, alwaysUpdateSetting);
 
 		// Create editor override picker
 		const editorOverridePicker = this.quickInputService.createQuickPick<IQuickPickItem>();
-		editorOverridePicker.placeholder = localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
+		const placeHolderMessage = alwaysUpdateSetting ?
+			localize('prompOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", basename(resource)) :
+			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
+		editorOverridePicker.placeholder = placeHolderMessage;
 		editorOverridePicker.canAcceptInBackground = true;
 		editorOverridePicker.items = editorOverridePicks;
 		const firstItem = editorOverridePicker.items.find(item => item.type === 'item') as IQuickPickItem | undefined;
@@ -504,7 +517,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// Store just the relative pattern pieces without any path info
 		for (const globPattern of this._contributionPoints.keys()) {
 			const contribPoint = this._contributionPoints.get(globPattern)!;
-			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== ContributedEditorPriority.option);
+			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== ContributedEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
 			if (!nonOptional) {
 				continue;

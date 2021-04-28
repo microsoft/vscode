@@ -134,8 +134,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return schema === Schemas.untitled ? [Schemas.file] : [schema];
 	}
 
-	private shouldUseSimplified(schema: string): boolean {
-		return schema !== Schemas.file && schema !== Schemas.userData;
+	private shouldUseSimplified(scheme: string): boolean {
+		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
 	}
 }
 

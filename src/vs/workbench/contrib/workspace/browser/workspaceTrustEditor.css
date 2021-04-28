@@ -167,10 +167,6 @@
 	margin-top: auto;
 }
 
-.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-buttons-row {
-	display: none;
-}
-
 /** Buttons */
 .workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons {
 	display: flex;

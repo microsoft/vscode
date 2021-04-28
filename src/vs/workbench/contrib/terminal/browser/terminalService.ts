@@ -402,11 +402,8 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		// Force dispose of all terminal instances, don't force immediate disposal of the terminal
-		// processes on Windows as an additional mitigation for https://github.com/microsoft/vscode/issues/71966
-		// which causes the pty host to become unresponsive, disconnecting all terminals across all
-		// windows
-		this.terminalInstances.forEach(instance => instance.dispose(!isWindows));
+		// Force dispose of all terminal instances
+		this.terminalInstances.forEach(instance => instance.dispose(true));
 
 		this._localTerminalService?.setTerminalLayoutInfo(undefined);
 	}
@@ -456,7 +453,7 @@ export class TerminalService implements ITerminalService {
 			const newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveTabByIndex(newIndex);
 			const activeInstance = this.getActiveInstance();
-			if (activeInstance) {
+			if (this._onActiveInstanceChanged && activeInstance?.hadFocusOnExit) {
 				activeInstance.focus(true);
 			}
 		} else if (activeTabIndex >= this._terminalTabs.length) {
@@ -712,10 +709,14 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	public async focusTabsView(): Promise<void> {
+	public async focusTabs(): Promise<void> {
 		await this.showPanel(true);
 		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.focusTabsView();
+		pane?.terminalTabbedView?.focusTabs();
+	}
+
+	public showTabs() {
+		this._configurationService.updateValue('terminal.integrated.tabs.enabled', true);
 	}
 
 	private _getIndexFromId(terminalId: number): number {

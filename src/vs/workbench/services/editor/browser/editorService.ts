@@ -782,6 +782,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
+
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = editors.map(editor => {
 			if (isEditorInputWithOptions(editor)) {

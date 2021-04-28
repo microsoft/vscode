@@ -16,7 +16,7 @@ import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -64,7 +64,17 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		shellLaunchConfig.executable = resolvedProfile.path;
 		shellLaunchConfig.args = resolvedProfile.args;
-		shellLaunchConfig.icon = shellLaunchConfig.icon || resolvedProfile.icon || Codicon.terminal.id;
+
+		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
+		// an issue
+		shellLaunchConfig.icon = this._verifyIcon(shellLaunchConfig.icon) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
+	}
+
+	private _verifyIcon(iconId?: string): string | undefined {
+		if (!iconId || !iconRegistry.get(iconId)) {
+			return undefined;
+		}
+		return iconId;
 	}
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {

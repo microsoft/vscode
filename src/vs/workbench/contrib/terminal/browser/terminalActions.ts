@@ -46,7 +46,8 @@ const enum ContextMenuGroup {
 	Create = '1_create',
 	Edit = '2_edit',
 	Clear = '3_clear',
-	Kill = '4_kill'
+	Kill = '4_kill',
+	Config = '5_config'
 }
 
 export const enum ContextMenuTabsGroup {
@@ -209,6 +210,30 @@ export function registerTerminalActions() {
 			title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile")
 		},
 		group: ContextMenuGroup.Create
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SHOW_TABS,
+				title: { value: localize('workbench.action.terminal.showTabs', "Show Tabs"), original: 'Show Tabs' },
+				f1: false,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.showTabs();
+		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SHOW_TABS,
+			title: localize('workbench.action.terminal.showsTabs', "Show Tabs")
+		},
+		when: ContextKeyExpr.not('config.terminal.integrated.tabs.enabled'),
+		group: ContextMenuGroup.Config
 	});
 
 	registerAction2(class extends Action2 {
@@ -388,7 +413,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FOCUS_TABS_VIEW,
+				id: TERMINAL_COMMAND_ID.FOCUS_TABS,
 				title: { value: localize('workbench.action.terminal.focus.tabsView', "Focus Terminal Tabs View"), original: 'Focus Terminal Tabs View' },
 				f1: true,
 				category,
@@ -401,7 +426,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).focusTabsView();
+			accessor.get(ITerminalService).focusTabs();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -725,7 +750,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.CHANGE_ICON,
-				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
+				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon..."), original: 'Change Icon...' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -743,7 +768,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
-				title: { value: localize('workbench.action.terminal.changeIconInstance', "Change Icon"), original: 'Change Icon' },
+				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon..."), original: 'Change Icon...' },
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION),
@@ -761,7 +786,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.RENAME,
-				title: { value: localize('workbench.action.terminal.rename', "Rename"), original: 'Rename' },
+				title: { value: localize('workbench.action.terminal.rename', "Rename..."), original: 'Rename...' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -779,7 +804,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
-				title: { value: localize('workbench.action.terminal.renameInstance', "Rename"), original: 'Rename' },
+				title: { value: localize('workbench.action.terminal.renameInstance', "Rename..."), original: 'Rename...' },
 				f1: false,
 				category,
 				keybinding: {
@@ -1369,7 +1394,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
-				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
+				title: { value: localize('workbench.action.terminal.splitInstance', "Split Terminal"), original: 'Split Terminal' },
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -1396,6 +1421,13 @@ export function registerTerminalActions() {
 				}
 			}
 		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabInlineActions, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
+			title: localize('workbench.action.terminal.splitInstance', "Split Terminal"),
+		},
+		group: ContextMenuGroup.Create
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1561,7 +1593,7 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
 				title: {
-					value: localize('workbench.action.terminal.kill.short', "Kill Terminal"), original: 'Kill Terminal'
+					value: localize('workbench.action.terminal.killInstance', "Kill Terminal"), original: 'Kill Terminal'
 				},
 				f1: false,
 				category,
@@ -1583,7 +1615,16 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			getSelectedInstances(accessor)?.forEach(instance => instance.dispose(true));
+			accessor.get(ITerminalService).focusTabs();
+			focusNext(accessor);
 		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabInlineActions, {
+		command: {
+			id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
+			title: localize('workbench.action.terminal.killInstance', "Kill Terminal")
+		},
+		group: ContextMenuGroup.Kill
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1863,4 +1904,9 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 		}
 	}
 	return instances;
+}
+
+function focusNext(accessor: ServicesAccessor): void {
+	const listService = accessor.get(IListService);
+	listService.lastFocusedList?.focusNext();
 }

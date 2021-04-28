@@ -253,10 +253,6 @@ export class TerminalViewPane extends ViewPane {
 		this._focus();
 	}
 
-	public focusTabsView(): void {
-		this._terminalTabbedView?.focusTabsView();
-	}
-
 	private _focus() {
 		this._terminalService.getActiveInstance()?.focusWhenReady();
 	}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
@@ -42,11 +43,10 @@ import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboa
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import product from 'vs/platform/product/common/product';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -116,8 +116,10 @@ export abstract class SharedDesktopMain extends Disposable {
 		// Logging
 		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 
-		// Allow subclass to participate
-		this.joinOpen(instantiationService);
+		// Driver
+		if (this.configuration.driver) {
+			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
+		}
 	}
 
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
@@ -128,7 +130,6 @@ export abstract class SharedDesktopMain extends Disposable {
 	}
 
 	protected abstract registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void | Promise<void>;
-	protected joinOpen(instantiationService: IInstantiationService): void { }
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();

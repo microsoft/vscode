@@ -50,7 +50,7 @@ export async function loadLocalResource(
 		extensionLocation: URI | undefined;
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
-		useRemoteAuthority?: string;
+		useRootAuthority?: boolean;
 	},
 	fileService: IFileService,
 	requestService: IRequestService,
@@ -59,7 +59,7 @@ export async function loadLocalResource(
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.extensionLocation, options.useRemoteAuthority);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.extensionLocation, options.useRootAuthority);
 
 	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -119,11 +119,11 @@ function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
 	extensionLocation: URI | undefined,
-	useRemoteAuthority: string | undefined
+	useRootAuthority: boolean | undefined
 ): URI | undefined {
 	for (const root of roots) {
 		if (containsResource(root, requestUri)) {
-			return normalizeResourcePath(requestUri, extensionLocation, useRemoteAuthority);
+			return normalizeResourcePath(requestUri, extensionLocation, useRootAuthority ? root.authority : undefined);
 		}
 	}
 

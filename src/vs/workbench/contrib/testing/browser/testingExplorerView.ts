@@ -88,6 +88,13 @@ export class TestingExplorerView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this._register(testService.onDidChangeProviders(() => this._onDidChangeViewWelcomeState.fire()));
 		this.location.set(viewDescriptorService.getViewLocationById(Testing.ExplorerViewId) ?? ViewContainerLocation.Sidebar);
+
+		const relayout = this._register(new RunOnceScheduler(() => this.viewModel?.layout(), 1));
+		this._register(this.onDidChangeViewWelcomeState(() => {
+			if (!this.shouldShowWelcome()) {
+				relayout.schedule();
+			}
+		}));
 	}
 
 	/**
@@ -184,7 +191,7 @@ export class TestingExplorerView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.container.style.height = `${height}px`;
-		this.viewModel.layout(height, width);
+		this.viewModel.layout();
 	}
 
 	private createSubscription() {
@@ -396,7 +403,7 @@ export class TestingExplorerViewModel extends Disposable {
 	/**
 	 * Re-layout the tree.
 	 */
-	public layout(_height: number, _width: number): void {
+	public layout(): void {
 		this.tree.layout(); // The tree will measure its container
 	}
 

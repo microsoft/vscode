@@ -19,6 +19,10 @@ import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStar
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import product from 'vs/platform/product/common/product';
+
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 
@@ -176,3 +180,19 @@ class WorkbenchConfigurationContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
+
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+if (product.quality !== 'stable') {
+	configurationRegistry.registerConfiguration({
+		...workbenchConfigurationNodeBase,
+		properties: {
+			'workbench.welcomePage.experimental.extensionContributions': {
+				scope: ConfigurationScope.APPLICATION,
+				type: 'boolean',
+				default: false,
+				description: localize('workbench.welcomePage.experimental.extensionContributions', "When enabled, allow extensions to contribute items to the \"Getting Started\" and \"Start\" sections of the welcome page. Experimental, subject to breakage as api changes.")
+			}
+		}
+	});
+}

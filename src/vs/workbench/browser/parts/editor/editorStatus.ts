@@ -43,7 +43,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClassesForModeId } from 'vs/editor/common/services/getIconClasses';
-import { timeout } from 'vs/base/common/async';
+import { Promises, timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -61,8 +61,8 @@ class SideBySideEditorEncodingSupport implements IEncodingSupport {
 		return this.primary.getEncoding(); // always report from modified (right hand) side
 	}
 
-	setEncoding(encoding: string, mode: EncodingMode): void {
-		[this.primary, this.secondary].forEach(editor => editor.setEncoding(encoding, mode));
+	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
+		await Promises.settled([this.primary, this.secondary].map(editor => editor.setEncoding(encoding, mode)));
 	}
 }
 
@@ -1434,7 +1434,7 @@ export class ChangeEncodingAction extends Action {
 
 		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeEditorPane.input);
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport && activeEncodingSupport.getEncoding() !== encoding.id) {
-			activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 		}
 
 		activeTextEditorControl.focus();

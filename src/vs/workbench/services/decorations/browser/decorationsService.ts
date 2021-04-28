@@ -119,7 +119,7 @@ class DecorationRule {
 		const charCode = parseInt(codicon.definition.fontCharacter.substr(1), 16);
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
-			`content: "${String.fromCharCode(charCode)}"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; padding-right: 14px;`,
+			`content: "${String.fromCharCode(charCode)}"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 16px; padding-right: 14px; font-weight: normal`,
 			element
 		);
 	}

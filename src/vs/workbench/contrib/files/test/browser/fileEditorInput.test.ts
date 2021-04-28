@@ -170,7 +170,7 @@ suite('Files - FileEditorInput', () => {
 	test('getEncoding/setEncoding', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		input.setEncoding('utf16', EncodingMode.Encode);
+		await input.setEncoding('utf16', EncodingMode.Encode);
 		assert.strictEqual(input.getEncoding(), 'utf16');
 
 		const resolved = await input.resolve() as TextFileEditorModel;

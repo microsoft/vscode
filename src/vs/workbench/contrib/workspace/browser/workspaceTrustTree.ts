@@ -204,7 +204,7 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 	}
 
 	protected getLocalizedRowTitle(item: IWorkspaceTrustUriDataItem): string {
-		return item.toString();
+		return localize('trustedRow', "Trusted Path: {0}", this.labelService.getUriLabel(URI.from(item)));
 	}
 
 	protected getLocalizedStrings() {

@@ -110,7 +110,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		const enablementState = this.getEnablementState(extension);
 		if (enablementState === EnablementState.DisabledByEnvironment
 			|| enablementState === EnablementState.DisabledByVirtualWorkspace
-			|| enablementState === EnablementState.DisabledByTrustRequirement
 			|| enablementState === EnablementState.DisabledByExtensionKind) {
 			return false;
 		}

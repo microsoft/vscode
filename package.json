@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.56.0",
-  "distro": "024c251d738b03750f250471c777f350071e234a",
+  "distro": "10d543e6463e3635b4724c4b9d315b8656e6ad01",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,6 +28,8 @@
     "watch-extension-media": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-extension-media",
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
+    "watch-extension-mediad": "deemon yarn watch-extension-media",
+    "kill-watch-extension-mediad": "deemon --kill yarn watch-extension-media",
     "mocha": "mocha test/unit/node/all.js --delay",
     "precommit": "node build/hygiene.js",
     "gulp": "node --max_old_space_size=8192 ./node_modules/gulp/bin/gulp.js",

@@ -8,7 +8,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
@@ -25,7 +25,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { isWorkspaceTrustEnabled, WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isWorkspaceTrustEnabled, WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -39,6 +39,10 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+
+const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
+
 
 /*
  * Trust Request UX Handler
@@ -51,6 +55,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
@@ -61,6 +66,19 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}
 	}
 
+	private get startupPromptSetting(): 'always' | 'once' | 'never' {
+		return this.configurationService.getValue(WORKSPACE_TRUST_STARTUP_PROMPT);
+	}
+
+	private get useWorkspaceLanguage(): boolean {
+		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
+	}
+
+	private get modalTitle(): string {
+		return this.useWorkspaceLanguage ?
+			localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
+			localize('folderTrust', "Do you trust the authors of the files in this folder?");
+	}
 
 	private async doShowModal(question: string, trustedOption: { label: string, sublabel: string }, untrustedOption: { label: string, sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
 		const result = await this.dialogService.show(
@@ -99,6 +117,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				this.workspaceTrustRequestService.cancelRequest();
 				break;
 		}
+
+		this.storageService.store(STARTUP_PROMPT_SHOWN_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private showModalOnStart(): void {
@@ -106,25 +126,31 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			return;
 		}
 
+		if (this.startupPromptSetting === 'never') {
+			return;
+		}
+
+		if (this.startupPromptSetting === 'once' && this.storageService.getBoolean(STARTUP_PROMPT_SHOWN_KEY, StorageScope.WORKSPACE, false)) {
+			return;
+		}
+
 		let checkboxText: string | undefined;
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace())!;
 		const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
-			checkboxText = localize('checkboxString', "I trust the author of all files in the parent folder");
+			checkboxText = localize('checkboxString', "I trust the authors of all files in the parent folder");
 		}
 
 		// Show Workspace Trust Start Dialog
 		this.doShowModal(
-			!isSingleFolderWorkspace ?
-				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
-				localize('folderTrust', "Do you trust the authors of the files in this folder?"),
+			this.modalTitle,
 			{ label: localize('trustOption', "Yes, I trust the authors"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "Trust folder and enable all features") : localize('trustWorkspaceOptionDescription', "Trust workspace and enable all features") },
 			{ label: localize('dontTrustOption', "No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
 			[
 				!isSingleFolderWorkspace ?
 					localize('workspaceStartupTrustDetails', "{0} provides advanced editing features that may automatically execute files in this workspace.", product.nameShort) :
 					localize('folderStartupTrustDetails', "{0} provides advanced editing features that may automatically execute files in this folder.", product.nameShort),
-				localize('learnMore', "If you don't trust the author of these files we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+				localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
 			],
 			checkboxText
 		);
@@ -139,8 +165,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 				// Buttons
 				const buttons = requestOptions.buttons ?? [
-					{ label: localize('grantWorkspaceTrustButton', "Trust Workspace & Continue"), type: 'ContinueWithTrust' },
-					{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
+					{ label: this.useWorkspaceLanguage ? localize('grantWorkspaceTrustButton', "Trust Workspace & Continue") : localize('grantFolderTrustButton', "Trust Folder & Continue"), type: 'ContinueWithTrust' },
+					{ label: localize('manageWorkspaceTrustButton', "Manage"), type: 'Manage' }
 				];
 				// Add Cancel button if not provided
 				if (!buttons.some(b => b.type === 'Cancel')) {
@@ -150,12 +176,17 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				// Dialog
 				const result = await this.dialogService.show(
 					Severity.Info,
-					localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
+					this.modalTitle,
 					buttons.map(b => b.label),
 					{
 						cancelId: buttons.findIndex(b => b.type === 'Cancel'),
-						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Using an untrusted workspace may compromise your device or personal information.", message),
-						custom: { icon: Codicon.shield }
+						custom: {
+							icon: Codicon.shield,
+							markdownDetails: [
+								{ markdown: new MarkdownString(message) },
+								{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
+							]
+						}
 					}
 				);
 
@@ -194,10 +225,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					if (!addedFoldersTrustInfo.map(i => i.trusted).every(trusted => trusted)) {
 						const result = await this.dialogService.show(
 							Severity.Info,
-							localize('addWorkspaceFolderMessage', "Do you trust the files in this folder?"),
+							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
 							[localize('yes', 'Yes'), localize('no', 'No')],
 							{
-								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you want to trust the new files?"),
+								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you trust the authors of these new files?"),
 								cancelId: 1,
 								custom: { icon: Codicon.shield }
 							}
@@ -374,6 +405,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: false,
 				included: !isWeb,
 				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
+				scope: ConfigurationScope.APPLICATION
+			},
+			[WORKSPACE_TRUST_STARTUP_PROMPT]: {
+				type: 'string',
+				default: 'once',
+				included: !isWeb,
+				description: localize('workspace.trust.startupPrompt.description', "Controls when the startup prompt to trust a workspace is shown."),
+				scope: ConfigurationScope.APPLICATION,
+				enum: ['always', 'once', 'never'],
+				enumDescriptions: [
+					localize('workspace.trust.startupPrompt.always', "Ask for trust every time an untrusted workspace is opened."),
+					localize('workspace.trust.startupPrompt.once', "Ask for trust the first time an untrusted workspace is opened."),
+					localize('workspace.trust.startupPrompt.never', "Do not ask for trust when an untrusted workspace is opened."),
+				]
 			}
 		}
 	});

@@ -93,8 +93,9 @@ export class TerminalTabbedView extends Disposable {
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContainerContext, contextKeyService));
 		this._tabsWidgetMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetContext, contextKeyService));
 		this._tabsWidgetEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetEmptyContext, contextKeyService));
+		const inlineMenu = this._register(menuService.createMenu(MenuId.TerminalTabInlineActions, contextKeyService));
 
-		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
+		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree, inlineMenu));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
 		parentElement.appendChild(this._findWidget.getDomNode());
 
@@ -157,7 +158,7 @@ export class TerminalTabbedView extends Disposable {
 				this._addTabTree();
 				this._addSashListener();
 				this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
-				this._refreshHasTextClass();
+				this._rerenderTabs();
 			}
 		} else {
 			if (this._splitView.length === 2) {
@@ -224,7 +225,6 @@ export class TerminalTabbedView extends Disposable {
 			width = DEFAULT_TABS_WIDGET_WIDTH;
 			this._splitView.resizeView(this._tabTreeIndex, width);
 		}
-		this._refreshHasTextClass();
 		this._rerenderTabs();
 		this._storageService.store(TABS_WIDGET_WIDTH_KEY, width, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
@@ -259,11 +259,13 @@ export class TerminalTabbedView extends Disposable {
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
-		this._refreshHasTextClass();
 		this._rerenderTabs();
 	}
 
 	private _rerenderTabs() {
+		const hasText = this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH;
+		this._tabTreeContainer.classList.toggle('has-text', hasText);
+		this._terminalIsTabsNarrowContextKey.set(!hasText);
 		for (const instance of this._terminalService.terminalInstances) {
 			try {
 				this._tabsWidget.rerender(instance);
@@ -278,7 +280,6 @@ export class TerminalTabbedView extends Disposable {
 		this._sashDisposables = [
 			this._splitView.sashes[0].onDidStart(e => {
 				interval = window.setInterval(() => {
-					this._refreshHasTextClass();
 					this._rerenderTabs();
 				}, 100);
 			}),
@@ -299,17 +300,11 @@ export class TerminalTabbedView extends Disposable {
 	layout(width: number, height: number): void {
 		this._height = height;
 		this._width = width;
-		this._refreshHasTextClass();
 		this._splitView.layout(width);
 		if (this._shouldShowTabs()) {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 		}
-	}
-
-	private _refreshHasTextClass() {
-		const hasText = this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH;
-		this._tabTreeContainer.classList.toggle('has-text', hasText);
-		this._terminalIsTabsNarrowContextKey.set(!hasText);
+		this._rerenderTabs();
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
@@ -477,7 +472,7 @@ export class TerminalTabbedView extends Disposable {
 		];
 	}
 
-	public focusTabsView(): void {
+	public focusTabs(): void {
 		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabsWidget.getSelection();
 		this._tabsWidget.domFocus();

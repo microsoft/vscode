@@ -225,6 +225,7 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 		if (activeEditor) {
 			this._itemDisposables.add(activeEditor.onDidChangeSelection(() => this._show(activeEditor)));
+			this._itemDisposables.add(activeEditor.onDidChangeActiveCell(() => this._show(activeEditor)));
 			this._show(activeEditor);
 		} else {
 			this._accessor.clear();

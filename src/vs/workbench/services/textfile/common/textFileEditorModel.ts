@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
@@ -16,7 +15,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -96,7 +94,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		public readonly resource: URI,
 		private preferredEncoding: string | undefined,	// encoding as chosen by the user
 		private preferredMode: string | undefined,		// mode as chosen by the user
-		@INotificationService private readonly notificationService: INotificationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IFileService private readonly fileService: IFileService,
@@ -935,7 +932,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.preferredEncoding || this.contentEncoding;
 	}
 
-	setEncoding(encoding: string, mode: EncodingMode): void {
+	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
 		if (!this.isNewEncoding(encoding)) {
 			return; // return early if the encoding is already the same
 		}
@@ -951,21 +948,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				this.save();
+				await this.save();
 			}
 		}
 
 		// Decode: Resolve with encoding
 		else {
 			if (this.isDirty()) {
-				this.notificationService.info(localize('saveFileFirst', "The file is dirty. Please save it first before reopening it with another encoding."));
-
-				return;
+				await this.save();
 			}
 
 			this.updatePreferredEncoding(encoding);
 
-			this.resolve({
+			await this.resolve({
 				forceReadFromFile: true	// because encoding has changed
 			});
 		}
