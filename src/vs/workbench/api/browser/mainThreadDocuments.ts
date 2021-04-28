@@ -156,14 +156,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			}
 		}));
 
-		this._register(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			const isMove = e.operation === FileOperation.MOVE;
-			if (isMove || e.operation === FileOperation.DELETE) {
-				for (const pair of e.files) {
-					const removed = isMove ? pair.source : pair.target;
-					if (removed) {
-						this._modelReferenceCollection.remove(removed);
-					}
+		this._register(fileService.onDidRunOperation(e => {
+			const isMove = e.isOperation(FileOperation.MOVE);
+			if (isMove || e.isOperation(FileOperation.DELETE)) {
+				const removed = isMove ? e.target?.resource : e.resource;
+				if (removed) {
+					this._modelReferenceCollection.remove(removed);
 				}
 			}
 		}));
