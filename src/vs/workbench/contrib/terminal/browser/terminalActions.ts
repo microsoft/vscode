@@ -15,7 +15,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, ICommandActionTitle, ILocalizedString, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, ICommandActionTitle, ILocalizedString, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -31,7 +31,6 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { createTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfile, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
@@ -1711,19 +1710,6 @@ export function registerTerminalActions() {
 			return Promise.resolve();
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		command: {
-			id: TERMINAL_COMMAND_ID.SWITCH_TERMINAL,
-			title: switchTerminalTitle
-		},
-		group: 'navigation',
-		order: 0,
-		when: ContextKeyAndExpr.create([
-			ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-			ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
-		]),
-	});
-	createTerminalMenus();
 }
 
 interface IRemoteTerminalPick extends IQuickPickItem {

@@ -173,18 +173,39 @@ export function createTerminalMenus(): void {
 		]
 	);
 
-	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		group: 'navigation',
-		command: {
-			id: TERMINAL_COMMAND_ID.SPLIT,
-			title: localize('workbench.action.terminal.split', "Split Terminal")
-		},
-		order: 2,
-		when: ContextKeyAndExpr.create([
-			ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-			ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
-		])
-	});
+	MenuRegistry.appendMenuItems(
+		[
+			{
+				id: MenuId.ViewTitle, item: {
+					group: 'navigation',
+					command: {
+						id: TERMINAL_COMMAND_ID.SPLIT,
+						title: localize('workbench.action.terminal.split', "Split Terminal")
+					},
+					order: 2,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
+					])
+				}
+			},
+			{
+				id: MenuId.ViewTitle, item: {
+					command: {
+						id: TERMINAL_COMMAND_ID.SWITCH_TERMINAL,
+						title: { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' }
+					},
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
+					]),
+				}
+			}
+		]
+	);
+
 	MenuRegistry.appendMenuItems(
 		[
 			{

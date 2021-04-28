@@ -37,6 +37,7 @@ import { RemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/rem
 import { isIPad } from 'vs/base/browser/browser';
 import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { isWindows } from 'vs/base/common/platform';
+import { createTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -92,6 +93,9 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 
 // Register actions
 registerTerminalActions();
+
+// Create menus
+createTerminalMenus();
 
 function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyExpression } & IKeybindings): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
