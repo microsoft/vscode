@@ -595,7 +595,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: { value: localize('disableAutoUpdate', "Disable Auto Updating Extensions"), original: 'Disable Auto Updating Extensions' },
+			title: { value: localize('disableAutoUpdate', "Disable Auto Update for all extensions"), original: 'Disable Auto Update for all extensions' },
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
@@ -603,7 +603,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: { value: localize('enableAutoUpdate', "Enable Auto Updating All Extensions"), original: 'Enable Auto Updating All Extensions' },
+			title: { value: localize('enableAutoUpdate', "Enable Auto Update for all extensions"), original: 'Enable Auto Update for all extensions' },
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
