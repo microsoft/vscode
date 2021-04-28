@@ -306,10 +306,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 		},
-		'terminal.integrated.tabs.hideForSingle': {
-			description: localize('terminal.integrated.tabs.hideForSingle', 'Hides the terminal tabs view when there is only a single terminal instance.'),
-			type: 'boolean',
-			default: true
+		'terminal.integrated.tabs.hideCondition': {
+			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
+			type: 'string',
+			enum: ['never', 'singleTerminal'],
+			default: 'singleTerminal',
 		},
 		'terminal.integrated.tabs.showActiveTerminal': {
 			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),

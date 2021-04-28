@@ -189,7 +189,7 @@ export interface ITerminalConfiguration {
 	enablePersistentSessions: boolean;
 	tabs: {
 		enabled: boolean;
-		hideForSingle: boolean;
+		hideCondition: 'never' | 'singleTerminal';
 		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
 		location: 'left' | 'right';
 		focusMode: 'singleClick' | 'doubleClick';
