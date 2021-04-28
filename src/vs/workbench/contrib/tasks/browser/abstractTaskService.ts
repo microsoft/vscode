@@ -3160,7 +3160,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const tasksFile = folder.toResource('.vscode/tasks.json');
 		if (await this.fileService.exists(tasksFile)) {
 			const oldFile = tasksFile.with({ path: `${tasksFile.path}.old` });
-			await this.fileService.copy(tasksFile, oldFile);
+			await this.fileService.copy(tasksFile, oldFile, true);
 			return [oldFile, tasksFile];
 		}
 		return undefined;
