@@ -60,8 +60,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.automationShell.linux': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -71,8 +69,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.automationShell.osx': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.osx',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -82,8 +78,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.automationShell.windows': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.windows',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -93,8 +87,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.shellArgs.linux': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
@@ -105,8 +97,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.shellArgs.osx': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
@@ -120,8 +110,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.shellArgs.windows': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			'anyOf': [
 				{
@@ -141,8 +129,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.profiles.windows': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profiles.windows',
@@ -203,8 +189,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.profiles.osx': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.osx',
@@ -242,8 +226,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.profiles.linux': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.linux',
@@ -493,6 +475,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
 		},
 		'terminal.integrated.cwd': {
+			restricted: true,
 			description: localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
 			type: 'string',
 			default: undefined
@@ -532,8 +515,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.env.osx': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -543,8 +524,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.env.linux': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -554,8 +533,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.env.windows': {
 			restricted: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -665,6 +642,12 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions for the workspace across window reloads."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.allowWorkspaceConfiguration': {
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('terminal.integrated.allowWorkspaceConfiguration', "Allows shell and profile settings to be pick up from a workspace."),
+			type: 'boolean',
+			default: false
 		}
 	}
 };
@@ -678,8 +661,6 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 		properties: {
 			'terminal.integrated.shell.linux': {
 				restricted: true,
-				// TODO: Remove when workspace trust is enabled by default
-				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: linux,
 				type: ['string', 'null'],
 				default: null,
@@ -687,8 +668,6 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 			},
 			'terminal.integrated.shell.osx': {
 				restricted: true,
-				// TODO: Remove when workspace trust is enabled by default
-				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: osx,
 				type: ['string', 'null'],
 				default: null,
@@ -696,8 +675,6 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 			},
 			'terminal.integrated.shell.windows': {
 				restricted: true,
-				// TODO: Remove when workspace trust is enabled by default
-				scope: ConfigurationScope.APPLICATION,
 				markdownDescription: windows,
 				type: ['string', 'null'],
 				default: null,
