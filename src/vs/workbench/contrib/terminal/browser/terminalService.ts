@@ -453,7 +453,7 @@ export class TerminalService implements ITerminalService {
 			const newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveTabByIndex(newIndex);
 			const activeInstance = this.getActiveInstance();
-			if (activeInstance) {
+			if (this._onActiveInstanceChanged && activeInstance?.hadFocusOnExit) {
 				activeInstance.focus(true);
 			}
 		} else if (activeTabIndex >= this._terminalTabs.length) {
