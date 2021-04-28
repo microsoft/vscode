@@ -330,6 +330,8 @@ class SimpleTerminalProfileResolverService implements ITerminalProfileResolverSe
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { throw new Error('Method not implemented.'); }
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { throw new Error('Method not implemented.'); }
 	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
+	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { throw new Error('Method not implemented.'); }
+	getSafeConfigValueFullKey(key: string): unknown | undefined { throw new Error('Method not implemented.'); }
 }
 
 registerSingleton(ITerminalProfileResolverService, SimpleTerminalProfileResolverService);
