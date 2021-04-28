@@ -908,7 +908,7 @@
 	width: 1px !important;
 	height: 16px !important;
 	margin: 5px 4px !important;
-	cursor: none;
+	cursor: default;
 	min-width: 1px !important;
 }
 
