@@ -139,7 +139,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		const orphaned = !!this._modelRef?.object.isOrphaned();
 
 		const readonly = this._modelRef
-			? !this._modelRef.object.isEditable() || this._modelRef.object.isOnReadonlyFileSystem()
+			? this._modelRef.object.isEditable() && this._modelRef.object.isOnReadonlyFileSystem()
 			: false;
 
 		return decorateFileEditorLabel(label, {
