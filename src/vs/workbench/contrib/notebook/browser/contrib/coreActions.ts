@@ -1129,7 +1129,8 @@ registerAction2(class extends NotebookCellAction {
 					runStartTime: undefined,
 					runStartTimeAdjustment: undefined,
 					runEndTime: undefined,
-					executionOrder: undefined
+					executionOrder: undefined,
+					lastRunSuccess: undefined
 				}
 			}], true, undefined, () => undefined, undefined);
 		}
