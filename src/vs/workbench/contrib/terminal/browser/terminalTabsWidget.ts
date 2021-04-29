@@ -61,10 +61,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				identityProvider: {
-					getId: e => e.instanceId
+					getId: e => e?.instanceId
 				},
 				accessibilityProvider: {
-					getAriaLabel: e => e.title,
+					getAriaLabel: e => e?.title,
 					getWidgetAriaLabel: () => localize('terminal.tabs', "Terminal tabs")
 				},
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
