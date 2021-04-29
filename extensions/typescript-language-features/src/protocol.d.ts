@@ -1,11 +1,18 @@
 import * as Proto from 'typescript/lib/protocol';
 export = Proto;
 
-declare module "typescript/lib/protocol" {
-	// TODO: Remove this hardcoded type once we update to TS 3.8+ that brings in the proper types
+declare enum ServerType {
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+}
+declare module 'typescript/lib/protocol' {
+
 	interface Response {
-		performanceData?: {
-			updateGraphDurationMs?: number;
-		}
+		readonly _serverType?: ServerType;
+	}
+
+	interface JSDocLinkDisplayPart {
+		target: Proto.FileSpan;
 	}
 }
+

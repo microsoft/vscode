@@ -4,12 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
-import * as browser from 'vs/base/browser/browser';
 import { IframeUtils } from 'vs/base/browser/iframe';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface IStandardMouseMoveEventData {
 	leftButton: boolean;
@@ -27,7 +24,7 @@ export interface IMouseMoveCallback<R> {
 }
 
 export interface IOnStopCallback {
-	(): void;
+	(browserEvent?: MouseEvent | KeyboardEvent): void;
 }
 
 export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData | null, currentEvent: MouseEvent): IStandardMouseMoveEventData {
@@ -53,7 +50,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		this._hooks.dispose();
 	}
 
-	public stopMonitoring(invokeStopCallback: boolean): void {
+	public stopMonitoring(invokeStopCallback: boolean, browserEvent?: MouseEvent | KeyboardEvent): void {
 		if (!this.isMonitoring()) {
 			// Not monitoring
 			return;
@@ -67,7 +64,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		this._onStopCallback = null;
 
 		if (invokeStopCallback && onStopCallback) {
-			onStopCallback();
+			onStopCallback(browserEvent);
 		}
 	}
 
@@ -91,8 +88,8 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		this._onStopCallback = onStopCallback;
 
 		const windowChain = IframeUtils.getSameOriginWindowChain();
-		const mouseMove = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointermove' : 'mousemove';
-		const mouseUp = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointerup' : 'mouseup';
+		const mouseMove = 'mousemove';
+		const mouseUp = 'mouseup';
 
 		const listenTo: (Document | ShadowRoot)[] = windowChain.map(element => element.window.document);
 		const shadowRoot = dom.getShadowRoot(initialElement);
@@ -103,7 +100,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		for (const element of listenTo) {
 			this._hooks.add(dom.addDisposableThrottledListener(element, mouseMove,
 				(data: R) => {
-					if (!browser.isIE && data.buttons !== initialButtons) {
+					if (data.buttons !== initialButtons) {
 						// Buttons state has changed in the meantime
 						this.stopMonitoring(true);
 						return;

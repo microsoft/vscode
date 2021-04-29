@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { normalizeGitHubUrl } from 'vs/code/common/issue/issueReporterUtil';
+import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -18,12 +18,12 @@ export interface IIssueReporterOptions {
 }
 
 export interface IWebIssueService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	openReporter(options?: IIssueReporterOptions): Promise<void>;
 }
 
 export class WebIssueService implements IWebIssueService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,

@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { mock } from 'vs/base/test/common/mock';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
@@ -18,24 +18,24 @@ suite('MainThreadDocumentContentProviders', function () {
 	test('events are processed properly', function () {
 
 		let uri = URI.parse('test:uri');
-		let model = TextModel.createFromString('1', undefined, undefined, uri);
+		let model = createTextModel('1', undefined, undefined, uri);
 
 		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
 			new class extends mock<IModelService>() {
-				getModel(_uri: URI) {
-					assert.equal(uri.toString(), _uri.toString());
+				override getModel(_uri: URI) {
+					assert.strictEqual(uri.toString(), _uri.toString());
 					return model;
 				}
 			},
 			new class extends mock<IEditorWorkerService>() {
-				computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
-					assert.equal(model.getValue(), '1');
+				override computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
+					assert.strictEqual(model.getValue(), '1');
 					return Promise.resolve(data);
 				}
 			},
 		);
 
-		return new Promise((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			let expectedEvents = 1;
 			model.onDidChangeContent(e => {
 				expectedEvents -= 1;

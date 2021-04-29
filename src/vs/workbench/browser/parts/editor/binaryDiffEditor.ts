@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -17,7 +17,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
  */
 export class BinaryResourceDiffEditor extends SideBySideEditor {
 
-	static readonly ID = BINARY_DIFF_EDITOR_ID;
+	static override readonly ID = BINARY_DIFF_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -29,11 +29,11 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 	}
 
 	getMetadata(): string | undefined {
-		const master = this.masterEditor;
-		const details = this.detailsEditor;
+		const primary = this.primaryEditorPane;
+		const secondary = this.secondaryEditorPane;
 
-		if (master instanceof BaseBinaryResourceEditor && details instanceof BaseBinaryResourceEditor) {
-			return nls.localize('metadataDiff', "{0} ↔ {1}", details.getMetadata(), master.getMetadata());
+		if (primary instanceof BaseBinaryResourceEditor && secondary instanceof BaseBinaryResourceEditor) {
+			return localize('metadataDiff', "{0} ↔ {1}", secondary.getMetadata(), primary.getMetadata());
 		}
 
 		return undefined;

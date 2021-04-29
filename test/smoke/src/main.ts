@@ -25,19 +25,14 @@ import { setup as setupDataMigrationTests } from './areas/workbench/data-migrati
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
 import { setup as setupDataSearchTests } from './areas/search/search.test';
-import { setup as setupDataCSSTests } from './areas/css/css.test';
+import { setup as setupDataNotebookTests } from './areas/notebook/notebook.test';
+import { setup as setupDataLanguagesTests } from './areas/languages/languages.test';
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
-
-if (!/^v10/.test(process.version) && !/^v12/.test(process.version)) {
-	console.error('Error: Smoketest must be run using Node 10/12. Currently running', process.version);
-	process.exit(1);
-}
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -57,15 +52,14 @@ const opts = minimist(args, {
 	boolean: [
 		'verbose',
 		'remote',
-		'web',
-		'ci'
+		'web'
 	],
 	default: {
 		verbose: false
 	}
 });
 
-const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
+const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
@@ -156,6 +150,8 @@ if (!opts.web) {
 	} else {
 		quality = Quality.Stable;
 	}
+
+	console.log(`Running desktop smoke tests against ${electronPath}`);
 }
 
 //
@@ -164,14 +160,20 @@ if (!opts.web) {
 else {
 	const testCodeServerPath = opts.build || process.env.VSCODE_REMOTE_SERVER_PATH;
 
-	if (typeof testCodeServerPath === 'string' && !fs.existsSync(testCodeServerPath)) {
-		fail(`Can't find Code server at ${testCodeServerPath}.`);
+	if (typeof testCodeServerPath === 'string') {
+		if (!fs.existsSync(testCodeServerPath)) {
+			fail(`Can't find Code server at ${testCodeServerPath}.`);
+		} else {
+			console.log(`Running web smoke tests against ${testCodeServerPath}`);
+		}
 	}
 
 	if (!testCodeServerPath) {
 		process.env.VSCODE_REPOSITORY = repoPath;
 		process.env.VSCODE_DEV = '1';
 		process.env.VSCODE_CLI = '1';
+
+		console.log(`Running web smoke out of sources`);
 	}
 
 	if (process.env.VSCODE_DEV === '1') {
@@ -261,30 +263,20 @@ after(async function () {
 	if (opts.log) {
 		const logsDir = path.join(userDataDir, 'logs');
 		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
-		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c()));
+		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c(undefined)));
 	}
 
-	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
+	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	before(async function () {
-		const app = new Application(this.defaultOptions);
-		await app!.start(opts.web ? false : undefined);
-		this.app = app;
-	});
-
-	after(async function () {
-		await this.app.stop();
-	});
-
 	if (screenshotsPath) {
 		afterEach(async function () {
-			if (this.currentTest.state !== 'failed') {
+			if (this.currentTest!.state !== 'failed') {
 				return;
 			}
 			const app = this.app as Application;
-			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
+			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
 
 			await app.captureScreenshot(name);
 		});
@@ -293,30 +285,40 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (opts.log) {
 		beforeEach(async function () {
 			const app = this.app as Application;
-			const title = this.currentTest.fullTitle();
+			const title = this.currentTest!.fullTitle();
 
 			app.logger.log('*** Test start:', title);
 		});
 	}
 
-	// CI only tests (must be reliable)
-	if (opts.ci) {
-		// TODO@Ben figure out tests that can run continously and reliably
+	if (!opts.web && opts['stable-build']) {
+		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing by providing the --stable-build command line argument`, () => {
+			setupDataMigrationTests(opts['stable-build'], testDataPath);
+		});
 	}
 
-	// Non-CI execution (all tests)
-	else {
-		if (!opts.web) { setupDataMigrationTests(opts['stable-build'], testDataPath); }
+	describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
+		before(async function () {
+			const app = new Application(this.defaultOptions);
+			await app!.start(opts.web ? false : undefined);
+			this.app = app;
+		});
+
+		after(async function () {
+			await this.app.stop();
+		});
+
 		if (!opts.web) { setupDataLossTests(); }
 		if (!opts.web) { setupDataPreferencesTests(); }
 		setupDataSearchTests();
-		setupDataCSSTests();
+		setupDataNotebookTests();
+		setupDataLanguagesTests();
 		setupDataEditorTests();
 		setupDataStatusbarTests(!!opts.web);
-		if (!opts.web) { setupDataExtensionTests(); }
-		setupTerminalTests();
+		setupDataExtensionTests();
 		if (!opts.web) { setupDataMultirootTests(); }
 		if (!opts.web) { setupDataLocalizationTests(); }
 		if (!opts.web) { setupLaunchTests(); }
-	}
+	});
 });
+

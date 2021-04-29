@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as  path from 'path';
-import * as  cp from 'child_process';
-import * as  playwright from 'playwright';
-import * as  url from 'url';
-import * as  tmp from 'tmp';
-import * as  rimraf from 'rimraf';
+import * as path from 'path';
+import * as cp from 'child_process';
+import * as playwright from 'playwright';
+import * as url from 'url';
+import * as tmp from 'tmp';
+import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as optimistLib from 'optimist';
@@ -29,9 +29,11 @@ if (optimist.argv.help) {
 const width = 1200;
 const height = 800;
 
-async function runTestsInBrowser(browserType: 'chromium' | 'firefox' | 'webkit', endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
+type BrowserType = 'chromium' | 'firefox' | 'webkit';
+
+async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
 	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
-	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), dumpio: true, args });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), args });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
@@ -44,7 +46,7 @@ async function runTestsInBrowser(browserType: 'chromium' | 'firefox' | 'webkit',
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const folderParam = testWorkspaceUri;
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""]]`;
 
 	await page.goto(`${endpoint.href}&folder=${folderParam}&payload=${payloadParam}`);
 
@@ -78,7 +80,7 @@ function pkill(pid: number): Promise<void> {
 	});
 }
 
-async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -89,21 +91,25 @@ async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, serve
 
 	const env = {
 		VSCODE_AGENT_FOLDER: userDataDir,
+		VSCODE_BROWSER: browserType,
 		...process.env
 	};
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
 		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+
+		console.log(`Starting built server from '${serverLocation}'`);
 	} else {
 		serverLocation = path.join(__dirname, '..', '..', '..', '..', `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
-
 		process.env.VSCODE_DEV = '1';
+
+		console.log(`Starting server out of sources from '${serverLocation}'`);
 	}
 
 	let serverProcess = cp.spawn(
 		serverLocation,
-		['--browser', 'none', '--driver', 'web'],
+		['--browser', 'none', '--driver', 'web', '--enable-proposed-api'],
 		{ env }
 	);
 
@@ -127,7 +133,7 @@ async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, serve
 	});
 }
 
-launchServer().then(async ({ endpoint, server }) => {
+launchServer(optimist.argv.browser).then(async ({ endpoint, server }) => {
 	return runTestsInBrowser(optimist.argv.browser, endpoint, server);
 }, error => {
 	console.error(error);

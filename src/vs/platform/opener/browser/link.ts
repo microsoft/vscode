@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { $ } from 'vs/base/browser/dom';
+import { $, EventHelper, EventLike } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -20,11 +20,13 @@ export interface ILinkDescriptor {
 
 export interface ILinkStyles {
 	readonly textLinkForeground?: Color;
+	readonly disabled?: boolean;
 }
 
 export class Link extends Disposable {
 
 	readonly el: HTMLAnchorElement;
+	private disabled: boolean;
 	private styles: ILinkStyles = {
 		textLinkForeground: Color.fromHex('#006AB1')
 	};
@@ -46,10 +48,16 @@ export class Link extends Disposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.Enter)
 			.event;
-		const onOpen = Event.any(onClick, onEnterPress);
+		const onOpen = Event.any<EventLike>(onClick, onEnterPress);
 
-		this._register(onOpen(_ => openerService.open(link.href)));
+		this._register(onOpen(e => {
+			EventHelper.stop(e, true);
+			if (!this.disabled) {
+				openerService.open(link.href, { allowCommands: true });
+			}
+		}));
 
+		this.disabled = false;
 		this.applyStyles();
 	}
 
@@ -59,6 +67,26 @@ export class Link extends Disposable {
 	}
 
 	private applyStyles(): void {
-		this.el.style.color = this.styles.textLinkForeground?.toString() || '';
+		const color = this.styles.textLinkForeground?.toString();
+		if (color) {
+			this.el.style.color = color;
+		}
+		if (typeof this.styles.disabled === 'boolean' && this.styles.disabled !== this.disabled) {
+			if (this.styles.disabled) {
+				this.el.setAttribute('aria-disabled', 'true');
+				this.el.tabIndex = -1;
+				this.el.style.pointerEvents = 'none';
+				this.el.style.opacity = '0.4';
+				this.el.style.cursor = 'default';
+				this.disabled = true;
+			} else {
+				this.el.setAttribute('aria-disabled', 'false');
+				this.el.tabIndex = 0;
+				this.el.style.pointerEvents = 'auto';
+				this.el.style.opacity = '1';
+				this.el.style.cursor = 'pointer';
+				this.disabled = false;
+			}
+		}
 	}
 }

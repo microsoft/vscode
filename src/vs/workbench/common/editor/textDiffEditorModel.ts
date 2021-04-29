@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 
@@ -14,10 +13,14 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  */
 export class TextDiffEditorModel extends DiffEditorModel {
 
-	protected readonly _originalModel: BaseTextEditorModel | null;
-	protected readonly _modifiedModel: BaseTextEditorModel | null;
+	protected override readonly _originalModel: BaseTextEditorModel | undefined;
+	override get originalModel(): BaseTextEditorModel | undefined { return this._originalModel; }
 
-	private _textDiffEditorModel: IDiffEditorModel | null = null;
+	protected override readonly _modifiedModel: BaseTextEditorModel | undefined;
+	override get modifiedModel(): BaseTextEditorModel | undefined { return this._modifiedModel; }
+
+	private _textDiffEditorModel: IDiffEditorModel | undefined = undefined;
+	get textDiffEditorModel(): IDiffEditorModel | undefined { return this._textDiffEditorModel; }
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
@@ -28,20 +31,10 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		this.updateTextDiffEditorModel();
 	}
 
-	get originalModel(): BaseTextEditorModel | null {
-		return this._originalModel;
-	}
-
-	get modifiedModel(): BaseTextEditorModel | null {
-		return this._modifiedModel;
-	}
-
-	async load(): Promise<EditorModel> {
-		await super.load();
+	override async resolve(): Promise<void> {
+		await super.resolve();
 
 		this.updateTextDiffEditorModel();
-
-		return this;
 	}
 
 	private updateTextDiffEditorModel(): void {
@@ -63,11 +56,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		}
 	}
 
-	get textDiffEditorModel(): IDiffEditorModel | null {
-		return this._textDiffEditorModel;
-	}
-
-	isResolved(): boolean {
+	override isResolved(): boolean {
 		return !!this._textDiffEditorModel;
 	}
 
@@ -75,13 +64,13 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		return !!this.modifiedModel && this.modifiedModel.isReadonly();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 
 		// Free the diff editor model but do not propagate the dispose() call to the two models
 		// inside. We never created the two models (original and modified) so we can not dispose
 		// them without sideeffects. Rather rely on the models getting disposed when their related
 		// inputs get disposed from the diffEditorInput.
-		this._textDiffEditorModel = null;
+		this._textDiffEditorModel = undefined;
 
 		super.dispose();
 	}

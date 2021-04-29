@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
+import type * as ts from 'typescript';
 import * as lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
 import * as File from 'vinyl';
@@ -21,7 +21,7 @@ enum CollectStepResult {
 	NoAndRecurse
 }
 
-function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.Node[] {
+function collect(ts: typeof import('typescript'), node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.Node[] {
 	const result: ts.Node[] = [];
 
 	function loop(node: ts.Node) {
@@ -65,7 +65,7 @@ define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
 /**
  * Returns a stream containing the patched JavaScript and source maps.
  */
-function nls(): NodeJS.ReadWriteStream {
+export function nls(): NodeJS.ReadWriteStream {
 	const input = through();
 	const output = input.pipe(through(function (f: FileSourceMap) {
 		if (!f.sourceMap) {
@@ -87,48 +87,48 @@ function nls(): NodeJS.ReadWriteStream {
 			return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
 		}
 
-		nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
+		_nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
 	}));
 
 	return duplex(input, output);
 }
 
-function isImportNode(node: ts.Node): boolean {
+function isImportNode(ts: typeof import('typescript'), node: ts.Node): boolean {
 	return node.kind === ts.SyntaxKind.ImportDeclaration || node.kind === ts.SyntaxKind.ImportEqualsDeclaration;
 }
 
-module nls {
+module _nls {
 
-	export interface INlsStringResult {
+	interface INlsStringResult {
 		javascript: string;
 		sourcemap: sm.RawSourceMap;
 		nls?: string;
 		nlsKeys?: string;
 	}
 
-	export interface ISpan {
+	interface ISpan {
 		start: ts.LineAndCharacter;
 		end: ts.LineAndCharacter;
 	}
 
-	export interface ILocalizeCall {
+	interface ILocalizeCall {
 		keySpan: ISpan;
 		key: string;
 		valueSpan: ISpan;
 		value: string;
 	}
 
-	export interface ILocalizeAnalysisResult {
+	interface ILocalizeAnalysisResult {
 		localizeCalls: ILocalizeCall[];
 		nlsExpressions: ISpan[];
 	}
 
-	export interface IPatch {
+	interface IPatch {
 		span: ISpan;
 		content: string;
 	}
 
-	export function fileFrom(file: File, contents: string, path: string = file.path) {
+	function fileFrom(file: File, contents: string, path: string = file.path) {
 		return new File({
 			contents: Buffer.from(contents),
 			base: file.base,
@@ -137,20 +137,20 @@ module nls {
 		});
 	}
 
-	export function mappedPositionFrom(source: string, lc: ts.LineAndCharacter): sm.MappedPosition {
+	function mappedPositionFrom(source: string, lc: ts.LineAndCharacter): sm.MappedPosition {
 		return { source, line: lc.line + 1, column: lc.character };
 	}
 
-	export function lcFrom(position: sm.Position): ts.LineAndCharacter {
+	function lcFrom(position: sm.Position): ts.LineAndCharacter {
 		return { line: position.line - 1, character: position.column };
 	}
 
-	export class SingleFileServiceHost implements ts.LanguageServiceHost {
+	class SingleFileServiceHost implements ts.LanguageServiceHost {
 
 		private file: ts.IScriptSnapshot;
 		private lib: ts.IScriptSnapshot;
 
-		constructor(private options: ts.CompilerOptions, private filename: string, contents: string) {
+		constructor(ts: typeof import('typescript'), private options: ts.CompilerOptions, private filename: string, contents: string) {
 			this.file = ts.ScriptSnapshot.fromString(contents);
 			this.lib = ts.ScriptSnapshot.fromString('');
 		}
@@ -163,7 +163,7 @@ module nls {
 		getDefaultLibFileName = () => 'lib.d.ts';
 	}
 
-	function isCallExpressionWithinTextSpanCollectStep(textSpan: ts.TextSpan, node: ts.Node): CollectStepResult {
+	function isCallExpressionWithinTextSpanCollectStep(ts: typeof import('typescript'), textSpan: ts.TextSpan, node: ts.Node): CollectStepResult {
 		if (!ts.textSpanContainsTextSpan({ start: node.pos, length: node.end - node.pos }, textSpan)) {
 			return CollectStepResult.No;
 		}
@@ -171,14 +171,14 @@ module nls {
 		return node.kind === ts.SyntaxKind.CallExpression ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse;
 	}
 
-	export function analyze(contents: string, options: ts.CompilerOptions = {}): ILocalizeAnalysisResult {
+	function analyze(ts: typeof import('typescript'), contents: string, options: ts.CompilerOptions = {}): ILocalizeAnalysisResult {
 		const filename = 'file.ts';
-		const serviceHost = new SingleFileServiceHost(Object.assign(clone(options), { noResolve: true }), filename, contents);
+		const serviceHost = new SingleFileServiceHost(ts, Object.assign(clone(options), { noResolve: true }), filename, contents);
 		const service = ts.createLanguageService(serviceHost);
 		const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
 
 		// all imports
-		const imports = lazy(collect(sourceFile, n => isImportNode(n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
+		const imports = lazy(collect(ts, sourceFile, n => isImportNode(ts, n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
 
 		// import nls = require('vs/nls');
 		const importEqualsDeclarations = imports
@@ -215,7 +215,7 @@ module nls {
 			.filter(r => !r.isWriteAccess)
 
 			// find the deepest call expressions AST nodes that contain those references
-			.map(r => collect(sourceFile, n => isCallExpressionWithinTextSpanCollectStep(r.textSpan, n)))
+			.map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
 			.map(a => lazy(a).last())
 			.filter(n => !!n)
 			.map(n => <ts.CallExpression>n)
@@ -246,7 +246,7 @@ module nls {
 		// find the deepest call expressions AST nodes that contain those references
 		const localizeCallExpressions = localizeReferences
 			.concat(namedLocalizeReferences)
-			.map(r => collect(sourceFile, n => isCallExpressionWithinTextSpanCollectStep(r.textSpan, n)))
+			.map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
 			.map(a => lazy(a).last())
 			.filter(n => !!n)
 			.map(n => <ts.CallExpression>n);
@@ -270,7 +270,7 @@ module nls {
 		};
 	}
 
-	export class TextModel {
+	class TextModel {
 
 		private lines: string[];
 		private lineEndings: string[];
@@ -336,8 +336,8 @@ module nls {
 		}
 	}
 
-	export function patchJavascript(patches: IPatch[], contents: string, moduleId: string): string {
-		const model = new nls.TextModel(contents);
+	function patchJavascript(patches: IPatch[], contents: string, moduleId: string): string {
+		const model = new TextModel(contents);
 
 		// patch the localize calls
 		lazy(patches).reverse().each(p => model.apply(p));
@@ -350,7 +350,7 @@ module nls {
 		return model.toString();
 	}
 
-	export function patchSourcemap(patches: IPatch[], rsm: sm.RawSourceMap, smc: sm.SourceMapConsumer): sm.RawSourceMap {
+	function patchSourcemap(patches: IPatch[], rsm: sm.RawSourceMap, smc: sm.SourceMapConsumer): sm.RawSourceMap {
 		const smg = new sm.SourceMapGenerator({
 			file: rsm.file,
 			sourceRoot: rsm.sourceRoot
@@ -395,8 +395,8 @@ module nls {
 		return JSON.parse(smg.toString());
 	}
 
-	export function patch(moduleId: string, typescript: string, javascript: string, sourcemap: sm.RawSourceMap): INlsStringResult {
-		const { localizeCalls, nlsExpressions } = analyze(typescript);
+	function patch(ts: typeof import('typescript'), moduleId: string, typescript: string, javascript: string, sourcemap: sm.RawSourceMap): INlsStringResult {
+		const { localizeCalls, nlsExpressions } = analyze(ts, typescript);
 
 		if (localizeCalls.length === 0) {
 			return { javascript, sourcemap };
@@ -438,12 +438,14 @@ module nls {
 	}
 
 	export function patchFiles(javascriptFile: File, typescript: string): File[] {
+		const ts = require('typescript') as typeof import('typescript');
 		// hack?
 		const moduleId = javascriptFile.relative
 			.replace(/\.js$/, '')
 			.replace(/\\/g, '/');
 
 		const { javascript, sourcemap, nlsKeys, nls } = patch(
+			ts,
 			moduleId,
 			typescript,
 			javascriptFile.contents.toString(),
@@ -464,5 +466,3 @@ module nls {
 		return result;
 	}
 }
-
-export = nls;

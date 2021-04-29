@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 
 export interface IMarkerService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	getStatistics(): MarkerStatistics;
 
@@ -135,15 +135,15 @@ export namespace IMarkerData {
 	export function makeKeyOptionalMessage(markerData: IMarkerData, useMessage: boolean): string {
 		let result: string[] = [emptyString];
 		if (markerData.source) {
-			result.push(markerData.source.replace('¦', '\¦'));
+			result.push(markerData.source.replace('¦', '\\¦'));
 		} else {
 			result.push(emptyString);
 		}
 		if (markerData.code) {
 			if (typeof markerData.code === 'string') {
-				result.push(markerData.code.replace('¦', '\¦'));
+				result.push(markerData.code.replace('¦', '\\¦'));
 			} else {
-				result.push(markerData.code.value.replace('¦', '\¦'));
+				result.push(markerData.code.value.replace('¦', '\\¦'));
 			}
 		} else {
 			result.push(emptyString);
@@ -157,7 +157,7 @@ export namespace IMarkerData {
 		// Modifed to not include the message as part of the marker key to work around
 		// https://github.com/microsoft/vscode/issues/77475
 		if (markerData.message && useMessage) {
-			result.push(markerData.message.replace('¦', '\¦'));
+			result.push(markerData.message.replace('¦', '\\¦'));
 		} else {
 			result.push(emptyString);
 		}

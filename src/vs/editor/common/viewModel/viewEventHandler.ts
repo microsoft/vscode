@@ -33,10 +33,13 @@ export class ViewEventHandler extends Disposable {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public onCompositionStart(e: viewEvents.ViewCompositionStartEvent): boolean {
 		return false;
 	}
-	public onContentSizeChanged(e: viewEvents.ViewContentSizeChangedEvent): boolean {
+	public onCompositionEnd(e: viewEvents.ViewCompositionEndEvent): boolean {
+		return false;
+	}
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return false;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
@@ -96,14 +99,20 @@ export class ViewEventHandler extends Disposable {
 
 			switch (e.type) {
 
-				case viewEvents.ViewEventType.ViewConfigurationChanged:
-					if (this.onConfigurationChanged(e)) {
+				case viewEvents.ViewEventType.ViewCompositionStart:
+					if (this.onCompositionStart(e)) {
 						shouldRender = true;
 					}
 					break;
 
-				case viewEvents.ViewEventType.ViewContentSizeChanged:
-					if (this.onContentSizeChanged(e)) {
+				case viewEvents.ViewEventType.ViewCompositionEnd:
+					if (this.onCompositionEnd(e)) {
+						shouldRender = true;
+					}
+					break;
+
+				case viewEvents.ViewEventType.ViewConfigurationChanged:
+					if (this.onConfigurationChanged(e)) {
 						shouldRender = true;
 					}
 					break;

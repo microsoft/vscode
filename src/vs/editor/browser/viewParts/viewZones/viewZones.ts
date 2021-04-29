@@ -66,7 +66,7 @@ export class ViewZones extends ViewPart {
 		this._zones = {};
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		this._zones = {};
 	}
@@ -79,9 +79,8 @@ export class ViewZones extends ViewPart {
 		for (const whitespace of whitespaces) {
 			oldWhitespaces.set(whitespace.id, whitespace);
 		}
-		return this._context.viewLayout.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
-			let hadAChange = false;
-
+		let hadAChange = false;
+		this._context.model.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
 			const keys = Object.keys(this._zones);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				const id = keys[i];
@@ -94,12 +93,11 @@ export class ViewZones extends ViewPart {
 					hadAChange = true;
 				}
 			}
-
-			return hadAChange;
 		});
+		return hadAChange;
 	}
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -114,27 +112,23 @@ export class ViewZones extends ViewPart {
 		return true;
 	}
 
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		const hadAChange = this._recomputeWhitespacesProps();
-		if (hadAChange) {
-			this._context.viewLayout.onHeightMaybeChanged();
-		}
-		return hadAChange;
+	public override onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
+		return this._recomputeWhitespacesProps();
 	}
 
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
 
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged || e.scrollWidthChanged;
 	}
 
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
 
@@ -199,9 +193,9 @@ export class ViewZones extends ViewPart {
 	}
 
 	public changeViewZones(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
+		let zonesHaveChanged = false;
 
-		return this._context.viewLayout.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
-			let zonesHaveChanged = false;
+		this._context.model.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
 
 			const changeAccessor: IViewZoneChangeAccessor = {
 				addZone: (zone: IViewZone): string => {
@@ -228,9 +222,9 @@ export class ViewZones extends ViewPart {
 			changeAccessor.addZone = invalidFunc;
 			changeAccessor.removeZone = invalidFunc;
 			changeAccessor.layoutZone = invalidFunc;
-
-			return zonesHaveChanged;
 		});
+
+		return zonesHaveChanged;
 	}
 
 	private _addZone(whitespaceAccessor: IWhitespaceChangeAccessor, zone: IViewZone): string {

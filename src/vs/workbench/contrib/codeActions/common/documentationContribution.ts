@@ -10,7 +10,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { DocumentationExtensionPoint } from './documentationExtensionPoint';
@@ -20,7 +20,7 @@ export class CodeActionDocumentationContribution extends Disposable implements I
 
 	private contributions: {
 		title: string;
-		when: ContextKeyExpr;
+		when: ContextKeyExpression;
 		command: string;
 	}[] = [];
 

@@ -3,250 +3,109 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag } from 'electron';
+import { FindInPageOptions, WebviewTag } from 'electron';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
-import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
-import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
+import { webviewPartitionId } from 'vs/platform/webview/common/webviewManagerService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
+import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
+import { WebviewIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-browser/webviewIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-
-class WebviewTagHandle extends Disposable {
-
-	private _webContents: undefined | WebContents | 'destroyed';
-
-	public constructor(
-		public readonly webview: WebviewTag,
-	) {
-		super();
-
-		this._register(addDisposableListener(this.webview, 'destroyed', () => {
-			this._webContents = 'destroyed';
-		}));
-
-		this._register(addDisposableListener(this.webview, 'did-start-loading', once(() => {
-			const contents = this.webContents;
-			if (contents) {
-				this._onFirstLoad.fire(contents);
-				this._register(toDisposable(() => {
-					contents.removeAllListeners();
-				}));
-			}
-		})));
-	}
-
-	private readonly _onFirstLoad = this._register(new Emitter<WebContents>());
-	public readonly onFirstLoad = this._onFirstLoad.event;
-
-	public get webContents(): WebContents | undefined {
-		if (this._webContents === 'destroyed') {
-			return undefined;
-		}
-		if (this._webContents) {
-			return this._webContents;
-		}
-		this._webContents = this.webview.getWebContents();
-		return this._webContents;
-	}
-}
-
-type OnBeforeRequestDelegate = (details: OnBeforeRequestListenerDetails) => Promise<Response | undefined>;
-type OnHeadersReceivedDelegate = (details: OnHeadersReceivedListenerDetails) => { cancel: boolean; } | undefined;
-
-class WebviewSession extends Disposable {
-
-	private readonly _onBeforeRequestDelegates: Array<OnBeforeRequestDelegate> = [];
-	private readonly _onHeadersReceivedDelegates: Array<OnHeadersReceivedDelegate> = [];
-
-	public constructor(
-		webviewHandle: WebviewTagHandle,
-	) {
-		super();
-
-		this._register(webviewHandle.onFirstLoad(contents => {
-			contents.session.webRequest.onBeforeRequest(async (details, callback) => {
-				for (const delegate of this._onBeforeRequestDelegates) {
-					const result = await delegate(details);
-					if (typeof result !== 'undefined') {
-						callback(result);
-						return;
-					}
-				}
-				callback({});
-			});
-
-			contents.session.webRequest.onHeadersReceived((details, callback) => {
-				for (const delegate of this._onHeadersReceivedDelegates) {
-					const result = delegate(details);
-					if (typeof result !== 'undefined') {
-						callback(result);
-						return;
-					}
-				}
-				callback({ cancel: false, responseHeaders: details.responseHeaders });
-			});
-		}));
-	}
-
-	public onBeforeRequest(delegate: OnBeforeRequestDelegate) {
-		this._onBeforeRequestDelegates.push(delegate);
-	}
-
-	public onHeadersReceived(delegate: OnHeadersReceivedDelegate) {
-		this._onHeadersReceivedDelegates.push(delegate);
-	}
-}
-
-class WebviewProtocolProvider extends Disposable {
-	constructor(
-		handle: WebviewTagHandle,
-		private readonly _getExtensionLocation: () => URI | undefined,
-		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
-		private readonly _fileService: IFileService,
-	) {
-		super();
-
-		this._register(handle.onFirstLoad(contents => {
-			this.registerProtocols(contents);
-		}));
-	}
-
-	private registerProtocols(contents: WebContents) {
-		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._getExtensionLocation(), () =>
-			this._getLocalResourceRoots()
-		);
-	}
-}
-
-class WebviewPortMappingProvider extends Disposable {
-
-	constructor(
-		session: WebviewSession,
-		getExtensionLocation: () => URI | undefined,
-		mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
-		tunnelService: ITunnelService,
-	) {
-		super();
-		const manager = this._register(new WebviewPortMappingManager(getExtensionLocation, mappings, tunnelService));
-
-		session.onBeforeRequest(async details => {
-			const redirect = await manager.getRedirect(details.url);
-			return redirect ? { redirectURL: redirect } : undefined;
-		});
-	}
-}
-
-class WebviewKeyboardHandler extends Disposable {
-
-	private _ignoreMenuShortcut = false;
-
-	constructor(
-		private readonly _webviewHandle: WebviewTagHandle
-	) {
-		super();
-
-		if (this.shouldToggleMenuShortcutsEnablement) {
-			this._register(_webviewHandle.onFirstLoad(contents => {
-				contents.on('before-input-event', (_event, input) => {
-					if (input.type === 'keyDown' && document.activeElement === this._webviewHandle.webview) {
-						this._ignoreMenuShortcut = input.control || input.meta;
-						this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
-					}
-				});
-			}));
-		}
-
-		this._register(addDisposableListener(this._webviewHandle.webview, 'ipc-message', (event) => {
-			switch (event.channel) {
-				case 'did-focus':
-					this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
-					break;
-
-				case 'did-blur':
-					this.setIgnoreMenuShortcuts(false);
-					return;
-			}
-		}));
-	}
-
-	private get shouldToggleMenuShortcutsEnablement() {
-		return isMacintosh;
-	}
-
-	private setIgnoreMenuShortcuts(value: boolean) {
-		if (!this.shouldToggleMenuShortcutsEnablement) {
-			return;
-		}
-		const contents = this._webviewHandle.webContents;
-		if (contents) {
-			contents.setIgnoreMenuShortcuts(value);
-		}
-	}
-}
-
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
+
+	private static _webviewKeyboardHandler: WebviewIgnoreMenuShortcutsManager | undefined;
+
+	private static getWebviewKeyboardHandler(
+		configService: IConfigurationService,
+		mainProcessService: IMainProcessService,
+	) {
+		if (!this._webviewKeyboardHandler) {
+			this._webviewKeyboardHandler = new WebviewIgnoreMenuShortcutsManager(configService, mainProcessService);
+		}
+		return this._webviewKeyboardHandler;
+	}
+
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
-
-	public extension: WebviewExtensionDescription | undefined;
 
 	constructor(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 		private readonly _webviewThemeDataProvider: WebviewThemeDataProvider,
+		@ILogService private readonly _myLogService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService fileService: IFileService,
-		@ITunnelService tunnelService: ITunnelService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environementService: IEnvironmentService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IMainProcessService mainProcessService: IMainProcessService,
+		@INotificationService notificationService: INotificationService,
+		@IFileService fileService: IFileService,
+		@IRequestService requestService: IRequestService,
+		@ITunnelService tunnelService: ITunnelService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
-		super(id, options, contentOptions, _webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
-
-		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
-		const session = this._register(new WebviewSession(webviewAndContents));
-
-		this._register(new WebviewProtocolProvider(
-			webviewAndContents,
-			() => this.extension ? this.extension.location : undefined,
-			() => (this.content.options.localResourceRoots || []),
-			fileService));
-
-		this._register(new WebviewPortMappingProvider(
-			session,
-			() => this.extension ? this.extension.location : undefined,
-			() => (this.content.options.portMapping || []),
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, {
+			notificationService,
+			logService: _myLogService,
+			telemetryService,
+			environmentService,
+			fileService,
+			requestService,
 			tunnelService,
-		));
+			remoteAuthorityResolverService
+		});
 
-		this._register(new WebviewKeyboardHandler(webviewAndContents));
+		/* __GDPR__
+			"webview.createWebview" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"enableFindWidget": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"webviewElementType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		telemetryService.publicLog('webview.createWebview', {
+			enableFindWidget: !!options.enableFindWidget,
+			extension: extension?.id.value,
+			webviewElementType: 'webview',
+		});
+
+		this._myLogService.debug(`Webview(${this.id}): init`);
+
+		this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
+			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
+		})));
 
 		this._register(addDisposableListener(this.element!, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 			console.log(`[Embedded Page] ${e.message}`);
 		}));
+
 		this._register(addDisposableListener(this.element!, 'dom-ready', () => {
+			this._myLogService.debug(`Webview(${this.id}): dom-ready`);
+
 			// Workaround for https://github.com/electron/electron/issues/14474
-			if (this.element && (this.focused || document.activeElement === this.element)) {
+			if (this.element && (this.isFocused || document.activeElement === this.element)) {
 				this.element.blur();
 				this.element.focus();
 			}
 		}));
+
 		this._register(addDisposableListener(this.element!, 'crashed', () => {
 			console.error('embedded page crashed');
 		}));
@@ -270,6 +129,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}));
 
 		this._register(this.on('did-set-content', () => {
+			this._myLogService.debug(`Webview(${this.id}): did-set-content`);
+
 			if (this.element) {
 				this.element.style.flex = '';
 				this.element.style.width = '100%';
@@ -290,11 +151,24 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 			this.styledFindWidget();
 		}
+
+		// We must ensure to put a `file:` URI as the preload attribute
+		// and not the `vscode-file` URI because preload scripts are loaded
+		// via node.js from the main side and only allow `file:` protocol
+		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&id=${this.id}&vscode-resource-origin=${encodeURIComponent(this.webviewResourceEndpoint)}`;
 	}
 
 	protected createElement(options: WebviewOptions) {
+		// Do not start loading the webview yet.
+		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('webview');
-		element.setAttribute('partition', `webview${Date.now()}`);
+
+		element.focus = () => {
+			this.doFocus();
+		};
+
+		element.setAttribute('partition', webviewPartitionId);
 		element.setAttribute('webpreferences', 'contextIsolation=yes');
 		element.className = `webview ${options.customClasses || ''}`;
 
@@ -303,10 +177,20 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		element.style.height = '0';
 		element.style.outline = '0';
 
-		element.preload = require.toUrl('./pre/electron-index.js');
-		element.src = 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
-
 		return element;
+	}
+
+	protected elementFocusImpl() {
+		this.element?.focus();
+	}
+
+	public override set contentOptions(options: WebviewContentOptions) {
+		this._myLogService.debug(`Webview(${this.id}): will set content options`);
+		super.contentOptions = options;
+	}
+
+	protected override get webviewResourceEndpoint(): string {
+		return `https://${this.id}.vscode-webview-test.com`;
 	}
 
 	protected readonly extraContentOptions = {};
@@ -322,26 +206,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		parent.appendChild(this.element);
 	}
 
-	protected postMessage(channel: string, data?: any): void {
+	protected async doPostMessage(channel: string, data?: any): Promise<void> {
+		this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
 		this.element?.send(channel, data);
 	}
 
-	public focus(): void {
-		if (!this.element) {
-			return;
-		}
-		try {
-			this.element.focus();
-		} catch {
-			// noop
-		}
-		this._send('focus');
-
-		// Handle focus change programmatically (do not rely on event from <webview>)
-		this.handleFocusChange(true);
-	}
-
-	protected style(): void {
+	protected override style(): void {
 		super.style();
 		this.styledFindWidget();
 	}
@@ -364,9 +234,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// FindNext must be false for a first request
 		const findOptions: FindInPageOptions = {
 			forward: options.forward,
-			findNext: false,
-			matchCase: options.matchCase,
-			medialCapitalAsWordStart: options.medialCapitalAsWordStart
+			findNext: true,
+			matchCase: options.matchCase
 		};
 
 		this._findStarted = true;
@@ -390,7 +259,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			return;
 		}
 
-		const options = { findNext: true, forward: !previous };
+		const options = { findNext: false, forward: !previous };
 		if (!this._findStarted) {
 			this.startFind(value, options);
 			return;
@@ -420,33 +289,33 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this._webviewFindWidget?.find(previous);
 	}
 
-	public selectAll() {
+	public override selectAll() {
 		this.element?.selectAll();
 	}
 
-	public copy() {
+	public override copy() {
 		this.element?.copy();
 	}
 
-	public paste() {
+	public override paste() {
 		this.element?.paste();
 	}
 
-	public cut() {
+	public override cut() {
 		this.element?.cut();
 	}
 
-	public undo() {
+	public override undo() {
 		this.element?.undo();
 	}
 
-	public redo() {
+	public override redo() {
 		this.element?.redo();
 	}
 
-	protected on<T = unknown>(channel: WebviewMessageChannels | string, handler: (data: T) => void): IDisposable {
+	protected override on<T = unknown>(channel: WebviewMessageChannels | string, handler: (data: T) => void): IDisposable {
 		if (!this.element) {
-			return Disposable.None;
+			throw new Error('Cannot add event listener. No webview element found.');
 		}
 		return addDisposableListener(this.element, 'ipc-message', (event) => {
 			if (!this.element) {

@@ -7,11 +7,12 @@ import * as cp from 'child_process';
 import { Application } from '../../../../automation';
 
 export function setup() {
+	// https://github.com/microsoft/vscode/issues/115244
 	describe('Search', () => {
 		after(function () {
 			const app = this.app as Application;
-			cp.execSync('git checkout .', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
 		it('searches for body & checks for correct result number', async function () {
@@ -34,7 +35,7 @@ export function setup() {
 			await app.workbench.search.hideQueryDetails();
 		});
 
-		it('dismisses result & checks for correct result number', async function () {
+		it.skip('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.removeFileMatch('app.js');
@@ -53,12 +54,12 @@ export function setup() {
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.setReplaceText('body');
 			await app.workbench.search.replaceFileMatch('app.js');
-			await app.workbench.search.waitForNoResultText();
+			await app.workbench.search.waitForResultText('0 results in 0 files');
 		});
 	});
 
-	describe('Quick Open', () => {
-		it('quick open search produces correct result', async function () {
+	describe('Quick Access', () => {
+		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;
 			const expectedNames = [
 				'.eslintrc.json',
@@ -70,12 +71,12 @@ export function setup() {
 				'jsconfig.json'
 			];
 
-			await app.workbench.quickopen.openQuickOpen('.js');
-			await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.workbench.quickaccess.openQuickAccess('.js');
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
 
-		it('quick open respects fuzzy matching', async function () {
+		it('quick access respects fuzzy matching', async function () {
 			const app = this.app as Application;
 			const expectedNames = [
 				'tasks.json',
@@ -83,8 +84,8 @@ export function setup() {
 				'package.json'
 			];
 
-			await app.workbench.quickopen.openQuickOpen('a.s');
-			await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.workbench.quickaccess.openQuickAccess('a.s');
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
 	});

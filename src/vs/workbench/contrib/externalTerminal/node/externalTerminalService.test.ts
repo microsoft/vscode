@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepEqual, equal } from 'assert';
-import { WindowsExternalTerminalService, LinuxExternalTerminalService, MacExternalTerminalService, DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
+import { WindowsExternalTerminalService, LinuxExternalTerminalService, MacExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
+import { DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node/externalTerminal';
 
 suite('ExternalTerminalService', () => {
 	let mockOnExit: Function;
@@ -110,6 +111,28 @@ suite('ExternalTerminalService', () => {
 				// assert
 				deepEqual(args, ['C:/foo']);
 				equal(opts, undefined);
+				done();
+				return { on: (evt: any) => evt };
+			}
+		};
+		let testService = new WindowsExternalTerminalService(mockConfig);
+		(<any>testService).spawnTerminal(
+			mockSpawner,
+			mockConfig,
+			testShell,
+			testCwd,
+			mockOnExit,
+			mockOnError
+		);
+	});
+
+	test(`WinTerminalService - windows terminal should open workspace directory`, done => {
+		let testShell = 'wt';
+		let testCwd = 'c:/foo';
+		let mockSpawner = {
+			spawn: (command: any, args: any, opts: any) => {
+				// assert
+				equal(opts.cwd, 'C:/foo');
 				done();
 				return { on: (evt: any) => evt };
 			}

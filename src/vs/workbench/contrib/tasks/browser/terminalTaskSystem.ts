@@ -27,13 +27,13 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalService, ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder, TaskSourceKind, InMemoryTask
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -43,9 +43,12 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
-import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -79,21 +82,30 @@ class InstanceManager {
 }
 
 class VariableResolver {
-
-	constructor(public workspaceFolder: IWorkspaceFolder | undefined, public taskSystemInfo: TaskSystemInfo | undefined, private _values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
+	private static regex = /\$\{(.*?)\}/g;
+	constructor(public workspaceFolder: IWorkspaceFolder | undefined, public taskSystemInfo: TaskSystemInfo | undefined, public readonly values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
 	}
-	resolve(value: string): string {
-		return value.replace(/\$\{(.*?)\}/g, (match: string, variable: string) => {
-			// Strip out the ${} because the map contains them variables without those characters.
-			let result = this._values.get(match.substring(2, match.length - 1));
-			if ((result !== undefined) && (result !== null)) {
-				return result;
-			}
-			if (this._service) {
-				return this._service.resolve(this.workspaceFolder, match);
-			}
+	async resolve(value: string): Promise<string> {
+		const replacers: Promise<string>[] = [];
+		value.replace(VariableResolver.regex, (match, ...args) => {
+			replacers.push(this.replacer(match, args));
 			return match;
 		});
+		const resolvedReplacers = await Promise.all(replacers);
+		return value.replace(VariableResolver.regex, () => resolvedReplacers.shift()!);
+
+	}
+
+	private async replacer(match: string, args: string[]): Promise<string> {
+		// Strip out the ${} because the map contains them variables without those characters.
+		let result = this.values.get(match.substring(2, match.length - 1));
+		if ((result !== undefined) && (result !== null)) {
+			return result;
+		}
+		if (this._service) {
+			return this._service.resolveAsync(this.workspaceFolder, match);
+		}
+		return match;
 	}
 }
 
@@ -199,8 +211,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
 		private fileService: IFileService,
-		private terminalInstanceService: ITerminalInstanceService,
-		private remotePathService: IRemotePathService,
+		private terminalProfileResolverService: ITerminalProfileResolverService,
+		private pathService: IPathService,
+		private viewDescriptorService: IViewDescriptorService,
+		private logService: ILogService,
+		private configurationService: IConfigurationService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
@@ -228,16 +243,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
-		let commonKey = task._id.split('|')[0];
-		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[commonKey] && this.instances[commonKey].instances < task.runOptions.instanceLimit;
-		let instance = this.instances[commonKey] ? this.instances[commonKey].instances : 0;
+		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
+		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
+		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[recentTaskKey] && this.instances[recentTaskKey].instances < task.runOptions.instanceLimit;
+		let instance = this.instances[recentTaskKey] ? this.instances[recentTaskKey].instances : 0;
 		this.currentTask = new VerifiedTask(task, resolver, trigger);
-		let taskClone = undefined;
 		if (instance > 0) {
-			taskClone = task.clone();
-			taskClone._id += '|' + this.instances[commonKey].counter.toString();
+			task.instance = this.instances[recentTaskKey].counter;
 		}
-		let taskToExecute = taskClone ?? task;
 		let lastTaskInstance = this.getLastInstance(task);
 		let terminalData = lastTaskInstance ? this.activeTasks[lastTaskInstance.getMapKey()] : undefined;
 		if (terminalData && terminalData.promise && !validInstance) {
@@ -246,14 +259,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		try {
-			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(taskToExecute, resolver, trigger) };
+			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this.executeTask(task, resolver, trigger, new Set()) };
 			executeResult.promise.then(summary => {
 				this.lastTask = this.currentTask;
 			});
-			if (!this.instances[commonKey]) {
-				this.instances[commonKey] = new InstanceManager();
+			if (InMemoryTask.is(task) || !this.isTaskEmpty(task)) {
+				if (!this.instances[recentTaskKey]) {
+					this.instances[recentTaskKey] = new InstanceManager();
+				}
+				this.instances[recentTaskKey].addInstance();
 			}
-			this.instances[commonKey].addInstance();
 			return executeResult;
 		} catch (error) {
 			if (error instanceof TaskError) {
@@ -290,7 +305,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		const activeTerminalInstance = this.terminalService.getActiveInstance();
 		const isPanelShowingTerminal = !!this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
-		return isPanelShowingTerminal && (activeTerminalInstance?.id === terminalData.terminal.id);
+		return isPanelShowingTerminal && (activeTerminalInstance?.instanceId === terminalData.terminal.instanceId);
 	}
 
 
@@ -299,7 +314,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		if (this.isTaskVisible(task)) {
+		const isTerminalInPanel: boolean = this.viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID) === ViewContainerLocation.Panel;
+		if (isTerminalInPanel && this.isTaskVisible(task)) {
 			if (this.previousPanelId) {
 				if (this.previousTerminalInstance) {
 					this.terminalService.setActiveInstance(this.previousTerminalInstance);
@@ -311,9 +327,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.previousPanelId = undefined;
 			this.previousTerminalInstance = undefined;
 		} else {
-			this.previousPanelId = this.panelService.getActivePanel()?.getId();
-			if (this.previousPanelId === TERMINAL_VIEW_ID) {
-				this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+			if (isTerminalInPanel) {
+				this.previousPanelId = this.panelService.getActivePanel()?.getId();
+				if (this.previousPanelId === TERMINAL_VIEW_ID) {
+					this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+				}
 			}
 			this.terminalService.setActiveInstance(terminalData.terminal);
 			if (CustomTask.is(task) || ContributedTask.is(task)) {
@@ -341,9 +359,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public getLastInstance(task: Task): Task | undefined {
 		let lastInstance = undefined;
-		let commonId = task._id.split('|')[0];
+		const recentKey = task.getRecentlyUsedKey();
 		Object.keys(this.activeTasks).forEach((key) => {
-			if (commonId === this.activeTasks[key].task._id.split('|')[0]) {
+			if (recentKey && recentKey === this.activeTasks[key].task.getRecentlyUsedKey()) {
 				lastInstance = this.activeTasks[key].task;
 			}
 		});
@@ -366,18 +384,22 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
+	private removeInstances(task: Task) {
+		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
+		if (this.instances[recentTaskKey]) {
+			this.instances[recentTaskKey].removeInstance();
+			if (this.instances[recentTaskKey].instances === 0) {
+				delete this.instances[recentTaskKey];
+			}
+		}
+	}
+
 	private removeFromActiveTasks(task: Task): void {
 		if (!this.activeTasks[task.getMapKey()]) {
 			return;
 		}
 		delete this.activeTasks[task.getMapKey()];
-		let commonKey = task._id.split('|')[0];
-		if (this.instances[commonKey]) {
-			this.instances[commonKey].removeInstance();
-			if (this.instances[commonKey].instances === 0) {
-				delete this.instances[commonKey];
-			}
-		}
+		this.removeInstances(task);
 	}
 
 	public terminate(task: Task): Promise<TaskTerminateResponse> {
@@ -425,19 +447,35 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Promise.all<TaskTerminateResponse>(promises);
 	}
 
-	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+
+	private showDependencyCycleMessage(task: Task) {
+		this.log(nls.localize('dependencyCycle',
+			'There is a dependency cycle. See task "{0}".',
+			task._label
+		));
+		this.showOutput();
+	}
+
+	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+		if (encounteredDependencies.has(task.getCommonTaskId())) {
+			this.showDependencyCycleMessage(task);
+			return {};
+		}
+
 		alreadyResolved = alreadyResolved ?? new Map<string, string>();
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
 			for (const dependency of task.configurationProperties.dependsOn) {
-				let dependencyTask = resolver.resolve(dependency.uri, dependency.task!);
+				let dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
 					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
 					if (!promise) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-						promise = this.executeTask(dependencyTask, resolver, trigger, alreadyResolved);
+						encounteredDependencies.add(task.getCommonTaskId());
+						promise = this.executeDependencyTask(dependencyTask, resolver, trigger, encounteredDependencies, alreadyResolved);
 					}
+					promises.push(promise);
 					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
 						const promiseResult = await promise;
 						if (promiseResult.exitCode === 0) {
@@ -461,8 +499,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
 			return Promise.all(promises).then((summaries): Promise<ITaskSummary> | ITaskSummary => {
+				encounteredDependencies.delete(task.getCommonTaskId());
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
+						this.removeInstances(task);
 						return { exitCode: summary.exitCode };
 					}
 				}
@@ -474,6 +514,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 		} else {
 			return Promise.all(promises).then((summaries): ITaskSummary => {
+				encounteredDependencies.delete(task.getCommonTaskId());
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
 						return { exitCode: summary.exitCode };
@@ -484,12 +525,33 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private resolveAndFindExecutable(workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
-		return this.findExecutable(
-			this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name!)),
-			cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
-			envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
-		);
+	private async executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+		// If the task is a background task with a watching problem matcher, we don't wait for the whole task to finish,
+		// just for the problem matcher to go inactive.
+		if (!task.configurationProperties.isBackground) {
+			return this.executeTask(task, resolver, trigger, encounteredDependencies, alreadyResolved);
+		}
+
+		const inactivePromise = new Promise<ITaskSummary>(resolve => {
+			const taskInactiveDisposable = this._onDidStateChange.event(taskEvent => {
+				if ((taskEvent.kind === TaskEventKind.Inactive) && (taskEvent.__task === task)) {
+					taskInactiveDisposable.dispose();
+					resolve({ exitCode: 0 });
+				}
+			});
+		});
+		return Promise.race([inactivePromise, this.executeTask(task, resolver, trigger, encounteredDependencies, alreadyResolved)]);
+	}
+
+	private async resolveAndFindExecutable(systemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
+		const command = await this.configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
+		cwd = cwd ? await this.configurationResolverService.resolveAsync(workspaceFolder, cwd) : undefined;
+		const paths = envPath ? await Promise.all(envPath.split(path.delimiter).map(p => this.configurationResolverService.resolveAsync(workspaceFolder, p))) : undefined;
+		let foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
+		if (!foundExecutable) {
+			foundExecutable = path.join(cwd ?? '', command);
+		}
+		return foundExecutable;
 	}
 
 	private findUnresolvedVariables(variables: Set<string>, alreadyResolved: Map<string, string>): Set<string> {
@@ -513,7 +575,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, variables: Set<string>, alreadyResolved: Map<string, string>): Promise<ResolvedVariables> {
+	private async acquireInput(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, variables: Set<string>, alreadyResolved: Map<string, string>): Promise<ResolvedVariables | undefined> {
+		const resolved = await this.resolveVariablesFromSet(taskSystemInfo, workspaceFolder, task, variables, alreadyResolved);
+		this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.AcquiredInput, task));
+		return resolved;
+	}
+
+	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, variables: Set<string>, alreadyResolved: Map<string, string>): Promise<ResolvedVariables | undefined> {
 		let isProcess = task.command && task.command.runtime === RuntimeType.Process;
 		let options = task.command && task.command.options ? task.command.options : undefined;
 		let cwd = options ? options.cwd : undefined;
@@ -529,7 +597,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 		const unresolved = this.findUnresolvedVariables(variables, alreadyResolved);
-		let resolvedVariables: Promise<ResolvedVariables>;
+		let resolvedVariables: Promise<ResolvedVariables | undefined>;
 		if (taskSystemInfo && workspaceFolder) {
 			let resolveSet: ResolveSet = {
 				variables: unresolved
@@ -544,34 +612,38 @@ export class TerminalTaskSystem implements ITaskSystem {
 					resolveSet.process.path = envPath;
 				}
 			}
-			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet).then(async (resolved) => {
+			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet, TaskSourceKind.toConfigurationTarget(task._source.kind)).then(async (resolved) => {
+				if (!resolved) {
+					return undefined;
+				}
+
 				this.mergeMaps(alreadyResolved, resolved.variables);
 				resolved.variables = new Map(alreadyResolved);
 				if (isProcess) {
 					let process = CommandString.value(task.command.name!);
 					if (taskSystemInfo.platform === Platform.Platform.Windows) {
-						process = await this.resolveAndFindExecutable(workspaceFolder, task, cwd, envPath);
+						process = await this.resolveAndFindExecutable(taskSystemInfo, workspaceFolder, task, cwd, envPath);
 					}
 					resolved.variables.set(TerminalTaskSystem.ProcessVarName, process);
 				}
-				return Promise.resolve(resolved);
+				return resolved;
 			});
 			return resolvedVariables;
 		} else {
 			let variablesArray = new Array<string>();
 			unresolved.forEach(variable => variablesArray.push(variable));
 
-			return new Promise((resolve, reject) => {
-				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(async (resolvedVariablesMap: Map<string, string> | undefined) => {
+			return new Promise<ResolvedVariables | undefined>((resolve, reject) => {
+				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks', undefined, TaskSourceKind.toConfigurationTarget(task._source.kind)).then(async (resolvedVariablesMap: Map<string, string> | undefined) => {
 					if (resolvedVariablesMap) {
 						this.mergeMaps(alreadyResolved, resolvedVariablesMap);
 						resolvedVariablesMap = new Map(alreadyResolved);
 						if (isProcess) {
 							let processVarValue: string;
 							if (Platform.isWindows) {
-								processVarValue = await this.resolveAndFindExecutable(workspaceFolder, task, cwd, envPath);
+								processVarValue = await this.resolveAndFindExecutable(taskSystemInfo, workspaceFolder, task, cwd, envPath);
 							} else {
-								processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name!));
+								processVarValue = await this.configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
 							}
 							resolvedVariablesMap.set(TerminalTaskSystem.ProcessVarName, processVarValue);
 						}
@@ -598,15 +670,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 			const folders = this.contextService.getWorkspace().folders;
 			workspaceFolder = folders.length > 0 ? folders[0] : undefined;
 		}
-		const systemInfo: TaskSystemInfo | undefined = this.currentTask.systemInfo = workspaceFolder ? this.taskSystemInfoResolver(workspaceFolder) : undefined;
+		const systemInfo: TaskSystemInfo | undefined = this.currentTask.systemInfo = this.taskSystemInfoResolver(workspaceFolder);
 
 		let variables = new Set<string>();
 		this.collectTaskVariables(variables, task);
-		const resolvedVariables = this.resolveVariablesFromSet(systemInfo, workspaceFolder, task, variables, alreadyResolved);
+		const resolvedVariables = this.acquireInput(systemInfo, workspaceFolder, task, variables, alreadyResolved);
 
 		return resolvedVariables.then((resolvedVariables) => {
-			const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution);
-			if (resolvedVariables && (task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined))) {
+			if (resolvedVariables && !this.isTaskEmpty(task)) {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder);
 			} else {
@@ -617,6 +688,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}, reason => {
 			return Promise.reject(reason);
 		});
+	}
+
+	private isTaskEmpty(task: CustomTask | ContributedTask): boolean {
+		const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution);
+		return !((task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined)));
 	}
 
 	private reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
@@ -637,7 +713,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 
 		if (!hasAllVariables) {
-			return this.resolveVariablesFromSet(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
+			return this.acquireInput(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
+				if (!resolvedVariables) {
+					// Allows the taskExecutions array to be updated in the extension host
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
+					return { exitCode: 0 };
+				}
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder!);
 			}, reason => {
@@ -655,7 +736,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
 		if (task.configurationProperties.isBackground) {
-			const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+			const problemMatchers = await this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
 			if ((problemMatchers.length > 0) && !watchingProblemMatcher.isWatching()) {
 				this.appendOutput(nls.localize('TerminalTaskSystem.nonWatchingMatcher', 'Task {0} is a background task but uses a problem matcher without a background pattern', task._label));
@@ -708,10 +789,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					processStartedSignaled = true;
 				}
 			}, (_error) => {
-				// The process never got ready. Need to think how to handle this.
+				this.logService.error('Task terminal process never got ready');
 			});
-			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
-			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
 			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
 				if (skipLine) {
@@ -741,22 +821,26 @@ export class TerminalTaskSystem implements ITaskSystem {
 						// Only keep a reference to the terminal if it is not being disposed.
 						switch (task.command.presentation!.panel) {
 							case PanelKind.Dedicated:
-								this.sameTaskTerminals[key] = terminal!.id.toString();
+								this.sameTaskTerminals[key] = terminal!.instanceId.toString();
 								break;
 							case PanelKind.Shared:
-								this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
+								this.idleTaskTerminals.set(key, terminal!.instanceId.toString(), Touch.AsOld);
 								break;
 						}
 					}
 					let reveal = task.command.presentation!.reveal;
 					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 						(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
-						this.terminalService.setActiveInstance(terminal!);
-						this.terminalService.showPanel(false);
+						try {
+							this.terminalService.setActiveInstance(terminal!);
+							this.terminalService.showPanel(false);
+						} catch (e) {
+							// If the terminal has already been disposed, then setting the active instance will fail. #99828
+							// There is nothing else to do here.
+						}
 					}
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
-					registeredLinkMatchers.forEach(handle => terminal!.deregisterLinkMatcher(handle));
 					if (!processStartedSignaled) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						processStartedSignaled = true;
@@ -793,13 +877,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}, (_error) => {
 				// The process never got ready. Need to think how to handle this.
 			});
-			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
 			const mapKey = task.getMapKey();
 			this.busyTasks[mapKey] = task;
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-			let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+			let problemMatchers = await this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
-			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
 				if (skipLine) {
@@ -810,7 +893,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const onExit = terminal!.onExit((exitCode) => {
-					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
 					this.removeFromActiveTasks(task);
@@ -819,10 +901,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 						// Only keep a reference to the terminal if it is not being disposed.
 						switch (task.command.presentation!.panel) {
 							case PanelKind.Dedicated:
-								this.sameTaskTerminals[key] = terminal!.id.toString();
+								this.sameTaskTerminals[key] = terminal!.instanceId.toString();
 								break;
 							case PanelKind.Shared:
-								this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
+								this.idleTaskTerminals.set(key, terminal!.instanceId.toString(), Touch.AsOld);
 								break;
 						}
 					}
@@ -833,16 +915,20 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this.viewsService.openView(Constants.MARKERS_VIEW_ID);
 					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
-						this.terminalService.setActiveInstance(terminal);
-						this.terminalService.showPanel(false);
-					}
-					startStopProblemMatcher.done();
-					startStopProblemMatcher.dispose();
-					registeredLinkMatchers.forEach(handle => {
-						if (terminal) {
-							terminal.deregisterLinkMatcher(handle);
+						try {
+							this.terminalService.setActiveInstance(terminal);
+							this.terminalService.showPanel(false);
+						} catch (e) {
+							// If the terminal has already been disposed, then setting the active instance will fail. #99828
+							// There is nothing else to do here.
 						}
-					});
+					}
+					// Hack to work around #92868 until terminal is fixed.
+					setTimeout(() => {
+						onData.dispose();
+						startStopProblemMatcher.done();
+						startStopProblemMatcher.dispose();
+					}, 100);
 					if (!processStartedSignaled && terminal) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId!));
 						processStartedSignaled = true;
@@ -914,7 +1000,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private createTerminalName(task: CustomTask | ContributedTask): string {
 		const needsFolderQualification = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
+		return needsFolderQualification ? task.getQualifiedLabel() : (task.configurationProperties.name || '');
 	}
 
 	private async createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): Promise<IShellLaunchConfig | undefined> {
@@ -922,19 +1008,33 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		let needsFolderQualification = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let terminalName = this.createTerminalName(task);
+		const description = nls.localize('TerminalTaskSystem.terminalDescription', 'Task');
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			const defaultConfig = variableResolver.taskSystemInfo ? await variableResolver.taskSystemInfo.getDefaultShellAndArgs() : await this.terminalInstanceService.getDefaultShellAndArgs(true, platform);
-			shellLaunchConfig = { name: terminalName, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
+			let defaultConfig: { shell: string, args: string[] | string | undefined };
+			if (variableResolver.taskSystemInfo) {
+				defaultConfig = await variableResolver.taskSystemInfo.getDefaultShellAndArgs();
+			} else {
+				const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({
+					allowAutomationShell: true,
+					os: Platform.OS,
+					remoteAuthority: this.environmentService.remoteAuthority
+				});
+				defaultConfig = {
+					shell: defaultProfile.path,
+					args: defaultProfile.args
+				};
+			}
+			shellLaunchConfig = { name: terminalName, description, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
 				if (shellOptions.executable) {
-					shellLaunchConfig.executable = this.resolveVariable(variableResolver, shellOptions.executable);
+					shellLaunchConfig.executable = await this.resolveVariable(variableResolver, shellOptions.executable);
 					shellSpecified = true;
 				}
 				if (shellOptions.args) {
-					shellLaunchConfig.args = this.resolveVariables(variableResolver, shellOptions.args.slice());
+					shellLaunchConfig.args = await this.resolveVariables(variableResolver, shellOptions.args.slice());
 				} else {
 					shellLaunchConfig.args = [];
 				}
@@ -947,7 +1047,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
 				// If we don't have a cwd, then the terminal uses the home dir.
-				const userHome = await this.remotePathService.userHome;
+				const userHome = await this.pathService.userHome();
 				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
 					return undefined;
 				}
@@ -973,9 +1073,17 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (!shellSpecified) {
 					// Under Mac remove -l to not start it as a login shell.
 					if (platform === Platform.Platform.Mac) {
-						let index = shellArgs.indexOf('-l');
-						if (index !== -1) {
-							shellArgs.splice(index, 1);
+						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
+						const osxShellArgs = this.configurationService.inspect('terminal.integrated.shellArgs.osx');
+						if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
+							&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
+							&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
+							&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
+							&& (osxShellArgs.workspaceValue === undefined)) {
+							let index = shellArgs.indexOf('-l');
+							if (index !== -1) {
+								shellArgs.splice(index, 1);
+							}
 						}
 					}
 					toAdd.push('-c');
@@ -998,12 +1106,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		} else {
 			let commandExecutable = (task.command.runtime !== RuntimeType.CustomExecution) ? CommandString.value(command) : undefined;
 			let executable = !isShellCommand
-				? this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}')
+				? await this.resolveVariable(variableResolver, await this.resolveVariable(variableResolver, '${' + TerminalTaskSystem.ProcessVarName + '}'))
 				: commandExecutable;
 
 			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
 			shellLaunchConfig = {
 				name: terminalName,
+				description,
 				executable: executable,
 				args: args.map(a => Types.isString(a) ? a : a.value),
 				waitOnExit
@@ -1029,22 +1138,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (options.cwd) {
 			let cwd = options.cwd;
 			if (!path.isAbsolute(cwd)) {
-				if (workspaceFolder && (workspaceFolder.uri.scheme === 'file')) {
+				if (workspaceFolder && (workspaceFolder.uri.scheme === Schemas.file)) {
 					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.configuration.remoteAuthority);
+			shellLaunchConfig.cwd = isUNC(cwd) ? cwd : resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
 		}
+		shellLaunchConfig.isFeatureTerminal = true;
 		return shellLaunchConfig;
 	}
 
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
-		let options = this.resolveOptions(resolver, task.command.options);
+		let options = await this.resolveOptions(resolver, task.command.options);
 
 		let waitOnExit: boolean | string = false;
 		const presentationOptions = task.command.presentation;
@@ -1069,13 +1179,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this.currentTask.shellLaunchConfig = launchConfigs = {
-				isExtensionTerminal: true,
+				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this.terminalService),
 				waitOnExit,
 				name: this.createTerminalName(task),
-				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
+				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined,
+				isFeatureTerminal: true
 			};
 		} else {
-			let resolvedResult: { command: CommandString, args: CommandString[] } = this.resolveCommandAndArgs(resolver, task.command);
+			let resolvedResult: { command: CommandString, args: CommandString[] } = await this.resolveCommandAndArgs(resolver, task.command);
 			command = resolvedResult.command;
 			args = resolvedResult.args;
 			commandExecutable = CommandString.value(command);
@@ -1084,6 +1195,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (launchConfigs === undefined) {
 				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
+		}
+		if (this.currentTask.shellLaunchConfig) {
+			this.currentTask.shellLaunchConfig.icon = 'tools';
 		}
 
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
@@ -1128,7 +1242,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (task.command.presentation && task.command.presentation.clear) {
 				terminalToReuse.terminal.clear();
 			}
-			this.terminals[terminalToReuse.terminal.id.toString()].lastTask = taskKey;
+			this.terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
@@ -1152,7 +1266,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			result = this.terminalService.createTerminal(launchConfigs);
 		}
 
-		const terminalKey = result.id.toString();
+		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];
 			if (terminalData) {
@@ -1265,14 +1379,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (platform === Platform.Platform.Windows) {
 			if (basename === 'cmd' && commandQuoted && argQuoted) {
 				commandLine = '"' + commandLine + '"';
-			} else if (basename === 'powershell' && commandQuoted) {
+			} else if ((basename === 'powershell' || basename === 'pwsh') && commandQuoted) {
 				commandLine = '& ' + commandLine;
 			}
 		}
 
-		if (basename === 'cmd' && platform === Platform.Platform.Windows && commandQuoted && argQuoted) {
-			commandLine = '"' + commandLine + '"';
-		}
 		return commandLine;
 	}
 
@@ -1288,6 +1399,22 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.collectCommandVariables(variables, task.command, task);
 		}
 		this.collectMatcherVariables(variables, task.configurationProperties.problemMatchers);
+
+		if (task.command.runtime === RuntimeType.CustomExecution && CustomTask.is(task)) {
+			this.collectDefinitionVariables(variables, task._source.config.element);
+		}
+	}
+
+	private collectDefinitionVariables(variables: Set<string>, definition: any): void {
+		if (Types.isString(definition)) {
+			this.collectVariables(variables, definition);
+		} else if (Types.isArray(definition)) {
+			definition.forEach((element: any) => this.collectDefinitionVariables(variables, element));
+		} else if (Types.isObject(definition)) {
+			for (const key in definition) {
+				this.collectDefinitionVariables(variables, definition[key]);
+			}
+		}
 	}
 
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {
@@ -1367,26 +1494,26 @@ export class TerminalTaskSystem implements ITaskSystem {
 		} while (matches);
 	}
 
-	private resolveCommandAndArgs(resolver: VariableResolver, commandConfig: CommandConfiguration): { command: CommandString, args: CommandString[] } {
+	private async resolveCommandAndArgs(resolver: VariableResolver, commandConfig: CommandConfiguration): Promise<{ command: CommandString, args: CommandString[] }> {
 		// First we need to use the command args:
 		let args: CommandString[] = commandConfig.args ? commandConfig.args.slice() : [];
-		args = this.resolveVariables(resolver, args);
-		let command: CommandString = this.resolveVariable(resolver, commandConfig.name);
+		args = await this.resolveVariables(resolver, args);
+		let command: CommandString = await this.resolveVariable(resolver, commandConfig.name);
 		return { command, args };
 	}
 
-	private resolveVariables(resolver: VariableResolver, value: string[]): string[];
-	private resolveVariables(resolver: VariableResolver, value: CommandString[]): CommandString[];
-	private resolveVariables(resolver: VariableResolver, value: CommandString[]): CommandString[] {
-		return value.map(s => this.resolveVariable(resolver, s));
+	private async resolveVariables(resolver: VariableResolver, value: string[]): Promise<string[]>;
+	private async resolveVariables(resolver: VariableResolver, value: CommandString[]): Promise<CommandString[]>;
+	private async resolveVariables(resolver: VariableResolver, value: CommandString[]): Promise<CommandString[]> {
+		return Promise.all(value.map(s => this.resolveVariable(resolver, s)));
 	}
 
-	private resolveMatchers(resolver: VariableResolver, values: Array<string | ProblemMatcher> | undefined): ProblemMatcher[] {
+	private async resolveMatchers(resolver: VariableResolver, values: Array<string | ProblemMatcher> | undefined): Promise<ProblemMatcher[]> {
 		if (values === undefined || values === null || values.length === 0) {
 			return [];
 		}
 		let result: ProblemMatcher[] = [];
-		values.forEach((value) => {
+		for (const value of values) {
 			let matcher: ProblemMatcher;
 			if (Types.isString(value)) {
 				if (value[0] === '$') {
@@ -1399,7 +1526,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			if (!matcher) {
 				this.appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
-				return;
+				continue;
 			}
 			let taskSystemInfo: TaskSystemInfo | undefined = resolver.taskSystemInfo;
 			let hasFilePrefix = matcher.filePrefix !== undefined;
@@ -1412,23 +1539,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 					copy.uriProvider = taskSystemInfo.uriProvider;
 				}
 				if (hasFilePrefix) {
-					copy.filePrefix = this.resolveVariable(resolver, copy.filePrefix);
+					copy.filePrefix = await this.resolveVariable(resolver, copy.filePrefix);
 				}
 				result.push(copy);
 			}
-		});
+		}
 		return result;
 	}
 
-	private resolveVariable(resolver: VariableResolver, value: string | undefined): string;
-	private resolveVariable(resolver: VariableResolver, value: CommandString | undefined): CommandString;
-	private resolveVariable(resolver: VariableResolver, value: CommandString | undefined): CommandString {
+	private async resolveVariable(resolver: VariableResolver, value: string | undefined): Promise<string>;
+	private async resolveVariable(resolver: VariableResolver, value: CommandString | undefined): Promise<CommandString>;
+	private async resolveVariable(resolver: VariableResolver, value: CommandString | undefined): Promise<CommandString> {
 		// TODO@Dirk Task.getWorkspaceFolder should return a WorkspaceFolder that is defined in workspace.ts
 		if (Types.isString(value)) {
 			return resolver.resolve(value);
 		} else if (value !== undefined) {
 			return {
-				value: resolver.resolve(value.value),
+				value: await resolver.resolve(value.value),
 				quoting: value.quoting
 			};
 		} else { // This should never happen
@@ -1436,59 +1563,30 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private resolveOptions(resolver: VariableResolver, options: CommandOptions | undefined): CommandOptions {
+	private async resolveOptions(resolver: VariableResolver, options: CommandOptions | undefined): Promise<CommandOptions> {
 		if (options === undefined || options === null) {
 			let cwd: string | undefined;
 			try {
-				cwd = this.resolveVariable(resolver, '${workspaceFolder}');
+				cwd = await this.resolveVariable(resolver, '${workspaceFolder}');
 			} catch (e) {
 				// No workspace
 			}
 			return { cwd };
 		}
 		let result: CommandOptions = Types.isString(options.cwd)
-			? { cwd: this.resolveVariable(resolver, options.cwd) }
-			: { cwd: this.resolveVariable(resolver, '${workspaceFolder}') };
+			? { cwd: await this.resolveVariable(resolver, options.cwd) }
+			: { cwd: await this.resolveVariable(resolver, '${workspaceFolder}') };
 		if (options.env) {
 			result.env = Object.create(null);
-			Object.keys(options.env).forEach((key) => {
+			for (const key of Object.keys(options.env)) {
 				let value: any = options.env![key];
 				if (Types.isString(value)) {
-					result.env![key] = this.resolveVariable(resolver, value);
+					result.env![key] = await this.resolveVariable(resolver, value);
 				} else {
 					result.env![key] = value.toString();
 				}
-			});
-		}
-		return result;
-	}
-
-	private registerLinkMatchers(terminal: ITerminalInstance, problemMatchers: ProblemMatcher[]): number[] {
-		let result: number[] = [];
-		/*
-		let handlePattern = (matcher: ProblemMatcher, pattern: ProblemPattern): void => {
-			if (pattern.regexp instanceof RegExp && Types.isNumber(pattern.file)) {
-				result.push(terminal.registerLinkMatcher(pattern.regexp, (match: string) => {
-					let resource: URI = getResource(match, matcher);
-					if (resource) {
-						this.workbenchEditorService.openEditor({
-							resource: resource
-						});
-					}
-				}, 0));
-			}
-		};
-
-		for (let problemMatcher of problemMatchers) {
-			if (Array.isArray(problemMatcher.pattern)) {
-				for (let pattern of problemMatcher.pattern) {
-					handlePattern(problemMatcher, pattern);
-				}
-			} else if (problemMatcher.pattern) {
-				handlePattern(problemMatcher, problemMatcher.pattern);
 			}
 		}
-		*/
 		return result;
 	}
 
@@ -1530,60 +1628,5 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (outputChannel) {
 			outputChannel.append(output);
 		}
-	}
-
-	private async fileExists(path: string): Promise<boolean> {
-		const uri: URI = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: path }), this.environmentService.configuration.remoteAuthority);
-		if (await this.fileService.exists(uri)) {
-			return !((await this.fileService.resolve(uri)).isDirectory);
-		}
-		return false;
-	}
-
-	private async findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
-		// If we have an absolute path then we take it.
-		if (path.isAbsolute(command)) {
-			return command;
-		}
-		if (cwd === undefined) {
-			cwd = processCwd();
-		}
-		const dir = path.dirname(command);
-		if (dir !== '.') {
-			// We have a directory and the directory is relative (see above). Make the path absolute
-			// to the current working directory.
-			return path.join(cwd, command);
-		}
-		if (paths === undefined && Types.isString(processEnv.PATH)) {
-			paths = processEnv.PATH.split(path.delimiter);
-		}
-		// No PATH environment. Make path absolute to the cwd.
-		if (paths === undefined || paths.length === 0) {
-			return path.join(cwd, command);
-		}
-		// We have a simple file name. We get the path variable from the env
-		// and try to find the executable on the path.
-		for (let pathEntry of paths) {
-			// The path entry is absolute.
-			let fullPath: string;
-			if (path.isAbsolute(pathEntry)) {
-				fullPath = path.join(pathEntry, command);
-			} else {
-				fullPath = path.join(cwd, pathEntry, command);
-			}
-
-			if (await this.fileExists(fullPath)) {
-				return fullPath;
-			}
-			let withExtension = fullPath + '.com';
-			if (await this.fileExists(withExtension)) {
-				return withExtension;
-			}
-			withExtension = fullPath + '.exe';
-			if (await this.fileExists(withExtension)) {
-				return withExtension;
-			}
-		}
-		return path.join(cwd, command);
 	}
 }

@@ -9,6 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 interface ILineEdit {
 	startColumn: number;
@@ -38,13 +39,13 @@ function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 			type: token.getType()
 		};
 	};
-	assert.deepEqual(actual, expected.map(decode));
+	assert.deepStrictEqual(actual, expected.map(decode));
 }
 
 suite('ModelLine - getIndentLevel', () => {
 	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
 		let actual = TextModel.computeIndentLevel(text, tabSize);
-		assert.equal(actual, expected, text);
+		assert.strictEqual(actual, expected, text);
 	}
 
 	test('getIndentLevel', () => {
@@ -106,7 +107,7 @@ suite('ModelLinesTokens', () => {
 
 	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
 		const initialText = initial.map(el => el.text).join('\n');
-		const model = new TextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = createTextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
@@ -125,7 +126,7 @@ suite('ModelLinesTokens', () => {
 		for (let lineIndex = 0; lineIndex < expected.length; lineIndex++) {
 			const actualLine = model.getLineContent(lineIndex + 1);
 			const actualTokens = model.getLineTokens(lineIndex + 1);
-			assert.equal(actualLine, expected[lineIndex].text);
+			assert.strictEqual(actualLine, expected[lineIndex].text);
 			assertLineTokens(actualTokens, expected[lineIndex].tokens);
 		}
 	}
@@ -442,7 +443,7 @@ suite('ModelLinesTokens', () => {
 	}
 
 	test('insertion on empty line', () => {
-		const model = new TextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = createTextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
 		const tokens = TestToken.toTokens([new TestToken(0, 1)]);
 		LineTokens.convertToEndOffset(tokens, model.getLineMaxColumn(1) - 1);
 		model.setLineTokens(1, tokens);

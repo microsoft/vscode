@@ -18,8 +18,10 @@ export function buildReplaceStringWithCasePreserved(matches: string[] | null, pa
 			return pattern.toUpperCase();
 		} else if (matches[0].toLowerCase() === matches[0]) {
 			return pattern.toLowerCase();
-		} else if (strings.containsUppercaseCharacter(matches[0][0])) {
+		} else if (strings.containsUppercaseCharacter(matches[0][0]) && pattern.length > 0) {
 			return pattern[0].toUpperCase() + pattern.substr(1);
+		} else if (matches[0][0].toUpperCase() !== matches[0][0] && pattern.length > 0) {
+			return pattern[0].toLowerCase() + pattern.substr(1);
 		} else {
 			// we don't understand its pattern yet.
 			return pattern;

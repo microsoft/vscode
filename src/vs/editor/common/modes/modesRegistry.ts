@@ -9,6 +9,7 @@ import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 // Define extension point ids
 export const Extensions = {
@@ -30,9 +31,19 @@ export class EditorModesRegistry {
 
 	// --- languages
 
-	public registerLanguage(def: ILanguageExtensionPoint): void {
+	public registerLanguage(def: ILanguageExtensionPoint): IDisposable {
 		this._languages.push(def);
 		this._onDidChangeLanguages.fire(undefined);
+		return {
+			dispose: () => {
+				for (let i = 0, len = this._languages.length; i < len; i++) {
+					if (this._languages[i] === def) {
+						this._languages.splice(i, 1);
+						return;
+					}
+				}
+			}
+		};
 	}
 	public setDynamicLanguages(def: ILanguageExtensionPoint[]): void {
 		this._dynamicLanguages = def;
@@ -47,11 +58,12 @@ export const ModesRegistry = new EditorModesRegistry();
 Registry.add(Extensions.ModesRegistry, ModesRegistry);
 
 export const PLAINTEXT_MODE_ID = 'plaintext';
+export const PLAINTEXT_EXTENSION = '.txt';
 export const PLAINTEXT_LANGUAGE_IDENTIFIER = new LanguageIdentifier(PLAINTEXT_MODE_ID, LanguageId.PlainText);
 
 ModesRegistry.registerLanguage({
 	id: PLAINTEXT_MODE_ID,
-	extensions: ['.txt', '.gitignore'],
+	extensions: [PLAINTEXT_EXTENSION],
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
 	mimetypes: ['text/plain']
 });
@@ -73,4 +85,4 @@ LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
 	folding: {
 		offSide: true
 	}
-});
+}, 0);

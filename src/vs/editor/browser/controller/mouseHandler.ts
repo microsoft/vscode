@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { HitTestContext, IViewZoneData, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
@@ -43,6 +42,7 @@ export interface IPointerHandlerHelper {
 	linesContentDomNode: HTMLElement;
 
 	focusTextArea(): void;
+	dispatchTextAreaEvent(event: CustomEvent): void;
 
 	/**
 	 * Get the last rendered information for cursors & textarea.
@@ -69,9 +69,9 @@ export class MouseHandler extends ViewEventHandler {
 	protected viewController: ViewController;
 	protected viewHelper: IPointerHandlerHelper;
 	protected mouseTargetFactory: MouseTargetFactory;
-	private readonly _asyncFocus: RunOnceScheduler;
 	protected readonly _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
+	private _height: number;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
@@ -89,9 +89,8 @@ export class MouseHandler extends ViewEventHandler {
 			(e) => this._getMouseColumn(e)
 		));
 
-		this._asyncFocus = this._register(new RunOnceScheduler(() => this.viewHelper.focusTextArea(), 0));
-
 		this.lastMouseLeaveTime = -1;
+		this._height = this._context.configuration.options.get(EditorOption.layoutInfo).height;
 
 		const mouseEvents = new EditorMouseEventFactory(this.viewHelper.viewDomNode);
 
@@ -114,7 +113,14 @@ export class MouseHandler extends ViewEventHandler {
 				return;
 			}
 			const e = new StandardWheelEvent(browserEvent);
-			if (e.browserEvent!.ctrlKey || e.browserEvent!.metaKey) {
+			const doMouseWheelZoom = (
+				platform.isMacintosh
+					// on macOS we support cmd + two fingers scroll (`metaKey` set)
+					// and also the two fingers pinch gesture (`ctrKey` set)
+					? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
+					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
+			);
+			if (doMouseWheelZoom) {
 				const zoomLevel: number = EditorZoom.getZoomLevel();
 				const delta = e.deltaY > 0 ? 1 : -1;
 				EditorZoom.setZoomLevel(zoomLevel + delta);
@@ -122,27 +128,36 @@ export class MouseHandler extends ViewEventHandler {
 				e.stopPropagation();
 			}
 		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, browser.isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel, { capture: true, passive: false }));
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { capture: true, passive: false }));
 
 		this._context.addEventHandler(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._context.removeEventHandler(this);
 		super.dispose();
 	}
 
 	// --- begin event handlers
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.hasChanged(EditorOption.layoutInfo)) {
+			// layout change
+			const height = this._context.configuration.options.get(EditorOption.layoutInfo).height;
+			if (this._height !== height) {
+				this._height = height;
+				this._mouseDownOperation.onHeightChanged();
+			}
+		}
+		return false;
+	}
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._mouseDownOperation.onCursorStateChanged(e);
 		return false;
 	}
-	private _isFocused = false;
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this._isFocused = e.isFocused;
+	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		return false;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._mouseDownOperation.onScrollChanged();
 		return false;
 	}
@@ -223,15 +238,8 @@ export class MouseHandler extends ViewEventHandler {
 		}
 
 		const focus = () => {
-			// In IE11, if the focus is in the browser's address bar and
-			// then you click in the editor, calling preventDefault()
-			// will not move focus properly (focus remains the address bar)
-			if (browser.isIE && !this._isFocused) {
-				this._asyncFocus.schedule();
-			} else {
-				e.preventDefault();
-				this.viewHelper.focusTextArea();
-			}
+			e.preventDefault();
+			this.viewHelper.focusTextArea();
 		};
 
 		if (shouldHandle && (targetIsContent || (targetIsLineNumbers && selectOnLineNumbers))) {
@@ -303,7 +311,7 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = null;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
@@ -352,6 +360,7 @@ class MouseDownOperation extends Disposable {
 
 		if (!options.get(EditorOption.readOnly)
 			&& options.get(EditorOption.dragAndDrop)
+			&& !options.get(EditorOption.columnSelection)
 			&& !this._mouseState.altKey // we don't support multiple mouse
 			&& e.detail < 2 // only single click on a selection can work
 			&& !this._isActive // the mouse is not down yet
@@ -367,13 +376,18 @@ class MouseDownOperation extends Disposable {
 				e.buttons,
 				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
-				() => {
+				(browserEvent?: MouseEvent | KeyboardEvent) => {
 					const position = this._findMousePosition(this._lastMouseEvent!, true);
 
-					this._viewController.emitMouseDrop({
-						event: this._lastMouseEvent!,
-						target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
-					});
+					if (browserEvent && browserEvent instanceof KeyboardEvent) {
+						// cancel
+						this._viewController.emitMouseDropCanceled();
+					} else {
+						this._viewController.emitMouseDrop({
+							event: this._lastMouseEvent!,
+							target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
+						});
+					}
 
 					this._stop();
 				}
@@ -400,6 +414,10 @@ class MouseDownOperation extends Disposable {
 	private _stop(): void {
 		this._isActive = false;
 		this._onScrollTimeout.cancel();
+	}
+
+	public onHeightChanged(): void {
+		this._mouseMoveMonitor.stopMonitoring();
 	}
 
 	public onScrollChanged(): void {

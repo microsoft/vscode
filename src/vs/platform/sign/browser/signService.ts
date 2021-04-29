@@ -7,7 +7,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class SignService implements ISignService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _tkn: string | null;
 
@@ -16,6 +16,6 @@ export class SignService implements ISignService {
 	}
 
 	async sign(value: string): Promise<string> {
-		return Promise.resolve(this._tkn || '');
+		return this._tkn || '';
 	}
 }

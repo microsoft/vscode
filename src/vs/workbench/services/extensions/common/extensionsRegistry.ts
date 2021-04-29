@@ -11,8 +11,7 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { values } from 'vs/base/common/map';
+import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 export type ExtensionKind = 'workspace' | 'ui' | undefined;
@@ -150,11 +149,13 @@ const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
-		'workspace'
+		'workspace',
+		'web'
 	],
 	enumDescriptions: [
 		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
+		nls.localize('web', "Web worker extension kind. Such an extension can execute in a web worker extension host.")
 	],
 };
 
@@ -187,7 +188,7 @@ export const schema: IJSONSchema = {
 			items: {
 				oneOf: [{
 					type: 'string',
-					enum: ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs'],
+					enum: EXTENSION_CATEGORIES,
 				},
 				{
 					type: 'string',
@@ -250,6 +251,11 @@ export const schema: IJSONSchema = {
 						body: 'onDebugInitialConfigurations'
 					},
 					{
+						label: 'onDebugDynamicConfigurations',
+						description: nls.localize('vscode.extension.activationEvents.onDebugDynamicConfigurations', 'An activation event emitted whenever a list of all debug configurations needs to be created (and all provideDebugConfigurations methods for the "dynamic" scope need to be called).'),
+						body: 'onDebugDynamicConfigurations'
+					},
+					{
 						label: 'onDebugResolve',
 						description: nls.localize('vscode.extension.activationEvents.onDebugResolve', 'An activation event emitted whenever a debug session with the specific type is about to be launched (and a corresponding resolveDebugConfiguration method needs to be called).'),
 						body: 'onDebugResolve:${6:type}'
@@ -263,6 +269,11 @@ export const schema: IJSONSchema = {
 						label: 'workspaceContains',
 						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
 						body: 'workspaceContains:${4:filePattern}'
+					},
+					{
+						label: 'onStartupFinished',
+						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all `*` activated extensions have finished activating).'),
+						body: 'onStartupFinished'
 					},
 					{
 						label: 'onFileSystem',
@@ -288,6 +299,26 @@ export const schema: IJSONSchema = {
 						label: 'onUri',
 						body: 'onUri',
 						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
+					},
+					{
+						label: 'onOpenExternalUri',
+						body: 'onOpenExternalUri',
+						description: nls.localize('vscode.extension.activationEvents.onOpenExternalUri', 'An activation event emitted whenever a external uri (such as an http or https link) is being opened.'),
+					},
+					{
+						label: 'onCustomEditor',
+						body: 'onCustomEditor:${9:viewType}',
+						description: nls.localize('vscode.extension.activationEvents.onCustomEditor', 'An activation event emitted whenever the specified custom editor becomes visible.'),
+					},
+					{
+						label: 'onNotebook',
+						body: 'onNotebook:${10:viewType}',
+						description: nls.localize('vscode.extension.activationEvents.onNotebook', 'An activation event emitted whenever the specified notebook document is opened.'),
+					},
+					{
+						label: 'onAuthenticationRequest',
+						body: 'onAuthenticationRequest:${11:authenticationProviderId}',
+						description: nls.localize('vscode.extension.activationEvents.onAuthenticationRequest', 'An activation event emitted whenever sessions are requested from the specified authentication provider.')
 					},
 					{
 						label: '*',
@@ -384,6 +415,48 @@ export const schema: IJSONSchema = {
 				}
 			]
 		},
+		capabilities: {
+			description: nls.localize('vscode.extension.capabilities', "Declare the set of supported capabilities by the extension."),
+			type: 'object',
+			properties: {
+				virtualWorkspaces: {
+					description: nls.localize('vscode.extension.capabilities.virtualWorkspaces', "Declares whether the extension should be enabled in virtual workspaces. A virtual workspace is a workspace which is not backed by any on-disk resources. When false, this extension will be automatically disabled in virtual workspaces. Default is true."),
+					type: 'boolean',
+					default: true
+				},
+				untrustedWorkspaces: {
+					description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces', 'Declares how the extension should be handled in untrusted workspaces.'),
+					type: 'object',
+					required: ['supported'],
+					defaultSnippets: [
+						{ body: { supported: '${1:limited}', description: '${2}' } },
+					],
+					properties: {
+						supported: {
+							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported', "Declares the level of support for untrusted workspaces by the extension."),
+							type: ['string', 'boolean'],
+							enum: ['limited', true, false],
+							enumDescriptions: [
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.limited', "The extension will be enabled in untrusted workspaces with some functionality disabled."),
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.true', "The extension will be enabled in untrusted workspaces with all functionality enabled."),
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.false', "The extension will not be enabled in untrusted workspaces."),
+							]
+						},
+						restrictedConfigurations: {
+							description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.restrictedConfigurations', "A list of configuration keys contributed by the extension that should not use workspace values in untrusted workspaces."),
+							type: 'array',
+							items: {
+								type: 'string'
+							}
+						},
+						description: {
+							type: 'string',
+							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.description', "A description of how workspace trust affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
+						}
+					}
+				}
+			}
+		},
 		scripts: {
 			type: 'object',
 			properties: {
@@ -429,7 +502,7 @@ export class ExtensionsRegistryImpl {
 	}
 
 	public getExtensionPoints(): ExtensionPoint<any>[] {
-		return values(this._extensionPoints);
+		return Array.from(this._extensionPoints.values());
 	}
 }
 

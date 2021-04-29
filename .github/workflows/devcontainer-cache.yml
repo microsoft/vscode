@@ -1,0 +1,40 @@
+name: VS Code Repo Dev Container Cache Image Generation
+
+on:
+  push:
+    # Currently doing this for main, but could be done for PRs as well
+    branches:
+      - "main"
+
+    # Only updates to these files result in changes to installed packages, so skip otherwise
+    paths:
+      - "**/package-lock.json"
+      - "**/yarn.lock"
+
+jobs:
+  devcontainer:
+    name: Generate cache image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v2
+
+      - name: Azure CLI login
+        id: az_login
+        uses: azure/login@77f1b2e3fb80c0e8645114159d17008b8a2e475a
+        with:
+          creds: ${{ secrets.AZ_ACR_CREDS }}
+
+      - name: Build and push
+        id: build_and_push
+        run: |
+          set -e
+
+          ACR_REGISTRY_NAME=$(echo ${{ secrets.CONTAINER_IMAGE_REGISTRY }} | grep -oP '(.+)(?=\.azurecr\.io)')
+          az acr login --name $ACR_REGISTRY_NAME
+
+          GIT_BRANCH=$(echo "${{ github.ref }}" | grep -oP 'refs/(heads|tags)/\K(.+)')
+          if [ "$GIT_BRANCH" == "" ]; then GIT_BRANCH=main; fi
+
+          .devcontainer/cache/build-cache-image.sh "${{ secrets.CONTAINER_IMAGE_REGISTRY }}/public/vscode/devcontainers/repos/microsoft/vscode" "${GIT_BRANCH}"

@@ -18,6 +18,8 @@ import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
 
+const root = path.dirname(path.dirname(__dirname));
+
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;
 }
@@ -184,7 +186,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 					version: '3',
 					names: [],
 					mappings: '',
-					sources: [f.relative.replace(/\//g, '/')],
+					sources: [f.relative],
 					sourcesContent: [contents]
 				};
 
@@ -212,6 +214,20 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
 			const contents = (<Buffer>f.contents).toString('utf8');
 			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
+			return f;
+		}));
+
+	return es.duplex(input, output);
+}
+
+export function rewriteSourceMappingURL(sourceMappingURLBase: string): NodeJS.ReadWriteStream {
+	const input = es.through();
+
+	const output = input
+		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
+			const contents = (<Buffer>f.contents).toString('utf8');
+			const str = `//# sourceMappingURL=${sourceMappingURLBase}/${path.dirname(f.relative).replace(/\\/g, '/')}/$1`;
+			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, str));
 			return f;
 		}));
 
@@ -317,4 +333,10 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 		stream.on('error', err => e(err));
 		stream.on('end', () => c());
 	});
+}
+
+export function getElectronVersion(): string {
+	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
+	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
+	return target;
 }

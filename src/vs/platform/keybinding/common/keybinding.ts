@@ -48,7 +48,9 @@ export interface KeybindingsSchemaContribution {
 export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
+
+	readonly inChordMode: boolean;
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
@@ -100,6 +102,8 @@ export interface IKeybindingService {
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
 
 	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+
+	toggleLogging(): boolean;
 
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;

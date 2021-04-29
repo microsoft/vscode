@@ -6,7 +6,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { keys } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IRange } from 'vs/editor/common/core/range';
@@ -21,6 +20,9 @@ import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comm
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { localize } from 'vs/nls';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -84,6 +86,17 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		return this._range;
 	}
 
+	private readonly _onDidChangeCanReply = new Emitter<boolean>();
+	get onDidChangeCanReply(): Event<boolean> { return this._onDidChangeCanReply.event; }
+	set canReply(state: boolean) {
+		this._canReply = state;
+		this._onDidChangeCanReply.fire(this._canReply);
+	}
+
+	get canReply() {
+		return this._canReply;
+	}
+
 	private readonly _onDidChangeRange = new Emitter<IRange>();
 	public onDidChangeRange = this._onDidChangeRange.event;
 
@@ -112,7 +125,8 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
-		private _range: IRange
+		private _range: IRange,
+		private _canReply: boolean
 	) {
 		this._isDisposed = false;
 	}
@@ -126,6 +140,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		if (modified('contextValue')) { this._contextValue = changes.contextValue; }
 		if (modified('comments')) { this._comments = changes.comments; }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
+		if (modified('canReply')) { this.canReply = changes.canReply!; }
 	}
 
 	dispose() {
@@ -177,6 +192,10 @@ export class MainThreadCommentController {
 		this._reactions = reactions;
 	}
 
+	get options() {
+		return this._features.options;
+	}
+
 	private readonly _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
 	public activeCommentThread?: MainThreadCommentThread;
 
@@ -210,7 +229,8 @@ export class MainThreadCommentController {
 			extensionId,
 			threadId,
 			URI.revive(resource).toString(),
-			range
+			range,
+			true
 		);
 
 		this._threads.set(commentThreadHandle, thread);
@@ -279,7 +299,7 @@ export class MainThreadCommentController {
 
 	async getDocumentComments(resource: URI, token: CancellationToken) {
 		let ret: modes.CommentThread[] = [];
-		for (let thread of keys(this._threads)) {
+		for (let thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
 			if (commentThread.resource === resource.toString()) {
 				ret.push(commentThread);
@@ -310,7 +330,7 @@ export class MainThreadCommentController {
 
 	getAllComments(): MainThreadCommentThread[] {
 		let ret: MainThreadCommentThread[] = [];
-		for (let thread of keys(this._threads)) {
+		for (let thread of [...this._threads.keys()]) {
 			ret.push(this._threads.get(thread)!);
 		}
 
@@ -332,6 +352,9 @@ export class MainThreadCommentController {
 		};
 	}
 }
+
+
+const commentsViewIcon = registerIcon('comments-view-icon', Codicon.commentDiscussion, localize('commentsViewIcon', 'View icon of the comments view.'));
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
@@ -378,7 +401,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerCommentController(providerId, provider);
 		this._commentControllers.set(handle, provider);
 
-		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptor(COMMENTS_VIEW_ID);
+		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
 		if (!commentsPanelAlreadyConstructed) {
 			this.registerView(commentsPanelAlreadyConstructed);
 			this.registerViewOpenedListener(commentsPanelAlreadyConstructed);
@@ -450,8 +473,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!commentsViewAlreadyRegistered) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
-				name: COMMENTS_VIEW_TITLE,
-				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+				title: COMMENTS_VIEW_TITLE,
+				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+				storageId: COMMENTS_VIEW_TITLE,
+				hideIfEmpty: true,
+				icon: commentsViewIcon,
 				order: 10,
 			}, ViewContainerLocation.Panel);
 
@@ -460,6 +486,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				name: COMMENTS_VIEW_TITLE,
 				canToggleVisibility: false,
 				ctorDescriptor: new SyncDescriptor(CommentsPanel),
+				canMoveView: true,
+				containerIcon: commentsViewIcon,
 				focusCommand: {
 					id: 'workbench.action.focusCommentsPanel'
 				}
@@ -476,7 +504,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!commentsPanelAlreadyConstructed && !this._openViewListener) {
 			this._openViewListener = this._viewsService.onDidChangeViewVisibility(e => {
 				if (e.id === COMMENTS_VIEW_ID && e.visible) {
-					keys(this._commentControllers).forEach(handle => {
+					[...this._commentControllers.keys()].forEach(handle => {
 						let threads = this._commentControllers.get(handle)!.getAllComments();
 
 						if (threads.length) {
@@ -507,7 +535,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.updateComments(providerId, event);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._workspaceProviders.forEach(value => dispose(value));
 		this._workspaceProviders.clear();

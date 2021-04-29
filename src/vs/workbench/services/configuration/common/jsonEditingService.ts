@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
-import * as strings from 'vs/base/common/strings';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
 import { Edit } from 'vs/base/common/jsonFormatter';
@@ -41,18 +40,20 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private async doWriteConfiguration(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
 		const reference = await this.resolveAndValidate(resource, save);
-		await this.writeToBuffer(reference.object.textEditorModel, values);
-
-		reference.dispose();
+		try {
+			await this.writeToBuffer(reference.object.textEditorModel, values, save);
+		} finally {
+			reference.dispose();
+		}
 	}
 
-	private async writeToBuffer(model: ITextModel, values: IJSONValue[]): Promise<any> {
+	private async writeToBuffer(model: ITextModel, values: IJSONValue[], save: boolean): Promise<any> {
 		let hasEdits: boolean = false;
 		for (const value of values) {
 			const edit = this.getEdits(model, value)[0];
 			hasEdits = this.applyEditsToBuffer(edit, model);
 		}
-		if (hasEdits) {
+		if (hasEdits && save) {
 			return this.textFileService.save(model.uri);
 		}
 	}
@@ -73,11 +74,11 @@ export class JSONEditingService implements IJSONEditingService {
 	private getEdits(model: ITextModel, configurationValue: IJSONValue): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
-		const { key, value } = configurationValue;
+		const { path, value } = configurationValue;
 
-		// Without key, the entire settings file is being replaced, so we just use JSON.stringify
-		if (!key) {
-			const content = JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
+		// With empty path the entire file is being replaced, so we just use JSON.stringify
+		if (!path.length) {
+			const content = JSON.stringify(value, null, insertSpaces ? ' '.repeat(tabSize) : '\t');
 			return [{
 				content,
 				length: content.length,
@@ -85,7 +86,7 @@ export class JSONEditingService implements IJSONEditingService {
 			}];
 		}
 
-		return setProperty(model.getValue(), [key], value, { tabSize, insertSpaces, eol });
+		return setProperty(model.getValue(), path, value, { tabSize, insertSpaces, eol });
 	}
 
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
@@ -108,11 +109,13 @@ export class JSONEditingService implements IJSONEditingService {
 		const model = reference.object.textEditorModel;
 
 		if (this.hasParseErrors(model)) {
+			reference.dispose();
 			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
 		}
 
 		// Target cannot be dirty if not writing into buffer
 		if (checkDirty && this.textFileService.isDirty(resource)) {
+			reference.dispose();
 			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
 		}
 

@@ -10,8 +10,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { mock } from 'vs/base/test/common/mock';
 import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
 import { URI } from 'vs/base/common/uri';
@@ -19,8 +19,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
@@ -40,6 +40,19 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkingCopyFileService, IMoveOperation, IDeleteOperation, ICopyOperation, ICreateFileOperation, ICreateOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { extUri } from 'vs/base/common/resources';
+import { ITextSnapshot } from 'vs/editor/common/model';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 suite('MainThreadEditors', () => {
 
@@ -62,7 +75,10 @@ suite('MainThreadEditors', () => {
 
 
 		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
+		const dialogService = new TestDialogService();
+		const notificationService = new TestNotificationService();
+		const undoRedoService = new UndoRedoService(dialogService, notificationService);
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
 
 
 		const services = new ServiceCollection();
@@ -70,41 +86,67 @@ suite('MainThreadEditors', () => {
 		services.set(ILabelService, new SyncDescriptor(LabelService));
 		services.set(ILogService, new NullLogService());
 		services.set(IWorkspaceContextService, new TestContextService());
+		services.set(IEnvironmentService, TestEnvironmentService);
 		services.set(IWorkbenchEnvironmentService, TestEnvironmentService);
 		services.set(IConfigurationService, configService);
+		services.set(IDialogService, dialogService);
+		services.set(INotificationService, notificationService);
+		services.set(IUndoRedoService, undoRedoService);
 		services.set(IModelService, modelService);
 		services.set(ICodeEditorService, new TestCodeEditorService());
 		services.set(IFileService, new TestFileService());
 		services.set(IEditorService, new TestEditorService());
+		services.set(ILifecycleService, new TestLifecycleService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
-			isDirty() { return false; }
-			create(uri: URI, contents?: string, options?: any) {
-				createdResources.add(uri);
-				return Promise.resolve(Object.create(null));
-			}
-			delete(resource: URI) {
-				deletedResources.add(resource);
-				return Promise.resolve(undefined);
-			}
-			move(source: URI, target: URI) {
-				movedResources.set(source, target);
-				return Promise.resolve(Object.create(null));
-			}
-			copy(source: URI, target: URI) {
-				copiedResources.set(source, target);
-				return Promise.resolve(Object.create(null));
-			}
-			files = <any>{
+			override isDirty() { return false; }
+			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None
 			};
+			override create(operations: { resource: URI }[]) {
+				for (const o of operations) {
+					createdResources.add(o.resource);
+				}
+				return Promise.resolve(Object.create(null));
+			}
+			override async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<any> {
+				return undefined;
+			}
+		});
+		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
+			override onDidRunWorkingCopyFileOperation = Event.None;
+			override createFolder(operations: ICreateOperation[]): any {
+				this.create(operations);
+			}
+			override create(operations: ICreateFileOperation[]) {
+				for (const operation of operations) {
+					createdResources.add(operation.resource);
+				}
+				return Promise.resolve(Object.create(null));
+			}
+			override move(operations: IMoveOperation[]) {
+				const { source, target } = operations[0].file;
+				movedResources.set(source, target);
+				return Promise.resolve(Object.create(null));
+			}
+			override copy(operations: ICopyOperation[]) {
+				const { source, target } = operations[0].file;
+				copiedResources.set(source, target);
+				return Promise.resolve(Object.create(null));
+			}
+			override delete(operations: IDeleteOperation[]) {
+				for (const operation of operations) {
+					deletedResources.add(operation.resource);
+				}
+				return Promise.resolve(undefined);
+			}
 		});
 		services.set(ITextModelService, new class extends mock<ITextModelService>() {
-			createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+			override createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 				const textEditorModel = new class extends mock<IResolvedTextEditorModel>() {
-					textEditorModel = modelService.getModel(resource)!;
+					override textEditorModel = modelService.getModel(resource)!;
 				};
 				textEditorModel.isReadonly = () => false;
 				return Promise.resolve(new ImmortalReference(textEditorModel));
@@ -114,23 +156,25 @@ suite('MainThreadEditors', () => {
 
 		});
 		services.set(IPanelService, new class extends mock<IPanelService>() implements IPanelService {
-			_serviceBrand: undefined;
-			onDidPanelOpen = Event.None;
-			onDidPanelClose = Event.None;
-			getActivePanel() {
+			override onDidPanelOpen = Event.None;
+			override onDidPanelClose = Event.None;
+			override getActivePanel() {
 				return undefined;
 			}
+		});
+		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			override get extUri() { return extUri; }
 		});
 
 		const instaService = new InstantiationService(services);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
-			$acceptModelChanged(): void {
+			override $acceptModelChanged(): void {
 			}
 		});
 		rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-			$acceptDocumentsAndEditorsDelta(): void {
+			override $acceptDocumentsAndEditorsDelta(): void {
 			}
 		});
 
@@ -144,6 +188,7 @@ suite('MainThreadEditors', () => {
 		let model = modelService.createModel('something', null, resource);
 
 		let workspaceResourceEdit: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -156,7 +201,7 @@ suite('MainThreadEditors', () => {
 		model.applyEdits([EditOperation.insert(new Position(0, 0), 'something')]);
 
 		return editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit] }).then((result) => {
-			assert.equal(result, false);
+			assert.strictEqual(result, false);
 		});
 	});
 
@@ -165,6 +210,7 @@ suite('MainThreadEditors', () => {
 		let model = modelService.createModel('something', null, resource);
 
 		let workspaceResourceEdit1: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -173,6 +219,7 @@ suite('MainThreadEditors', () => {
 			}
 		};
 		let workspaceResourceEdit2: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -183,11 +230,11 @@ suite('MainThreadEditors', () => {
 
 		let p1 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
 			// first edit request succeeds
-			assert.equal(result, true);
+			assert.strictEqual(result, true);
 		});
 		let p2 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
 			// second edit request fails
-			assert.equal(result, false);
+			assert.strictEqual(result, false);
 		});
 		return Promise.all([p1, p2]);
 	});
@@ -195,15 +242,15 @@ suite('MainThreadEditors', () => {
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
-				{ oldUri: resource, newUri: resource, options: undefined },
-				{ oldUri: undefined, newUri: resource, options: undefined },
-				{ oldUri: resource, newUri: undefined, options: undefined }
+				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: resource, options: undefined },
+				{ _type: WorkspaceEditType.File, oldUri: undefined, newUri: resource, options: undefined },
+				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: undefined, options: undefined }
 			]
 		}).then((result) => {
-			assert.equal(result, true);
-			assert.equal(movedResources.get(resource), resource);
-			assert.equal(createdResources.has(resource), true);
-			assert.equal(deletedResources.has(resource), true);
+			assert.strictEqual(result, true);
+			assert.strictEqual(movedResources.get(resource), resource);
+			assert.strictEqual(createdResources.has(resource), true);
+			assert.strictEqual(deletedResources.has(resource), true);
 		});
 	});
 });

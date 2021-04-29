@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IExtHostRpcService = createDecorator<IExtHostRpcService>('IExtHostRpcService');
 
 export interface IExtHostRpcService extends IRPCProtocol {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 }
 
 export class ExtHostRpcService implements IExtHostRpcService {
@@ -18,12 +18,12 @@ export class ExtHostRpcService implements IExtHostRpcService {
 	readonly getProxy: <T>(identifier: ProxyIdentifier<T>) => T;
 	readonly set: <T, R extends T> (identifier: ProxyIdentifier<T>, instance: R) => R;
 	readonly assertRegistered: (identifiers: ProxyIdentifier<any>[]) => void;
+	readonly drain: () => Promise<void>;
 
 	constructor(rpcProtocol: IRPCProtocol) {
 		this.getProxy = rpcProtocol.getProxy.bind(rpcProtocol);
 		this.set = rpcProtocol.set.bind(rpcProtocol);
 		this.assertRegistered = rpcProtocol.assertRegistered.bind(rpcProtocol);
-
+		this.drain = rpcProtocol.drain.bind(rpcProtocol);
 	}
-
 }

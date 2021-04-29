@@ -5,7 +5,6 @@
 import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
 import ContentProvider from './contentProvider';
-import * as path from 'path';
 import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
@@ -86,7 +85,6 @@ export default class CommandHandler implements vscode.Disposable {
 	}
 
 	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
-		const fileName = path.basename(editor.document.uri.fsPath);
 
 		// No conflict, command executed from command palette
 		if (!conflict) {
@@ -134,6 +132,8 @@ export default class CommandHandler implements vscode.Disposable {
 			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character
 		);
 
+		const docPath = editor.document.uri.path;
+		const fileName = docPath.substring(docPath.lastIndexOf('/') + 1); // avoid NodeJS path to keep browser webpack small
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
 		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
 		const openToTheSide = mergeConflictConfig.get<string>('diffViewPosition');
@@ -339,18 +339,21 @@ export default class CommandHandler implements vscode.Disposable {
 
 		let predicate: (_conflict: any) => boolean;
 		let fallback: () => interfaces.IDocumentMergeConflict;
+		let scanOrder: interfaces.IDocumentMergeConflict[];
 
 		if (direction === NavigationDirection.Forwards) {
 			predicate = (conflict) => selection.isBefore(conflict.range.start);
 			fallback = () => conflicts![0];
+			scanOrder = conflicts;
 		} else if (direction === NavigationDirection.Backwards) {
 			predicate = (conflict) => selection.isAfter(conflict.range.start);
 			fallback = () => conflicts![conflicts!.length - 1];
+			scanOrder = conflicts.slice().reverse();
 		} else {
 			throw new Error(`Unsupported direction ${direction}`);
 		}
 
-		for (const conflict of conflicts) {
+		for (const conflict of scanOrder) {
 			if (predicate(conflict) && !conflict.range.contains(selection)) {
 				return {
 					canNavigate: true,

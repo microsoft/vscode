@@ -55,77 +55,81 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp | null): RegEx
 	return result;
 }
 
-function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition | null {
-	// find whitespace enclosed text around column and match from there
+const _defaultConfig = {
+	maxLen: 1000,
+	windowSize: 15,
+	timeBudget: 150
+};
 
-	let pos = column - 1 - textOffset;
-	let start = text.lastIndexOf(' ', pos - 1) + 1;
+export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number, config = _defaultConfig): IWordAtPosition | null {
 
-	wordDefinition.lastIndex = start;
+	if (text.length > config.maxLen) {
+		// don't throw strings that long at the regexp
+		// but use a sub-string in which a word must occur
+		let start = column - config.maxLen / 2;
+		if (start < 0) {
+			start = 0;
+		} else {
+			textOffset += start;
+		}
+		text = text.substring(start, column + config.maxLen / 2);
+		return getWordAtText(column, wordDefinition, text, textOffset, config);
+	}
+
+	const t1 = Date.now();
+	const pos = column - 1 - textOffset;
+
+	let prevRegexIndex = -1;
+	let match: RegExpMatchArray | null = null;
+
+	for (let i = 1; ; i++) {
+		// check time budget
+		if (Date.now() - t1 >= config.timeBudget) {
+			break;
+		}
+
+		// reset the index at which the regexp should start matching, also know where it
+		// should stop so that subsequent search don't repeat previous searches
+		const regexIndex = pos - config.windowSize * i;
+		wordDefinition.lastIndex = Math.max(0, regexIndex);
+		const thisMatch = _findRegexMatchEnclosingPosition(wordDefinition, text, pos, prevRegexIndex);
+
+		if (!thisMatch && match) {
+			// stop: we have something
+			break;
+		}
+
+		match = thisMatch;
+
+		// stop: searched at start
+		if (regexIndex <= 0) {
+			break;
+		}
+		prevRegexIndex = regexIndex;
+	}
+
+	if (match) {
+		let result = {
+			word: match[0],
+			startColumn: textOffset + 1 + match.index!,
+			endColumn: textOffset + 1 + match.index! + match[0].length
+		};
+		wordDefinition.lastIndex = 0;
+		return result;
+	}
+
+	return null;
+}
+
+function _findRegexMatchEnclosingPosition(wordDefinition: RegExp, text: string, pos: number, stopPos: number): RegExpMatchArray | null {
 	let match: RegExpMatchArray | null;
 	while (match = wordDefinition.exec(text)) {
 		const matchIndex = match.index || 0;
 		if (matchIndex <= pos && wordDefinition.lastIndex >= pos) {
-			return {
-				word: match[0],
-				startColumn: textOffset + 1 + matchIndex,
-				endColumn: textOffset + 1 + wordDefinition.lastIndex
-			};
-		}
-	}
-
-	return null;
-}
-
-
-function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition | null {
-	// matches all words starting at the beginning
-	// of the input until it finds a match that encloses
-	// the desired column. slow but correct
-
-	let pos = column - 1 - textOffset;
-	wordDefinition.lastIndex = 0;
-
-	let match: RegExpMatchArray | null;
-	while (match = wordDefinition.exec(text)) {
-		const matchIndex = match.index || 0;
-		if (matchIndex > pos) {
-			// |nW -> matched only after the pos
+			return match;
+		} else if (stopPos > 0 && matchIndex > stopPos) {
 			return null;
-
-		} else if (wordDefinition.lastIndex >= pos) {
-			// W|W -> match encloses pos
-			return {
-				word: match[0],
-				startColumn: textOffset + 1 + matchIndex,
-				endColumn: textOffset + 1 + wordDefinition.lastIndex
-			};
 		}
 	}
-
 	return null;
-}
-
-export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition | null {
-
-	// if `words` can contain whitespace character we have to use the slow variant
-	// otherwise we use the fast variant of finding a word
-	wordDefinition.lastIndex = 0;
-	let match = wordDefinition.exec(text);
-	if (!match) {
-		return null;
-	}
-	// todo@joh the `match` could already be the (first) word
-	const ret = match[0].indexOf(' ') >= 0
-		// did match a word which contains a space character -> use slow word find
-		? getWordAtPosSlow(column, wordDefinition, text, textOffset)
-		// sane word definition -> use fast word find
-		: getWordAtPosFast(column, wordDefinition, text, textOffset);
-
-	// both (getWordAtPosFast and getWordAtPosSlow) leave the wordDefinition-RegExp
-	// in an undefined state and to not confuse other users of the wordDefinition
-	// we reset the lastIndex
-	wordDefinition.lastIndex = 0;
-
-	return ret;
 }

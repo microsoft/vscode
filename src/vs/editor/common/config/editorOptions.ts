@@ -11,7 +11,6 @@ import { Constants } from 'vs/base/common/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDimension } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 //#region typed options
@@ -29,7 +28,7 @@ export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'bracket
 /**
  * Configuration options for typing over closing quotes or brackets
  */
-export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
+export type EditorAutoClosingEditStrategy = 'always' | 'auto' | 'never';
 
 /**
  * Configuration options for auto indentation in the editor
@@ -54,6 +53,10 @@ export interface IEditorOptions {
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
+	/**
+	 * The `tabindex` property of the editor's textarea
+	 */
+	tabIndex?: number;
 	/**
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
@@ -94,6 +97,11 @@ export interface IEditorOptions {
 	*/
 	renderFinalNewline?: boolean;
 	/**
+	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
+	 * Defaults to 'prompt'.
+	 */
+	unusualLineTerminators?: 'auto' | 'off' | 'prompt';
+	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
 	 */
@@ -131,10 +139,24 @@ export interface IEditorOptions {
 	 */
 	extraEditorClassName?: string;
 	/**
-	 * Should the editor be read only.
+	 * Should the editor be read only. See also `domReadOnly`.
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * Should the textarea used for input use the DOM `readonly` attribute.
+	 * Defaults to false.
+	 */
+	domReadOnly?: boolean;
+	/**
+	 * Enable linked editing.
+	 * Defaults to false.
+	 */
+	linkedEditing?: boolean;
+	/**
+	 * deprecated, use linkedEditing instead
+	 */
+	renameOnType?: boolean;
 	/**
 	 * Should the editor render validation decorations.
 	 * Defaults to editable.
@@ -248,6 +270,14 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
+	 * Override the `wordWrap` setting.
+	 */
+	wordWrapOverride1?: 'off' | 'on' | 'inherit';
+	/**
+	 * Override the `wordWrapOverride1` setting.
+	 */
+	wordWrapOverride2?: 'off' | 'on' | 'inherit';
+	/**
 	 * Control the wrapping of the editor.
 	 * When `wordWrap` = "off", the lines will never wrap.
 	 * When `wordWrap` = "on", the lines will wrap at the viewport width.
@@ -256,11 +286,6 @@ export interface IEditorOptions {
 	 * Defaults to 80.
 	 */
 	wordWrapColumn?: number;
-	/**
-	 * Force word wrapping when the text appears to be of a minified/generated file.
-	 * Defaults to true.
-	 */
-	wordWrapMinified?: boolean;
 	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
@@ -325,6 +350,11 @@ export interface IEditorOptions {
 	 */
 	scrollPredominantAxis?: boolean;
 	/**
+	 * Enable that the selection with the mouse and keys is doing column selection.
+	 * Defaults to false.
+	 */
+	columnSelection?: boolean;
+	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -352,6 +382,10 @@ export interface IEditorOptions {
 	 * Suggest options.
 	 */
 	suggest?: ISuggestOptions;
+	/**
+	 * Smart select opptions;
+	 */
+	smartSelect?: ISmartSelectOptions;
 	/**
 	 *
 	 */
@@ -385,9 +419,13 @@ export interface IEditorOptions {
 	 */
 	autoClosingQuotes?: EditorAutoClosingStrategy;
 	/**
+	 * Options for pressing backspace near quotes or bracket pairs.
+	 */
+	autoClosingDelete?: EditorAutoClosingEditStrategy;
+	/**
 	 * Options for typing over closing quotes or brackets.
 	 */
-	autoClosingOvertype?: EditorAutoClosingOvertypeStrategy;
+	autoClosingOvertype?: EditorAutoClosingEditStrategy;
 	/**
 	 * Options for auto surrounding.
 	 * Defaults to always allowing auto surrounding.
@@ -398,6 +436,11 @@ export interface IEditorOptions {
 	 * Defaults to advanced.
 	 */
 	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
+	/**
+	 * Emulate selection behaviour of tab characters when using spaces for indentation.
+	 * This means selection will stick to tab stops.
+	 */
+	stickyTabStops?: boolean;
 	/**
 	 * Enable format on type.
 	 * Defaults to false.
@@ -474,6 +517,14 @@ export interface IEditorOptions {
 	 */
 	codeLens?: boolean;
 	/**
+	 * Code lens font family. Defaults to editor font family.
+	 */
+	codeLensFontFamily?: string;
+	/**
+	 * Code lens font size. Default to 90% of the editor font size
+	 */
+	codeLensFontSize?: number;
+	/**
 	 * Control the behavior and rendering of the code action lightbulb.
 	 */
 	lightbulb?: IEditorLightbulbOptions;
@@ -502,6 +553,11 @@ export interface IEditorOptions {
 	 */
 	showFoldingControls?: 'always' | 'mouseover';
 	/**
+	 * Controls whether clicking on the empty content after a folded line will unfold the line.
+	 * Defaults to false.
+	 */
+	unfoldOnClickAfterEndOfLine?: boolean;
+	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to 'always'.
 	 */
@@ -510,7 +566,7 @@ export interface IEditorOptions {
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
 	 */
-	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'all';
+	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	/**
 	 * Enable rendering of control characters.
 	 * Defaults to false.
@@ -531,6 +587,11 @@ export interface IEditorOptions {
 	 * Defaults to all.
 	 */
 	renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
+	/**
+	 * Control if the current line highlight should be rendered only the editor is focused.
+	 * Defaults to false.
+	 */
+	renderLineHighlightOnlyWhenFocus?: boolean;
 	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
@@ -569,13 +630,14 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	definitionLinkOpensInPeek?: boolean;
-}
-
-export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
-	 * The initial editor dimension (to avoid measuring the container).
+	 * Controls strikethrough deprecated variables.
 	 */
-	dimension?: IDimension;
+	showDeprecated?: boolean;
+	/**
+	 * Control the behavior and rendering of the inline hints.
+	 */
+	inlineHints?: IEditorInlineHintsOptions;
 }
 
 /**
@@ -618,6 +680,33 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to false.
 	 */
 	originalEditable?: boolean;
+	/**
+	 * Should the diff editor enable code lens?
+	 * Defaults to false.
+	 */
+	diffCodeLens?: boolean;
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
+	/**
+	 * Is the diff editor should render overview ruler
+	 * Defaults to true
+	 */
+	renderOverviewRuler?: boolean;
+	/**
+	 * Control the wrapping of the diff editor.
+	 */
+	diffWordWrap?: 'off' | 'on' | 'inherit';
+	/**
+	 * Aria label for original editor.
+	 */
+	originalAriaLabel?: string;
+	/**
+	 * Aria label for modifed editor.
+	 */
+	modifiedAriaLabel?: string;
 }
 
 //#endregion
@@ -667,16 +756,34 @@ export interface IComputedEditorOptions {
  * @internal
  */
 export interface IEnvironmentalOptions {
+	readonly memory: ComputeOptionsMemory | null;
 	readonly outerWidth: number;
 	readonly outerHeight: number;
 	readonly fontInfo: FontInfo;
 	readonly extraEditorClassName: string;
 	readonly isDominatedByLongLines: boolean;
+	readonly viewLineCount: number;
 	readonly lineNumbersDigitCount: number;
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
 	readonly accessibilitySupport: AccessibilitySupport;
+}
+
+/**
+ * @internal
+ */
+export class ComputeOptionsMemory {
+
+	public stableMinimapLayoutInput: IMinimapLayoutInput | null;
+	public stableFitMaxMinimapScale: number;
+	public stableFitRemainingWidth: number;
+
+	constructor() {
+		this.stableMinimapLayoutInput = null;
+		this.stableFitMaxMinimapScale = 0;
+		this.stableFitRemainingWidth = 0;
+	}
 }
 
 export interface IEditorOption<K1 extends EditorOption, V> {
@@ -775,18 +882,21 @@ class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1
 	}
 }
 
-class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1, boolean> {
-
-	public static boolean(value: any, defaultValue: boolean): boolean {
-		if (typeof value === 'undefined') {
-			return defaultValue;
-		}
-		if (value === 'false') {
-			// treat the string 'false' as false
-			return false;
-		}
-		return Boolean(value);
+/**
+ * @internal
+ */
+export function boolean(value: any, defaultValue: boolean): boolean {
+	if (typeof value === 'undefined') {
+		return defaultValue;
 	}
+	if (value === 'false') {
+		// treat the string 'false' as false
+		return false;
+	}
+	return Boolean(value);
+}
+
+class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1, boolean> {
 
 	constructor(id: K1, name: PossibleKeyName<boolean>, defaultValue: boolean, schema: IConfigurationPropertySchema | undefined = undefined) {
 		if (typeof schema !== 'undefined') {
@@ -796,22 +906,20 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): boolean {
-		return EditorBooleanOption.boolean(input, this.defaultValue);
+	public override validate(input: any): boolean {
+		return boolean(input, this.defaultValue);
 	}
 }
 
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 
-	public static clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
-		let r: number;
+	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
 		if (typeof value === 'undefined') {
-			r = defaultValue;
-		} else {
-			r = parseInt(value, 10);
-			if (isNaN(r)) {
-				r = defaultValue;
-			}
+			return defaultValue;
+		}
+		let r = parseInt(value, 10);
+		if (isNaN(r)) {
+			return defaultValue;
 		}
 		r = Math.max(minimum, r);
 		r = Math.min(maximum, r);
@@ -833,7 +941,7 @@ class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, nu
 		this.maximum = maximum;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return EditorIntOption.clampedInt(input, this.defaultValue, this.minimum, this.maximum);
 	}
 }
@@ -872,7 +980,7 @@ class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, 
 		this.validationFn = validationFn;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return this.validationFn(EditorFloatOption.float(input, this.defaultValue));
 	}
 }
@@ -894,22 +1002,25 @@ class EditorStringOption<K1 extends EditorOption> extends SimpleEditorOption<K1,
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): string {
+	public override validate(input: any): string {
 		return EditorStringOption.string(input, this.defaultValue);
 	}
 }
 
-class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends SimpleEditorOption<K1, V> {
-
-	public static stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>): T {
-		if (typeof value !== 'string') {
-			return defaultValue;
-		}
-		if (allowedValues.indexOf(value) === -1) {
-			return defaultValue;
-		}
-		return value;
+/**
+ * @internal
+ */
+export function stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>): T {
+	if (typeof value !== 'string') {
+		return defaultValue;
 	}
+	if (allowedValues.indexOf(value) === -1) {
+		return defaultValue;
+	}
+	return value;
+}
+
+class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends SimpleEditorOption<K1, V> {
 
 	private readonly _allowedValues: ReadonlyArray<V>;
 
@@ -923,8 +1034,8 @@ class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends 
 		this._allowedValues = allowedValues;
 	}
 
-	public validate(input: any): V {
-		return EditorStringEnumOption.stringSet<V>(input, this.defaultValue, this._allowedValues);
+	public override validate(input: any): V {
+		return stringSet<V>(input, this.defaultValue, this._allowedValues);
 	}
 }
 
@@ -983,11 +1094,11 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
 					nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
-					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader. Word wrapping will be disabled."),
 					nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
 				],
 				default: 'auto',
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers. Setting to on will disable word wrapping.")
 			}
 		);
 	}
@@ -1001,7 +1112,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 		return this.defaultValue;
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
 		if (value === AccessibilitySupport.Unknown) {
 			// The editor reads the `accessibilitySupport` from the environment
 			return env.accessibilitySupport;
@@ -1023,6 +1134,11 @@ export interface IEditorCommentsOptions {
 	 * Defaults to true.
 	 */
 	insertSpace?: boolean;
+	/**
+	 * Ignore empty lines when inserting line comments.
+	 * Defaults to true.
+	 */
+	ignoreEmptyLines?: boolean;
 }
 
 export type EditorCommentsOptions = Readonly<Required<IEditorCommentsOptions>>;
@@ -1032,6 +1148,7 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 	constructor() {
 		const defaults: EditorCommentsOptions = {
 			insertSpace: true,
+			ignoreEmptyLines: true,
 		};
 		super(
 			EditorOption.comments, 'comments', defaults,
@@ -1041,17 +1158,23 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 					default: defaults.insertSpace,
 					description: nls.localize('comments.insertSpace', "Controls whether a space character is inserted when commenting.")
 				},
+				'editor.comments.ignoreEmptyLines': {
+					type: 'boolean',
+					default: defaults.ignoreEmptyLines,
+					description: nls.localize('comments.ignoreEmptyLines', 'Controls if empty lines should be ignored with toggle, add or remove actions for line comments.')
+				},
 			}
 		);
 	}
 
 	public validate(_input: any): EditorCommentsOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorCommentsOptions;
 		return {
-			insertSpace: EditorBooleanOption.boolean(input.insertSpace, this.defaultValue.insertSpace),
+			insertSpace: boolean(input.insertSpace, this.defaultValue.insertSpace),
+			ignoreEmptyLines: boolean(input.ignoreEmptyLines, this.defaultValue.ignoreEmptyLines),
 		};
 	}
 }
@@ -1170,22 +1293,28 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: string): string {
-		let className = 'monaco-editor';
+		const classNames = ['monaco-editor'];
 		if (options.get(EditorOption.extraEditorClassName)) {
-			className += ' ' + options.get(EditorOption.extraEditorClassName);
+			classNames.push(options.get(EditorOption.extraEditorClassName));
 		}
 		if (env.extraEditorClassName) {
-			className += ' ' + env.extraEditorClassName;
+			classNames.push(env.extraEditorClassName);
 		}
 		if (options.get(EditorOption.mouseStyle) === 'default') {
-			className += ' mouse-default';
+			classNames.push('mouse-default');
 		} else if (options.get(EditorOption.mouseStyle) === 'copy') {
-			className += ' mouse-copy';
+			classNames.push('mouse-copy');
 		}
+
 		if (options.get(EditorOption.showUnused)) {
-			className += ' showUnused';
+			classNames.push('showUnused');
 		}
-		return className;
+
+		if (options.get(EditorOption.showDeprecated)) {
+			classNames.push('showDeprecated');
+		}
+
+		return classNames.join(' ');
 	}
 }
 
@@ -1202,7 +1331,7 @@ class EditorEmptySelectionClipboard extends EditorBooleanOption<EditorOption.emp
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
 		return value && env.emptySelectionClipboard;
 	}
 }
@@ -1215,6 +1344,10 @@ class EditorEmptySelectionClipboard extends EditorBooleanOption<EditorOption.emp
  * Configuration options for editor find widget
  */
 export interface IEditorFindOptions {
+	/**
+	* Controls whether the cursor should move to find matches while typing.
+	*/
+	cursorMoveOnType?: boolean;
 	/**
 	 * Controls if we seed search string in the Find Widget with editor selection.
 	 */
@@ -1232,6 +1365,10 @@ export interface IEditorFindOptions {
 	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
 	 */
 	globalFindClipboard?: boolean;
+	/**
+	 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+	 */
+	loop?: boolean;
 }
 
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
@@ -1240,14 +1377,21 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 
 	constructor() {
 		const defaults: EditorFindOptions = {
+			cursorMoveOnType: true,
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
-			addExtraSpaceOnTop: true
+			addExtraSpaceOnTop: true,
+			loop: true
 		};
 		super(
 			EditorOption.find, 'find', defaults,
 			{
+				'editor.find.cursorMoveOnType': {
+					type: 'boolean',
+					default: defaults.cursorMoveOnType,
+					description: nls.localize('find.cursorMoveOnType', "Controls whether the cursor should jump to find matches while typing.")
+				},
 				'editor.find.seedSearchStringFromSelection': {
 					type: 'boolean',
 					default: defaults.seedSearchStringFromSelection,
@@ -1258,11 +1402,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
 					enumDescriptions: [
-						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default)'),
-						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default).'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically.'),
 						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
 					],
-					description: nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
+					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on find in selection automatically.")
 				},
 				'editor.find.globalFindClipboard': {
 					type: 'boolean',
@@ -1274,23 +1418,31 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					type: 'boolean',
 					default: defaults.addExtraSpaceOnTop,
 					description: nls.localize('find.addExtraSpaceOnTop', "Controls whether the Find Widget should add extra lines on top of the editor. When true, you can scroll beyond the first line when the Find Widget is visible.")
-				}
+				},
+				'editor.find.loop': {
+					type: 'boolean',
+					default: defaults.loop,
+					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
+				},
+
 			}
 		);
 	}
 
 	public validate(_input: any): EditorFindOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorFindOptions;
 		return {
-			seedSearchStringFromSelection: EditorBooleanOption.boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
+			cursorMoveOnType: boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
+			seedSearchStringFromSelection: boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
 			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
 				? (_input.autoFindInSelection ? 'always' : 'never')
-				: EditorStringEnumOption.stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
-			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
-			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
+				: stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
+			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
+			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
+			loop: boolean(input.loop, this.defaultValue.loop),
 		};
 	}
 }
@@ -1314,14 +1466,14 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 				anyOf: [
 					{
 						type: 'boolean',
-						description: nls.localize('fontLigatures', "Enables/Disables font ligatures."),
+						description: nls.localize('fontLigatures', "Enables/Disables font ligatures ('calt' and 'liga' font features). Change this to a string for fine-grained control of the 'font-feature-settings' CSS property."),
 					},
 					{
 						type: 'string',
-						description: nls.localize('fontFeatureSettings', "Explicit font-feature-settings.")
+						description: nls.localize('fontFeatureSettings', "Explicit 'font-feature-settings' CSS property. A boolean can be passed instead if one only needs to turn on/off ligatures.")
 					}
 				],
-				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures."),
+				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures or font features. Can be either a boolean to enable/disable ligatures or a string for the value of the CSS 'font-feature-settings' property."),
 				default: false
 			}
 		);
@@ -1381,17 +1533,59 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		);
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		let r = EditorFloatOption.float(input, this.defaultValue);
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
 		return EditorFloatOption.clamp(r, 6, 100);
 	}
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.
 		// So take the result from env.fontInfo
 		return env.fontInfo.fontSize;
+	}
+}
+
+//#endregion
+
+//#region fontWeight
+
+class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string> {
+	private static SUGGESTION_VALUES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+	private static MINIMUM_VALUE = 1;
+	private static MAXIMUM_VALUE = 1000;
+
+	constructor() {
+		super(
+			EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight,
+			{
+				anyOf: [
+					{
+						type: 'number',
+						minimum: EditorFontWeight.MINIMUM_VALUE,
+						maximum: EditorFontWeight.MAXIMUM_VALUE,
+						errorMessage: nls.localize('fontWeightErrorMessage', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
+					},
+					{
+						type: 'string',
+						pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
+					},
+					{
+						enum: EditorFontWeight.SUGGESTION_VALUES
+					}
+				],
+				default: EDITOR_FONT_DEFAULTS.fontWeight,
+				description: nls.localize('fontWeight', "Controls the font weight. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000.")
+			}
+		);
+	}
+
+	public validate(input: any): string {
+		if (input === 'normal' || input === 'bold') {
+			return input;
+		}
+		return String(EditorIntOption.clampedInt(input, EDITOR_FONT_DEFAULTS.fontWeight, EditorFontWeight.MINIMUM_VALUE, EditorFontWeight.MAXIMUM_VALUE));
 	}
 }
 
@@ -1449,6 +1643,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
 			]
 		};
+		const alternativeCommandOptions = ['', 'editor.action.referenceSearch.trigger', 'editor.action.goToReferences', 'editor.action.peekImplementation', 'editor.action.goToImplementation', 'editor.action.peekTypeDefinition', 'editor.action.goToTypeDefinition', 'editor.action.peekDeclaration', 'editor.action.revealDeclaration', 'editor.action.peekDefinition', 'editor.action.revealDefinitionAside', 'editor.action.revealDefinition'];
 		super(
 			EditorOption.gotoLocation, 'gotoLocation', defaults,
 			{
@@ -1478,26 +1673,31 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 				'editor.gotoLocation.alternativeDefinitionCommand': {
 					type: 'string',
 					default: defaults.alternativeDefinitionCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Definition' is the current location.")
 				},
 				'editor.gotoLocation.alternativeTypeDefinitionCommand': {
 					type: 'string',
 					default: defaults.alternativeTypeDefinitionCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeTypeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Type Definition' is the current location.")
 				},
 				'editor.gotoLocation.alternativeDeclarationCommand': {
 					type: 'string',
 					default: defaults.alternativeDeclarationCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeDeclarationCommand', "Alternative command id that is being executed when the result of 'Go to Declaration' is the current location.")
 				},
 				'editor.gotoLocation.alternativeImplementationCommand': {
 					type: 'string',
 					default: defaults.alternativeImplementationCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeImplementationCommand', "Alternative command id that is being executed when the result of 'Go to Implementation' is the current location.")
 				},
 				'editor.gotoLocation.alternativeReferenceCommand': {
 					type: 'string',
 					default: defaults.alternativeReferenceCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeReferenceCommand', "Alternative command id that is being executed when the result of 'Go to Reference' is the current location.")
 				},
 			}
@@ -1505,17 +1705,17 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 	}
 
 	public validate(_input: any): GoToLocationOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IGotoLocationOptions;
 		return {
-			multiple: EditorStringEnumOption.stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple!, ['peek', 'gotoAndPeek', 'goto']),
-			multipleDefinitions: input.multipleDefinitions ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
-			multipleTypeDefinitions: input.multipleTypeDefinitions ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleTypeDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
-			multipleDeclarations: input.multipleDeclarations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
-			multipleImplementations: input.multipleImplementations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleImplementations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
-			multipleReferences: input.multipleReferences ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleReferences, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple!, ['peek', 'gotoAndPeek', 'goto']),
+			multipleDefinitions: input.multipleDefinitions ?? stringSet<GoToLocationValues>(input.multipleDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleTypeDefinitions: input.multipleTypeDefinitions ?? stringSet<GoToLocationValues>(input.multipleTypeDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleDeclarations: input.multipleDeclarations ?? stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleImplementations: input.multipleImplementations ?? stringSet<GoToLocationValues>(input.multipleImplementations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleReferences: input.multipleReferences ?? stringSet<GoToLocationValues>(input.multipleReferences, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			alternativeDefinitionCommand: EditorStringOption.string(input.alternativeDefinitionCommand, this.defaultValue.alternativeDefinitionCommand),
 			alternativeTypeDefinitionCommand: EditorStringOption.string(input.alternativeTypeDefinitionCommand, this.defaultValue.alternativeTypeDefinitionCommand),
 			alternativeDeclarationCommand: EditorStringOption.string(input.alternativeDeclarationCommand, this.defaultValue.alternativeDeclarationCommand),
@@ -1583,14 +1783,14 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 	}
 
 	public validate(_input: any): EditorHoverOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorHoverOptions;
 		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
-			sticky: EditorBooleanOption.boolean(input.sticky, this.defaultValue.sticky)
+			sticky: boolean(input.sticky, this.defaultValue.sticky)
 		};
 	}
 }
@@ -1678,23 +1878,18 @@ export interface EditorLayoutInfo {
 	readonly contentWidth: number;
 
 	/**
-	 * The position for the minimap
+	 * Layout information for the minimap
 	 */
-	readonly minimapLeft: number;
-	/**
-	 * The width of the minimap
-	 */
-	readonly minimapWidth: number;
-
-	/**
-	 * Minimap render type
-	 */
-	readonly renderMinimap: RenderMinimap;
+	readonly minimap: EditorMinimapLayoutInfo;
 
 	/**
 	 * The number of columns (of typical characters) fitting on a viewport line.
 	 */
 	readonly viewportColumn: number;
+
+	readonly isWordWrapMinified: boolean;
+	readonly isViewportWrapping: boolean;
+	readonly wrappingColumn: number;
 
 	/**
 	 * The width of the vertical scrollbar.
@@ -1712,16 +1907,79 @@ export interface EditorLayoutInfo {
 }
 
 /**
+ * The internal layout details of the editor.
+ */
+export interface EditorMinimapLayoutInfo {
+	readonly renderMinimap: RenderMinimap;
+	readonly minimapLeft: number;
+	readonly minimapWidth: number;
+	readonly minimapHeightIsEditorHeight: boolean;
+	readonly minimapIsSampling: boolean;
+	readonly minimapScale: number;
+	readonly minimapLineHeight: number;
+	readonly minimapCanvasInnerWidth: number;
+	readonly minimapCanvasInnerHeight: number;
+	readonly minimapCanvasOuterWidth: number;
+	readonly minimapCanvasOuterHeight: number;
+}
+
+/**
  * @internal
  */
 export interface EditorLayoutInfoComputerEnv {
-	outerWidth: number;
-	outerHeight: number;
-	lineHeight: number;
-	lineNumbersDigitCount: number;
-	typicalHalfwidthCharacterWidth: number;
-	maxDigitWidth: number;
-	pixelRatio: number;
+	readonly memory: ComputeOptionsMemory | null;
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+	readonly isDominatedByLongLines: boolean;
+	readonly lineHeight: number;
+	readonly viewLineCount: number;
+	readonly lineNumbersDigitCount: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
+	readonly pixelRatio: number;
+}
+
+/**
+ * @internal
+ */
+export interface IEditorLayoutComputerInput {
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+	readonly isDominatedByLongLines: boolean;
+	readonly lineHeight: number;
+	readonly lineNumbersDigitCount: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
+	readonly pixelRatio: number;
+	readonly glyphMargin: boolean;
+	readonly lineDecorationsWidth: string | number;
+	readonly folding: boolean;
+	readonly minimap: Readonly<Required<IEditorMinimapOptions>>;
+	readonly scrollbar: InternalEditorScrollbarOptions;
+	readonly lineNumbers: InternalEditorRenderLineNumbersOptions;
+	readonly lineNumbersMinChars: number;
+	readonly scrollBeyondLastLine: boolean;
+	readonly wordWrap: 'wordWrapColumn' | 'on' | 'off' | 'bounded';
+	readonly wordWrapColumn: number;
+	readonly wordWrapMinified: boolean;
+	readonly accessibilitySupport: AccessibilitySupport;
+}
+
+/**
+ * @internal
+ */
+export interface IMinimapLayoutInput {
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+	readonly lineHeight: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly pixelRatio: number;
+	readonly scrollBeyondLastLine: boolean;
+	readonly minimap: Readonly<Required<IEditorMinimapOptions>>;
+	readonly verticalScrollbarWidth: number;
+	readonly viewLineCount: number;
+	readonly remainingWidth: number;
+	readonly isViewportWrapping: boolean;
 }
 
 /**
@@ -1732,20 +1990,209 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	constructor() {
 		super(
 			EditorOption.layoutInfo,
-			[EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding, EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers]
+			[
+				EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding,
+				EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers,
+				EditorOption.lineNumbersMinChars, EditorOption.scrollBeyondLastLine,
+				EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapOverride1, EditorOption.wordWrapOverride2,
+				EditorOption.accessibilitySupport
+			]
 		);
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: EditorLayoutInfo): EditorLayoutInfo {
 		return EditorLayoutInfoComputer.computeLayout(options, {
+			memory: env.memory,
 			outerWidth: env.outerWidth,
 			outerHeight: env.outerHeight,
+			isDominatedByLongLines: env.isDominatedByLongLines,
 			lineHeight: env.fontInfo.lineHeight,
+			viewLineCount: env.viewLineCount,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
 			pixelRatio: env.pixelRatio
 		});
+	}
+
+	public static computeContainedMinimapLineCount(input: {
+		viewLineCount: number;
+		scrollBeyondLastLine: boolean;
+		height: number;
+		lineHeight: number;
+		pixelRatio: number;
+	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
+		const typicalViewportLineCount = input.height / input.lineHeight;
+		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
+		const desiredRatio = (input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
+		const minimapLineCount = Math.floor(input.viewLineCount / desiredRatio);
+		return { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
+	}
+
+	private static _computeMinimapLayout(input: IMinimapLayoutInput, memory: ComputeOptionsMemory): EditorMinimapLayoutInfo {
+		const outerWidth = input.outerWidth;
+		const outerHeight = input.outerHeight;
+		const pixelRatio = input.pixelRatio;
+
+		if (!input.minimap.enabled) {
+			return {
+				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
+				minimapWidth: 0,
+				minimapHeightIsEditorHeight: false,
+				minimapIsSampling: false,
+				minimapScale: 1,
+				minimapLineHeight: 1,
+				minimapCanvasInnerWidth: 0,
+				minimapCanvasInnerHeight: Math.floor(pixelRatio * outerHeight),
+				minimapCanvasOuterWidth: 0,
+				minimapCanvasOuterHeight: outerHeight,
+			};
+		}
+
+		// Can use memory if only the `viewLineCount` and `remainingWidth` have changed
+		const stableMinimapLayoutInput = memory.stableMinimapLayoutInput;
+		const couldUseMemory = (
+			stableMinimapLayoutInput
+			// && input.outerWidth === lastMinimapLayoutInput.outerWidth !!! INTENTIONAL OMITTED
+			&& input.outerHeight === stableMinimapLayoutInput.outerHeight
+			&& input.lineHeight === stableMinimapLayoutInput.lineHeight
+			&& input.typicalHalfwidthCharacterWidth === stableMinimapLayoutInput.typicalHalfwidthCharacterWidth
+			&& input.pixelRatio === stableMinimapLayoutInput.pixelRatio
+			&& input.scrollBeyondLastLine === stableMinimapLayoutInput.scrollBeyondLastLine
+			&& input.minimap.enabled === stableMinimapLayoutInput.minimap.enabled
+			&& input.minimap.side === stableMinimapLayoutInput.minimap.side
+			&& input.minimap.size === stableMinimapLayoutInput.minimap.size
+			&& input.minimap.showSlider === stableMinimapLayoutInput.minimap.showSlider
+			&& input.minimap.renderCharacters === stableMinimapLayoutInput.minimap.renderCharacters
+			&& input.minimap.maxColumn === stableMinimapLayoutInput.minimap.maxColumn
+			&& input.minimap.scale === stableMinimapLayoutInput.minimap.scale
+			&& input.verticalScrollbarWidth === stableMinimapLayoutInput.verticalScrollbarWidth
+			// && input.viewLineCount === lastMinimapLayoutInput.viewLineCount !!! INTENTIONAL OMITTED
+			// && input.remainingWidth === lastMinimapLayoutInput.remainingWidth !!! INTENTIONAL OMITTED
+			&& input.isViewportWrapping === stableMinimapLayoutInput.isViewportWrapping
+		);
+
+		const lineHeight = input.lineHeight;
+		const typicalHalfwidthCharacterWidth = input.typicalHalfwidthCharacterWidth;
+		const scrollBeyondLastLine = input.scrollBeyondLastLine;
+		const minimapRenderCharacters = input.minimap.renderCharacters;
+		let minimapScale = (pixelRatio >= 2 ? Math.round(input.minimap.scale * 2) : input.minimap.scale);
+		const minimapMaxColumn = input.minimap.maxColumn;
+		const minimapSize = input.minimap.size;
+		const minimapSide = input.minimap.side;
+		const verticalScrollbarWidth = input.verticalScrollbarWidth;
+		const viewLineCount = input.viewLineCount;
+		const remainingWidth = input.remainingWidth;
+		const isViewportWrapping = input.isViewportWrapping;
+
+		const baseCharHeight = minimapRenderCharacters ? 2 : 3;
+		let minimapCanvasInnerHeight = Math.floor(pixelRatio * outerHeight);
+		const minimapCanvasOuterHeight = minimapCanvasInnerHeight / pixelRatio;
+		let minimapHeightIsEditorHeight = false;
+		let minimapIsSampling = false;
+		let minimapLineHeight = baseCharHeight * minimapScale;
+		let minimapCharWidth = minimapScale / pixelRatio;
+		let minimapWidthMultiplier: number = 1;
+
+		if (minimapSize === 'fill' || minimapSize === 'fit') {
+			const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
+				viewLineCount: viewLineCount,
+				scrollBeyondLastLine: scrollBeyondLastLine,
+				height: outerHeight,
+				lineHeight: lineHeight,
+				pixelRatio: pixelRatio
+			});
+			// ratio is intentionally not part of the layout to avoid the layout changing all the time
+			// when doing sampling
+			const ratio = viewLineCount / minimapLineCount;
+
+			if (ratio > 1) {
+				minimapHeightIsEditorHeight = true;
+				minimapIsSampling = true;
+				minimapScale = 1;
+				minimapLineHeight = 1;
+				minimapCharWidth = minimapScale / pixelRatio;
+			} else {
+				let fitBecomesFill = false;
+				let maxMinimapScale = minimapScale + 1;
+
+				if (minimapSize === 'fit') {
+					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+					if (isViewportWrapping && couldUseMemory && remainingWidth <= memory.stableFitRemainingWidth) {
+						// There is a loop when using `fit` and viewport wrapping:
+						// - view line count impacts minimap layout
+						// - minimap layout impacts viewport width
+						// - viewport width impacts view line count
+						// To break the loop, once we go to a smaller minimap scale, we try to stick with it.
+						fitBecomesFill = true;
+						maxMinimapScale = memory.stableFitMaxMinimapScale;
+					} else {
+						fitBecomesFill = (effectiveMinimapHeight > minimapCanvasInnerHeight);
+						if (isViewportWrapping && fitBecomesFill) {
+							// remember for next time
+							memory.stableMinimapLayoutInput = input;
+							memory.stableFitRemainingWidth = remainingWidth;
+						} else {
+							memory.stableMinimapLayoutInput = null;
+							memory.stableFitRemainingWidth = 0;
+						}
+					}
+				}
+
+				if (minimapSize === 'fill' || fitBecomesFill) {
+					minimapHeightIsEditorHeight = true;
+					const configuredMinimapScale = minimapScale;
+					minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
+					minimapScale = Math.min(maxMinimapScale, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
+					if (minimapScale > configuredMinimapScale) {
+						minimapWidthMultiplier = Math.min(2, minimapScale / configuredMinimapScale);
+					}
+					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
+					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
+					if (isViewportWrapping && fitBecomesFill) {
+						memory.stableFitMaxMinimapScale = minimapScale;
+					}
+				}
+			}
+		}
+
+		// Given:
+		// (leaving 2px for the cursor to have space after the last character)
+		// viewportColumn = (contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth
+		// minimapWidth = viewportColumn * minimapCharWidth
+		// contentWidth = remainingWidth - minimapWidth
+		// What are good values for contentWidth and minimapWidth ?
+
+		// minimapWidth = ((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth) * minimapCharWidth
+		// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+		// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+		// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+		// minimapWidth = ((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
+
+		const minimapMaxWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
+		const minimapWidth = Math.min(minimapMaxWidth, Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth))) + MINIMAP_GUTTER_WIDTH);
+
+		let minimapCanvasInnerWidth = Math.floor(pixelRatio * minimapWidth);
+		const minimapCanvasOuterWidth = minimapCanvasInnerWidth / pixelRatio;
+		minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
+
+		const renderMinimap = (minimapRenderCharacters ? RenderMinimap.Text : RenderMinimap.Blocks);
+		const minimapLeft = (minimapSide === 'left' ? 0 : (outerWidth - minimapWidth - verticalScrollbarWidth));
+
+		return {
+			renderMinimap,
+			minimapLeft,
+			minimapWidth,
+			minimapHeightIsEditorHeight,
+			minimapIsSampling,
+			minimapScale,
+			minimapLineHeight,
+			minimapCanvasInnerWidth,
+			minimapCanvasInnerHeight,
+			minimapCanvasOuterWidth,
+			minimapCanvasOuterHeight,
+		};
 	}
 
 	public static computeLayout(options: IComputedEditorOptions, env: EditorLayoutInfoComputerEnv): EditorLayoutInfo {
@@ -1756,22 +2203,27 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const typicalHalfwidthCharacterWidth = env.typicalHalfwidthCharacterWidth;
 		const maxDigitWidth = env.maxDigitWidth;
 		const pixelRatio = env.pixelRatio;
+		const viewLineCount = env.viewLineCount;
+
+		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
+		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
+		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
+
+		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
 		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
-		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars) | 0;
+		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars);
+		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		const minimap = options.get(EditorOption.minimap);
-		const minimapEnabled = minimap.enabled;
-		const minimapSide = minimap.side;
-		const minimapRenderCharacters = minimap.renderCharacters;
-		const minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
-		const minimapMaxColumn = minimap.maxColumn | 0;
 
 		const scrollbar = options.get(EditorOption.scrollbar);
-		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize | 0;
+		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize;
 		const verticalScrollbarHasArrows = scrollbar.verticalHasArrows;
-		const scrollbarArrowSize = scrollbar.arrowSize | 0;
-		const horizontalScrollbarHeight = scrollbar.horizontalScrollbarSize | 0;
+		const scrollbarArrowSize = scrollbar.arrowSize;
+		const horizontalScrollbarHeight = scrollbar.horizontalScrollbarSize;
 
 		const rawLineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		const folding = options.get(EditorOption.folding);
@@ -1805,56 +2257,61 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
-		let renderMinimap: RenderMinimap;
-		let minimapLeft: number;
-		let minimapWidth: number;
-		let contentWidth: number;
-		if (!minimapEnabled) {
-			minimapLeft = 0;
-			minimapWidth = 0;
-			renderMinimap = RenderMinimap.None;
-			contentWidth = remainingWidth;
-		} else {
-			// The minimapScale is also the pixel width of each character. Adjust
-			// for the pixel ratio of the screen.
-			const minimapCharWidth = minimapScale / pixelRatio;
-			renderMinimap = minimapRenderCharacters ? RenderMinimap.Text : RenderMinimap.Blocks;
+		let isWordWrapMinified = false;
+		let isViewportWrapping = false;
+		let wrappingColumn = -1;
 
-			// Given:
-			// (leaving 2px for the cursor to have space after the last character)
-			// viewportColumn = (contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth
-			// minimapWidth = viewportColumn * minimapCharWidth
-			// contentWidth = remainingWidth - minimapWidth
-			// What are good values for contentWidth and minimapWidth ?
-
-			// minimapWidth = ((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth) * minimapCharWidth
-			// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth - 2) * minimapCharWidth
-			// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth - 2) * minimapCharWidth
-			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth
-			// minimapWidth = ((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
-
-			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth))) + MINIMAP_GUTTER_WIDTH;
-			let minimapColumns = minimapWidth / minimapCharWidth;
-			if (minimapColumns > minimapMaxColumn) {
-				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
-			}
-			contentWidth = remainingWidth - minimapWidth;
-
-			if (minimapSide === 'left') {
-				minimapLeft = 0;
-				glyphMarginLeft += minimapWidth;
-				lineNumbersLeft += minimapWidth;
-				decorationsLeft += minimapWidth;
-				contentLeft += minimapWidth;
-			} else {
-				minimapLeft = outerWidth - minimapWidth - verticalScrollbarWidth;
+		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
+			// See https://github.com/microsoft/vscode/issues/27766
+			// Never enable wrapping when a screen reader is attached
+			// because arrow down etc. will not move the cursor in the way
+			// a screen reader expects.
+			if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
+				// Force viewport width wrapping if model is dominated by long lines
+				isWordWrapMinified = true;
+				isViewportWrapping = true;
+			} else if (wordWrap === 'on' || wordWrap === 'bounded') {
+				isViewportWrapping = true;
+			} else if (wordWrap === 'wordWrapColumn') {
+				wrappingColumn = wordWrapColumn;
 			}
 		}
+
+		const minimapLayout = EditorLayoutInfoComputer._computeMinimapLayout({
+			outerWidth: outerWidth,
+			outerHeight: outerHeight,
+			lineHeight: lineHeight,
+			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacterWidth,
+			pixelRatio: pixelRatio,
+			scrollBeyondLastLine: scrollBeyondLastLine,
+			minimap: minimap,
+			verticalScrollbarWidth: verticalScrollbarWidth,
+			viewLineCount: viewLineCount,
+			remainingWidth: remainingWidth,
+			isViewportWrapping: isViewportWrapping,
+		}, env.memory || new ComputeOptionsMemory());
+
+		if (minimapLayout.renderMinimap !== RenderMinimap.None && minimapLayout.minimapLeft === 0) {
+			// the minimap is rendered to the left, so move everything to the right
+			glyphMarginLeft += minimapLayout.minimapWidth;
+			lineNumbersLeft += minimapLayout.minimapWidth;
+			decorationsLeft += minimapLayout.minimapWidth;
+			contentLeft += minimapLayout.minimapWidth;
+		}
+		const contentWidth = remainingWidth - minimapLayout.minimapWidth;
 
 		// (leaving 2px for the cursor to have space after the last character)
 		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth));
 
 		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
+
+		if (isViewportWrapping) {
+			// compute the actual wrappingColumn
+			wrappingColumn = Math.max(1, viewportColumn);
+			if (wordWrap === 'bounded') {
+				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
+			}
+		}
 
 		return {
 			width: outerWidth,
@@ -1872,11 +2329,13 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			contentLeft: contentLeft,
 			contentWidth: contentWidth,
 
-			renderMinimap: renderMinimap,
-			minimapLeft: minimapLeft,
-			minimapWidth: minimapWidth,
+			minimap: minimapLayout,
 
 			viewportColumn: viewportColumn,
+
+			isWordWrapMinified: isWordWrapMinified,
+			isViewportWrapping: isViewportWrapping,
+			wrappingColumn: wrappingColumn,
 
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			horizontalScrollbarHeight: horizontalScrollbarHeight,
@@ -1925,12 +2384,80 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLig
 	}
 
 	public validate(_input: any): EditorLightbulbOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
+//#region inlineHints
+
+/**
+ * Configuration options for editor inlineHints
+ */
+export interface IEditorInlineHintsOptions {
+	/**
+	 * Enable the inline hints.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+
+	/**
+	 * Font size of inline hints.
+	 * Default to 90% of the editor font size.
+	 */
+	fontSize?: number;
+
+	/**
+	 * Font family of inline hints.
+	 * Defaults to editor font family.
+	 */
+	fontFamily?: string;
+}
+
+export type EditorInlineHintsOptions = Readonly<Required<IEditorInlineHintsOptions>>;
+
+class EditorInlineHints extends BaseEditorOption<EditorOption.inlineHints, EditorInlineHintsOptions> {
+
+	constructor() {
+		const defaults: EditorInlineHintsOptions = { enabled: true, fontSize: 0, fontFamily: EDITOR_FONT_DEFAULTS.fontFamily };
+		super(
+			EditorOption.inlineHints, 'inlineHints', defaults,
+			{
+				'editor.inlineHints.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('inlineHints.enable', "Enables the inline hints in the editor.")
+				},
+				'editor.inlineHints.fontSize': {
+					type: 'number',
+					default: defaults.fontSize,
+					description: nls.localize('inlineHints.fontSize', "Controls font size of inline hints in the editor. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+				},
+				'editor.inlineHints.fontFamily': {
+					type: 'string',
+					default: defaults.fontFamily,
+					description: nls.localize('inlineHints.fontFamily', "Controls font family of inline hints in the editor.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): EditorInlineHintsOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IEditorInlineHintsOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
 		};
 	}
 }
@@ -1949,7 +2476,7 @@ class EditorLineHeight extends EditorIntOption<EditorOption.lineHeight> {
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The lineHeight is computed from the fontSize if it is 0.
 		// Moreover, the final lineHeight respects the editor zoom level.
 		// So take the result from env.fontInfo
@@ -1976,6 +2503,11 @@ export interface IEditorMinimapOptions {
 	 */
 	side?: 'right' | 'left';
 	/**
+	 * Control the minimap rendering mode.
+	 * Defaults to 'actual'.
+	 */
+	size?: 'proportional' | 'fill' | 'fit';
+	/**
 	 * Control the rendering of the minimap slider.
 	 * Defaults to 'mouseover'.
 	 */
@@ -1990,7 +2522,6 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 120.
 	 */
 	maxColumn?: number;
-
 	/**
 	 * Relative size of the font in the minimap. Defaults to 1.
 	 */
@@ -2004,6 +2535,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 	constructor() {
 		const defaults: EditorMinimapOptions = {
 			enabled: true,
+			size: 'proportional',
 			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
@@ -2017,6 +2549,17 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
+				},
+				'editor.minimap.size': {
+					type: 'string',
+					enum: ['proportional', 'fill', 'fit'],
+					enumDescriptions: [
+						nls.localize('minimap.size.proportional', "The minimap has the same size as the editor contents (and might scroll)."),
+						nls.localize('minimap.size.fill', "The minimap will stretch or shrink as necessary to fill the height of the editor (no scrolling)."),
+						nls.localize('minimap.size.fit', "The minimap will shrink as necessary to never be larger than the editor (no scrolling)."),
+					],
+					default: defaults.size,
+					description: nls.localize('minimap.size', "Controls the size of the minimap.")
 				},
 				'editor.minimap.side': {
 					type: 'string',
@@ -2035,7 +2578,8 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					default: defaults.scale,
 					minimum: 1,
 					maximum: 3,
-					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap.")
+					enum: [1, 2, 3],
+					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap: 1, 2 or 3.")
 				},
 				'editor.minimap.renderCharacters': {
 					type: 'boolean',
@@ -2046,21 +2590,22 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'number',
 					default: defaults.maxColumn,
 					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
-				},
+				}
 			}
 		);
 	}
 
 	public validate(_input: any): EditorMinimapOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorMinimapOptions;
 		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
-			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
-			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
-			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			size: stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
+			side: stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
+			showSlider: stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
+			renderCharacters: boolean(input.renderCharacters, this.defaultValue.renderCharacters),
 			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 		};
@@ -2126,7 +2671,7 @@ class EditorPadding extends BaseEditorOption<EditorOption.padding, InternalEdito
 	}
 
 	public validate(_input: any): InternalEditorPaddingOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorPaddingOptions;
@@ -2184,13 +2729,13 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 	}
 
 	public validate(_input: any): InternalParameterHintOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorParameterHintOptions;
 		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
-			cycle: EditorBooleanOption.boolean(input.cycle, this.defaultValue.cycle)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			cycle: boolean(input.cycle, this.defaultValue.cycle)
 		};
 	}
 }
@@ -2218,16 +2763,16 @@ class EditorPixelRatio extends ComputedEditorOption<EditorOption.pixelRatio, num
  * Configuration options for quick suggestions
  */
 export interface IQuickSuggestionsOptions {
-	other: boolean;
-	comments: boolean;
-	strings: boolean;
+	other?: boolean;
+	comments?: boolean;
+	strings?: boolean;
 }
 
 export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
 
-	public readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
+	public override readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
 
 	constructor() {
 		const defaults: ValidQuickSuggestionsOptions = {
@@ -2274,12 +2819,12 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		if (typeof _input === 'boolean') {
 			return _input;
 		}
-		if (typeof _input === 'object') {
+		if (_input && typeof _input === 'object') {
 			const input = _input as IQuickSuggestionsOptions;
 			const opts = {
-				other: EditorBooleanOption.boolean(input.other, this.defaultValue.other),
-				comments: EditorBooleanOption.boolean(input.comments, this.defaultValue.comments),
-				strings: EditorBooleanOption.boolean(input.strings, this.defaultValue.strings),
+				other: boolean(input.other, this.defaultValue.other),
+				comments: boolean(input.comments, this.defaultValue.comments),
+				strings: boolean(input.strings, this.defaultValue.strings),
 			};
 			if (opts.other && opts.comments && opts.strings) {
 				return true; // all on
@@ -2424,7 +2969,7 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, IRulerOption[]>
 						column: EditorIntOption.clampedInt(_element, 0, 0, 10000),
 						color: null
 					});
-				} else if (typeof _element === 'object') {
+				} else if (_element && typeof _element === 'object') {
 					const element = _element as IRulerOption;
 					rulers.push({
 						column: EditorIntOption.clampedInt(element.column, 0, 0, 10000),
@@ -2507,6 +3052,11 @@ export interface IEditorScrollbarOptions {
 	 * Defaults to `horizontalScrollbarSize`.
 	 */
 	horizontalSliderSize?: number;
+	/**
+	 * Scroll gutter clicks move by page vs jump to position.
+	 * Defaults to false.
+	 */
+	scrollByPage?: boolean;
 }
 
 export interface InternalEditorScrollbarOptions {
@@ -2522,6 +3072,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly horizontalSliderSize: number;
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
+	readonly scrollByPage: boolean;
 }
 
 function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
@@ -2547,18 +3098,19 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 				useShadows: true,
 				verticalHasArrows: false,
 				horizontalHasArrows: false,
-				horizontalScrollbarSize: 10,
-				horizontalSliderSize: 10,
+				horizontalScrollbarSize: 12,
+				horizontalSliderSize: 12,
 				verticalScrollbarSize: 14,
 				verticalSliderSize: 14,
 				handleMouseWheel: true,
-				alwaysConsumeMouseWheel: true
+				alwaysConsumeMouseWheel: true,
+				scrollByPage: false
 			}
 		);
 	}
 
 	public validate(_input: any): InternalEditorScrollbarOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorScrollbarOptions;
@@ -2568,15 +3120,16 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 			arrowSize: EditorIntOption.clampedInt(input.arrowSize, this.defaultValue.arrowSize, 0, 1000),
 			vertical: _scrollbarVisibilityFromString(input.vertical, this.defaultValue.vertical),
 			horizontal: _scrollbarVisibilityFromString(input.horizontal, this.defaultValue.horizontal),
-			useShadows: EditorBooleanOption.boolean(input.useShadows, this.defaultValue.useShadows),
-			verticalHasArrows: EditorBooleanOption.boolean(input.verticalHasArrows, this.defaultValue.verticalHasArrows),
-			horizontalHasArrows: EditorBooleanOption.boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
-			handleMouseWheel: EditorBooleanOption.boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
-			alwaysConsumeMouseWheel: EditorBooleanOption.boolean(input.alwaysConsumeMouseWheel, this.defaultValue.alwaysConsumeMouseWheel),
+			useShadows: boolean(input.useShadows, this.defaultValue.useShadows),
+			verticalHasArrows: boolean(input.verticalHasArrows, this.defaultValue.verticalHasArrows),
+			horizontalHasArrows: boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
+			handleMouseWheel: boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
+			alwaysConsumeMouseWheel: boolean(input.alwaysConsumeMouseWheel, this.defaultValue.alwaysConsumeMouseWheel),
 			horizontalScrollbarSize: horizontalScrollbarSize,
 			horizontalSliderSize: EditorIntOption.clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
 			verticalScrollbarSize: verticalScrollbarSize,
 			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
+			scrollByPage: boolean(input.scrollByPage, this.defaultValue.scrollByPage),
 		};
 	}
 }
@@ -2594,10 +3147,6 @@ export interface ISuggestOptions {
 	 */
 	insertMode?: 'insert' | 'replace';
 	/**
-	 * Show a highlight when suggestion replaces or keep text after the cursor. Defaults to false.
-	 */
-	insertHighlight?: boolean;
-	/**
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
@@ -2606,7 +3155,7 @@ export interface ISuggestOptions {
 	 */
 	snippetsPreventQuickSuggestions?: boolean;
 	/**
-	 * Favours words that appear close to the cursor.
+	 * Favors words that appear close to the cursor.
 	 */
 	localityBonus?: boolean;
 	/**
@@ -2618,9 +3167,13 @@ export interface ISuggestOptions {
 	 */
 	showIcons?: boolean;
 	/**
-	 * Max suggestions to show in suggestions. Defaults to 12.
+	 * Enable or disable the suggest status bar.
 	 */
-	maxVisibleSuggestions?: number;
+	showStatusBar?: boolean;
+	/**
+	 * Show details inline with the label. Defaults to true.
+	 */
+	showInlineDetails?: boolean;
 	/**
 	 * Show method-suggestions.
 	 */
@@ -2718,13 +3271,17 @@ export interface ISuggestOptions {
 	 */
 	showTypeParameters?: boolean;
 	/**
+	 * Show issue-suggestions.
+	 */
+	showIssues?: boolean;
+	/**
+	 * Show user-suggestions.
+	 */
+	showUsers?: boolean;
+	/**
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
-	/**
-	 * Controls the visibility of the status bar at the bottom of the suggest widget.
-	 */
-	hideStatusBar?: boolean;
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -2734,13 +3291,13 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 	constructor() {
 		const defaults: InternalSuggestOptions = {
 			insertMode: 'insert',
-			insertHighlight: true,
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
 			shareSuggestSelections: false,
 			showIcons: true,
-			maxVisibleSuggestions: 12,
+			showStatusBar: false,
+			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -2766,7 +3323,8 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showFolders: true,
 			showTypeParameters: true,
 			showSnippets: true,
-			hideStatusBar: true
+			showUsers: true,
+			showIssues: true,
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -2781,11 +3339,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.insertMode,
 					description: nls.localize('suggest.insertMode', "Controls whether words are overwritten when accepting completions. Note that this depends on extensions opting into this feature.")
 				},
-				'editor.suggest.insertHighlight': {
-					type: 'boolean',
-					default: defaults.insertHighlight,
-					description: nls.localize('suggest.insertHighlight', "Controls whether unexpected text modifications while accepting completions should be highlighted, e.g `insertMode` is `replace` but the completion only supports `insert`.")
-				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
 					default: defaults.filterGraceful,
@@ -2794,7 +3347,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				'editor.suggest.localityBonus': {
 					type: 'boolean',
 					default: defaults.localityBonus,
-					description: nls.localize('suggest.localityBonus', "Controls whether sorting favours words that appear close to the cursor.")
+					description: nls.localize('suggest.localityBonus', "Controls whether sorting favors words that appear close to the cursor.")
 				},
 				'editor.suggest.shareSuggestSelections': {
 					type: 'boolean',
@@ -2811,12 +3364,20 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.showIcons,
 					description: nls.localize('suggest.showIcons', "Controls whether to show or hide icons in suggestions.")
 				},
+				'editor.suggest.showStatusBar': {
+					type: 'boolean',
+					default: defaults.showStatusBar,
+					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+				},
+
+				'editor.suggest.showInlineDetails': {
+					type: 'boolean',
+					default: defaults.showInlineDetails,
+					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget")
+				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
-					default: defaults.maxVisibleSuggestions,
-					minimum: 1,
-					maximum: 15,
-					description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
+					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -2952,55 +3513,99 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showSnippets', "When enabled IntelliSense shows `snippet`-suggestions.")
 				},
-				'editor.suggest.hideStatusBar': {
+				'editor.suggest.showUsers': {
 					type: 'boolean',
 					default: true,
-					markdownDescription: nls.localize('editor.suggest.hideStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+					markdownDescription: nls.localize('editor.suggest.showUsers', "When enabled IntelliSense shows `user`-suggestions.")
+				},
+				'editor.suggest.showIssues': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
 				}
 			}
 		);
 	}
 
 	public validate(_input: any): InternalSuggestOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as ISuggestOptions;
 		return {
-			insertMode: EditorStringEnumOption.stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
-			insertHighlight: EditorBooleanOption.boolean(input.insertHighlight, this.defaultValue.insertHighlight),
-			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
-			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
-			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
-			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
-			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
-			maxVisibleSuggestions: EditorIntOption.clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
-			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
-			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
-			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
-			showFields: EditorBooleanOption.boolean(input.showFields, this.defaultValue.showFields),
-			showVariables: EditorBooleanOption.boolean(input.showVariables, this.defaultValue.showVariables),
-			showClasses: EditorBooleanOption.boolean(input.showClasses, this.defaultValue.showClasses),
-			showStructs: EditorBooleanOption.boolean(input.showStructs, this.defaultValue.showStructs),
-			showInterfaces: EditorBooleanOption.boolean(input.showInterfaces, this.defaultValue.showInterfaces),
-			showModules: EditorBooleanOption.boolean(input.showModules, this.defaultValue.showModules),
-			showProperties: EditorBooleanOption.boolean(input.showProperties, this.defaultValue.showProperties),
-			showEvents: EditorBooleanOption.boolean(input.showEvents, this.defaultValue.showEvents),
-			showOperators: EditorBooleanOption.boolean(input.showOperators, this.defaultValue.showOperators),
-			showUnits: EditorBooleanOption.boolean(input.showUnits, this.defaultValue.showUnits),
-			showValues: EditorBooleanOption.boolean(input.showValues, this.defaultValue.showValues),
-			showConstants: EditorBooleanOption.boolean(input.showConstants, this.defaultValue.showConstants),
-			showEnums: EditorBooleanOption.boolean(input.showEnums, this.defaultValue.showEnums),
-			showEnumMembers: EditorBooleanOption.boolean(input.showEnumMembers, this.defaultValue.showEnumMembers),
-			showKeywords: EditorBooleanOption.boolean(input.showKeywords, this.defaultValue.showKeywords),
-			showWords: EditorBooleanOption.boolean(input.showWords, this.defaultValue.showWords),
-			showColors: EditorBooleanOption.boolean(input.showColors, this.defaultValue.showColors),
-			showFiles: EditorBooleanOption.boolean(input.showFiles, this.defaultValue.showFiles),
-			showReferences: EditorBooleanOption.boolean(input.showReferences, this.defaultValue.showReferences),
-			showFolders: EditorBooleanOption.boolean(input.showFolders, this.defaultValue.showFolders),
-			showTypeParameters: EditorBooleanOption.boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
-			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
-			hideStatusBar: EditorBooleanOption.boolean(input.hideStatusBar, this.defaultValue.hideStatusBar),
+			insertMode: stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
+			filterGraceful: boolean(input.filterGraceful, this.defaultValue.filterGraceful),
+			snippetsPreventQuickSuggestions: boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
+			localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
+			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
+			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
+			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
+			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
+			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
+			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
+			showFields: boolean(input.showFields, this.defaultValue.showFields),
+			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
+			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
+			showStructs: boolean(input.showStructs, this.defaultValue.showStructs),
+			showInterfaces: boolean(input.showInterfaces, this.defaultValue.showInterfaces),
+			showModules: boolean(input.showModules, this.defaultValue.showModules),
+			showProperties: boolean(input.showProperties, this.defaultValue.showProperties),
+			showEvents: boolean(input.showEvents, this.defaultValue.showEvents),
+			showOperators: boolean(input.showOperators, this.defaultValue.showOperators),
+			showUnits: boolean(input.showUnits, this.defaultValue.showUnits),
+			showValues: boolean(input.showValues, this.defaultValue.showValues),
+			showConstants: boolean(input.showConstants, this.defaultValue.showConstants),
+			showEnums: boolean(input.showEnums, this.defaultValue.showEnums),
+			showEnumMembers: boolean(input.showEnumMembers, this.defaultValue.showEnumMembers),
+			showKeywords: boolean(input.showKeywords, this.defaultValue.showKeywords),
+			showWords: boolean(input.showWords, this.defaultValue.showWords),
+			showColors: boolean(input.showColors, this.defaultValue.showColors),
+			showFiles: boolean(input.showFiles, this.defaultValue.showFiles),
+			showReferences: boolean(input.showReferences, this.defaultValue.showReferences),
+			showFolders: boolean(input.showFolders, this.defaultValue.showFolders),
+			showTypeParameters: boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
+			showSnippets: boolean(input.showSnippets, this.defaultValue.showSnippets),
+			showUsers: boolean(input.showUsers, this.defaultValue.showUsers),
+			showIssues: boolean(input.showIssues, this.defaultValue.showIssues),
+		};
+	}
+}
+
+//#endregion
+
+//#region smart select
+
+export interface ISmartSelectOptions {
+	selectLeadingAndTrailingWhitespace?: boolean
+}
+
+export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
+
+class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, SmartSelectOptions> {
+
+	constructor() {
+		super(
+			EditorOption.smartSelect, 'smartSelect',
+			{
+				selectLeadingAndTrailingWhitespace: true
+			},
+			{
+				'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
+					description: nls.localize('selectLeadingAndTrailingWhitespace', "Whether leading and trailing whitespace should always be selected."),
+					default: true,
+					type: 'boolean'
+				}
+			}
+		);
+	}
+
+	public validate(input: any): Readonly<Required<ISmartSelectOptions>> {
+		if (!input || typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
 		};
 	}
 }
@@ -3070,67 +3675,17 @@ export interface EditorWrappingInfo {
 class EditorWrappingInfoComputer extends ComputedEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo> {
 
 	constructor() {
-		super(EditorOption.wrappingInfo, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport]);
+		super(EditorOption.wrappingInfo, [EditorOption.layoutInfo]);
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: EditorWrappingInfo): EditorWrappingInfo {
-		const wordWrap = options.get(EditorOption.wordWrap);
-		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
-		const wordWrapMinified = options.get(EditorOption.wordWrapMinified);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-
-		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } | null = null;
-		{
-			if (accessibilitySupport === AccessibilitySupport.Enabled) {
-				// See https://github.com/Microsoft/vscode/issues/27766
-				// Never enable wrapping when a screen reader is attached
-				// because arrow down etc. will not move the cursor in the way
-				// a screen reader expects.
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
-			} else if (wordWrapMinified && env.isDominatedByLongLines) {
-				// Force viewport width wrapping if model is dominated by long lines
-				bareWrappingInfo = {
-					isWordWrapMinified: true,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-				};
-			} else if (wordWrap === 'on') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-				};
-			} else if (wordWrap === 'bounded') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
-				};
-			} else if (wordWrap === 'wordWrapColumn') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: wordWrapColumn
-				};
-			} else {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
-			}
-		}
 
 		return {
 			isDominatedByLongLines: env.isDominatedByLongLines,
-			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
-			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
-			wrappingColumn: bareWrappingInfo.wrappingColumn,
+			isWordWrapMinified: layoutInfo.isWordWrapMinified,
+			isViewportWrapping: layoutInfo.isViewportWrapping,
+			wrappingColumn: layoutInfo.wrappingColumn,
 		};
 	}
 }
@@ -3185,13 +3740,17 @@ export const enum EditorOption {
 	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
+	autoClosingDelete,
 	autoClosingOvertype,
 	autoClosingQuotes,
 	autoIndent,
 	automaticLayout,
 	autoSurround,
 	codeLens,
+	codeLensFontFamily,
+	codeLensFontSize,
 	colorDecorators,
+	columnSelection,
 	comments,
 	contextmenu,
 	copyWithSyntaxHighlighting,
@@ -3203,6 +3762,7 @@ export const enum EditorOption {
 	cursorWidth,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
+	domReadOnly,
 	dragAndDrop,
 	emptySelectionClipboard,
 	extraEditorClassName,
@@ -3212,6 +3772,7 @@ export const enum EditorOption {
 	folding,
 	foldingStrategy,
 	foldingHighlight,
+	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
 	fontLigatures,
@@ -3231,6 +3792,7 @@ export const enum EditorOption {
 	lineHeight,
 	lineNumbers,
 	lineNumbersMinChars,
+	linkedEditing,
 	links,
 	matchBrackets,
 	minimap,
@@ -3250,10 +3812,12 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
+	renameOnType,
 	renderControlCharacters,
 	renderIndentGuides,
 	renderFinalNewline,
 	renderLineHighlight,
+	renderLineHighlightOnlyWhenFocus,
 	renderValidationDecorations,
 	renderWhitespace,
 	revealHorizontalRightPadding,
@@ -3269,7 +3833,9 @@ export const enum EditorOption {
 	showFoldingControls,
 	showUnused,
 	snippetSuggestions,
+	smartSelect,
 	smoothScrolling,
+	stickyTabStops,
 	stopRenderingLineAfter,
 	suggest,
 	suggestFontSize,
@@ -3277,16 +3843,20 @@ export const enum EditorOption {
 	suggestOnTriggerCharacters,
 	suggestSelection,
 	tabCompletion,
+	tabIndex,
+	unusualLineTerminators,
 	useTabStops,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
 	wordWrapBreakBeforeCharacters,
 	wordWrapColumn,
-	wordWrapMinified,
+	wordWrapOverride1,
+	wordWrapOverride2,
 	wrappingIndent,
 	wrappingStrategy,
-
+	showDeprecated,
+	inlineHints,
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
 	pixelRatio,
@@ -3330,7 +3900,9 @@ export const EditorOptions = {
 	)),
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
 	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader. Warning: this has a performance implication for numbers larger than the default.") })),
+		{
+			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default.")
+		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
@@ -3346,6 +3918,19 @@ export const EditorOptions = {
 				'',
 			],
 			description: nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
+		}
+	)),
+	autoClosingDelete: register(new EditorStringEnumOption(
+		EditorOption.autoClosingDelete, 'autoClosingDelete',
+		'auto' as 'always' | 'auto' | 'never',
+		['always', 'auto', 'never'] as const,
+		{
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingDelete.auto', "Remove adjacent closing quotes or brackets only if they were automatically inserted."),
+				'',
+			],
+			description: nls.localize('autoClosingDelete', "Controls whether the editor should remove adjacent closing quotes or brackets when deleting.")
 		}
 	)),
 	autoClosingOvertype: register(new EditorStringEnumOption(
@@ -3405,16 +3990,35 @@ export const EditorOptions = {
 				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
 				''
 			],
-			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
+			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
+	)),
+	stickyTabStops: register(new EditorBooleanOption(
+		EditorOption.stickyTabStops, 'stickyTabStops', false,
+		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
 	)),
 	codeLens: register(new EditorBooleanOption(
 		EditorOption.codeLens, 'codeLens', true,
 		{ description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.") }
 	)),
+	codeLensFontFamily: register(new EditorStringOption(
+		EditorOption.codeLensFontFamily, 'codeLensFontFamily', '',
+		{ description: nls.localize('codeLensFontFamily', "Controls the font family for CodeLens.") }
+	)),
+	codeLensFontSize: register(new EditorIntOption(EditorOption.codeLensFontSize, 'codeLensFontSize', 0, 0, 100, {
+		type: 'number',
+		default: 0,
+		minimum: 0,
+		maximum: 100,
+		description: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
+	)),
+	columnSelection: register(new EditorBooleanOption(
+		EditorOption.columnSelection, 'columnSelection', false,
+		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
 	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(
@@ -3445,7 +4049,7 @@ export const EditorOptions = {
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.") }
+		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or 'scrollOffset' in some other editors.") }
 	)),
 	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
 		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',
@@ -3469,6 +4073,9 @@ export const EditorOptions = {
 	)),
 	disableMonospaceOptimizations: register(new EditorBooleanOption(
 		EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false
+	)),
+	domReadOnly: register(new EditorBooleanOption(
+		EditorOption.domReadOnly, 'domReadOnly', false,
 	)),
 	dragAndDrop: register(new EditorBooleanOption(
 		EditorOption.dragAndDrop, 'dragAndDrop', true,
@@ -3507,6 +4114,10 @@ export const EditorOptions = {
 		EditorOption.foldingHighlight, 'foldingHighlight', true,
 		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
 	)),
+	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
+		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
+		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
+	)),
 	fontFamily: register(new EditorStringOption(
 		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
 		{ description: nls.localize('fontFamily', "Controls the font family.") }
@@ -3514,13 +4125,7 @@ export const EditorOptions = {
 	fontInfo: register(new EditorFontInfo()),
 	fontLigatures2: register(new EditorFontLigatures()),
 	fontSize: register(new EditorFontSize()),
-	fontWeight: register(new EditorStringOption(
-		EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight,
-		{
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: nls.localize('fontWeight', "Controls the font weight.")
-		}
-	)),
+	fontWeight: register(new EditorFontWeight()),
 	formatOnPaste: register(new EditorBooleanOption(
 		EditorOption.formatOnPaste, 'formatOnPaste', false,
 		{ description: nls.localize('formatOnPaste', "Controls whether the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.") }
@@ -3544,7 +4149,7 @@ export const EditorOptions = {
 	)),
 	hover: register(new EditorHover()),
 	inDiffEditor: register(new EditorBooleanOption(
-		EditorOption.inDiffEditor, 'inDiffEditor', false,
+		EditorOption.inDiffEditor, 'inDiffEditor', false
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',
@@ -3558,6 +4163,10 @@ export const EditorOptions = {
 	lineNumbersMinChars: register(new EditorIntOption(
 		EditorOption.lineNumbersMinChars, 'lineNumbersMinChars',
 		5, 1, 300
+	)),
+	linkedEditing: register(new EditorBooleanOption(
+		EditorOption.linkedEditing, 'linkedEditing', false,
+		{ description: nls.localize('linkedEditing', "Controls whether the editor has linked editing enabled. Depending on the language, related symbols, e.g. HTML tags, are updated while editing.") }
 	)),
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,
@@ -3647,7 +4256,7 @@ export const EditorOptions = {
 	)),
 	definitionLinkOpensInPeek: register(new EditorBooleanOption(
 		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
-		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the definition link opens element in the peek widget.") }
+		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the Go to Definition mouse gesture always opens the peek widget.") }
 	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(
@@ -3657,6 +4266,10 @@ export const EditorOptions = {
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
+	)),
+	renameOnType: register(new EditorBooleanOption(
+		EditorOption.renameOnType, 'renameOnType', false,
+		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
@@ -3684,6 +4297,10 @@ export const EditorOptions = {
 			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight.")
 		}
 	)),
+	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
+		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
+		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused.") }
+	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
 		'editable' as 'editable' | 'on' | 'off',
@@ -3691,13 +4308,14 @@ export const EditorOptions = {
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',
-		'selection' as 'selection' | 'none' | 'boundary' | 'all',
-		['none', 'boundary', 'selection', 'all'] as const,
+		'selection' as 'selection' | 'none' | 'boundary' | 'trailing' | 'all',
+		['none', 'boundary', 'selection', 'trailing', 'all'] as const,
 		{
 			enumDescriptions: [
 				'',
 				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
 				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
+				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters."),
 				''
 			],
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters.")
@@ -3756,6 +4374,11 @@ export const EditorOptions = {
 		EditorOption.showUnused, 'showUnused', true,
 		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
 	)),
+	showDeprecated: register(new EditorBooleanOption(
+		EditorOption.showDeprecated, 'showDeprecated', true,
+		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
+	)),
+	inlineHints: register(new EditorInlineHints()),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',
 		'inline' as 'top' | 'bottom' | 'inline' | 'none',
@@ -3770,6 +4393,7 @@ export const EditorOptions = {
 			description: nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		}
 	)),
+	smartSelect: register(new SmartSelect()),
 	smoothScrolling: register(new EditorBooleanOption(
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
@@ -3787,7 +4411,7 @@ export const EditorOptions = {
 	suggestLineHeight: register(new EditorIntOption(
 		EditorOption.suggestLineHeight, 'suggestLineHeight',
 		0, 0, 1000,
-		{ markdownDescription: nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used.") }
+		{ markdownDescription: nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used. The minimum value is 8.") }
 	)),
 	suggestOnTriggerCharacters: register(new EditorBooleanOption(
 		EditorOption.suggestOnTriggerCharacters, 'suggestOnTriggerCharacters', true,
@@ -3817,6 +4441,23 @@ export const EditorOptions = {
 				nls.localize('tabCompletion.onlySnippets', "Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled."),
 			],
 			description: nls.localize('tabCompletion', "Enables tab completions.")
+		}
+	)),
+	tabIndex: register(new EditorIntOption(
+		EditorOption.tabIndex, 'tabIndex',
+		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
+	)),
+	unusualLineTerminators: register(new EditorStringEnumOption(
+		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
+		'prompt' as 'auto' | 'off' | 'prompt',
+		['auto', 'off', 'prompt'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
+				nls.localize('unusualLineTerminators.off', "Unusual line terminators are ignored."),
+				nls.localize('unusualLineTerminators.prompt', "Unusual line terminators prompt to be removed."),
+			],
+			description: nls.localize('unusualLineTerminators', "Remove unusual line terminators that might cause problems.")
 		}
 	)),
 	useTabStops: register(new EditorBooleanOption(
@@ -3879,8 +4520,15 @@ export const EditorOptions = {
 			}, "Controls the wrapping column of the editor when `#editor.wordWrap#` is `wordWrapColumn` or `bounded`.")
 		}
 	)),
-	wordWrapMinified: register(new EditorBooleanOption(
-		EditorOption.wordWrapMinified, 'wordWrapMinified', true,
+	wordWrapOverride1: register(new EditorStringEnumOption(
+		EditorOption.wordWrapOverride1, 'wordWrapOverride1',
+		'inherit' as 'off' | 'on' | 'inherit',
+		['off', 'on', 'inherit'] as const
+	)),
+	wordWrapOverride2: register(new EditorStringEnumOption(
+		EditorOption.wordWrapOverride2, 'wordWrapOverride2',
+		'inherit' as 'off' | 'on' | 'inherit',
+		['off', 'on', 'inherit'] as const
 	)),
 	wrappingIndent: register(new EditorEnumOption(
 		EditorOption.wrappingIndent, 'wrappingIndent',

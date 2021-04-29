@@ -13,7 +13,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -67,22 +66,22 @@ export interface IUntitledTextEditorModelManager {
 	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
 	 */
-	readonly onDidChangeDirty: Event<URI>;
+	readonly onDidChangeDirty: Event<IUntitledTextEditorModel>;
 
 	/**
 	 * Events for when untitled text editor encodings change.
 	 */
-	readonly onDidChangeEncoding: Event<URI>;
+	readonly onDidChangeEncoding: Event<IUntitledTextEditorModel>;
 
 	/**
 	 * Events for when untitled text editor labels change.
 	 */
-	readonly onDidChangeLabel: Event<URI>;
+	readonly onDidChangeLabel: Event<IUntitledTextEditorModel>;
 
 	/**
-	 * Events for when untitled text editors are disposed.
+	 * Events for when untitled text editors are about to be disposed.
 	 */
-	readonly onDidDisposeModel: Event<URI>;
+	readonly onWillDispose: Event<IUntitledTextEditorModel>;
 
 	/**
 	 * Creates a new untitled editor model with the provided options. If the `untitledResource`
@@ -99,34 +98,41 @@ export interface IUntitledTextEditorModelManager {
 	get(resource: URI): IUntitledTextEditorModel | undefined;
 
 	/**
+	 * Returns the value of the untitled editor, undefined if none exists
+	 * @param resource The URI of the untitled file
+	 * @returns The content, or undefined
+	 */
+	getValue(resource: URI): string | undefined;
+
+	/**
 	 * Resolves an untitled editor model from the provided options. If the `untitledResource`
 	 * property is provided and the untitled editor exists, it will return that existing
 	 * instance instead of creating a new one.
 	 */
-	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
-	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
-	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
+	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel>;
+	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
 }
 
 export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 }
 
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<URI>());
+	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onDidChangeEncoding = this._register(new Emitter<URI>());
+	private readonly _onDidChangeEncoding = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
-	private readonly _onDidDisposeModel = this._register(new Emitter<URI>());
-	readonly onDidDisposeModel = this._onDidDisposeModel.event;
+	private readonly _onWillDispose = this._register(new Emitter<IUntitledTextEditorModel>());
+	readonly onWillDispose = this._onWillDispose.event;
 
-	private readonly _onDidChangeLabel = this._register(new Emitter<URI>());
+	private readonly _onDidChangeLabel = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
 	private readonly mapResourceToModel = new ResourceMap<UntitledTextEditorModel>();
@@ -142,8 +148,15 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return this.mapResourceToModel.get(resource);
 	}
 
-	resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
-		return this.doCreateOrGet(options).load();
+	getValue(resource: URI): string | undefined {
+		return this.get(resource)?.textEditorModel?.getValue();
+	}
+
+	async resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel> {
+		const model = this.doCreateOrGet(options);
+		await model.resolve();
+
+		return model;
 	}
 
 	create(options?: IInternalUntitledTextEditorOptions): UntitledTextEditorModel {
@@ -219,24 +232,32 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	}
 
 	private registerModel(model: UntitledTextEditorModel): void {
-		const modelDisposables = new DisposableStore();
-		modelDisposables.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model.resource)));
-		modelDisposables.add(model.onDidChangeName(() => this._onDidChangeLabel.fire(model.resource)));
-		modelDisposables.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model.resource)));
-		modelDisposables.add(model.onDispose(() => this._onDidDisposeModel.fire(model.resource)));
+
+		// Install model listeners
+		const modelListeners = new DisposableStore();
+		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
+		modelListeners.add(model.onDidChangeName(() => this._onDidChangeLabel.fire(model)));
+		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
+		modelListeners.add(model.onWillDispose(() => this._onWillDispose.fire(model)));
 
 		// Remove from cache on dispose
-		Event.once(model.onDispose)(() => {
+		Event.once(model.onWillDispose)(() => {
 
 			// Registry
 			this.mapResourceToModel.delete(model.resource);
 
 			// Listeners
-			modelDisposables.dispose();
+			modelListeners.dispose();
 		});
 
 		// Add to cache
 		this.mapResourceToModel.set(model.resource, model);
+
+		// If the model is dirty right from the beginning,
+		// make sure to emit this as an event
+		if (model.isDirty()) {
+			this._onDidChangeDirty.fire(model);
+		}
 	}
 }
 

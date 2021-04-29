@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as pfs from 'vs/base/node/pfs';
+import { writeFile } from 'vs/base/node/pfs';
+import { promises } from 'fs';
 import { createHash } from 'crypto';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Queue } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
-import product from 'vs/platform/product/common/product';
+import { isValidLocalization, ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -27,14 +27,9 @@ interface ILanguagePack {
 	translations: { [id: string]: string };
 }
 
-const systemLanguages: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'];
-if (product.quality !== 'stable') {
-	systemLanguages.push('hu');
-}
-
 export class LocalizationsService extends Disposable implements ILocalizationsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly cache: LanguagePacksCache;
 
@@ -43,7 +38,7 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -53,13 +48,11 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 		this._register(extensionManagementService.onDidUninstallExtension(({ identifier }) => this.onDidUninstallExtension(identifier)));
 	}
 
-	getLanguageIds(type: LanguageType): Promise<string[]> {
-		if (type === LanguageType.Core) {
-			return Promise.resolve([...systemLanguages]);
-		}
+	getLanguageIds(): Promise<string[]> {
 		return this.cache.getLanguagePacks()
 			.then(languagePacks => {
-				const languages = type === LanguageType.Contributed ? Object.keys(languagePacks) : [...systemLanguages, ...Object.keys(languagePacks)];
+				// Contributed languages are those installed via extension packs, so does not include English
+				const languages = ['en', ...Object.keys(languagePacks)];
 				return distinct(languages);
 			});
 	}
@@ -81,10 +74,10 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 			});
 	}
 
-	update(): Promise<boolean> {
-		return Promise.all([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()])
-			.then(([current, installed]) => this.cache.update(installed)
-				.then(updated => !equals(Object.keys(current), Object.keys(updated))));
+	async update(): Promise<boolean> {
+		const [current, installed] = await Promise.all([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()]);
+		const updated = await this.cache.update(installed);
+		return !equals(Object.keys(current), Object.keys(updated));
 	}
 }
 
@@ -96,7 +89,7 @@ class LanguagePacksCache extends Disposable {
 	private initializedCache: boolean | undefined;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -165,7 +158,7 @@ class LanguagePacksCache extends Disposable {
 	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T | null = () => null): Promise<T> {
 		return this.languagePacksFileLimiter.queue(() => {
 			let result: T | null = null;
-			return pfs.readFile(this.languagePacksFilePath, 'utf8')
+			return promises.readFile(this.languagePacksFilePath, 'utf8')
 				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(languagePacks => { result = fn(languagePacks); return languagePacks; })
@@ -179,7 +172,7 @@ class LanguagePacksCache extends Disposable {
 					this.initializedCache = true;
 					const raw = JSON.stringify(this.languagePacks);
 					this.logService.debug('Writing language packs', raw);
-					return pfs.writeFile(this.languagePacksFilePath, raw);
+					return writeFile(this.languagePacksFilePath, raw);
 				})
 				.then(() => result, error => this.logService.error(error));
 		});

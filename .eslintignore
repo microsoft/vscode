@@ -3,9 +3,9 @@
 **/vs/css.build.js
 **/vs/css.js
 **/vs/loader.js
-**/promise-polyfill/**
 **/insane/**
 **/marked/**
+**/semver/**
 **/test/**/*.js
 **/node_modules/**
 **/vscode-api-tests/testWorkspace/**
@@ -13,4 +13,6 @@
 **/extensions/**/out/**
 **/extensions/**/build/**
 **/extensions/markdown-language-features/media/**
+**/extensions/markdown-language-features/notebook-out/**
 **/extensions/typescript-basics/test/colorize-fixtures/**
+**/extensions/**/dist/**

@@ -5,10 +5,8 @@
 
 import { memoize } from 'vs/base/common/decorators';
 import * as paths from 'vs/base/common/path';
-import { Iterator } from 'vs/base/common/iterator';
-import { relativePath, joinPath } from 'vs/base/common/resources';
+import { IExtUri, extUri as defaultExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { mapValues } from 'vs/base/common/collections';
 import { PathIterator } from 'vs/base/common/map';
 
 export interface IResourceNode<T, C = void> {
@@ -16,7 +14,7 @@ export interface IResourceNode<T, C = void> {
 	readonly relativePath: string;
 	readonly name: string;
 	readonly element: T | undefined;
-	readonly children: Iterator<IResourceNode<T, C>>;
+	readonly children: Iterable<IResourceNode<T, C>>;
 	readonly childrenCount: number;
 	readonly parent: IResourceNode<T, C> | undefined;
 	readonly context: C;
@@ -31,8 +29,8 @@ class Node<T, C> implements IResourceNode<T, C> {
 		return this._children.size;
 	}
 
-	get children(): Iterator<Node<T, C>> {
-		return Iterator.fromArray(mapValues(this._children));
+	get children(): Iterable<Node<T, C>> {
+		return this._children.values();
 	}
 
 	@memoize
@@ -70,7 +68,9 @@ function collect<T, C>(node: IResourceNode<T, C>, result: T[]): T[] {
 		result.push(node.element);
 	}
 
-	Iterator.forEach(node.children, child => collect(child, result));
+	for (const child of node.children) {
+		collect(child, result);
+	}
 
 	return result;
 }
@@ -95,12 +95,12 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 		return obj instanceof Node;
 	}
 
-	constructor(context: C, rootURI: URI = URI.file('/')) {
+	constructor(context: C, rootURI: URI = URI.file('/'), private extUri: IExtUri = defaultExtUri) {
 		this.root = new Node(rootURI, '', context);
 	}
 
 	add(uri: URI, element: T): void {
-		const key = relativePath(this.root.uri, uri) || uri.fsPath;
+		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
 		const iterator = new PathIterator(false).reset(key);
 		let node = this.root;
 		let path = '';
@@ -113,7 +113,7 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 
 			if (!child) {
 				child = new Node(
-					joinPath(this.root.uri, path),
+					this.extUri.joinPath(this.root.uri, path),
 					path,
 					this.root.context,
 					iterator.hasNext() ? undefined : element,
@@ -136,7 +136,7 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 	}
 
 	delete(uri: URI): T | undefined {
-		const key = relativePath(this.root.uri, uri) || uri.fsPath;
+		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
 		const iterator = new PathIterator(false).reset(key);
 		return this._delete(this.root, iterator);
 	}
@@ -168,7 +168,7 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 	}
 
 	getNode(uri: URI): IResourceNode<T, C> | undefined {
-		const key = relativePath(this.root.uri, uri) || uri.fsPath;
+		const key = this.extUri.relativePath(this.root.uri, uri) || uri.path;
 		const iterator = new PathIterator(false).reset(key);
 		let node = this.root;
 

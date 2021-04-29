@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
 import * as json from 'vs/base/common/json';
 import * as arrays from 'vs/base/common/arrays';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
@@ -47,14 +48,26 @@ abstract class ExtensionManifestHandler {
 
 class ExtensionManifestParser extends ExtensionManifestHandler {
 
+	private static _fastParseJSON(text: string, errors: json.ParseError[]): any {
+		try {
+			return JSON.parse(text);
+		} catch (err) {
+			// invalid JSON, let's get good errors
+			return json.parse(text, errors);
+		}
+	}
+
 	public parse(): Promise<IExtensionDescription> {
-		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
+		return fs.promises.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
-			const manifest = json.parse(manifestContents.toString(), errors);
-			if (errors.length === 0 && json.getNodeType(manifest) === 'object') {
+			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents.toString(), errors);
+			if (json.getNodeType(manifest) !== 'object') {
+				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
+			} else if (errors.length === 0) {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
+				manifest.isUserBuiltin = !!manifest.__metadata?.isBuiltin;
 				delete manifest.__metadata;
 				return manifest;
 			} else {
@@ -115,7 +128,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 		let translationPath = this._nlsConfig.translations[translationId];
 		let localizedMessages: Promise<LocalizedMessages | undefined>;
 		if (translationPath) {
-			localizedMessages = pfs.readFile(translationPath, 'utf8').then<LocalizedMessages, LocalizedMessages>((content) => {
+			localizedMessages = fs.promises.readFile(translationPath, 'utf8').then<LocalizedMessages, LocalizedMessages>((content) => {
 				let errors: json.ParseError[] = [];
 				let translationBundle: TranslationBundle = json.parse(content, errors);
 				if (errors.length > 0) {
@@ -132,7 +145,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 				return { values: undefined, default: `${basename}.nls.json` };
 			});
 		} else {
-			localizedMessages = pfs.fileExists(basename + '.nls' + extension).then<LocalizedMessages | undefined, LocalizedMessages | undefined>(exists => {
+			localizedMessages = pfs.SymlinkSupport.existsFile(basename + '.nls' + extension).then<LocalizedMessages | undefined, LocalizedMessages | undefined>(exists => {
 				if (!exists) {
 					return undefined;
 				}
@@ -140,7 +153,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					if (!messageBundle.localized) {
 						return { values: undefined, default: messageBundle.original };
 					}
-					return pfs.readFile(messageBundle.localized, 'utf8').then(messageBundleContent => {
+					return fs.promises.readFile(messageBundle.localized, 'utf8').then(messageBundleContent => {
 						let errors: json.ParseError[] = [];
 						let messages: MessageBag = json.parse(messageBundleContent, errors);
 						if (errors.length > 0) {
@@ -189,7 +202,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	private static resolveOriginalMessageBundle(originalMessageBundle: string | null, errors: json.ParseError[]) {
 		return new Promise<{ [key: string]: string; } | null>((c, e) => {
 			if (originalMessageBundle) {
-				pfs.readFile(originalMessageBundle).then(originalBundleContent => {
+				fs.promises.readFile(originalMessageBundle).then(originalBundleContent => {
 					c(json.parse(originalBundleContent.toString(), errors));
 				}, (err) => {
 					c(null);
@@ -208,7 +221,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 		return new Promise<{ localized: string; original: string | null; }>((c, e) => {
 			function loop(basename: string, locale: string): void {
 				let toCheck = `${basename}.nls.${locale}.json`;
-				pfs.fileExists(toCheck).then(exists => {
+				pfs.SymlinkSupport.existsFile(toCheck).then(exists => {
 					if (exists) {
 						c({ localized: toCheck, original: `${basename}.nls.json` });
 					}
@@ -287,6 +300,7 @@ export interface IRelaxedExtensionDescription {
 	version: string;
 	publisher: string;
 	isBuiltin: boolean;
+	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
 	engines: {
@@ -300,6 +314,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 	validate(_extensionDescription: IExtensionDescription): IExtensionDescription | null {
 		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
 		extensionDescription.isBuiltin = this._isBuiltin;
+		extensionDescription.isUserBuiltin = !this._isBuiltin && !!extensionDescription.isUserBuiltin;
 		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
 
 		let notices: string[] = [];
@@ -321,7 +336,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		}
 
 		// id := `publisher.name`
-		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
+		extensionDescription.id = getExtensionId(extensionDescription.publisher, extensionDescription.name);
 		extensionDescription.identifier = new ExtensionIdentifier(extensionDescription.id);
 
 		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
@@ -379,7 +394,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 				notices.push(nls.localize('extensionDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents'));
 				return false;
 			}
-			if (typeof extensionDescription.main === 'undefined') {
+			if (typeof extensionDescription.main === 'undefined' && typeof extensionDescription.browser === 'undefined') {
 				notices.push(nls.localize('extensionDescription.activationEvents2', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
 				return false;
 			}
@@ -389,15 +404,30 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 				notices.push(nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));
 				return false;
 			} else {
-				let normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.main);
-
-				if (normalizedAbsolutePath.indexOf(extensionFolderPath)) {
+				const normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.main);
+				if (!normalizedAbsolutePath.startsWith(extensionFolderPath)) {
 					notices.push(nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
 					// not a failure case
 				}
 			}
 			if (typeof extensionDescription.activationEvents === 'undefined') {
 				notices.push(nls.localize('extensionDescription.main3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
+				return false;
+			}
+		}
+		if (typeof extensionDescription.browser !== 'undefined') {
+			if (typeof extensionDescription.browser !== 'string') {
+				notices.push(nls.localize('extensionDescription.browser1', "property `{0}` can be omitted or must be of type `string`", 'browser'));
+				return false;
+			} else {
+				const normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.browser);
+				if (!normalizedAbsolutePath.startsWith(extensionFolderPath)) {
+					notices.push(nls.localize('extensionDescription.browser2', "Expected `browser` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
+					// not a failure case
+				}
+			}
+			if (typeof extensionDescription.activationEvents === 'undefined') {
+				notices.push(nls.localize('extensionDescription.browser3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'browser'));
 				return false;
 			}
 		}
@@ -429,7 +459,7 @@ export class ExtensionScannerInput {
 		public readonly absoluteFolderPath: string,
 		public readonly isBuiltin: boolean,
 		public readonly isUnderDevelopment: boolean,
-		public readonly tanslations: Translations
+		public readonly translations: Translations
 	) {
 		// Keep empty!! (JSON.parse)
 	}
@@ -439,7 +469,7 @@ export class ExtensionScannerInput {
 			devMode: input.devMode,
 			locale: input.locale,
 			pseudo: input.locale === 'pseudo',
-			translations: input.tanslations
+			translations: input.translations
 		};
 	}
 
@@ -453,7 +483,7 @@ export class ExtensionScannerInput {
 			&& a.isBuiltin === b.isBuiltin
 			&& a.isUnderDevelopment === b.isUnderDevelopment
 			&& a.mtime === b.mtime
-			&& Translations.equals(a.tanslations, b.tanslations)
+			&& Translations.equals(a.translations, b.translations)
 		);
 	}
 }
@@ -519,7 +549,7 @@ export class ExtensionScanner {
 			let obsolete: { [folderName: string]: boolean; } = {};
 			if (!isBuiltin) {
 				try {
-					const obsoleteFileContents = await pfs.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
+					const obsoleteFileContents = await fs.promises.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
 					obsolete = JSON.parse(obsoleteFileContents);
 				} catch (err) {
 					// Don't care
@@ -568,7 +598,7 @@ export class ExtensionScanner {
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
 
-		return pfs.fileExists(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
+		return pfs.SymlinkSupport.existsFile(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
 				return this.scanExtension(input.ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig).then((extensionDescription) => {

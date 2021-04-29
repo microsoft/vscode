@@ -3,12 +3,146 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watch",
-			"label": "Build VS Code",
+			"script": "watch-clientd",
+			"label": "Core - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch-extensionsd",
+			"label": "Ext - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch-extension-mediad",
+			"label": "Ext Media - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"label": "VS Code - Build",
+			"dependsOn": [
+				"Core - Build",
+				"Ext - Build",
+				"Ext Media - Build",
+			],
 			"group": {
 				"kind": "build",
 				"isDefault": true
 			},
+			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-clientd",
+			"label": "Kill Core - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers"
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-extensionsd",
+			"label": "Kill Ext - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers"
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-extension-mediad",
+			"label": "Kill Ext Media - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers"
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Kill VS Code - Build",
+			"dependsOn": [
+				"Kill Core - Build",
+				"Kill Ext - Build",
+				"Kill Ext Media - Build",
+			],
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "watch-webd",
+			"label": "Web Ext - Build",
+			"group": "build",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
@@ -33,17 +167,13 @@
 		},
 		{
 			"type": "npm",
-			"script": "strict-function-types-watch",
-			"label": "TS - Strict Function Types",
-			"isBackground": true,
+			"script": "kill-watch-webd",
+			"label": "Kill Web Ext - Build",
+			"group": "build",
 			"presentation": {
 				"reveal": "never"
 			},
-			"problemMatcher": {
-				"base": "$tsc-watch",
-				"owner": "typescript-function-types",
-				"applyTo": "allDocuments"
-			}
+			"problemMatcher": "$tsc"
 		},
 		{
 			"label": "Run tests",
@@ -79,7 +209,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "yarn web -- --no-launch",
+			"command": "yarn web --no-launch",
 			"label": "Run web",
 			"isBackground": true,
 			"problemMatcher": {
@@ -102,6 +232,28 @@
 				"source": "eslint",
 				"base": "$eslint-stylish"
 			}
+		},
+		{
+			"type": "shell",
+			"command": "node build/lib/preLaunch.js",
+			"label": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "tsec-compile-check",
+			"problemMatcher": [
+				{
+					"base": "$tsc",
+					"applyTo": "allDocuments",
+					"owner": "tsec"
+				}
+			],
+			"group": "build",
+			"label": "npm: tsec-compile-check",
+			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		}
 	]
 }

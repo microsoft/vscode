@@ -15,6 +15,6 @@ export class RenderDocument implements Command {
 	) { }
 
 	public async execute(document: SkinnyTextDocument | string): Promise<string> {
-		return this.engine.render(document);
+		return (await (this.engine.render(document))).html;
 	}
 }

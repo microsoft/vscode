@@ -48,7 +48,6 @@
 	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
 
-
 .explorer-viewlet .pane-header .count {
 	min-width: fit-content;
 	min-width: -moz-fit-content;
@@ -56,26 +55,15 @@
 	align-items: center;
 }
 
-.explorer-viewlet .pane-header .monaco-count-badge.hidden {
+.pane.horizontal:not(.expanded) .pane-header .dirty-count.monaco-count-badge,
+.pane-header .dirty-count.monaco-count-badge.hidden {
 	display: none;
 }
 
-.explorer-viewlet .monaco-count-badge {
-	padding: 1px 6px 2px;
+.dirty-count.monaco-count-badge {
+	padding: 2px 4px;
 	margin-left: 6px;
 	min-height: auto;
-	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
-}
-
-.explorer-viewlet .explorer-empty-view {
-	padding: 0 20px 0 20px;
-}
-
-.explorer-viewlet .explorer-empty-view .monaco-button {
-	max-width: 260px;
-	margin-left: auto;
-	margin-right: auto;
-	display: block;
 }
 
 .explorer-viewlet .explorer-item.nonexistent-root {
@@ -88,7 +76,6 @@
 }
 
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
-	padding: 1px;
 	border-radius: 3px;
 }
 
@@ -102,12 +89,12 @@
 	height: 22px;
 }
 
-.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .ibwrapper > .input {
 	padding: 0;
 	height: 20px;
 }
 
 /* High Contrast Theming */
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item {
+.monaco-workbench.hc-black .explorer-viewlet .explorer-item {
 	line-height: 20px;
 }

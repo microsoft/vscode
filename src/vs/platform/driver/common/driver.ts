@@ -19,7 +19,7 @@ export interface IElement {
 }
 
 export interface IDriver {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	getWindowIds(): Promise<number[]>;
 	capturePage(windowId: number): Promise<string>;
@@ -53,4 +53,13 @@ export interface IWindowDriver {
 	typeInEditor(selector: string, text: string): Promise<void>;
 	getTerminalBuffer(selector: string): Promise<string[]>;
 	writeInTerminal(selector: string, text: string): Promise<void>;
+}
+
+export interface IDriverOptions {
+	verbose: boolean;
+}
+
+export interface IWindowDriverRegistry {
+	registerWindowDriver(windowId: number): Promise<IDriverOptions>;
+	reloadWindowDriver(windowId: number): Promise<void>;
 }

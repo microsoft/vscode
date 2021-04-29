@@ -7,18 +7,18 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IWordAtPosition } from 'vs/editor/common/model';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -156,6 +156,18 @@ export interface IContentWidget {
 	 * If null is returned, the content widget will be placed off screen.
 	 */
 	getPosition(): IContentWidgetPosition | null;
+	/**
+	 * Optional function that is invoked before rendering
+	 * the content widget. If a dimension is returned the editor will
+	 * attempt to use it.
+	 */
+	beforeRender?(): editorCommon.IDimension | null;
+	/**
+	 * Optional function that is invoked after rendering the content
+	 * widget. Is being invoked with the selected position preference
+	 * or `null` if not rendered.
+	 */
+	afterRender?(position: ContentWidgetPositionPreference | null): void;
 }
 
 /**
@@ -333,6 +345,32 @@ export interface IOverviewRuler {
  */
 export interface IEditorAriaOptions {
 	activeDescendant: string | undefined;
+	role?: string;
+}
+
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: editorCommon.IDimension;
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
+}
+
+export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: editorCommon.IDimension;
+
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
 }
 
 /**
@@ -432,7 +470,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
-	 * @internal
 	 */
 	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
 	/**
@@ -462,6 +499,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedropcanceled".
+	 * @internal
+	 * @event
+	 */
+	onMouseDropCanceled(listener: () => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
@@ -568,6 +611,16 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getRawOptions(): IEditorOptions;
 
 	/**
+	 * @internal
+	 */
+	getOverflowWidgetsDomNode(): HTMLElement | undefined;
+
+	/**
+	 * @internal
+	 */
+	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
+
+	/**
 	 * Get value of the current model attached to this editor.
 	 * @see `ITextModel.getValue`
 	 */
@@ -610,15 +663,15 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Change the scrollLeft of the editor's viewport.
 	 */
-	setScrollLeft(newScrollLeft: number): void;
+	setScrollLeft(newScrollLeft: number, scrollType?: editorCommon.ScrollType): void;
 	/**
 	 * Change the scrollTop of the editor's viewport.
 	 */
-	setScrollTop(newScrollTop: number): void;
+	setScrollTop(newScrollTop: number, scrollType?: editorCommon.ScrollType): void;
 	/**
 	 * Change the scroll position of the editor's viewport.
 	 */
-	setScrollPosition(position: editorCommon.INewScrollPosition): void;
+	setScrollPosition(position: editorCommon.INewScrollPosition, scrollType?: editorCommon.ScrollType): void;
 
 	/**
 	 * Get an action that is a contribution to this editor.
@@ -633,12 +686,17 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param source The source of the call.
 	 * @param command The command to execute
 	 */
-	executeCommand(source: string, command: editorCommon.ICommand): void;
+	executeCommand(source: string | null | undefined, command: editorCommon.ICommand): void;
 
 	/**
-	 * Push an "undo stop" in the undo-redo stack.
+	 * Create an "undo stop" in the undo-redo stack.
 	 */
 	pushUndoStop(): boolean;
+
+	/**
+	 * Remove the "undo stop" in the undo-redo stack.
+	 */
+	popUndoStop(): boolean;
 
 	/**
 	 * Execute edits on the editor.
@@ -647,19 +705,19 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param edits The edits to execute.
 	 * @param endCursorState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+	executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concomitant) commands on the editor.
 	 * @param source The source of the call.
 	 * @param command The commands to execute
 	 */
-	executeCommands(source: string, commands: (editorCommon.ICommand | null)[]): void;
+	executeCommands(source: string | null | undefined, commands: (editorCommon.ICommand | null)[]): void;
 
 	/**
 	 * @internal
 	 */
-	_getCursors(): ICursors | null;
+	_getViewModel(): IViewModel | null;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
@@ -697,6 +755,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Does not account for horizontal scrolling.
 	 */
 	getVisibleRanges(): Range[];
+
+	/**
+	 * @internal
+	 */
+	getVisibleRangesPlusViewportAboveBelow(): Range[];
 
 	/**
 	 * Get the view zones.
@@ -847,7 +910,7 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	/**
 	 * @internal
 	 */
-	_getCursors(): ICursors;
+	_getViewModel(): IViewModel;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
@@ -989,7 +1052,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 /**
  *@internal
  */
-export function isCodeEditor(thing: any): thing is ICodeEditor {
+export function isCodeEditor(thing: unknown): thing is ICodeEditor {
 	if (thing && typeof (<ICodeEditor>thing).getEditorType === 'function') {
 		return (<ICodeEditor>thing).getEditorType() === editorCommon.EditorType.ICodeEditor;
 	} else {
@@ -1000,7 +1063,7 @@ export function isCodeEditor(thing: any): thing is ICodeEditor {
 /**
  *@internal
  */
-export function isDiffEditor(thing: any): thing is IDiffEditor {
+export function isDiffEditor(thing: unknown): thing is IDiffEditor {
 	if (thing && typeof (<IDiffEditor>thing).getEditorType === 'function') {
 		return (<IDiffEditor>thing).getEditorType() === editorCommon.EditorType.IDiffEditor;
 	} else {
@@ -1011,13 +1074,34 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 /**
  *@internal
  */
-export function getCodeEditor(thing: any): ICodeEditor | null {
+export function isCompositeEditor(thing: unknown): thing is editorCommon.ICompositeCodeEditor {
+	return !!thing
+		&& typeof thing === 'object'
+		&& typeof (<editorCommon.ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
+
+}
+
+/**
+ *@internal
+ */
+export function getCodeEditor(thing: unknown): ICodeEditor | null {
 	if (isCodeEditor(thing)) {
 		return thing;
 	}
 
 	if (isDiffEditor(thing)) {
 		return thing.getModifiedEditor();
+	}
+
+	return null;
+}
+
+/**
+ *@internal
+ */
+export function getIEditor(thing: any): editorCommon.IEditor | null {
+	if (isCodeEditor(thing) || isDiffEditor(thing)) {
+		return thing;
 	}
 
 	return null;

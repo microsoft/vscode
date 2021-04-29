@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as performance from 'vs/base/common/performance';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
@@ -11,7 +12,6 @@ import { nullExtensionDescription } from 'vs/workbench/services/extensions/commo
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { endsWith } from 'vs/base/common/strings';
 import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -53,7 +53,9 @@ export abstract class RequireInterceptor {
 
 		this._installInterceptor();
 
+		performance.mark('code/extHost/willWaitForConfig');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		performance.mark('code/extHost/didWaitForConfig');
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
 		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
@@ -91,7 +93,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
 		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
 		private readonly _configProvider: ExtHostConfigProvider,
 		private readonly _logService: ILogService,
@@ -192,7 +194,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 			return undefined;
 		}
 		const sep = length - 7;
-		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && endsWith(name, 'keytar')) {
+		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && name.endsWith('keytar')) {
 			name = name.replace(/\\/g, '/');
 			if (this.alternativeNames.has(name)) {
 				return 'keytar';
@@ -230,7 +232,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 	private _mainThreadTelemetry: MainThreadTelemetryShape;
 
 	constructor(
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
 		private readonly _appUriScheme: string,
 		@IExtHostRpcService rpcService: IExtHostRpcService,
 	) {

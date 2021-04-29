@@ -5,21 +5,22 @@
 
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import * as performance from 'vs/base/common/performance';
 
 export interface IRemoteAgentEnvironment {
 	pid: number;
 	connectionToken: string;
 	appRoot: URI;
-	appSettingsHome: URI;
 	settingsPath: URI;
 	logsPath: URI;
 	extensionsPath: URI;
 	extensionHostLogsPath: URI;
 	globalStorageHome: URI;
+	workspaceStorageHome: URI;
 	userHome: URI;
-	extensions: IExtensionDescription[];
 	os: OperatingSystem;
+	marks: performance.PerformanceMark[];
+	useHostProxy: boolean;
 }
 
 export interface RemoteAgentConnectionContext {

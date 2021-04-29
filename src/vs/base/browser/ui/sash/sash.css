@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+:root {
+	--sash-size: 4px;
+}
+
 .monaco-sash {
 	position: absolute;
 	z-index: 35;
@@ -11,13 +15,6 @@
 
 .monaco-sash.disabled {
 	pointer-events: none;
-}
-
-.monaco-sash.vertical {
-	cursor: ew-resize;
-	top: 0;
-	width: 4px;
-	height: 100%;
 }
 
 .monaco-sash.mac.vertical {
@@ -32,13 +29,6 @@
 	cursor: w-resize;
 }
 
-.monaco-sash.horizontal {
-	cursor: ns-resize;
-	left: 0;
-	width: 100%;
-	height: 4px;
-}
-
 .monaco-sash.mac.horizontal {
 	cursor: row-resize;
 }
@@ -51,50 +41,84 @@
 	cursor: n-resize;
 }
 
-.monaco-sash:not(.disabled).orthogonal-start::before,
-.monaco-sash:not(.disabled).orthogonal-end::after {
-	content: ' ';
-	height: 8px;
-	width: 8px;
+.monaco-sash.disabled {
+	cursor: default !important;
+	pointer-events: none !important;
+}
+
+.monaco-sash.vertical {
+	cursor: ew-resize;
+	top: 0;
+	width: var(--sash-size);
+	height: 100%;
+}
+
+.monaco-sash.horizontal {
+	cursor: ns-resize;
+	left: 0;
+	width: 100%;
+	height: var(--sash-size);
+}
+
+.monaco-sash:not(.disabled) > .orthogonal-drag-handle {
+	content: " ";
+	height: calc(var(--sash-size) * 2);
+	width: calc(var(--sash-size) * 2);
 	z-index: 100;
 	display: block;
 	cursor: all-scroll;
 	position: absolute;
 }
 
-.monaco-sash.orthogonal-start.vertical::before {
-	left: -2px;
-	top: -4px;
+.monaco-sash.horizontal.orthogonal-edge-north:not(.disabled)
+	> .orthogonal-drag-handle.start,
+.monaco-sash.horizontal.orthogonal-edge-south:not(.disabled)
+	> .orthogonal-drag-handle.end {
+	cursor: nwse-resize;
 }
 
-.monaco-sash.orthogonal-end.vertical::after {
-	left: -2px;
-	bottom: -4px;
+.monaco-sash.horizontal.orthogonal-edge-north:not(.disabled)
+	> .orthogonal-drag-handle.end,
+.monaco-sash.horizontal.orthogonal-edge-south:not(.disabled)
+	> .orthogonal-drag-handle.start {
+	cursor: nesw-resize;
 }
 
-.monaco-sash.orthogonal-start.horizontal::before {
-	top: -2px;
-	left: -4px;
+.monaco-sash.vertical > .orthogonal-drag-handle.start {
+	left: calc(var(--sash-size) * -0.5);
+	top: calc(var(--sash-size) * -1);
+}
+.monaco-sash.vertical > .orthogonal-drag-handle.end {
+	left: calc(var(--sash-size) * -0.5);
+	bottom: calc(var(--sash-size) * -1);
+}
+.monaco-sash.horizontal > .orthogonal-drag-handle.start {
+	top: calc(var(--sash-size) * -0.5);
+	left: calc(var(--sash-size) * -1);
+}
+.monaco-sash.horizontal > .orthogonal-drag-handle.end {
+	top: calc(var(--sash-size) * -0.5);
+	right: calc(var(--sash-size) * -1);
 }
 
-.monaco-sash.orthogonal-end.horizontal::after {
-	top: -2px;
-	right: -4px;
+.monaco-sash:before {
+	content: '';
+	pointer-events: none;
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	transition: background-color 0.1s ease-out;
+	background: transparent;
 }
 
-.monaco-sash.disabled {
-	cursor: default !important;
-	pointer-events: none !important;
+.monaco-sash.vertical:before {
+	width: var(--sash-hover-size);
+	left: calc(50% - (var(--sash-hover-size) / 2));
 }
 
-/** Touch **/
-
-.monaco-sash.touch.vertical {
-	width: 20px;
-}
-
-.monaco-sash.touch.horizontal {
-	height: 20px;
+.monaco-sash.horizontal:before {
+	height: var(--sash-hover-size);
+	top: calc(50% - (var(--sash-hover-size) / 2));
 }
 
 /** Debug **/
@@ -107,7 +131,6 @@
 	background: rgba(0, 255, 255, 0.2);
 }
 
-.monaco-sash.debug:not(.disabled).orthogonal-start::before,
-.monaco-sash.debug:not(.disabled).orthogonal-end::after {
+.monaco-sash.debug:not(.disabled) > .orthogonal-drag-handle {
 	background: red;
 }

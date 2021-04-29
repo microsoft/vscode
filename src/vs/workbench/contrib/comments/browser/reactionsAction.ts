@@ -5,9 +5,9 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class ToggleReactionsAction extends Action {
 	static readonly ID = 'toolbar.toggle.pickReactions';
@@ -17,7 +17,7 @@ export class ToggleReactionsAction extends Action {
 		super(ToggleReactionsAction.ID, title || nls.localize('pickReactions', "Pick Reactions..."), 'toggle-reactions', true);
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		this.toggleDropdownMenu();
 		return Promise.resolve(true);
 	}
@@ -32,7 +32,7 @@ export class ReactionActionViewItem extends ActionViewItem {
 	constructor(action: ReactionAction) {
 		super(null, action, {});
 	}
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (!this.label) {
 			return;
 		}

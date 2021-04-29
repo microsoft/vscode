@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer as ipc } from 'electron';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { join } from 'vs/base/common/path';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -18,14 +18,14 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import * as themes from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as perf from 'vs/base/common/performance';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { assertIsDefined } from 'vs/base/common/types';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 class PartsSplash {
 
@@ -41,15 +41,15 @@ class PartsSplash {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IWorkbenchEnvironmentService private readonly _envService: IWorkbenchEnvironmentService,
-		@IElectronEnvironmentService private readonly _electronEnvService: IElectronEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
 			this._removePartsSplash();
-			perf.mark('didRemovePartsSplash');
+			perf.mark('code/didRemovePartsSplash');
 		});
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
@@ -63,7 +63,7 @@ class PartsSplash {
 			}
 		}, this, this._disposables);
 
-		_themeService.onThemeChange(_ => {
+		_themeService.onDidColorThemeChange(_ => {
 			this._savePartsSplash();
 		}, this, this._disposables);
 	}
@@ -73,7 +73,7 @@ class PartsSplash {
 	}
 
 	private _savePartsSplash() {
-		const baseTheme = getThemeTypeSelector(this._themeService.getTheme().type);
+		const baseTheme = getThemeTypeSelector(this._themeService.getColorTheme().type);
 		const colorInfo = {
 			foreground: this._getThemeColor(foreground),
 			editorBackground: this._getThemeColor(editorBackground),
@@ -95,14 +95,14 @@ class PartsSplash {
 			windowBorderRadius: this._layoutService.getWindowBorderRadius()
 		};
 		this._textFileService.write(
-			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
+			URI.file(join(this._environmentService.userDataPath, 'rapid_render.json')),
 			JSON.stringify({
 				id: PartsSplash._splashElementId,
 				colorInfo,
 				layoutInfo,
 				baseTheme
 			}),
-			{ encoding: 'utf8', overwriteEncoding: true }
+			{ encoding: 'utf8' }
 		);
 
 		if (baseTheme !== this._lastBaseTheme || colorInfo.editorBackground !== this._lastBackground) {
@@ -111,20 +111,20 @@ class PartsSplash {
 			this._lastBackground = colorInfo.editorBackground;
 
 			// the color needs to be in hex
-			const backgroundColor = this._themeService.getTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getTheme());
+			const backgroundColor = this._themeService.getColorTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getColorTheme());
 			const payload = JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) });
-			ipc.send('vscode:changeColorTheme', this._electronEnvService.windowId, payload);
+			ipcRenderer.send('vscode:changeColorTheme', this._nativeHostService.windowId, payload);
 		}
 	}
 
 	private _getThemeColor(id: ColorIdentifier): string | undefined {
-		const theme = this._themeService.getTheme();
+		const theme = this._themeService.getColorTheme();
 		const color = theme.getColor(id);
 		return color ? color.toString() : undefined;
 	}
 
 	private _shouldSaveLayoutInfo(): boolean {
-		return !isFullscreen() && !this._envService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
+		return !isFullscreen() && !this._environmentService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
 	}
 
 	private _removePartsSplash(): void {

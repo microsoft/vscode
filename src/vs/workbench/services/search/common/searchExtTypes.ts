@@ -217,6 +217,14 @@ export interface TextSearchOptions extends SearchOptions {
 }
 
 /**
+ * Represents the severiry of a TextSearchComplete message.
+ */
+export enum TextSearchCompleteMessageType {
+	Information = 1,
+	Warning = 2,
+}
+
+/**
  * Information collected when text search is complete.
  */
 export interface TextSearchComplete {
@@ -228,6 +236,15 @@ export interface TextSearchComplete {
 	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
 	 */
 	limitHit?: boolean;
+
+	/**
+	 * Additional information regarding the state of the completed search.
+	 *
+	 * Supports links in markdown syntax:
+	 * - Click to [run a command](command:workbench.action.OpenQuickPick)
+	 * - Click to [open a website](https://aka.ms)
+	 */
+	message?: { text: string, type: TextSearchCompleteMessageType } | { text: string, type: TextSearchCompleteMessageType }[];
 }
 
 /**
@@ -316,12 +333,12 @@ export interface TextSearchContext {
 export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 /**
- * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
+ * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.
  *
  * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
  * all files that match the user's query.
  *
- * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
+ * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
 export interface FileSearchProvider {

@@ -7,7 +7,6 @@ import { flatten } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { values } from 'vs/base/common/map';
 import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
@@ -27,11 +26,19 @@ const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 });
 
 const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
-	type: 'object',
-	properties: codeActionsOnSaveDefaultProperties,
-	'additionalProperties': {
-		type: 'boolean'
-	},
+	oneOf: [
+		{
+			type: 'object',
+			properties: codeActionsOnSaveDefaultProperties,
+			additionalProperties: {
+				type: 'boolean'
+			},
+		},
+		{
+			type: 'array',
+			items: { type: 'string' }
+		}
+	],
 	default: {},
 	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save."),
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
@@ -107,7 +114,6 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				},
 				then: {
-					required: ['args'],
 					properties: {
 						'args': {
 							required: ['kind'],
@@ -137,7 +143,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 					out.set(action.kind, action);
 				}
 			}
-			return values(out);
+			return Array.from(out.values());
 		};
 
 		return [

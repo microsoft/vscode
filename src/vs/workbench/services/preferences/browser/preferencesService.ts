@@ -7,19 +7,15 @@ import { Emitter } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
-import { assign } from 'vs/base/common/objects';
-import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -28,23 +24,29 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { EditorInput, IEditor } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
-import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IKeybindingsEditorOptions, IKeybindingsEditorPane, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
+import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel, DefaultRawSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { getDefaultValue, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 const emptyEditableSettingsContent = '{\n}';
 
 export class PreferencesService extends Disposable implements IPreferencesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
@@ -73,7 +75,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IModeService private readonly modeService: IModeService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -189,15 +192,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return null;
 	}
 
-	openRawDefaultSettings(): Promise<IEditor | undefined> {
+	openRawDefaultSettings(): Promise<IEditorPane | undefined> {
 		return this.editorService.openEditor({ resource: this.defaultSettingsRawResource });
 	}
 
-	openRawUserSettings(): Promise<IEditor | undefined> {
+	openRawUserSettings(): Promise<IEditorPane | undefined> {
 		return this.editorService.openEditor({ resource: this.userSettingsResource });
 	}
 
-	openSettings(jsonEditor: boolean | undefined, query: string | undefined): Promise<IEditor | undefined> {
+	openSettings(jsonEditor: boolean | undefined, query: string | undefined): Promise<IEditorPane | undefined> {
 		jsonEditor = typeof jsonEditor === 'undefined' ?
 			this.configurationService.getValue('workbench.settings.editor') === 'json' :
 			jsonEditor;
@@ -207,18 +210,22 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		const editorInput = this.getActiveSettingsEditorInput() || this.lastOpenedSettingsInput;
-		const resource = editorInput ? editorInput.master.getResource()! : this.userSettingsResource;
+		const resource = editorInput ? editorInput.primary.resource! : this.userSettingsResource;
 		const target = this.getConfigurationTargetFromSettingsResource(resource);
 		return this.openOrSwitchSettings(target, resource, { query: query });
 	}
 
-	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditor> {
+	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditorPane> {
 		const input = this.settingsEditor2Input;
-		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : undefined)
-			.then(() => this.editorGroupService.activeGroup.activeControl!);
+		options = {
+			...options,
+			focusSearch: true
+		};
+		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : { override: EditorOverride.DISABLED })
+			.then(() => this.editorGroupService.activeGroup.activeEditorPane!);
 	}
 
-	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined> {
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
 		jsonEditor = typeof jsonEditor === 'undefined' ?
 			this.configurationService.getValue('workbench.settings.editor') === 'json' :
 			jsonEditor;
@@ -228,22 +235,22 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			this.openOrSwitchSettings2(ConfigurationTarget.USER_LOCAL, undefined, options, group);
 	}
 
-	async openRemoteSettings(): Promise<IEditor | undefined> {
+	async openRemoteSettings(): Promise<IEditorPane | undefined> {
 		const environment = await this.remoteAgentService.getEnvironment();
 		if (environment) {
 			await this.createIfNotExists(environment.settingsPath, emptyEditableSettingsContent);
-			return this.editorService.openEditor({ resource: environment.settingsPath, options: { pinned: true, revealIfOpened: true } });
+			return this.editorService.openEditor({ resource: environment.settingsPath, options: { pinned: true, revealIfOpened: true, override: EditorOverride.DISABLED } });
 		}
 		return undefined;
 	}
 
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined> {
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
 		jsonEditor = typeof jsonEditor === 'undefined' ?
 			this.configurationService.getValue('workbench.settings.editor') === 'json' :
 			jsonEditor;
 
 		if (!this.workspaceSettingsResource) {
-			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
+			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder or workspace first to create workspace or folder settings."));
 			return Promise.reject(null);
 		}
 
@@ -252,7 +259,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE, undefined, options, group);
 	}
 
-	async openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined> {
+	async openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
 		jsonEditor = typeof jsonEditor === 'undefined' ?
 			this.configurationService.getValue('workbench.settings.editor') === 'json' :
 			jsonEditor;
@@ -266,85 +273,78 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE_FOLDER, folder, options, group);
 	}
 
-	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void> {
-		if (!jsonEditor) {
-			return this.doOpenSettings2(target, resource).then(() => undefined);
-		}
-
-		const activeControl = this.editorService.activeControl;
-		if (activeControl && activeControl.input instanceof PreferencesEditorInput) {
-			return this.doSwitchSettings(target, resource, activeControl.input, activeControl.group).then(() => undefined);
+	switchSettings(target: ConfigurationTarget, resource: URI): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane?.input instanceof PreferencesEditorInput) {
+			return this.doSwitchSettings(target, resource, activeEditorPane.input, activeEditorPane.group).then(() => undefined);
 		} else {
 			return this.doOpenSettings(target, resource).then(() => undefined);
 		}
 	}
 
-	openGlobalKeybindingSettings(textual: boolean): Promise<void> {
+	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
 		type OpenKeybindingsClassification = {
 			textual: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<{ textual: boolean }, OpenKeybindingsClassification>('openKeybindings', { textual });
+
+		options = { pinned: true, revealIfOpened: true, ...options };
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
 			const editableKeybindings = this.environmentService.keybindingsResource;
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
-			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-				if (openDefaultKeybindings) {
-					const activeEditorGroup = this.editorGroupService.activeGroup;
-					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
-					return Promise.all([
-						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
-						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }, sideEditorGroup.id)
-					]).then(editors => undefined);
-				} else {
-					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }).then(() => undefined);
-				}
-			});
+			await this.createIfNotExists(editableKeybindings, emptyContents);
+			if (openDefaultKeybindings) {
+				const activeEditorGroup = this.editorGroupService.activeGroup;
+				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
+				await Promise.all([
+					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: EditorOverride.DISABLED }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
+				]);
+			} else {
+				await this.editorService.openEditor({ resource: editableKeybindings, options });
+			}
+
+		} else {
+			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options, override: EditorOverride.DISABLED })) as IKeybindingsEditorPane;
+			if (options.query) {
+				editor.search(options.query);
+			}
 		}
 
-		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true, revealIfOpened: true }).then(() => undefined);
 	}
 
-	openDefaultKeybindingsFile(): Promise<IEditor | undefined> {
+	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined> {
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
-	configureSettingsForLanguage(language: string): void {
-		this.openGlobalSettings(true)
-			.then(editor => this.createPreferencesEditorModel(this.userSettingsResource)
-				.then((settingsModel: IPreferencesEditorModel<ISetting> | null) => {
-					const codeEditor = editor ? getCodeEditor(editor.getControl()) : null;
-					if (codeEditor && settingsModel) {
-						this.addLanguageOverrideEntry(language, settingsModel, codeEditor)
-							.then(position => {
-								if (codeEditor && position) {
-									codeEditor.setPosition(position);
-									codeEditor.revealLine(position.lineNumber);
-									codeEditor.focus();
-								}
-							});
-					}
-				}));
-	}
-
-	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): Promise<IEditor | undefined> {
+	private async openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): Promise<IEditorPane | undefined> {
 		const editorInput = this.getActiveSettingsEditorInput(group);
 		if (editorInput) {
-			const editorInputResource = editorInput.master.getResource();
+			const editorInputResource = editorInput.primary.resource;
 			if (editorInputResource && editorInputResource.fsPath !== resource.fsPath) {
 				return this.doSwitchSettings(configurationTarget, resource, editorInput, group, options);
 			}
 		}
-		return this.doOpenSettings(configurationTarget, resource, options, group);
+		const editor = await this.doOpenSettings(configurationTarget, resource, options, group);
+		if (editor && options?.revealSetting) {
+			await this.revealSetting(options.revealSetting.key, !!options.revealSetting.edit, editor, resource);
+		}
+		return editor;
 	}
 
-	private openOrSwitchSettings2(configurationTarget: ConfigurationTarget, folderUri?: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): Promise<IEditor | undefined> {
-		return this.doOpenSettings2(configurationTarget, folderUri, options, group);
+	private openOrSwitchSettings2(configurationTarget: ConfigurationTarget, folderUri?: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): Promise<IEditorPane | undefined> {
+		const settingsOptions: ISettingsEditorOptions = {
+			...options,
+			target: configurationTarget,
+			folderUri
+		};
+		return this.openSettings2(settingsOptions);
 	}
 
-	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined> {
+	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
 		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
 		if (openSplitJSON) {
 			return this.doOpenSplitJSON(configurationTarget, resource, options, group);
@@ -354,18 +354,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
-				if (!options) {
-					options = { pinned: true };
-				} else {
-					options = assign(options, { pinned: true });
-				}
+				options = { ...options, pinned: true };
 
 				if (openDefaultSettings) {
 					const activeEditorGroup = this.editorGroupService.activeGroup;
 					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
 					return Promise.all([
-						this.editorService.openEditor({ resource: this.defaultSettingsRawResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultSettings', "Default Settings"), description: '' }),
-						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true }, sideEditorGroup.id)
+						this.editorService.openEditor({ resource: this.defaultSettingsRawResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: EditorOverride.DISABLED }, label: nls.localize('defaultSettings', "Default Settings"), description: '' }),
+						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true, override: EditorOverride.DISABLED }, sideEditorGroup.id)
 					]).then(([defaultEditor, editor]) => withNullAsUndefined(editor));
 				} else {
 					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
@@ -373,13 +369,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private doOpenSplitJSON(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined> {
+	private doOpenSplitJSON(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
 				if (!options) {
 					options = { pinned: true };
 				} else {
-					options = assign(options, { pinned: true });
+					options = { ...options, pinned: true };
 				}
 
 				const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
@@ -393,18 +389,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.instantiationService.createInstance(Settings2EditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
 	}
 
-	private doOpenSettings2(target: ConfigurationTarget, folderUri: URI | undefined, options?: IEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined> {
-		const input = this.settingsEditor2Input;
-		const settingsOptions: ISettingsEditorOptions = {
-			...options,
-			target,
-			folderUri
-		};
-
-		return this.editorService.openEditor(input, SettingsEditorOptions.create(settingsOptions), group);
-	}
-
-	private async doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup, options?: ISettingsEditorOptions): Promise<IEditor> {
+	private async doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup, options?: ISettingsEditorOptions): Promise<IEditorPane> {
 		const settingsURI = await this.getEditableSettingsURI(target, resource);
 		if (!settingsURI) {
 			return Promise.reject(`Invalid settings URI - ${resource.toString()}`);
@@ -420,7 +405,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						options: options ? SettingsEditorOptions.create(options) : undefined
 					}]).then(() => {
 						this.lastOpenedSettingsInput = replaceWith;
-						return group.activeControl!;
+						return group.activeEditorPane!;
 					});
 				});
 			});
@@ -489,7 +474,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<EditorInput> {
 		return this.createSettingsIfNotExists(target, resource)
-			.then(() => <EditorInput>this.editorService.createInput({ resource }));
+			.then(() => <EditorInput>this.editorService.createEditorInput({ resource }));
 	}
 
 	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, settingsUri: URI): Promise<SettingsEditorModel> {
@@ -529,7 +514,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this._defaultUserSettingsContentModel;
 	}
 
-	private async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
+	public async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
@@ -547,7 +532,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return null;
 	}
 
-	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): Promise<void> {
+	private async createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): Promise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			const workspaceConfig = this.contextService.getWorkspace().configuration;
 			if (!workspaceConfig) {
@@ -557,24 +542,30 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.textFileService.read(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, [{ key: 'settings', value: {} }], true).then(undefined, () => { });
+						return this.jsonEditingService.write(resource, [{ path: ['settings'], value: {} }], true).then(undefined, () => { });
 					}
 					return undefined;
 				});
 		}
-		return this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
+		await this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
 	}
 
-	private createIfNotExists(resource: URI, contents: string): Promise<any> {
-		return this.textFileService.read(resource, { acceptTextOnly: true }).then(undefined, error => {
+	private async createIfNotExists(resource: URI, contents: string): Promise<void> {
+		try {
+			await this.textFileService.read(resource, { acceptTextOnly: true });
+		} catch (error) {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return this.textFileService.write(resource, contents).then(undefined, error => {
-					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
-				});
+				try {
+					await this.textFileService.write(resource, contents);
+					return;
+				} catch (error2) {
+					throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), getErrorMessage(error2)));
+				}
+			} else {
+				throw error;
 			}
 
-			return Promise.reject(error);
-		});
+		}
 	}
 
 	private getMostCommonlyUsedSettings(): string[] {
@@ -589,46 +580,77 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			'editor.insertSpaces',
 			'editor.wordWrap',
 			'files.exclude',
-			'files.associations'
+			'files.associations',
+			'workbench.editor.enablePreview'
 		];
 	}
 
-	private addLanguageOverrideEntry(language: string, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): Promise<IPosition | null> {
-		const languageKey = `[${language}]`;
-		let setting = settingsModel.getPreference(languageKey);
-		const model = codeEditor.getModel();
-		if (model) {
-			const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean } }>();
-			const eol = model.getEOL();
-			if (setting) {
-				if (setting.overrides && setting.overrides.length) {
-					const lastSetting = setting.overrides[setting.overrides.length - 1];
-					return Promise.resolve({ lineNumber: lastSetting.valueRange.endLineNumber, column: model.getLineMaxColumn(lastSetting.valueRange.endLineNumber) });
-				}
-				return Promise.resolve({ lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 });
-			}
-			return this.configurationService.updateValue(languageKey, {}, ConfigurationTarget.USER)
-				.then(() => {
-					setting = settingsModel.getPreference(languageKey);
-					if (setting) {
-						let content = eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
-						let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
-						model.pushEditOperations([], [editOperation], () => []);
-						let lineNumber = setting.valueRange.endLineNumber + 1;
-						settingsModel.dispose();
-						return { lineNumber, column: model.getLineMaxColumn(lineNumber) };
-					}
-					return null;
-				});
+	private async revealSetting(settingKey: string, edit: boolean, editor: IEditorPane, settingsResource: URI): Promise<void> {
+		const codeEditor = editor ? getCodeEditor(editor.getControl()) : null;
+		if (!codeEditor) {
+			return;
 		}
-		return Promise.resolve(null);
+		const settingsModel = await this.createPreferencesEditorModel(settingsResource);
+		if (!settingsModel) {
+			return;
+		}
+		const position = await this.getPositionToReveal(settingKey, edit, settingsModel, codeEditor);
+		if (position) {
+			codeEditor.setPosition(position);
+			codeEditor.revealPositionNearTop(position);
+			codeEditor.focus();
+			if (edit) {
+				await this.commandService.executeCommand('editor.action.triggerSuggest');
+			}
+		}
 	}
 
-	private spaces(count: number, { tabSize, insertSpaces }: { tabSize: number; insertSpaces: boolean }): string {
-		return insertSpaces ? strings.repeat(' ', tabSize * count) : strings.repeat('\t', count);
+	private async getPositionToReveal(settingKey: string, edit: boolean, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): Promise<IPosition | null> {
+		const model = codeEditor.getModel();
+		if (!model) {
+			return null;
+		}
+		const schema = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[settingKey];
+		if (!schema && !OVERRIDE_PROPERTY_PATTERN.test(settingKey)) {
+			return null;
+		}
+
+		let position = null;
+		const type = schema ? schema.type : 'object' /* Override Identifier */;
+		let setting = settingsModel.getPreference(settingKey);
+		if (!setting && edit) {
+			const defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
+			if (defaultValue !== undefined) {
+				const key = settingsModel instanceof WorkspaceConfigurationEditorModel ? ['settings', settingKey] : [settingKey];
+				await this.jsonEditingService.write(settingsModel.uri!, [{ path: key, value: defaultValue }], false);
+				setting = settingsModel.getPreference(settingKey);
+			}
+		}
+
+		if (setting) {
+			if (edit) {
+				position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
+				if (type === 'object' || type === 'array') {
+					codeEditor.setPosition(position);
+					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
+					const firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber);
+					if (firstNonWhiteSpaceColumn) {
+						// Line has some text. Insert another new line.
+						codeEditor.setPosition({ lineNumber: position.lineNumber, column: firstNonWhiteSpaceColumn });
+						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
+					}
+				}
+			} else {
+				position = { lineNumber: setting.keyRange.startLineNumber, column: setting.keyRange.startColumn };
+			}
+		}
+
+		return position;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._onDispose.fire();
 		super.dispose();
 	}

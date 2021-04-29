@@ -1,0 +1,101 @@
+# Query: .innerHTML = 
+# Flags: CaseSensitive WordMatch
+# Including: src/vs/**/*.{t,j}s
+# Excluding: *.test.ts, **/test/**
+# ContextLines: 3
+
+12 results - 9 files
+
+src/vs/base/browser/dom.ts:
+  1359  	);
+  1360  
+  1361  	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
+  1362: 	node.innerHTML = html as unknown as string;
+  1363  }
+
+src/vs/base/browser/markdownRenderer.ts:
+  272  	};
+  273  
+  274  	if (_ttpInsane) {
+  275: 		element.innerHTML = _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
+  276  	} else {
+  277: 		element.innerHTML = insane(renderedMarkdown, insaneOptions);
+  278  	}
+  279  
+  280  	// signal that async code blocks can be now be inserted
+
+src/vs/editor/browser/core/markdownRenderer.ts:
+  88  
+  89  				const element = document.createElement('span');
+  90  
+  91: 				element.innerHTML = MarkdownRenderer._ttpTokenizer
+  92  					? MarkdownRenderer._ttpTokenizer.createHTML(value, tokenization) as unknown as string
+  93  					: tokenizeToString(value, tokenization);
+  94  
+
+src/vs/editor/browser/view/domLineBreaksComputer.ts:
+  107  		allCharOffsets[i] = tmp[0];
+  108  		allVisibleColumns[i] = tmp[1];
+  109  	}
+  110: 	containerDomNode.innerHTML = sb.build();
+  111  
+  112  	containerDomNode.style.position = 'absolute';
+  113  	containerDomNode.style.top = '10000';
+
+src/vs/editor/browser/view/viewLayer.ts:
+  512  		}
+  513  		const lastChild = <HTMLElement>this.domNode.lastChild;
+  514  		if (domNodeIsEmpty || !lastChild) {
+  515: 			this.domNode.innerHTML = newLinesHTML;
+  516  		} else {
+  517  			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
+  518  		}
+
+  533  		if (ViewLayerRenderer._ttPolicy) {
+  534  			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML) as unknown as string;
+  535  		}
+  536: 		hugeDomNode.innerHTML = invalidLinesHTML;
+  537  
+  538  		for (let i = 0; i < ctx.linesLength; i++) {
+  539  			const line = ctx.lines[i];
+
+src/vs/editor/browser/widget/diffEditorWidget.ts:
+  2157  
+  2158  		let domNode = document.createElement('div');
+  2159  		domNode.className = `view-lines line-delete ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`;
+  2160: 		domNode.innerHTML = sb.build();
+  2161  		Configuration.applyFontInfoSlow(domNode, fontInfo);
+  2162  
+  2163  		let marginDomNode = document.createElement('div');
+  2164  		marginDomNode.className = 'inline-deleted-margin-view-zone';
+  2165: 		marginDomNode.innerHTML = marginHTML.join('');
+  2166  		Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
+  2167  
+  2168  		return {
+
+src/vs/editor/standalone/browser/colorizer.ts:
+  40  		let text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
+  41  		domNode.className += ' ' + theme;
+  42  		let render = (str: string) => {
+  43: 			domNode.innerHTML = str;
+  44  		};
+  45  		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
+  46  	}
+
+src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
+  580  		const element = DOM.$('div', { style });
+  581  
+  582  		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
+  583: 		element.innerHTML = linesHtml as unknown as string;
+  584  		return element;
+  585  	}
+  586  
+
+src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
+  375  					addMouseoverListeners(outputNode, outputId);
+  376  					const content = data.content;
+  377  					if (content.type === RenderOutputType.Html) {
+  378: 						outputNode.innerHTML = content.htmlContent;
+  379  						cellOutputContainer.appendChild(outputNode);
+  380  						domEval(outputNode);
+  381  					} else if (preloadErrs.some(e => !!e)) {

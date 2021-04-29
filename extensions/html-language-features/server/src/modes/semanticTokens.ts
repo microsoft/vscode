@@ -13,14 +13,14 @@ interface LegendMapping {
 
 export interface SemanticTokenProvider {
 	readonly legend: { types: string[]; modifiers: string[] };
-	getSemanticTokens(document: TextDocument, ranges?: Range[]): number[];
+	getSemanticTokens(document: TextDocument, ranges?: Range[]): Promise<number[]>;
 }
 
 
 export function newSemanticTokenProvider(languageModes: LanguageModes): SemanticTokenProvider {
 
 	// combined legend across modes
-	const legend = { types: [], modifiers: [] };
+	const legend: { types: string[], modifiers: string[] } = { types: [], modifiers: [] };
 	const legendMappings: { [modeId: string]: LegendMapping } = {};
 
 	for (let mode of languageModes.getAllModes()) {
@@ -32,12 +32,12 @@ export function newSemanticTokenProvider(languageModes: LanguageModes): Semantic
 
 	return {
 		legend,
-		getSemanticTokens(document: TextDocument, ranges?: Range[]): number[] {
+		async getSemanticTokens(document: TextDocument, ranges?: Range[]): Promise<number[]> {
 			const allTokens: SemanticTokenData[] = [];
 			for (let mode of languageModes.getAllModesInDocument(document)) {
 				if (mode.getSemanticTokens) {
 					const mapping = legendMappings[mode.getId()];
-					const tokens = mode.getSemanticTokens(document);
+					const tokens = await mode.getSemanticTokens(document);
 					applyTypesMapping(tokens, mapping.types);
 					applyModifiersMapping(tokens, mapping.modifiers);
 					for (let token of tokens) {
@@ -45,7 +45,7 @@ export function newSemanticTokenProvider(languageModes: LanguageModes): Semantic
 					}
 				}
 			}
-			return encodeTokens(allTokens, ranges);
+			return encodeTokens(allTokens, ranges, document);
 		}
 	};
 }
@@ -94,15 +94,13 @@ function applyModifiersMapping(tokens: SemanticTokenData[], modifiersMapping: nu
 	}
 }
 
-const fullRange = [Range.create(Position.create(0, 0), Position.create(Number.MAX_VALUE, 0))];
-
-function encodeTokens(tokens: SemanticTokenData[], ranges?: Range[]): number[] {
+function encodeTokens(tokens: SemanticTokenData[], ranges: Range[] | undefined, document: TextDocument): number[] {
 
 	const resultTokens = tokens.sort((d1, d2) => d1.start.line - d2.start.line || d1.start.character - d2.start.character);
 	if (ranges) {
 		ranges = ranges.sort((d1, d2) => d1.start.line - d2.start.line || d1.start.character - d2.start.character);
 	} else {
-		ranges = fullRange;
+		ranges = [Range.create(Position.create(0, 0), Position.create(document.lineCount, 0))];
 	}
 
 	let rangeIndex = 0;

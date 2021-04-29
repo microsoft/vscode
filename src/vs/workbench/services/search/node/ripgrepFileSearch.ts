@@ -7,7 +7,6 @@ import * as cp from 'child_process';
 import * as path from 'vs/base/common/path';
 import * as glob from 'vs/base/common/glob';
 import { normalizeNFD } from 'vs/base/common/normalization';
-import * as objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
 import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
@@ -23,6 +22,7 @@ export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, i
 	const cwd = folderQuery.folder.fsPath;
 	return {
 		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
+		rgDiskPath,
 		siblingClauses: rgArgs.siblingClauses,
 		rgArgs,
 		cwd
@@ -91,11 +91,11 @@ export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExc
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const totalExcludePattern = objects.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
+		const totalExcludePattern = Object.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
 		const result = globExprsToRgGlobs(totalExcludePattern, absoluteGlobs ? folderQuery.folder.fsPath : undefined, excludesToSkip);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
-			siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
+			siblingClauses = Object.assign(siblingClauses, result.siblingClauses);
 		}
 	});
 
@@ -105,7 +105,7 @@ export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExc
 export function foldersToIncludeGlobs(folderQueries: IFolderQuery[], globalInclude?: glob.IExpression, absoluteGlobs = true): string[] {
 	const globArgs: string[] = [];
 	folderQueries.forEach(folderQuery => {
-		const totalIncludePattern = objects.assign({}, globalInclude || {}, folderQuery.includePattern || {});
+		const totalIncludePattern = Object.assign({}, globalInclude || {}, folderQuery.includePattern || {});
 		const result = globExprsToRgGlobs(totalIncludePattern, absoluteGlobs ? folderQuery.folder.fsPath : undefined);
 		globArgs.push(...result.globArgs);
 	});
@@ -131,14 +131,14 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 
 			// glob.ts requires forward slashes, but a UNC path still must start with \\
 			// #38165 and #38151
-			if (strings.startsWith(key, '\\\\')) {
+			if (key.startsWith('\\\\')) {
 				key = '\\\\' + key.substr(2).replace(/\\/g, '/');
 			} else {
 				key = key.replace(/\\/g, '/');
 			}
 
 			if (typeof value === 'boolean' && value) {
-				if (strings.startsWith(key, '\\\\')) {
+				if (key.startsWith('\\\\')) {
 					// Absolute globs UNC paths don't work properly, see #58758
 					key += '**';
 				}

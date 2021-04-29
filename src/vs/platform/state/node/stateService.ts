@@ -5,8 +5,8 @@
 
 import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { writeFileSync, readFile } from 'vs/base/node/pfs';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { writeFileSync } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -58,7 +58,7 @@ export class FileStorage {
 
 	private async loadAsync(): Promise<StorageDatabase> {
 		try {
-			this.lastFlushedSerializedDatabase = (await readFile(this.dbPath)).toString();
+			this.lastFlushedSerializedDatabase = (await fs.promises.readFile(this.dbPath)).toString();
 
 			return JSON.parse(this.lastFlushedSerializedDatabase);
 		} catch (error) {
@@ -125,14 +125,14 @@ export class FileStorage {
 
 export class StateService implements IStateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly STATE_FILE = 'storage.json';
 
 	private fileStorage: FileStorage;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService logService: ILogService
 	) {
 		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, StateService.STATE_FILE), error => logService.error(error));
@@ -143,7 +143,7 @@ export class StateService implements IStateService {
 	}
 
 	getItem<T>(key: string, defaultValue: T): T;
-	getItem<T>(key: string, defaultValue: T | undefined): T | undefined;
+	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		return this.fileStorage.getItem(key, defaultValue);
 	}

@@ -49,7 +49,7 @@ function assertLink(text: string, extractedLink: string): void {
 	}
 
 	let r = myComputeLinks([text]);
-	assert.deepEqual(r, [{
+	assert.deepStrictEqual(r, [{
 		range: {
 			startLineNumber: 1,
 			startColumn: startColumn,
@@ -64,7 +64,7 @@ suite('Editor Modes - Link Computer', () => {
 
 	test('Null model', () => {
 		let r = computeLinks(null);
-		assert.deepEqual(r, []);
+		assert.deepStrictEqual(r, []);
 	});
 
 	test('Parsing', () => {
@@ -221,6 +221,13 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'aa  https://foo.bar/[this is foo site]  aa',
 			'    https://foo.bar/[this is foo site]    '
+		);
+	});
+
+	test('issue #100353: Link detection stops at ＆(double-byte)', () => {
+		assertLink(
+			'aa  http://tree-mark.chips.jp/レーズン＆ベリーミックス  aa',
+			'    http://tree-mark.chips.jp/レーズン＆ベリーミックス    '
 		);
 	});
 });

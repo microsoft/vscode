@@ -9,27 +9,26 @@ import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as env from 'vs/base/common/platform';
-import { assign } from 'vs/base/common/objects';
 import { IExternalTerminalService, IExternalTerminalConfiguration, IExternalTerminalSettings } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-
+import { DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node/externalTerminal';
+import { FileAccess } from 'vs/base/common/network';
+import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
-export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 
 export class WindowsExternalTerminalService implements IExternalTerminalService {
 	public _serviceBrand: undefined;
 
 	private static readonly CMD = 'cmd.exe';
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
+		@optional(IConfigurationService) configurationService: IConfigurationService
 	) {
+		this._configurationService = configurationService;
 	}
 
 	public openTerminal(cwd?: string): void {
@@ -39,7 +38,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 
@@ -53,7 +52,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 			];
 
 			// merge environment variables into a copy of the process.env
-			const env = assign({}, process.env, envVars);
+			const env = Object.assign({}, process.env, envVars);
 
 			// delete environment variables that have a null value
 			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
@@ -97,6 +96,10 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 			cmdArgs.push('""');
 		}
 		cmdArgs.push(exec);
+		// Add starting directory parameter for Windows Terminal (see #90734)
+		if (basename === 'wt' || basename === 'wt.exe') {
+			cmdArgs.push('-d .');
+		}
 
 		return new Promise<void>((c, e) => {
 			const env = cwd ? { cwd: cwd } : undefined;
@@ -122,9 +125,13 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
-	) { }
+		@optional(IConfigurationService) configurationService: IConfigurationService
+	) {
+		this._configurationService = configurationService;
+	}
 
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
@@ -133,7 +140,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const terminalApp = settings.osxExec || DEFAULT_TERMINAL_OSX;
 
@@ -145,7 +152,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 				// and then launches the program inside that window.
 
 				const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = getPathFromAmdModule(require, `vs/workbench/contrib/externalTerminal/node/${script}.scpt`);
+				const scriptpath = FileAccess.asFileUri(`vs/workbench/contrib/externalTerminal/node/${script}.scpt`, require).fsPath;
 
 				const osaArgs = [
 					scriptpath,
@@ -218,9 +225,13 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
-	) { }
+		@optional(IConfigurationService) configurationService: IConfigurationService
+	) {
+		this._configurationService = configurationService;
+	}
 
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
@@ -229,7 +240,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const execPromise = settings.linuxExec ? Promise.resolve(settings.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 
@@ -251,7 +262,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 				// merge environment variables into a copy of the process.env
-				const env = assign({}, process.env, envVars);
+				const env = Object.assign({}, process.env, envVars);
 
 				// delete environment variables that have a null value
 				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
@@ -306,7 +317,6 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
 				if (env.isLinux) {
 					const isDebian = await pfs.exists('/etc/debian_version');
-					await process.lazyEnv;
 					if (isDebian) {
 						r('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
@@ -332,7 +342,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 /**
  * tries to turn OS errors into more meaningful error messages
  */
-function improveError(err: Error): Error {
+function improveError(err: Error & { errno?: string, path?: string }): Error {
 	if ('errno' in err && err['errno'] === 'ENOENT' && 'path' in err && typeof err['path'] === 'string') {
 		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err['path']));
 	}
@@ -354,54 +364,3 @@ function quote(args: string[]): string {
 	}
 	return r;
 }
-
-if (env.isWindows) {
-	registerSingleton(IExternalTerminalService, WindowsExternalTerminalService, true);
-} else if (env.isMacintosh) {
-	registerSingleton(IExternalTerminalService, MacExternalTerminalService, true);
-} else if (env.isLinux) {
-	registerSingleton(IExternalTerminalService, LinuxExternalTerminalService, true);
-}
-
-LinuxExternalTerminalService.getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
-	let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	configurationRegistry.registerConfiguration({
-		id: 'externalTerminal',
-		order: 100,
-		title: nls.localize('terminalConfigurationTitle', "External Terminal"),
-		type: 'object',
-		properties: {
-			'terminal.explorerKind': {
-				type: 'string',
-				enum: [
-					'integrated',
-					'external'
-				],
-				enumDescriptions: [
-					nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
-					nls.localize('terminal.explorerKind.external', "Use the configured external terminal.")
-				],
-				description: nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
-				default: 'integrated'
-			},
-			'terminal.external.windowsExec': {
-				type: 'string',
-				description: nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				default: WindowsExternalTerminalService.getDefaultTerminalWindows(),
-				scope: ConfigurationScope.APPLICATION
-			},
-			'terminal.external.osxExec': {
-				type: 'string',
-				description: nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on macOS."),
-				default: DEFAULT_TERMINAL_OSX,
-				scope: ConfigurationScope.APPLICATION
-			},
-			'terminal.external.linuxExec': {
-				type: 'string',
-				description: nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-				default: defaultTerminalLinux,
-				scope: ConfigurationScope.APPLICATION
-			}
-		}
-	});
-});

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
@@ -15,7 +14,7 @@ import { trackFocus, Dimension } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import { find } from 'vs/base/common/arrays';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -33,9 +32,6 @@ export abstract class Composite extends Component implements IComposite {
 
 	private readonly _onTitleAreaUpdate = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate = this._onTitleAreaUpdate.event;
-
-	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	private _onDidFocus: Emitter<void> | undefined;
 	get onDidFocus(): Event<void> {
@@ -61,41 +57,52 @@ export abstract class Composite extends Component implements IComposite {
 		return this._onDidBlur.event;
 	}
 
+	private _hasFocus = false;
+	hasFocus(): boolean {
+		return this._hasFocus;
+	}
+
 	private registerFocusTrackEvents(): { onDidFocus: Emitter<void>, onDidBlur: Emitter<void> } {
 		const container = assertIsDefined(this.getContainer());
 		const focusTracker = this._register(trackFocus(container));
 
 		const onDidFocus = this._onDidFocus = this._register(new Emitter<void>());
-		this._register(focusTracker.onDidFocus(() => onDidFocus.fire()));
+		this._register(focusTracker.onDidFocus(() => {
+			this._hasFocus = true;
+			onDidFocus.fire();
+		}));
 
 		const onDidBlur = this._onDidBlur = this._register(new Emitter<void>());
-		this._register(focusTracker.onDidBlur(() => onDidBlur.fire()));
+		this._register(focusTracker.onDidBlur(() => {
+			this._hasFocus = false;
+			onDidBlur.fire();
+		}));
 
 		return { onDidFocus, onDidBlur };
 	}
 
 	protected actionRunner: IActionRunner | undefined;
 
+	private _telemetryService: ITelemetryService;
+	protected get telemetryService(): ITelemetryService { return this._telemetryService; }
+
 	private visible: boolean;
 	private parent: HTMLElement | undefined;
 
 	constructor(
 		id: string,
-		private _telemetryService: ITelemetryService,
+		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
 	) {
 		super(id, themeService, storageService);
 
+		this._telemetryService = telemetryService;
 		this.visible = false;
 	}
 
 	getTitle(): string | undefined {
 		return undefined;
-	}
-
-	protected get telemetryService(): ITelemetryService {
-		return this._telemetryService;
 	}
 
 	/**
@@ -111,7 +118,7 @@ export abstract class Composite extends Component implements IComposite {
 		this.parent = parent;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 	}
 
@@ -136,8 +143,6 @@ export abstract class Composite extends Component implements IComposite {
 	setVisible(visible: boolean): void {
 		if (this.visible !== !!visible) {
 			this.visible = visible;
-
-			this._onDidChangeVisibility.fire(visible);
 		}
 	}
 
@@ -156,7 +161,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns an array of actions to show in the action bar of the composite.
 	 */
-	getActions(): ReadonlyArray<IAction> {
+	getActions(): readonly IAction[] {
 		return [];
 	}
 
@@ -164,14 +169,14 @@ export abstract class Composite extends Component implements IComposite {
 	 * Returns an array of actions to show in the action bar of the composite
 	 * in a less prominent way then action from getActions.
 	 */
-	getSecondaryActions(): ReadonlyArray<IAction> {
+	getSecondaryActions(): readonly IAction[] {
 		return [];
 	}
 
 	/**
 	 * Returns an array of actions to show in the context menu of the composite
 	 */
-	getContextMenuActions(): ReadonlyArray<IAction> {
+	getContextMenuActions(): readonly IAction[] {
 		return [];
 	}
 
@@ -198,7 +203,7 @@ export abstract class Composite extends Component implements IComposite {
 	 */
 	getActionRunner(): IActionRunner {
 		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner();
+			this.actionRunner = this._register(new ActionRunner());
 		}
 
 		return this.actionRunner;
@@ -240,7 +245,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 		readonly name: string,
 		readonly cssClass?: string,
 		readonly order?: number,
-		readonly keybindingId?: string,
+		readonly requestedIndex?: number,
 	) { }
 
 	instantiate(instantiationService: IInstantiationService): T {
@@ -256,7 +261,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	private readonly _onDidDeregister = this._register(new Emitter<CompositeDescriptor<T>>());
 	readonly onDidDeregister = this._onDidDeregister.event;
 
-	private composites: CompositeDescriptor<T>[] = [];
+	private readonly composites: CompositeDescriptor<T>[] = [];
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
 		if (this.compositeById(descriptor.id)) {
@@ -286,6 +291,6 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	}
 
 	private compositeById(id: string): CompositeDescriptor<T> | undefined {
-		return find(this.composites, composite => composite.id === id);
+		return this.composites.find(composite => composite.id === id);
 	}
 }

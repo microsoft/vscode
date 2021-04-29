@@ -1,0 +1,35 @@
+name: "Build Chat"
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+      - release/*
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: "microsoft/vscode-github-triage-actions"
+          path: ./actions
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
+      - name: Install Additional Dependencies
+        # Pulls in a bunch of other packages that arent needed for the rest of the actions
+        run: npm install @azure/storage-blob@12.1.1
+      - name: Build Chat
+        uses: ./actions/build-chat
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          slack_token: ${{ secrets.SLACK_TOKEN }}
+          storage_connection_string: ${{ secrets.BUILD_CHAT_STORAGE_CONNECTION_STRING }}
+          workflow_run_url: ${{ github.event.workflow_run.url }}
+          notification_channel: build
+          log_channel: bot-log

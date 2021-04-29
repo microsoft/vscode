@@ -12,21 +12,22 @@ import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cance
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { localize } from 'vs/nls';
 
 
 const IEditorCancellationTokens = createDecorator<IEditorCancellationTokens>('IEditorCancelService');
 
 interface IEditorCancellationTokens {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	add(editor: ICodeEditor, cts: CancellationTokenSource): () => void;
 	cancel(editor: ICodeEditor): void;
 }
 
-const ctxCancellableOperation = new RawContextKey('cancellableOperation', false);
+const ctxCancellableOperation = new RawContextKey('cancellableOperation', false, localize('cancellableOperation', 'Whether the editor runs a cancellable operation, e.g. like \'Peek References\''));
 
 registerSingleton(IEditorCancellationTokens, class implements IEditorCancellationTokens {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _tokens = new WeakMap<ICodeEditor, { key: IContextKey<boolean>, tokens: LinkedList<CancellationTokenSource> }>();
 
@@ -80,7 +81,7 @@ export class EditorKeybindingCancellationTokenSource extends CancellationTokenSo
 		this._unregister = editor.invokeWithinContext(accessor => accessor.get(IEditorCancellationTokens).add(editor, this));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._unregister();
 		super.dispose();
 	}

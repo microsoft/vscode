@@ -6,11 +6,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IWorkspaceContextService, toWorkspaceFolder, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestEnvironmentService, TestNativePathService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { assertEqualSearchPathResults, getUri, patternsToIExpression, globalGlob, fixPath } from 'vs/workbench/contrib/search/test/browser/queryBuilder.test';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
@@ -25,7 +27,7 @@ suite('QueryBuilder', () => {
 	let mockContextService: TestContextService;
 	let mockWorkspace: Workspace;
 
-	setup(() => {
+	setup(async () => {
 		instantiationService = new TestInstantiationService();
 
 		mockConfigService = new TestConfigurationService();
@@ -39,8 +41,10 @@ suite('QueryBuilder', () => {
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IPathService, new TestNativePathService());
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
+		await new Promise(resolve => setTimeout(resolve, 5)); // Wait for IPathService.userHome to resolve
 	});
 
 	suite('parseSearchPaths', () => {
@@ -62,13 +66,13 @@ suite('QueryBuilder', () => {
 				[
 					'~/foo/bar',
 					{
-						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
+						searchPaths: [{ searchPath: getUri(userHome.fsPath, '/foo/bar') }]
 					}
 				],
 				[
 					'~/foo/bar, a',
 					{
-						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
+						searchPaths: [{ searchPath: getUri(userHome.fsPath, '/foo/bar') }],
 						pattern: patternsToIExpression(...globalGlob('a'))
 					}
 				],
