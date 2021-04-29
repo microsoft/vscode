@@ -187,6 +187,7 @@
 .workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown .monaco-button {
 	margin-left: 1px;
 	margin-right: 1px;
+	cursor: pointer;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown .monaco-dropdown-button {
