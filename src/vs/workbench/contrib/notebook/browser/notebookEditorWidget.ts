@@ -1704,7 +1704,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	get activeKernel() {
-		return this.viewModel && this._kernelManger.getActiveKernel(this.viewModel.notebookDocument);
+		return this.viewModel && this._kernelManger.getSelectedOrSuggestedKernel(this.viewModel.notebookDocument);
 	}
 
 	async cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
