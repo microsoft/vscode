@@ -207,7 +207,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const findMatchingContribPoint = (contributionPoints: ContributionPoints, viewType: string) => {
 			return contributionPoints.find((contribPoint) => {
 				if (contribPoint.options && contribPoint.options.canSupportResource !== undefined) {
-					return contribPoint.editorInfo.id === override && contribPoint.options.canSupportResource(resource);
+					return contribPoint.editorInfo.id === viewType && contribPoint.options.canSupportResource(resource);
 				}
 				return contribPoint.editorInfo.id === viewType;
 			});
