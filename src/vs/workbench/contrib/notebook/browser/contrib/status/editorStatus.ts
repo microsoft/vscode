@@ -117,7 +117,9 @@ registerAction2(class extends Action2 {
 				{ return res; }
 			});
 			const pick = await quickInputService.pick(picks, {
-				placeHolder: nls.localize('prompt.placeholder', "Select controller for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
+				placeHolder: selected
+					? nls.localize('prompt.placeholder.change', "Change controller for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
+					: nls.localize('prompt.placeholder.select', "Select controller for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
 				onDidTriggerItemButton: (context) => {
 					notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
 				}
