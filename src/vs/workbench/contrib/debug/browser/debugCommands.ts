@@ -560,7 +560,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: async (accessor, query: string) => {
 		const viewletService = accessor.get(IViewletService);
 		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		let searchFor = `@category:debuggers @sort:installs`;
+		let searchFor = `@category:debuggers`;
 		if (typeof query === 'string') {
 			searchFor += ` ${query}`;
 		}
