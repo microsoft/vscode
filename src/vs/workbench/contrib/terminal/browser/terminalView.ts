@@ -33,7 +33,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { DropdownWithPrimaryActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownWithPrimaryActionViewItem';
 import { reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { renderLabelWithIconsWithSpan } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
@@ -369,7 +369,7 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
+			reset(label, ...renderLabelWithIconsWithSpan(getSingleTabLabel(instance)));
 		}
 	}
 
