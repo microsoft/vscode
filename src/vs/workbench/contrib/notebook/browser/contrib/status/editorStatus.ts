@@ -28,7 +28,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.selectKernel',
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Controller"), original: 'Select Notebook Controller' },
+			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
@@ -118,8 +118,8 @@ registerAction2(class extends Action2 {
 			});
 			const pick = await quickInputService.pick(picks, {
 				placeHolder: selected
-					? nls.localize('prompt.placeholder.change', "Change controller for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
-					: nls.localize('prompt.placeholder.select', "Select controller for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
+					? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
+					: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
 				onDidTriggerItemButton: (context) => {
 					notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
 				}
@@ -182,12 +182,12 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		let isSuggested = false;
 
 		if (all.length === 0) {
-			// no controller -> no status
+			// no kernel -> no status
 			this._kernelInfoElement.clear();
 			return;
 
 		} else if (selected || all.length === 1) {
-			// selected or single controller
+			// selected or single kernel
 			if (!selected) {
 				selected = all[0];
 				isSuggested = true;
@@ -202,7 +202,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					command: 'notebook.selectKernel',
 				},
 				'notebook.selectKernel',
-				nls.localize('notebook.info', "Notebook Controller Info"),
+				nls.localize('notebook.info', "Notebook Kernel Info"),
 				StatusbarAlignment.RIGHT,
 				1000
 			);
@@ -210,16 +210,16 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			this._kernelInfoElement.value = combinedDisposable(listener, registration);
 
 		} else {
-			// multiple controllers -> show selection hint
+			// multiple kernels -> show selection hint
 			const registration = this._statusbarService.addEntry(
 				{
-					text: nls.localize('controller.select.label', "Select Controller"),
-					ariaLabel: nls.localize('controller.select.label', "Select Controller"),
+					text: nls.localize('kernel.select.label', "Select Kernel"),
+					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
 					command: 'notebook.selectKernel',
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
 				'notebook.selectKernel',
-				nls.localize('notebook.select', "Notebook Controller Selection"),
+				nls.localize('notebook.select', "Notebook Kernel Selection"),
 				StatusbarAlignment.RIGHT,
 				1000
 			);
