@@ -27,7 +27,7 @@
     "test": "node ../../node_modules/mocha/bin/mocha"
   },
   "capabilities": {
-    "virtualWorkspaces": false,
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }
