@@ -140,7 +140,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				},
 				{
 					canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
-					canSupportResource: resource => resource.scheme === Schemas.untitled || this._fileService.canHandleResource(resource)
+					canSupportResource: resource => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
 				},
 				(resource, options, group) => {
 					const data = CellUri.parse(resource);
