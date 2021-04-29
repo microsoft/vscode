@@ -60,15 +60,6 @@ export class SettingsDocument {
 			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
 		}
 
-		// extensions.supportUntrustedWorkspaces
-		if (location.path[0] === 'extensions.supportUntrustedWorkspaces' && location.path.length === 2 && location.isAtPropertyKey) {
-			let alreadyConfigured: string[] = [];
-			try {
-				alreadyConfigured = Object.keys(parse(this.document.getText())['extensions.supportUntrustedWorkspaces']);
-			} catch (e) {/* ignore error */ }
-			return provideWorkspaceTrustExtensionProposals(alreadyConfigured, range);
-		}
-
 		return this.provideLanguageOverridesCompletionItems(location, position);
 	}
 
