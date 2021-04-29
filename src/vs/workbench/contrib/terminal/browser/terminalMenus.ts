@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -22,7 +22,61 @@ export const enum ContextMenuTabsGroup {
 	Configure = '3_configure'
 }
 
-export function createTerminalMenus(): void {
+const enum ContextMenuTerminalGroup {
+	Create = '1_create',
+	Run = '2_run'
+}
+
+export function setupTerminalMenus(): void {
+	MenuRegistry.appendMenuItems(
+		[
+			{
+				id: MenuId.MenubarTerminalMenu, item: {
+					group: ContextMenuTerminalGroup.Create,
+					command: {
+						id: TERMINAL_COMMAND_ID.NEW,
+						title: localize({ key: 'miNewTerminal', comment: ['&& denotes a mnemonic'] }, "&&New Terminal")
+					},
+					order: 1
+				}
+			},
+			{
+				id: MenuId.MenubarTerminalMenu, item: {
+					group: ContextMenuTerminalGroup.Create,
+					command: {
+						id: TERMINAL_COMMAND_ID.SPLIT,
+						title: localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"),
+						precondition: ContextKeyExpr.has('terminalIsOpen')
+					},
+					order: 2,
+					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				}
+			},
+			{
+				id: MenuId.MenubarTerminalMenu, item: {
+					group: ContextMenuTerminalGroup.Run,
+					command: {
+						id: TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+						title: localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
+					},
+					order: 3,
+					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				}
+			},
+			{
+				id: MenuId.MenubarTerminalMenu, item: {
+					group: ContextMenuTerminalGroup.Run,
+					command: {
+						id: TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+						title: localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
+					},
+					order: 4,
+					when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+				}
+			}
+		]
+	);
+
 	MenuRegistry.appendMenuItems(
 		[
 			{
