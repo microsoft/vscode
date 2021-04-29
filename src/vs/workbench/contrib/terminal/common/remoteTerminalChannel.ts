@@ -19,7 +19,6 @@ import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 
@@ -125,7 +124,6 @@ export class RemoteTerminalChannelClient {
 		@IConfigurationResolverService private readonly _resolverService: IConfigurationResolverService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ILogService private readonly _logService: ILogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -135,28 +133,9 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$restartPtyHost', []);
 	}
 
-	public async createProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number): Promise<ICreateTerminalProcessResult> {
+	public async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
-
-		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-		const configuration: ICompleteTerminalConfiguration = {
-			'terminal.integrated.automationShell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.windows') as string,
-			'terminal.integrated.automationShell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.osx') as string,
-			'terminal.integrated.automationShell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.linux') as string,
-			'terminal.integrated.shell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.windows') as string,
-			'terminal.integrated.shell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.osx') as string,
-			'terminal.integrated.shell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.linux') as string,
-			'terminal.integrated.shellArgs.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.windows') as string | string[],
-			'terminal.integrated.shellArgs.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.osx') as string | string[],
-			'terminal.integrated.shellArgs.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.linux') as string | string[],
-			'terminal.integrated.env.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.windows') as ITerminalEnvironment,
-			'terminal.integrated.env.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.osx') as ITerminalEnvironment,
-			'terminal.integrated.env.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.linux') as ITerminalEnvironment,
-			'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
-			'terminal.integrated.cwd': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.cwd') as string,
-			'terminal.integrated.detectLocale': terminalConfig.detectLocale
-		};
 
 		// We will use the resolver service to resolve all the variables in the config / launch config
 		// But then we will keep only some variables, since the rest need to be resolved on the remote side

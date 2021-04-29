@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -27,6 +27,8 @@ import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -124,7 +126,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		super();
 		this._localTerminalService = localTerminalService;
@@ -234,7 +237,25 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						remoteAuthority: this.remoteAuthority,
 						os: this.os
 					});
-					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
+					const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+					const configuration: ICompleteTerminalConfiguration = {
+						'terminal.integrated.automationShell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.windows') as string,
+						'terminal.integrated.automationShell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.osx') as string,
+						'terminal.integrated.automationShell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.linux') as string,
+						'terminal.integrated.shell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.windows') as string,
+						'terminal.integrated.shell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.osx') as string,
+						'terminal.integrated.shell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.linux') as string,
+						'terminal.integrated.shellArgs.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.windows') as string | string[],
+						'terminal.integrated.shellArgs.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.osx') as string | string[],
+						'terminal.integrated.shellArgs.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.linux') as string | string[],
+						'terminal.integrated.env.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.windows') as ITerminalEnvironment,
+						'terminal.integrated.env.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.osx') as ITerminalEnvironment,
+						'terminal.integrated.env.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.linux') as ITerminalEnvironment,
+						'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
+						'terminal.integrated.cwd': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.cwd') as string,
+						'terminal.integrated.detectLocale': terminalConfig.detectLocale
+					};
+					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._remoteTerminalService);
