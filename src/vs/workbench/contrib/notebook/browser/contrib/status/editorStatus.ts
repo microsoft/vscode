@@ -21,6 +21,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -60,6 +61,7 @@ registerAction2(class extends Action2 {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const labelService = accessor.get(ILabelService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.hasModel()) {
@@ -115,6 +117,7 @@ registerAction2(class extends Action2 {
 				{ return res; }
 			});
 			const pick = await quickInputService.pick(picks, {
+				placeHolder: nls.localize('prompt.placeholder', "Select controller for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
 				onDidTriggerItemButton: (context) => {
 					notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
 				}
