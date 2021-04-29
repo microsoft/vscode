@@ -420,7 +420,7 @@ export const schema: IJSONSchema = {
 			type: 'object',
 			properties: {
 				virtualWorkspaces: {
-					description: nls.localize('vscode.extension.capabilities.virtualWorkspaces', "Declare the support for virtual workspace. Default is to support."),
+					description: nls.localize('vscode.extension.capabilities.virtualWorkspaces', "Declares whether the extension should be enabled in virtual workspaces. A virtual workspace is a workspace which is not backed by any on-disk resources. When false, this extension will be automatically disabled in virtual workspaces. Default is true."),
 					type: 'boolean',
 					default: true
 				},
