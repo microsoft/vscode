@@ -1223,7 +1223,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	}
 
 	getDragURI(element: ITreeItem): string | null {
-		return element.resourceUri ? URI.revive(element.resourceUri).fsPath : null;
+		return element.resourceUri ? URI.revive(element.resourceUri).toString() : element.handle;
 	}
 
 	getDragLabel?(elements: ITreeItem[]): string | undefined {
