@@ -396,9 +396,10 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'security',
-		order: 7,
+		scope: ConfigurationScope.APPLICATION,
 		title: localize('securityConfigurationTitle', "Security"),
 		type: 'object',
+		order: 7,
 		properties: {
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',
