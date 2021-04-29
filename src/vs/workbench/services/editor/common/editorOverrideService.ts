@@ -171,6 +171,12 @@ export type ContributionPointOptions = {
 	 * If your editor supports diffs
 	 */
 	canHandleDiff?: boolean | (() => boolean);
+
+	/**
+	 * Whether or not you can support opening the given resource.
+	 * If omitted we assume you can open everything
+	 */
+	canSupportResource?: (resource: URI) => boolean;
 };
 
 export type ContributedEditorInfo = {
