@@ -611,7 +611,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// TODO@lramos15 this will get cleaned up soon, but since the override
 				// service no longer uses the override flow we must check that
 				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
-				if (!resolvedInputWithOptionsAndGroup) {
+				// If we didn't override try the legacy overrides
+				if (!resolvedInputWithOptionsAndGroup || resolvedEditor.matches(resolvedInputWithOptionsAndGroup.editor)) {
 					const override = this.doOverrideOpenEditor(resolvedEditor, resolvedOptions, resolvedGroup);
 					if (override) {
 						return override;
