@@ -19,7 +19,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 
@@ -125,7 +125,6 @@ export class RemoteTerminalChannelClient {
 		@IConfigurationResolverService private readonly _resolverService: IConfigurationResolverService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ILogService private readonly _logService: ILogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -141,20 +140,20 @@ export class RemoteTerminalChannelClient {
 
 		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		const configuration: ICompleteTerminalConfiguration = {
-			'terminal.integrated.automationShell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.windows') as string,
-			'terminal.integrated.automationShell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.osx') as string,
-			'terminal.integrated.automationShell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.automationShell.linux') as string,
-			'terminal.integrated.shell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.windows') as string,
-			'terminal.integrated.shell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.osx') as string,
-			'terminal.integrated.shell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shell.linux') as string,
-			'terminal.integrated.shellArgs.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.windows') as string | string[],
-			'terminal.integrated.shellArgs.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.osx') as string | string[],
-			'terminal.integrated.shellArgs.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.shellArgs.linux') as string | string[],
-			'terminal.integrated.env.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.windows') as ITerminalEnvironment,
-			'terminal.integrated.env.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.osx') as ITerminalEnvironment,
-			'terminal.integrated.env.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.env.linux') as ITerminalEnvironment,
+			'terminal.integrated.automationShell.windows': this._configurationService.getValue('terminal.integrated.automationShell.windows'),
+			'terminal.integrated.automationShell.osx': this._configurationService.getValue('terminal.integrated.automationShell.osx'),
+			'terminal.integrated.automationShell.linux': this._configurationService.getValue('terminal.integrated.automationShell.linux'),
+			'terminal.integrated.shell.windows': this._configurationService.getValue('terminal.integrated.shell.windows'),
+			'terminal.integrated.shell.osx': this._configurationService.getValue('terminal.integrated.shell.osx'),
+			'terminal.integrated.shell.linux': this._configurationService.getValue('terminal.integrated.shell.linux'),
+			'terminal.integrated.shellArgs.windows': this._configurationService.getValue('terminal.integrated.shellArgs.windows'),
+			'terminal.integrated.shellArgs.osx': this._configurationService.getValue('terminal.integrated.shellArgs.osx'),
+			'terminal.integrated.shellArgs.linux': this._configurationService.getValue('terminal.integrated.shellArgs.linux'),
+			'terminal.integrated.env.windows': this._configurationService.getValue('terminal.integrated.env.windows'),
+			'terminal.integrated.env.osx': this._configurationService.getValue('terminal.integrated.env.osx'),
+			'terminal.integrated.env.linux': this._configurationService.getValue('terminal.integrated.env.linux'),
 			'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
-			'terminal.integrated.cwd': this._terminalProfileResolverService.getSafeConfigValueFullKey('terminal.integrated.cwd') as string,
+			'terminal.integrated.cwd': terminalConfig.cwd,
 			'terminal.integrated.detectLocale': terminalConfig.detectLocale
 		};
 

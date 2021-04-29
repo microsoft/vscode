@@ -1570,8 +1570,6 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { return '/default'; }
 	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { return []; }
 	async getShellEnvironment(): Promise<IProcessEnvironment> { return process.env; }
-	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { return undefined; }
-	getSafeConfigValueFullKey(key: string): unknown | undefined { return undefined; }
 }
 
 export class TestLocalTerminalService implements ILocalTerminalService {

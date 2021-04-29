@@ -439,5 +439,3 @@ export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimension
 	 */
 	forceExactSize?: boolean;
 }
-
-export type SafeConfigProvider = <T>(key: string) => T | undefined;

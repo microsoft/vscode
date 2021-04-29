@@ -123,7 +123,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	private _getRealDefaultProfile(sync: true, os: OperatingSystem): ITerminalProfile | undefined;
 	private _getRealDefaultProfile(sync: false, os: OperatingSystem): Promise<ITerminalProfile | undefined>;
 	private _getRealDefaultProfile(sync: boolean, os: OperatingSystem): ITerminalProfile | undefined | Promise<ITerminalProfile | undefined> {
-		const defaultProfileName = this.getSafeConfigValue('defaultProfile', os);
+		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getOsKey(os)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
 			if (sync) {
 				const profiles = this._terminalService.availableProfiles;
@@ -138,10 +138,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	private async _getFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		let executable: string;
 		let args: string | string[] | undefined;
-		const shellSetting = this.getSafeConfigValue('shell', options.os);
+		const shellSetting = this._configurationService.getValue(`terminal.integrated.shell.${this._getOsKey(options.os)}`);
 		if (this._isValidShell(shellSetting)) {
 			executable = shellSetting;
-			const shellArgsSetting = this.getSafeConfigValue('shellArgs', options.os);
+			const shellArgsSetting = this._configurationService.getValue(`terminal.integrated.shellArgs.${this._getOsKey(options.os)}`);
 			if (this._isValidShellArgs(shellArgsSetting, options.os)) {
 				args = shellArgsSetting;
 			}
@@ -170,7 +170,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getAutomationShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
-		const automationShell = this.getSafeConfigValue('automationShell', options.os);
+		const automationShell = this._configurationService.getValue(`terminal.integrated.automationShell.${this._getOsKey(options.os)}`);
 		if (!automationShell || typeof automationShell !== 'string') {
 			return undefined;
 		}
@@ -273,28 +273,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			return true;
 		}
 		return false;
-	}
-
-	// TODO: Remove when workspace trust is enabled
-	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined {
-		return this.getSafeConfigValueFullKey(`terminal.integrated.${key}.${this._getOsKey(os)}`);
-	}
-	getSafeConfigValueFullKey(key: string): unknown | undefined {
-		const isWorkspaceConfigAllowed = this._configurationService.getValue('terminal.integrated.allowWorkspaceConfiguration');
-		if (isWorkspaceConfigAllowed) {
-			return this._configurationService.getValue(key);
-		} else {
-			const config = this._configurationService.inspect(key);
-			const value = config.user?.value || config.default?.value;
-			// Clone if needed to allow extensibility
-			if (Array.isArray(value)) {
-				return value.slice();
-			}
-			if (typeof value === 'object') {
-				return { ...value };
-			}
-			return value;
-		}
 	}
 }
 

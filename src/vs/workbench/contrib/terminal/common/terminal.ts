@@ -100,10 +100,6 @@ export interface ITerminalProfileResolverService {
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-
-	// TODO: Remove when workspace trust is enabled
-	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined;
-	getSafeConfigValueFullKey(key: string): unknown | undefined;
 }
 
 export interface IShellLaunchConfigResolveOptions {
@@ -199,7 +195,6 @@ export interface ITerminalConfiguration {
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
-	allowWorkspaceConfiguration: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
