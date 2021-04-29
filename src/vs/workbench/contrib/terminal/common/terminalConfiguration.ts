@@ -291,7 +291,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
 		},
 		'terminal.integrated.defaultProfile.windows': {
-			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.windows` and `terminal.integrated.shellArgs.windows`.'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
