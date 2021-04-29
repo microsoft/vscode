@@ -22,9 +22,11 @@ export const enum ContextMenuTabsGroup {
 	Configure = '3_configure'
 }
 
-const enum ContextMenuTerminalGroup {
+export const enum ContextMenuTerminalGroup {
 	Create = '1_create',
-	Run = '2_run'
+	Run = '2_run',
+	Manage = '3_manage',
+	Configure = '4_configure'
 }
 
 export function setupTerminalMenus(): void {
