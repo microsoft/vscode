@@ -264,7 +264,8 @@ suite('CustomEditor tests', () => {
 			await vscode.commands.executeCommand(commands.open, testDocument, { preview: false });
 			const { content } = await listener.nextResponse();
 			assert.strictEqual(content, startingContent.toString());
-			assert.ok(!vscode.window.activeTextEditor);
+			const activeEditor = vscode.window.activeTextEditor;
+			assert.ok(!activeEditor);
 		}
 
 		// Switch to non-default editor

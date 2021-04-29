@@ -40,7 +40,8 @@ import { getErrorMessage } from 'vs/base/common/errors';
 import { WebFileSystemAccess, triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { RunOnceWorker, sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
@@ -55,6 +56,7 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { listenStream } from 'vs/base/common/stream';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { ContributedEditorPriority, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -442,56 +444,59 @@ export class GlobalCompareResourcesAction extends Action {
 		label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITextModelService private readonly textModelService: ITextModelService
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService
 	) {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
 		const activeResource = EditorResourceAccessor.getOriginalUri(activeInput);
 		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
 
-			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor({
-				open: editor => {
+			// Define a one-time override that has highest priority
+			// and matches every resource to be able to create a
+			// diff editor to show the comparison.
+			const editorOverrideDisposable = this.editorOverrideService.registerContributionPoint('*', {
+				id: GlobalCompareResourcesAction.ID,
+				label: GlobalCompareResourcesAction.LABEL,
+				priority: ContributedEditorPriority.exclusive,
+				detail: '',
+				describes: () => false
+			}, {}, resource => {
 
-					// Only once!
-					toDispose.dispose();
+				// Only once!
+				editorOverrideDisposable.dispose();
 
-					// Open editor as diff
-					const resource = EditorResourceAccessor.getOriginalUri(editor);
-					if (resource && this.textModelService.canHandleResource(resource)) {
-						return {
-							override: this.editorService.openEditor({
-								leftResource: activeResource,
-								rightResource: resource,
-								options: { override: EditorOverride.DISABLED, pinned: true }
-							})
-						};
-					}
-
-					// Otherwise stay on current resource
-					this.notificationService.info(nls.localize('fileToCompareNoFile', "Please select a file to compare with."));
+				// Open editor as diff if the selected editor resource
+				// can be handled by the text model service
+				if (this.textModelService.canHandleResource(resource)) {
 					return {
-						override: this.editorService.openEditor({
-							resource: activeResource,
+						editor: this.editorService.createEditorInput({
+							leftResource: activeResource,
+							rightResource: resource,
 							options: { override: EditorOverride.DISABLED, pinned: true }
 						})
 					};
 				}
+
+				// Otherwise stay on current resource
+				return {
+					editor: this.editorService.createEditorInput({
+						resource: activeResource,
+						options: { override: EditorOverride.DISABLED, pinned: true }
+					})
+				};
 			});
 
 			once(this.quickInputService.onHide)((async () => {
 				await timeout(0); // prevent race condition with editor
-				toDispose.dispose();
+				editorOverrideDisposable.dispose();
 			}));
 
 			// Bring up quick access
 			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
-		} else {
-			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
 	}
 }
@@ -508,7 +513,7 @@ export class ToggleAutoSaveAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.filesConfigurationService.toggleAutoSave();
 	}
 }
@@ -547,7 +552,7 @@ export abstract class BaseSaveAllAction extends Action {
 		}
 	}
 
-	async run(context?: unknown): Promise<void> {
+	override async run(context?: unknown): Promise<void> {
 		try {
 			await this.doRun(context);
 		} catch (error) {
@@ -561,7 +566,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	static readonly ID = 'workbench.files.action.saveAllInGroup';
 	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
-	get class(): string {
+	override get class(): string {
 		return 'explorer-action ' + Codicon.saveAll.classNames;
 	}
 
@@ -579,7 +584,7 @@ export class CloseGroupAction extends Action {
 		super(id, label, Codicon.closeAll.classNames);
 	}
 
-	run(context?: unknown): Promise<void> {
+	override run(context?: unknown): Promise<void> {
 		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
@@ -597,7 +602,7 @@ export class FocusFilesExplorer extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		await this.viewletService.openViewlet(VIEWLET_ID, true);
 	}
 }
@@ -611,18 +616,15 @@ export class ShowActiveFileInExplorer extends Action {
 		id: string,
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
-		} else {
-			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
 	}
 }
@@ -643,7 +645,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const fileResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
@@ -651,8 +653,6 @@ export class ShowOpenedFileInNewWindow extends Action {
 			} else {
 				this.notificationService.info(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 			}
-		} else {
-			this.notificationService.info(nls.localize('openFileToShowInNewWindow.nofile', "Open a file first to open in new window"));
 		}
 	}
 }
@@ -755,7 +755,7 @@ export class CompareWithClipboardAction extends Action {
 		this.enabled = true;
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
@@ -778,7 +778,7 @@ export class CompareWithClipboardAction extends Action {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		dispose(this.registrationDisposal);
@@ -1015,7 +1015,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 						fileBytesDownloaded: number;
 					}
 
-					async function downloadFileBuffered(resource: URI, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
+					async function downloadFileBuffered(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
 						const contents = await fileService.readFileStream(resource);
 						if (cts.token.isCancellationRequested) {
 							target.close();
@@ -1055,7 +1055,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 						});
 					}
 
-					async function downloadFileUnbuffered(resource: URI, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
+					async function downloadFileUnbuffered(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
 						const contents = await fileService.readFile(resource);
 						if (!cts.token.isCancellationRequested) {
 							target.write(contents.value.buffer);
@@ -1065,7 +1065,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 						target.close();
 					}
 
-					async function downloadFile(targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, file: IFileStatWithMetadata, operation: IDownloadOperation): Promise<void> {
+					async function downloadFile(targetFolder: FileSystemDirectoryHandle, file: IFileStatWithMetadata, operation: IDownloadOperation): Promise<void> {
 
 						// Report progress
 						operation.filesDownloaded++;
@@ -1085,7 +1085,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 						return downloadFileUnbuffered(file.resource, targetFileWriter, operation);
 					}
 
-					async function downloadFolder(folder: IFileStatWithMetadata, targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, operation: IDownloadOperation): Promise<void> {
+					async function downloadFolder(folder: IFileStatWithMetadata, targetFolder: FileSystemDirectoryHandle, operation: IDownloadOperation): Promise<void> {
 						if (folder.children) {
 							operation.filesTotal += (folder.children.map(child => child.isFile)).length;
 
@@ -1132,7 +1132,7 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 					}
 
 					try {
-						const parentFolder: WebFileSystemAccess.FileSystemDirectoryHandle = await window.showDirectoryPicker();
+						const parentFolder: FileSystemDirectoryHandle = await window.showDirectoryPicker();
 						const operation: IDownloadOperation = {
 							startTime: Date.now(),
 							progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),

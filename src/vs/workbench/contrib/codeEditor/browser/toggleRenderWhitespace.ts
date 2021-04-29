@@ -24,7 +24,7 @@ export class ToggleRenderWhitespaceAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		const renderWhitespace = this._configurationService.getValue<string>('editor.renderWhitespace');
 
 		let newRenderWhitespace: string;

@@ -59,7 +59,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		);
 	}
 
-	provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
+	override provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
 
 		// Reset the pick state for this run
 		this.pickState.reset(!!picker.quickNavigate);
@@ -172,7 +172,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					if (group) {
 						await group.closeEditor(editor, { preserveFocus: true });
 
-						if (!group.isOpened(editor)) {
+						if (!group.contains(editor)) {
 							return TriggerAction.REMOVE_ITEM;
 						}
 					}

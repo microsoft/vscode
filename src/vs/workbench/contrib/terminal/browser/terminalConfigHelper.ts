@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -21,6 +19,7 @@ import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensio
 import { IProductService } from 'vs/platform/product/common/productService';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { isWindows } from 'vs/base/common/platform';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -37,9 +36,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	private _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
 	public config!: ITerminalConfiguration;
 
-	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
-	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
-
 	private readonly _onConfigChanged = new Emitter<void>();
 	public get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
 
@@ -47,7 +43,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
@@ -139,7 +134,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			this._lastFontMeasurement.charHeight = Math.ceil(rect.height);
 			// Char width is calculated differently for DOM and the other renderer types. Refer to
 			// how each renderer updates their dimensions in xterm.js
-			if (this.config.rendererType === 'dom') {
+			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
 				const scaledCharWidth = Math.floor(rect.width * window.devicePixelRatio);
@@ -205,75 +200,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return this._measureFont(fontFamily, fontSize, letterSpacing, lineHeight);
 	}
 
-	public setWorkspaceShellAllowed(isAllowed: boolean): void {
-		this._onWorkspacePermissionsChanged.fire(isAllowed);
-		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	}
-
-	public isWorkspaceShellAllowed(defaultValue: boolean | undefined = undefined): boolean | undefined {
-		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
-	}
-
-	public checkWorkspaceShellPermissions(osOverride: platform.OperatingSystem = platform.OS): boolean {
-		// Check whether there is a workspace setting
-		const platformKey = osOverride === platform.OperatingSystem.Windows ? 'windows' : osOverride === platform.OperatingSystem.Macintosh ? 'osx' : 'linux';
-		const shellConfigValue = this._configurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._configurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
-		const envConfigValue = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
-
-		// Check if workspace setting exists and whether it's allowed
-		let isWorkspaceShellAllowed: boolean | undefined = false;
-		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
-			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
-		}
-
-		// Always allow [] args as it would lead to an odd error message and should not be dangerous
-		if (shellConfigValue.workspaceValue === undefined && envConfigValue.workspaceValue === undefined &&
-			shellArgsConfigValue.workspaceValue && shellArgsConfigValue.workspaceValue.length === 0) {
-			isWorkspaceShellAllowed = true;
-		}
-
-		// Check if the value is neither on the blocklist (false) or allowlist (true) and ask for
-		// permission
-		if (isWorkspaceShellAllowed === undefined) {
-			let shellString: string | undefined;
-			if (shellConfigValue.workspaceValue) {
-				shellString = `shell: "${shellConfigValue.workspaceValue}"`;
-			}
-			let argsString: string | undefined;
-			if (shellArgsConfigValue.workspaceValue) {
-				argsString = `shellArgs: [${shellArgsConfigValue.workspaceValue.map(v => '"' + v + '"').join(', ')}]`;
-			}
-			let envString: string | undefined;
-			if (envConfigValue.workspaceValue) {
-				envString = `env: {${Object.keys(envConfigValue.workspaceValue).map(k => `${k}:${envConfigValue.workspaceValue![k]}`).join(', ')}}`;
-			}
-			// Should not be localized as it's json-like syntax referencing settings keys
-			const workspaceConfigStrings: string[] = [];
-			if (shellString) {
-				workspaceConfigStrings.push(shellString);
-			}
-			if (argsString) {
-				workspaceConfigStrings.push(argsString);
-			}
-			if (envString) {
-				workspaceConfigStrings.push(envString);
-			}
-			const workspaceConfigString = workspaceConfigStrings.join(', ');
-			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow this workspace to modify your terminal shell? {0}", workspaceConfigString),
-				[{
-					label: nls.localize('allow', "Allow"),
-					run: () => this.setWorkspaceShellAllowed(true)
-				},
-				{
-					label: nls.localize('disallow', "Disallow"),
-					run: () => this.setWorkspaceShellAllowed(false)
-				}]
-			);
-		}
-		return !!isWorkspaceShellAllowed;
-	}
-
 	private _clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
@@ -296,7 +222,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		}
 		this.recommendationsShown = true;
 
-		if (platform.isWindows && shellLaunchConfig.executable && basename(shellLaunchConfig.executable).toLowerCase() === 'wsl.exe') {
+		if (isWindows && shellLaunchConfig.executable && basename(shellLaunchConfig.executable).toLowerCase() === 'wsl.exe') {
 			const exeBasedExtensionTips = this.productService.exeBasedExtensionTips;
 			if (!exeBasedExtensionTips || !exeBasedExtensionTips.wsl) {
 				return;

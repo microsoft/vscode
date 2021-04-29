@@ -1665,6 +1665,12 @@ declare module 'vscode' {
 	 * Options to configure the behavior of the quick pick UI.
 	 */
 	export interface QuickPickOptions {
+
+		/**
+		 * An optional string that represents the title of the quick pick.
+		 */
+		title?: string;
+
 		/**
 		 * An optional flag to include the description when filtering the picks.
 		 */
@@ -1846,6 +1852,11 @@ declare module 'vscode' {
 	 * Options to configure the behavior of the input box UI.
 	 */
 	export interface InputBoxOptions {
+
+		/**
+		 * An optional string that represents the title of the input box.
+		 */
+		title?: string;
 
 		/**
 		 * The value to prefill in the input box.
@@ -2158,10 +2169,33 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The reason why code actions were requested.
+	 */
+	export enum CodeActionTriggerKind {
+		/**
+		 * Code actions were explicitly requested by the user or by an extension.
+		 */
+		Invoke = 1,
+
+		/**
+		 * Code actions were requested automatically.
+		 *
+		 * This typically happens when current selection in a file changes, but can
+		 * also be triggered when file content changes.
+		 */
+		Automatic = 2,
+	}
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
 	export interface CodeActionContext {
+		/**
+		 * The reason why code actions were requested.
+		 */
+		readonly triggerKind: CodeActionTriggerKind;
+
 		/**
 		 * An array of diagnostics.
 		 */
@@ -2419,13 +2453,13 @@ declare module 'vscode' {
 	/**
 	 * Information about where a symbol is defined.
 	 *
-	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
+	 * Provides additional metadata over normal {@link Location location} definitions, including the range of
 	 * the defining symbol
 	 */
 	export type DefinitionLink = LocationLink;
 
 	/**
-	 * The definition of a symbol represented as one or many [locations](#Location).
+	 * The definition of a symbol represented as one or many {@link Location locations}.
 	 * For most programming languages there is only one location at which a symbol is
 	 * defined.
 	 */
@@ -2666,6 +2700,134 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
+	}
+
+	/**
+	 * Provide inline value as text.
+	 */
+	export class InlineValueText {
+		/**
+		 * The document range for which the inline value applies.
+		 */
+		readonly range: Range;
+		/**
+		 * The text of the inline value.
+		 */
+		readonly text: string;
+		/**
+		 * Creates a new InlineValueText object.
+		 *
+		 * @param range The document line where to show the inline value.
+		 * @param text The value to be shown for the line.
+		 */
+		constructor(range: Range, text: string);
+	}
+
+	/**
+	 * Provide inline value through a variable lookup.
+	 * If only a range is specified, the variable name will be extracted from the underlying document.
+	 * An optional variable name can be used to override the extracted name.
+	 */
+	export class InlineValueVariableLookup {
+		/**
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the variable name from the underlying document.
+		 */
+		readonly range: Range;
+		/**
+		 * If specified the name of the variable to look up.
+		 */
+		readonly variableName?: string;
+		/**
+		 * How to perform the lookup.
+		 */
+		readonly caseSensitiveLookup: boolean;
+		/**
+		 * Creates a new InlineValueVariableLookup object.
+		 *
+		 * @param range The document line where to show the inline value.
+		 * @param variableName The name of the variable to look up.
+		 * @param caseSensitiveLookup How to perform the lookup. If missing lookup is case sensitive.
+		 */
+		constructor(range: Range, variableName?: string, caseSensitiveLookup?: boolean);
+	}
+
+	/**
+	 * Provide an inline value through an expression evaluation.
+	 * If only a range is specified, the expression will be extracted from the underlying document.
+	 * An optional expression can be used to override the extracted expression.
+	 */
+	export class InlineValueEvaluatableExpression {
+		/**
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the evaluatable expression from the underlying document.
+		 */
+		readonly range: Range;
+		/**
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+		/**
+		 * Creates a new InlineValueEvaluatableExpression object.
+		 *
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
+		 */
+		constructor(range: Range, expression?: string);
+	}
+
+	/**
+	 * Inline value information can be provided by different means:
+	 * - directly as a text value (class InlineValueText).
+	 * - as a name to use for a variable lookup (class InlineValueVariableLookup)
+	 * - as an evaluatable expression (class InlineValueEvaluatableExpression)
+	 * The InlineValue types combines all inline value types into one type.
+	 */
+	export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueEvaluatableExpression;
+
+	/**
+	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
+	 */
+	export interface InlineValueContext {
+
+		/**
+		 * The stack frame (as a DAP Id) where the execution has stopped.
+		 */
+		readonly frameId: number;
+
+		/**
+		 * The document range where execution has stopped.
+		 * Typically the end position of the range denotes the line where the inline values are shown.
+		 */
+		readonly stoppedLocation: Range;
+	}
+
+	/**
+	 * The inline values provider interface defines the contract between extensions and the VS Code debugger inline values feature.
+	 * In this contract the provider returns inline value information for a given document range
+	 * and VS Code shows this information in the editor at the end of lines.
+	 */
+	export interface InlineValuesProvider {
+
+		/**
+		 * An optional event to signal that inline values have changed.
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeInlineValues?: Event<void> | undefined;
+
+		/**
+		 * Provide "inline value" information for a given document and range.
+		 * VS Code calls this method whenever debugging stops in the given document.
+		 * The returned inline values information is rendered in the editor at the end of lines.
+		 *
+		 * @param document The document for which the inline values information is needed.
+		 * @param viewPort The visible document range for which inline values should be computed.
+		 * @param context A bag containing contextual information like the current location.
+		 * @param token A cancellation token.
+		 * @return An array of InlineValueDescriptors or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideInlineValues(document: TextDocument, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
 	}
 
 	/**
@@ -3236,7 +3398,7 @@ declare module 'vscode' {
 		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
 
 		/**
-		 * Builder-function that appends a choice (`${1|a,b,c}`) to
+		 * Builder-function that appends a choice (`${1|a,b,c|}`) to
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
 		 * @param values The values for choices - the array of strings
@@ -5936,6 +6098,11 @@ declare module 'vscode' {
 		 * other extensions in the host run in `ExtensionMode.Release`.
 		 */
 		readonly extensionMode: ExtensionMode;
+
+		/**
+		 * The current `Extension` instance.
+		 */
+		readonly extension: Extension<any>;
 	}
 
 	/**
@@ -6545,6 +6712,10 @@ declare module 'vscode' {
 		 * called for tasks returned from the above `provideTasks` method since those
 		 * tasks are always fully resolved. A valid default implementation for the
 		 * `resolveTask` method is to return `undefined`.
+		 *
+		 * Note that when filling in the properties of `task`, you _must_ be sure to
+		 * use the exact same `TaskDefinition` and not create a new one. Other properties
+		 * may be changed.
 		 *
 		 * @param task The task to resolve.
 		 * @param token A cancellation token.
@@ -7668,6 +7839,13 @@ declare module 'vscode' {
 		 * from the user's workspace.
 		 */
 		readonly backupId?: string;
+
+		/**
+		 * If the URI is an untitled file, this will be populated with the byte data of that file
+		 *
+		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
+		 */
+		readonly untitledDocumentData?: Uint8Array;
 	}
 
 	/**
@@ -7905,6 +8083,24 @@ declare module 'vscode' {
 		 * Changes each time the editor is started.
 		 */
 		export const sessionId: string;
+
+		/**
+		 * Indicates that this is a fresh install of the application.
+		 * `true` if within the first day of installation otherwise `false`.
+		 */
+		export const isNewAppInstall: boolean;
+
+		/**
+		 * Indicates whether the users has telemetry enabled.
+		 * Can be observed to determine if the extension should send telemetry.
+		 */
+		export const isTelemetryEnabled: boolean;
+
+		/**
+		 * An [event](#Event) which fires when the user enabled or disables telemetry.
+		 * `true` if the user has enabled telemetry or `false` if the user has disabled telemetry.
+		 */
+		export const onDidChangeTelemetryEnabled: Event<boolean>;
 
 		/**
 		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
@@ -9115,7 +9311,7 @@ declare module 'vscode' {
 		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
-		env?: { [key: string]: string | null };
+		env?: { [key: string]: string | null | undefined };
 
 		/**
 		 * Whether the terminal process environment should be exactly as provided in
@@ -10054,9 +10250,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for dealing with the current workspace. A workspace is the representation
-	 * of the folder that has been opened. There is no workspace when just a file but not a
-	 * folder has been opened.
+	 * Namespace for dealing with the current workspace. A workspace is the collection of one
+	 * or more folders that are opened in a VS Code window (instance).
+	 *
+	 * It is also possible to open VS Code without a workspace. For example, when you open a
+	 * new VS Code window by selecting a file from your platform's File menu, you will not be
+	 * inside a workspace. In this mode, some of VS Code's capabilities are reduced but you can
+	 * still open text files and edit them.
+	 *
+	 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+	 * the concept of workspaces in VS Code.
 	 *
 	 * The workspace offers support for [listening](#workspace.createFileSystemWatcher) to fs
 	 * events and for [finding](#workspace.findFiles) files. Both perform well and run _outside_
@@ -10073,22 +10276,33 @@ declare module 'vscode' {
 		export const fs: FileSystem;
 
 		/**
-		 * The folder that is open in the editor. `undefined` when no folder
+		 * The workspace folder that is open in VS Code. `undefined` when no workspace
 		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
+		 * on workspaces in VS Code.
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
 		 */
 		export const rootPath: string | undefined;
 
 		/**
-		 * List of workspace folders or `undefined` when no folder is open.
+		 * List of workspace folders that are open in VS Code. `undefined when no workspace
+		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
+		 * on workspaces in VS Code.
+		 *
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
 		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
 
 		/**
-		 * The name of the workspace. `undefined` when no folder
+		 * The name of the workspace. `undefined` when no workspace
 		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+		 * the concept of workspaces in VS Code.
 		 */
 		export const name: string | undefined;
 
@@ -10104,7 +10318,7 @@ declare module 'vscode' {
 		 * for a workspace that is untitled and not yet saved.
 		 *
 		 * Depending on the workspace that is opened, the value will be:
-		 *  * `undefined` when no workspace or  a single folder is opened
+		 *  * `undefined` when no workspace is opened
 		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
 		 * is untitled, the returned URI will use the `untitled:` scheme
 		 *
@@ -10115,6 +10329,9 @@ declare module 'vscode' {
 		 * ```typescript
 		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
 		 * ```
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+		 * the concept of workspaces in VS Code.
 		 *
 		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
 		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
@@ -10480,6 +10697,16 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean, readonly isReadonly?: boolean }): Disposable;
+
+		/**
+		 * When true, the user has explicitly trusted the contents of the workspace.
+		 */
+		export const isTrusted: boolean;
+
+		/**
+		 * Event that fires when the current workspace has been trusted.
+		 */
+		export const onDidGrantWorkspaceTrust: Event<void>;
 	}
 
 	/**
@@ -10747,6 +10974,21 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
+
+		/**
+		 * Register a provider that returns data for the debugger's 'inline value' feature.
+		 * Whenever the generic VS Code debugger has stopped in a source file, providers registered for the language of the file
+		 * are called to return textual data that will be shown in the editor at the end of lines.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline values provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerInlineValuesProvider(selector: DocumentSelector, provider: InlineValuesProvider): Disposable;
 
 		/**
 		 * Register a document highlight provider.

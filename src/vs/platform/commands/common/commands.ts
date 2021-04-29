@@ -41,6 +41,7 @@ export interface ICommandHandlerDescription {
 	readonly description: string;
 	readonly args: ReadonlyArray<{
 		readonly name: string;
+		readonly isOptional?: boolean;
 		readonly description?: string;
 		readonly constraint?: TypeConstraint;
 		readonly schema?: IJSONSchema;

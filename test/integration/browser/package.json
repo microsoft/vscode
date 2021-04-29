@@ -7,7 +7,7 @@
     "compile": "tsc"
   },
   "devDependencies": {
-    "@types/mkdirp": "0.5.1",
+    "@types/mkdirp": "^1.0.1",
     "@types/node": "^12.19.9",
     "@types/optimist": "0.0.29",
     "@types/rimraf": "^2.0.4",

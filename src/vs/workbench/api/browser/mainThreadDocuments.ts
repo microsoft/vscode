@@ -157,10 +157,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}));
 
 		this._register(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			if (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE) {
-				for (const { source } of e.files) {
-					if (source) {
-						this._modelReferenceCollection.remove(source);
+			const isMove = e.operation === FileOperation.MOVE;
+			if (isMove || e.operation === FileOperation.DELETE) {
+				for (const pair of e.files) {
+					const removed = isMove ? pair.source : pair.target;
+					if (removed) {
+						this._modelReferenceCollection.remove(removed);
 					}
 				}
 			}
@@ -169,7 +171,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._modelTrackers = Object.create(null);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		Object.keys(this._modelTrackers).forEach((modelUrl) => {
 			this._modelTrackers[modelUrl].dispose();
 		});
@@ -202,12 +204,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
-		let { model, oldModeId } = event;
+		let { model } = event;
 		const modelUrl = model.uri;
 		if (!this._modelIsSynced.has(modelUrl.toString())) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri, oldModeId, model.getLanguageIdentifier().language);
+		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageIdentifier().language);
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {

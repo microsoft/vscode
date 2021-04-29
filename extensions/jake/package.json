@@ -26,6 +26,12 @@
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "configuration": {
       "id": "jake",
@@ -59,7 +65,8 @@
             "type": "string",
             "description": "%jake.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
   },

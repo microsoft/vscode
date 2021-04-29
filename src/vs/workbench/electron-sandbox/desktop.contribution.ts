@@ -36,12 +36,20 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 	// Actions: Window
 	(function registerWindowActions(): void {
-		registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseCurrentWindowAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
 		registry.registerWorkbenchAction(SyncActionDescriptor.from(SwitchWindow, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
 		registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickSwitchWindow), 'Quick Switch Window...');
 
+		// Close window
+		registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseCurrentWindowAction, {
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W },
+			linux: { primary: KeyMod.Alt | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W] },
+			win: { primary: KeyMod.Alt | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W] }
+		}
+		), 'Close Window');
+
+		// Close the window when the last editor is closed by reusing the same keybinding
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: CloseCurrentWindowAction.ID, // close the window when the last editor is closed by reusing the same keybinding
+			id: CloseCurrentWindowAction.ID,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
@@ -51,6 +59,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			}
 		});
 
+		// Quit
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: 'workbench.action.quit',
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -312,7 +321,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 					'type': 'string'
 				},
 				'default': [],
-				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`.'),
+				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`).'),
 				'included': isMacintosh
 			}
 		}
@@ -361,6 +370,10 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				items: {
 					type: 'string'
 				}
+			},
+			'log-level': {
+				type: 'string',
+				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
 			}
 		}
 	};

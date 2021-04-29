@@ -8,6 +8,13 @@
   "engines": {
     "vscode": "^1.5.0"
   },
+  "icon": "media/icon.png",
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "activationEvents": [
     "*"
   ],

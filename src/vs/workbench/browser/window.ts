@@ -115,7 +115,7 @@ export class BrowserWindow extends Disposable {
 	private create(): void {
 
 		// Driver
-		if (this.environmentService.options?.driver) {
+		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
 			(async () => this._register(await registerWindowDriver()))();
 		}
 
@@ -138,7 +138,13 @@ export class BrowserWindow extends Disposable {
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					windowOpenNoOpener(href);
+					const opened = windowOpenNoOpener(href);
+					if (!opened) {
+						const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser prevented opening of a new tab or window. You must give permission to continue."), [localize('continue', "Continue"), localize('cancel', "Cancel")], { cancelId: 1, detail: href });
+						if (showResult.choice === 0) {
+							windowOpenNoOpener(href);
+						}
+					}
 				} else {
 					this.lifecycleService.withExpectedUnload(() => window.location.href = href);
 				}
