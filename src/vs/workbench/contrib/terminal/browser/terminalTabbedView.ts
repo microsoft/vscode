@@ -150,7 +150,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _shouldShowTabs(): boolean {
 		const enable = this._terminalService.configHelper.config.tabs.enabled;
-		const hideForSingle = this._terminalService.configHelper.config.tabs.showActiveTerminal === 'singleTerminal';
+		const hideForSingle = this._terminalService.configHelper.config.tabs.hideCondition === 'singleTerminal';
 		return enable && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
 	}
 
