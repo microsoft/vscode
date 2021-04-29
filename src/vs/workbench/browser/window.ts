@@ -140,7 +140,7 @@ export class BrowserWindow extends Disposable {
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					const opened = windowOpenNoOpener(href);
 					if (!opened) {
-						const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser prevented opening of a new tab or window. You must give permission to continue."), [localize('continue', "Continue"), localize('cancel', "Cancel")], { cancelId: 1, detail: href });
+						const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 1, detail: href });
 						if (showResult.choice === 0) {
 							windowOpenNoOpener(href);
 						}
