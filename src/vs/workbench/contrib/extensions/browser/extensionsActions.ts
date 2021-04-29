@@ -61,7 +61,6 @@ import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustI
 import { isWeb } from 'vs/base/common/platform';
 import { isWorkspaceTrustEnabled } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -2086,7 +2085,6 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -2115,10 +2113,9 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		) {
 			return;
 		}
-		const virtualWorkspaceLocation = getVirtualWorkspaceLocation(this.workspaceContextService.getWorkspace());
-		if (virtualWorkspaceLocation && this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace) {
+		if (this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace) {
 			this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
-			this.tooltip = localize('disabled because of virtual workspace', "This extension has defined that it cannot run in {0} workspace", this.labelService.getHostLabel(virtualWorkspaceLocation.scheme, virtualWorkspaceLocation.authority));
+			this.tooltip = localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces.");
 			return;
 		}
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
