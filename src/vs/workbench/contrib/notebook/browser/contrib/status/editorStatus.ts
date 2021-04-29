@@ -199,7 +199,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					text,
 					ariaLabel: selected.label,
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
-					command: all.length > 1 ? 'notebook.selectKernel' : undefined,
+					command: 'notebook.selectKernel',
 				},
 				'notebook.selectKernel',
 				nls.localize('notebook.info', "Notebook Controller Info"),
