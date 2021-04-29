@@ -182,31 +182,49 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		let isSuggested = false;
 
 		if (all.length === 0) {
+			// no controller -> no status
 			this._kernelInfoElement.clear();
 			return;
-		}
 
-		if (!selected) {
-			selected = all[0];
-			isSuggested = true;
-		}
+		} else if (selected || all.length === 1) {
+			// selected or single controller
+			if (!selected) {
+				selected = all[0];
+				isSuggested = true;
+			}
+			const text = `$(notebook-kernel-select) ${selected.label}`;
+			const tooltip = selected.description ?? selected.detail ?? selected.label;
+			const registration = this._statusbarService.addEntry(
+				{
+					text,
+					ariaLabel: selected.label,
+					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
+					command: all.length > 1 ? 'notebook.selectKernel' : undefined,
+				},
+				'notebook.selectKernel',
+				nls.localize('notebook.info', "Notebook Controller Info"),
+				StatusbarAlignment.RIGHT,
+				1000
+			);
+			const listener = selected.onDidChange(() => this._showKernelStatus(notebook));
+			this._kernelInfoElement.value = combinedDisposable(listener, registration);
 
-		const text = `$(notebook-kernel-select) ${selected.label}`;
-		const tooltip = selected.description ?? selected.detail ?? selected.label;
-		const registration = this._statusbarService.addEntry(
-			{
-				text,
-				ariaLabel: selected.label,
-				tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
-				command: all.length > 1 ? 'notebook.selectKernel' : undefined,
-			},
-			'notebook.selectKernel',
-			nls.localize('notebook.info', "Notebook Controller Info"),
-			StatusbarAlignment.RIGHT,
-			100
-		);
-		const listener = selected.onDidChange(() => this._showKernelStatus(notebook));
-		this._kernelInfoElement.value = combinedDisposable(listener, registration);
+		} else {
+			// multiple controllers -> show selection hint
+			const registration = this._statusbarService.addEntry(
+				{
+					text: nls.localize('controller.select.label', "Select Controller"),
+					ariaLabel: nls.localize('controller.select.label', "Select Controller"),
+					command: 'notebook.selectKernel',
+					backgroundColor: { id: 'statusBarItem.prominentBackground' }
+				},
+				'notebook.selectKernel',
+				nls.localize('notebook.select', "Notebook Controller Selection"),
+				StatusbarAlignment.RIGHT,
+				1000
+			);
+			this._kernelInfoElement.value = registration;
+		}
 	}
 }
 
