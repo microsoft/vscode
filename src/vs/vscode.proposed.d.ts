@@ -2167,7 +2167,7 @@ declare module 'vscode' {
 		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An inline hints provider.
+		 * @param provider An inlay hints provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerInlayHintsProvider(selector: DocumentSelector, provider: InlayHintsProvider): Disposable;
@@ -2180,7 +2180,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Inline hint information.
+	 * Inlay hint information.
 	 */
 	export class InlayHint {
 		/**
@@ -2209,23 +2209,23 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The inline hints provider interface defines the contract between extensions and
-	 * the inline hints feature.
+	 * The inlay hints provider interface defines the contract between extensions and
+	 * the inlay hints feature.
 	 */
 	export interface InlayHintsProvider {
 
 		/**
-		 * An optional event to signal that inline hints have changed.
+		 * An optional event to signal that inlay hints have changed.
 		 * @see [EventEmitter](#EventEmitter)
 		 */
 		onDidChangeInlayHints?: Event<void>;
 
 		/**
-		 * @param model The document in which the command was invoked.
-		 * @param range The range for which line hints should be computed.
-		 * @param token A cancellation token.
 		 *
-		 * @return A list of arguments labels or a thenable that resolves to such.
+		 * @param model The document in which the command was invoked.
+		 * @param range The range for which inlay hints should be computed.
+		 * @param token A cancellation token.
+		 * @return A list of inlay hints or a thenable that resolves to such.
 		 */
 		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
 	}
