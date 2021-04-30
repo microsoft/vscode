@@ -10137,10 +10137,10 @@ wide-align@1.1.3, wide-align@^1.1.0:
   dependencies:
     string-width "^1.0.2 || 2"
 
-windows-foreground-love@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.2.0.tgz#b291832d8a02a966bc046ba0e498cc789809076b"
-  integrity sha512-72ZDshnt8Q3/ImLMt4wxsY8eVnUd1KDb5QfvZX09AxJJJa0hGdyzPfd/ms0pKSYYwKlEhB1ri+WDKNvdIpJknQ==
+windows-foreground-love@0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.4.0.tgz#79b628ba0ffc0436fa8066da8f85db042e431976"
+  integrity sha512-IPv60/Z6pJE8AQEBLzYWFfCVh6Z5G6qCrysbJzXYCKFkQY3XivsePdbZ0C0wqRNqsFjpVr06vnIdKfIcZFgDXQ==
 
 windows-mutex@0.3.0:
   version "0.3.0"
