@@ -41,9 +41,8 @@
 .monaco-tl-twistie {
 	font-size: 10px;
 	text-align: right;
-	padding-right: 6px;
 	flex-shrink: 0;
-	width: 16px;
+	width: 22px;
 	display: flex !important;
 	align-items: center;
 	justify-content: center;
