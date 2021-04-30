@@ -286,7 +286,7 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.tabs.enabled': {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
 			type: 'boolean',
-			default: true,
+			default: false,
 		},
 		'terminal.integrated.tabs.hideCondition': {
 			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
