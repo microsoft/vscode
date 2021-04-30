@@ -80,7 +80,7 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 		const systemShellUnix = await getSystemShell(OS, env);
 		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
-		let command = `'${process.execPath}' -p '\`${mark}\` + JSON.stringify(process.env) + \`${mark}\`'`;
+		let command = `'${process.execPath}' -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
 		let shellArgs = ['-ilc'];
 
 		// handle popular non-POSIX shells
