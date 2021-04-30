@@ -316,6 +316,15 @@ export abstract class BaseCellViewModel extends Disposable {
 		return [...this._resolvedCellDecorations.values()];
 	}
 
+	getCellDecorationRange(decorationId: string): Range | null {
+		if (this._textEditor) {
+			// (this._textEditor as CodeEditorWidget).decora
+			return this._textEditor.getModel()?.getDecorationRange(decorationId) ?? null;
+		}
+
+		return null;
+	}
+
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookCellDecorationOptions[]): string[] {
 		oldDecorations.forEach(id => {
 			this._removeCellDecoration(id);
