@@ -710,7 +710,6 @@ export async function createWebviewManager(host) {
 						applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
 					}
 					newFrame.setAttribute('id', 'active-frame');
-					newFrame.setAttribute('name', 'xxx');
 					newFrame.style.visibility = 'visible';
 					if (host.focusIframeOnCreate) {
 						newFrame.contentWindow.focus();
