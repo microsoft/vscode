@@ -83,10 +83,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// Always ensure inputs have populated resource fields
 		if (editor instanceof DiffEditorInput) {
 			if ((!editor.modifiedInput.resource || !editor.originalInput.resource)) {
-				return;
+				return { editor, options, group };
 			}
 		} else if (!editor.resource) {
-			return;
+			return { editor, options, group };
 		}
 
 		let override = typeof options?.override === 'string' ? options.override : undefined;
@@ -109,12 +109,12 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const { contributionPoint, conflictingDefault } = this.getContributionPoint(editor instanceof DiffEditorInput ? editor.modifiedInput.resource! : editor.resource!, override);
 		const selectedContribution = contributionPoint;
 		if (!selectedContribution) {
-			return;
+			return { editor, options, group };
 		}
 
 		const handlesDiff = typeof selectedContribution.options?.canHandleDiff === 'function' ? selectedContribution.options.canHandleDiff() : selectedContribution.options?.canHandleDiff;
 		if (editor instanceof DiffEditorInput && handlesDiff === false) {
-			return;
+			return { editor, options, group };
 		}
 
 		// If it's the currently active editor we shouldn't do anything
@@ -204,11 +204,19 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	 * @returns The contribution point and whether there was another default which conflicted with it
 	 */
 	private getContributionPoint(resource: URI, override: string | undefined): { contributionPoint: ContributionPoint | undefined, conflictingDefault: boolean } {
+		const findMatchingContribPoint = (contributionPoints: ContributionPoints, viewType: string) => {
+			return contributionPoints.find((contribPoint) => {
+				if (contribPoint.options && contribPoint.options.canSupportResource !== undefined) {
+					return contribPoint.editorInfo.id === viewType && contribPoint.options.canSupportResource(resource);
+				}
+				return contribPoint.editorInfo.id === viewType;
+			});
+		};
 		if (override) {
 			// Specific overried passed in doesn't have to match the reosurce, it can be anything
 			const contributionPoints = flatten(Array.from(this._contributionPoints.values()));
 			return {
-				contributionPoint: contributionPoints.find(contribPoint => contribPoint.editorInfo.id === override),
+				contributionPoint: findMatchingContribPoint(contributionPoints, override),
 				conflictingDefault: false
 			};
 		}
@@ -227,7 +235,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		return {
-			contributionPoint: contributionPoints.find(contribPoint => contribPoint.editorInfo.id === selectedViewType),
+			contributionPoint: findMatchingContribPoint(contributionPoints, selectedViewType),
 			conflictingDefault
 		};
 	}

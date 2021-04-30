@@ -176,7 +176,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
 			case 'workspaceValue':
-				this.isUntrusted = !!this.setting.requireTrust && !isWorkspaceTrusted;
+				this.isUntrusted = !!this.setting.restricted && !isWorkspaceTrusted;
 				break;
 		}
 
@@ -199,7 +199,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.defaultValue = inspected.defaultValue;
 
 		this.isConfigured = isConfigured;
-		if (isConfigured || this.setting.tags || this.tags || this.isUntrusted) {
+		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted) {
 			// Don't create an empty Set for all 1000 settings, only if needed
 			this.tags = new Set<string>();
 			if (isConfigured) {
@@ -210,7 +210,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				this.setting.tags.forEach(tag => this.tags!.add(tag));
 			}
 
-			if (this.isUntrusted) {
+			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
 			}
 		}
@@ -476,13 +476,13 @@ export function inspectSetting(key: string, target: SettingsTarget, configuratio
 	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
 	if (!isConfigured) {
 		if (target === ConfigurationTarget.USER_LOCAL) {
-			isConfigured = !!configurationService.unTrustedSettings.userLocal?.includes(key);
+			isConfigured = !!configurationService.restrictedSettings.userLocal?.includes(key);
 		} else if (target === ConfigurationTarget.USER_REMOTE) {
-			isConfigured = !!configurationService.unTrustedSettings.userRemote?.includes(key);
+			isConfigured = !!configurationService.restrictedSettings.userRemote?.includes(key);
 		} else if (target === ConfigurationTarget.WORKSPACE) {
-			isConfigured = !!configurationService.unTrustedSettings.workspace?.includes(key);
+			isConfigured = !!configurationService.restrictedSettings.workspace?.includes(key);
 		} else if (target instanceof URI) {
-			isConfigured = !!configurationService.unTrustedSettings.workspaceFolder?.get(target)?.includes(key);
+			isConfigured = !!configurationService.restrictedSettings.workspaceFolder?.get(target)?.includes(key);
 		}
 	}
 

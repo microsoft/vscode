@@ -20,12 +20,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { INotebookEditorContribution, notebookMarkupRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookMarkupRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookMarkupRendererInfo as NotebookMarkupRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { ComplexNotebookProviderInfo, INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -39,6 +39,8 @@ import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/n
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { ContributedEditorPriority, IEditorAssociationsRegistry, IEditorOverrideService, IEditorType, IEditorTypesHandler } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { EditorExtensions } from 'vs/workbench/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
+
 export class NotebookProviderInfoStore extends Disposable {
 
 	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
@@ -57,6 +59,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
@@ -136,7 +139,8 @@ export class NotebookProviderInfoStore extends Disposable {
 					priority: notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority,
 				},
 				{
-					canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized()
+					canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
+					canSupportResource: resource => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
 				},
 				(resource, options, group) => {
 					const data = CellUri.parse(resource);
@@ -272,7 +276,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	private readonly _notebookProviders = new Map<string, ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>();
 	private readonly _notebookProviderInfoStore: NotebookProviderInfoStore;
 	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
-	private readonly _markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
+	private readonly _markdownRenderersInfos = new Set<INotebookMarkupRendererInfo>();
 	private readonly _models = new ResourceMap<ModelData>();
 
 	private readonly _onDidCreateNotebookDocument = this._register(new Emitter<NotebookTextModel>());
@@ -333,8 +337,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 				}
 			}
 		});
-
-		notebookMarkdownRendererExtensionPoint.setHandler((renderers) => {
+		notebookMarkupRendererExtensionPoint.setHandler((renderers) => {
 			this._markdownRenderersInfos.clear();
 
 			for (const extension of renderers) {
@@ -355,11 +358,13 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 						continue;
 					}
 
-					this._markdownRenderersInfos.add(new NotebookMarkdownRendererInfo({
+					this._markdownRenderersInfos.add(new NotebookMarkupRendererInfo({
 						id,
 						extension: extension.description,
 						entrypoint: notebookContribution.entrypoint,
 						displayName: notebookContribution.displayName,
+						mimeTypes: notebookContribution.mimeTypes,
+						dependsOn: notebookContribution.dependsOn,
 					}));
 				}
 			}
@@ -518,7 +523,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		this._notebookRenderersInfoStore.setPreferred(mimeType, rendererId);
 	}
 
-	getMarkdownRendererInfo(): INotebookMarkdownRendererInfo[] {
+	getMarkupRendererInfo(): INotebookMarkupRendererInfo[] {
 		return Array.from(this._markdownRenderersInfos);
 	}
 

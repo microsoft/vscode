@@ -1129,7 +1129,8 @@ registerAction2(class extends NotebookCellAction {
 					runStartTime: undefined,
 					runStartTimeAdjustment: undefined,
 					runEndTime: undefined,
-					executionOrder: undefined
+					executionOrder: undefined,
+					lastRunSuccess: undefined
 				}
 			}], true, undefined, () => undefined, undefined);
 		}
@@ -1385,7 +1386,8 @@ abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 
 		const metadataDelta = this.getMetadataDelta();
 		const edits: ICellEditOperation[] = [];
-		for (const cell of context.selectedCells || []) {
+		const targetCells = (context.cell ? [context.cell] : context.selectedCells) ?? [];
+		for (const cell of targetCells) {
 			const index = textModel.cells.indexOf(cell.model);
 			if (index >= 0) {
 				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...metadataDelta } });

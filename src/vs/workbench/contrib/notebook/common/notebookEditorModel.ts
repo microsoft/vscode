@@ -215,6 +215,10 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	private async _loadFromProvider(backupId: string | undefined): Promise<void> {
 
 		const untitledData = await this.getUntitledDocumentData(this.resource);
+		// If we're loading untitled file data we should ensure the model is dirty
+		if (untitledData) {
+			this._onDidChangeDirty.fire();
+		}
 		const data = await this._contentProvider.open(this.resource, backupId, untitledData, CancellationToken.None);
 
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);

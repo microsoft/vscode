@@ -171,6 +171,16 @@ suite('Notebook API tests', function () {
 
 		const kernel1 = new Kernel('mainKernel', 'Notebook Primary Test Kernel');
 
+		const listener = vscode.notebook.onDidOpenNotebookDocument(async notebook => {
+			if (notebook.viewType === kernel1.controller.viewType) {
+				await vscode.commands.executeCommand('notebook.selectKernel', {
+					extension: 'vscode.vscode-api-tests',
+					id: kernel1.controller.id
+				});
+			}
+		});
+
+
 		const kernel2 = new class extends Kernel {
 			constructor() {
 				super('secondaryKernel', 'Notebook Secondary Test Kernel');
@@ -187,7 +197,7 @@ suite('Notebook API tests', function () {
 			}
 		};
 
-		testDisposables.push(kernel1.controller, kernel2.controller);
+		testDisposables.push(kernel1.controller, listener, kernel2.controller);
 	});
 
 	teardown(() => {

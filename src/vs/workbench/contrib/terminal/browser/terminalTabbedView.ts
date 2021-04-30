@@ -115,13 +115,15 @@ export class TerminalTabbedView extends Disposable {
 
 		_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.tabs.enabled') ||
-				e.affectsConfiguration('terminal.integrated.tabs.hideForSingle')) {
+				e.affectsConfiguration('terminal.integrated.tabs.hideCondition')) {
 				this._refreshShowTabs();
 			} else if (e.affectsConfiguration('terminal.integrated.tabs.location')) {
 				this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
 				this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
 				if (this._shouldShowTabs()) {
 					this._splitView.swapViews(0, 1);
+					this._removeSashListener();
+					this._addSashListener();
 					this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 				}
 			}
@@ -148,7 +150,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _shouldShowTabs(): boolean {
 		const enable = this._terminalService.configHelper.config.tabs.enabled;
-		const hideForSingle = this._terminalService.configHelper.config.tabs.hideForSingle;
+		const hideForSingle = this._terminalService.configHelper.config.tabs.hideCondition === 'singleTerminal';
 		return enable && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
 	}
 

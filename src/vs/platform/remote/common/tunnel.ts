@@ -237,7 +237,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			localAddress: tunnel.localAddress,
 			public: tunnel.public,
 			dispose: async () => {
-				this.logService.trace(`ForwardedPorts: (TunnelService) dispose request for ${tunnel.tunnelRemotePort} `);
+				this.logService.trace(`ForwardedPorts: (TunnelService) dispose request for ${tunnel.tunnelRemoteHost}:${tunnel.tunnelRemotePort} `);
 				const existingHost = this._tunnels.get(tunnel.tunnelRemoteHost);
 				if (existingHost) {
 					const existing = existingHost.get(tunnel.tunnelRemotePort);
@@ -267,7 +267,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	}
 
 	async closeTunnel(remoteHost: string, remotePort: number): Promise<void> {
-		this.logService.trace(`ForwardedPorts: (TunnelService) close request for ${remotePort} `);
+		this.logService.trace(`ForwardedPorts: (TunnelService) close request for ${remoteHost}:${remotePort} `);
 		const portMap = this._tunnels.get(remoteHost);
 		if (portMap && portMap.has(remotePort)) {
 			const value = portMap.get(remotePort)!;

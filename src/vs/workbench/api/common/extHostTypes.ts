@@ -3155,12 +3155,12 @@ export enum NotebookEditorRevealType {
 
 export class NotebookCellStatusBarItem {
 	constructor(
-		readonly text: string,
-		readonly alignment: NotebookCellStatusBarAlignment,
-		readonly command?: string | vscode.Command,
-		readonly tooltip?: string,
-		readonly priority?: number,
-		readonly accessibilityInformation?: vscode.AccessibilityInformation) { }
+		public text: string,
+		public alignment: NotebookCellStatusBarAlignment,
+		public command?: string | vscode.Command,
+		public tooltip?: string,
+		public priority?: number,
+		public accessibilityInformation?: vscode.AccessibilityInformation) { }
 }
 
 

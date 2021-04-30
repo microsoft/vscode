@@ -59,9 +59,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.automationShell.linux': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -70,9 +68,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.automationShell.osx': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.osx',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -81,9 +77,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.automationShell.windows': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.windows',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -92,9 +86,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.shellArgs.linux': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
@@ -104,9 +96,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
 		},
 		'terminal.integrated.shellArgs.osx': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
@@ -119,9 +109,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
 		},
 		'terminal.integrated.shellArgs.windows': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			'anyOf': [
 				{
@@ -140,9 +128,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
 		},
 		'terminal.integrated.profiles.windows': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profiles.windows',
@@ -202,9 +188,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.profiles.osx': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.osx',
@@ -241,9 +225,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.profiles.linux': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.linux',
@@ -291,7 +273,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
 		},
 		'terminal.integrated.defaultProfile.windows': {
-			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.windows` and `terminal.integrated.shellArgs.windows`.'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
@@ -306,26 +288,45 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 		},
-		'terminal.integrated.tabs.hideForSingle': {
-			description: localize('terminal.integrated.tabs.hideForSingle', 'Hides the terminal tabs view when there is only a single terminal instance.'),
-			type: 'boolean',
-			default: true
+		'terminal.integrated.tabs.hideCondition': {
+			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
+			type: 'string',
+			enum: ['never', 'singleTerminal'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.hideCondition.never', "Never hide the terminal tabs view"),
+				localize('terminal.integrated.tabs.hideCondition.singleTerminal', "Hide the terminal tabs view when there is only a single terminal opened"),
+			],
+			default: 'singleTerminal',
 		},
 		'terminal.integrated.tabs.showActiveTerminal': {
 			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),
 			type: 'string',
 			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.showActiveTerminal.always', "Always show the active terminal"),
+				localize('terminal.integrated.tabs.showActiveTerminal.singleTerminal', "Show the active terminal when it is the only terminal opened"),
+				localize('terminal.integrated.tabs.showActiveTerminal.singleTerminalOrNarrow', "Show the active terminal when it is the only terminal opened or when the tabs view is in its narrow textless state"),
+				localize('terminal.integrated.tabs.showActiveTerminal.never', "Never show the active terminal"),
+			],
 			default: 'singleTerminalOrNarrow',
 		},
 		'terminal.integrated.tabs.location': {
 			type: 'string',
 			enum: ['left', 'right'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.location.left', "Show the terminal tabs view to the left of the terminal"),
+				localize('terminal.integrated.tabs.location.right', "Show the terminal tabs view to the right of the terminal")
+			],
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
 		'terminal.integrated.tabs.focusMode': {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.focusMode.singleClick', "Focus the terminal when clicking a terminal tab"),
+				localize('terminal.integrated.tabs.focusMode.doubleClick', "Focus the terminal when double clicking a terminal tab")
+			],
 			default: 'doubleClick',
 			description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
 		},
@@ -492,6 +493,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
 		},
 		'terminal.integrated.cwd': {
+			restricted: true,
 			description: localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
 			type: 'string',
 			default: undefined
@@ -530,9 +532,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.env.osx': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -541,9 +541,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: {}
 		},
 		'terminal.integrated.env.linux': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -552,9 +550,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: {}
 		},
 		'terminal.integrated.env.windows': {
-			requireTrust: true,
-			// TODO: Remove when workspace trust is enabled by default
-			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			markdownDescription: localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -664,6 +660,12 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions for the workspace across window reloads."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.allowWorkspaceConfiguration': {
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('terminal.integrated.allowWorkspaceConfiguration', "Allows shell and profile settings to be pick up from a workspace."),
+			type: 'boolean',
+			default: false
 		}
 	}
 };
@@ -676,27 +678,21 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 		type: 'object',
 		properties: {
 			'terminal.integrated.shell.linux': {
-				requireTrust: true,
-				// TODO: Remove when workspace trust is enabled by default
-				scope: ConfigurationScope.APPLICATION,
+				restricted: true,
 				markdownDescription: linux,
 				type: ['string', 'null'],
 				default: null,
 				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
 			},
 			'terminal.integrated.shell.osx': {
-				requireTrust: true,
-				// TODO: Remove when workspace trust is enabled by default
-				scope: ConfigurationScope.APPLICATION,
+				restricted: true,
 				markdownDescription: osx,
 				type: ['string', 'null'],
 				default: null,
 				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
 			},
 			'terminal.integrated.shell.windows': {
-				requireTrust: true,
-				// TODO: Remove when workspace trust is enabled by default
-				scope: ConfigurationScope.APPLICATION,
+				restricted: true,
 				markdownDescription: windows,
 				type: ['string', 'null'],
 				default: null,

@@ -203,6 +203,7 @@ export class TestService extends Disposable implements ITestService {
 		});
 
 		if (!trust) {
+			result.markComplete();
 			return result;
 		}
 

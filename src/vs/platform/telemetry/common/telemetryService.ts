@@ -223,7 +223,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 					localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service.") :
 					localize('telemetry.enableTelemetryMd', "Enable usage data and errors to be sent to a Microsoft online service. Read our privacy statement [here]({0}).", product.privacyStatementUrl),
 			'default': true,
-			'requireTrust': true,
+			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
 			'tags': ['usesOnlineServices']
 		}

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.56.0",
-  "distro": "10d543e6463e3635b4724c4b9d315b8656e6ad01",
+  "distro": "3d76109d9437bda93a3f337625de2833149ca724",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -44,7 +44,6 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
-    "no-implicit-override-watch": "tsc --watch -p src/tsconfig.json --noEmit --noImplicitOverride",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node resources/web/code-web.js",
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
@@ -85,10 +84,10 @@
     "vscode-ripgrep": "^1.11.3",
     "vscode-sqlite3": "4.0.11",
     "vscode-textmate": "5.2.0",
-    "xterm": "4.12.0-beta.20",
-    "xterm-addon-search": "0.9.0-beta.1",
-    "xterm-addon-unicode11": "0.3.0-beta.4",
-    "xterm-addon-webgl": "0.11.0-beta.7",
+    "xterm": "4.12.0-beta.26",
+    "xterm-addon-search": "0.9.0-beta.2",
+    "xterm-addon-unicode11": "0.3.0-beta.5",
+    "xterm-addon-webgl": "0.11.0-beta.8",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

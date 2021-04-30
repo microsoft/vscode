@@ -1420,6 +1420,8 @@ export function registerTerminalActions() {
 					accessor.get(ITerminalService).splitInstance(instance);
 				}
 			}
+			accessor.get(ITerminalService).focusTabs();
+			focusNext(accessor);
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabInlineActions, {

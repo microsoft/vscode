@@ -21,13 +21,14 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.selectKernel',
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Controller"), original: 'Select Notebook Controller' },
+			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
@@ -60,6 +61,7 @@ registerAction2(class extends Action2 {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const labelService = accessor.get(ILabelService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.hasModel()) {
@@ -115,6 +117,9 @@ registerAction2(class extends Action2 {
 				{ return res; }
 			});
 			const pick = await quickInputService.pick(picks, {
+				placeHolder: selected
+					? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
+					: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
 				onDidTriggerItemButton: (context) => {
 					notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
 				}
@@ -177,31 +182,49 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		let isSuggested = false;
 
 		if (all.length === 0) {
+			// no kernel -> no status
 			this._kernelInfoElement.clear();
 			return;
-		}
 
-		if (!selected) {
-			selected = all[0];
-			isSuggested = true;
-		}
+		} else if (selected || all.length === 1) {
+			// selected or single kernel
+			if (!selected) {
+				selected = all[0];
+				isSuggested = true;
+			}
+			const text = `$(notebook-kernel-select) ${selected.label}`;
+			const tooltip = selected.description ?? selected.detail ?? selected.label;
+			const registration = this._statusbarService.addEntry(
+				{
+					text,
+					ariaLabel: selected.label,
+					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
+					command: 'notebook.selectKernel',
+				},
+				'notebook.selectKernel',
+				nls.localize('notebook.info', "Notebook Kernel Info"),
+				StatusbarAlignment.RIGHT,
+				1000
+			);
+			const listener = selected.onDidChange(() => this._showKernelStatus(notebook));
+			this._kernelInfoElement.value = combinedDisposable(listener, registration);
 
-		const text = `$(notebook-kernel-select) ${selected.label}`;
-		const tooltip = selected.description ?? selected.detail ?? selected.label;
-		const registration = this._statusbarService.addEntry(
-			{
-				text,
-				ariaLabel: selected.label,
-				tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
-				command: all.length > 1 ? 'notebook.selectKernel' : undefined,
-			},
-			'notebook.selectKernel',
-			nls.localize('notebook.info', "Notebook Controller Info"),
-			StatusbarAlignment.RIGHT,
-			100
-		);
-		const listener = selected.onDidChange(() => this._showKernelStatus(notebook));
-		this._kernelInfoElement.value = combinedDisposable(listener, registration);
+		} else {
+			// multiple kernels -> show selection hint
+			const registration = this._statusbarService.addEntry(
+				{
+					text: nls.localize('kernel.select.label', "Select Kernel"),
+					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
+					command: 'notebook.selectKernel',
+					backgroundColor: { id: 'statusBarItem.prominentBackground' }
+				},
+				'notebook.selectKernel',
+				nls.localize('notebook.select', "Notebook Kernel Selection"),
+				StatusbarAlignment.RIGHT,
+				1000
+			);
+			this._kernelInfoElement.value = registration;
+		}
 	}
 }
 

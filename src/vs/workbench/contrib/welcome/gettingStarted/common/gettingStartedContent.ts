@@ -98,6 +98,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.cloneRepo.title', "Clone Git Repository..."),
 		description: localize('gettingStarted.cloneRepo.description', "Clone a git repository"),
 		icon: Codicon.repoClone,
+		when: '!git.missing',
 		content: {
 			type: 'startEntry',
 			command: 'git.clone',

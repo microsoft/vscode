@@ -981,6 +981,9 @@ export class TerminalService implements ITerminalService {
 
 		// Shell launch config was provided
 		if (shellLaunchConfigOrProfile) {
+			if (cwd) {
+				shellLaunchConfigOrProfile.cwd = cwd;
+			}
 			return shellLaunchConfigOrProfile;
 		}
 

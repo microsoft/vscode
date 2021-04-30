@@ -947,6 +947,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private getKeybindingLabel(command: string) {
+		command = command.replace(/^command:/, '');
 		const label = this.keybindingService.lookupKeybinding(command)?.getLabel();
 		if (!label) { return ''; }
 		else {

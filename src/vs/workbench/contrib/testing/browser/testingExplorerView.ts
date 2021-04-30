@@ -86,7 +86,6 @@ export class TestingExplorerView extends ViewPane {
 		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this._register(testService.onDidChangeProviders(() => this._onDidChangeViewWelcomeState.fire()));
 		this.location.set(viewDescriptorService.getViewLocationById(Testing.ExplorerViewId) ?? ViewContainerLocation.Sidebar);
 
 		const relayout = this._register(new RunOnceScheduler(() => this.viewModel?.layout(), 1));
@@ -137,6 +136,10 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription.value);
 		this._register(this.viewModel.onChangeWelcomeVisibility(() => this._onDidChangeViewWelcomeState.fire()));
 		this._register(this.viewModel);
+
+		if (!this.viewModel.shouldShowWelcome) {
+			this._onDidChangeViewWelcomeState.fire();
+		}
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
@@ -231,7 +234,7 @@ export class TestingExplorerViewModel extends Disposable {
 	/**
 	 * Gets whether the welcome should be visible.
 	 */
-	public shouldShowWelcome = this.computeShowWelcome();
+	public shouldShowWelcome = false;
 
 	public get viewMode() {
 		return this._viewMode.get() ?? TestExplorerViewMode.Tree;
@@ -285,6 +288,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
 
+		this.reevaluateWelcomeState();
 		this.filter = this.instantiationService.createInstance(TestsFilter);
 		this.tree = instantiationService.createInstance(
 			WorkbenchObjectTree,
@@ -413,6 +417,7 @@ export class TestingExplorerViewModel extends Disposable {
 	public replaceSubscription(listener: TestSubscriptionListener | undefined) {
 		this.listener = listener;
 		this.updatePreferredProjection();
+		this.reevaluateWelcomeState();
 	}
 
 	/**
@@ -541,11 +546,16 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 	}
 
-	private computeShowWelcome() {
-		return !!this.listener
+	private reevaluateWelcomeState() {
+		const shouldShowWelcome = !!this.listener
 			&& this.listener.subscription.busyProviders === 0
 			&& this.listener.subscription.pendingRootProviders === 0
 			&& this.listener.subscription.isEmpty;
+
+		if (shouldShowWelcome !== this.shouldShowWelcome) {
+			this.shouldShowWelcome = shouldShowWelcome;
+			this.welcomeVisibilityEmitter.fire(shouldShowWelcome);
+		}
 	}
 
 	private updatePreferredProjection() {
@@ -572,12 +582,7 @@ export class TestingExplorerViewModel extends Disposable {
 	}
 
 	private applyProjectionChanges() {
-		const shouldShowWelcome = this.computeShowWelcome();
-		if (shouldShowWelcome !== this.shouldShowWelcome) {
-			this.shouldShowWelcome = shouldShowWelcome;
-			this.welcomeVisibilityEmitter.fire(shouldShowWelcome);
-		}
-
+		this.reevaluateWelcomeState();
 		this.projection.value?.applyTo(this.tree);
 
 		if (this.hasPendingReveal) {
