@@ -260,7 +260,7 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 		return false;
 	}
 	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
-	const target = matchOnPath ? resource.path : basename(resource);
+	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
 	return glob.match(globPattern, target.toLowerCase());
 }
 //#endregion
