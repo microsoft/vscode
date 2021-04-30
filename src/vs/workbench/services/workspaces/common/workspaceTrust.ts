@@ -266,8 +266,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	_serviceBrand: undefined;
 
 	private _trusted!: boolean;
-	private _trustRequestPromise?: Promise<boolean>;
-	private _trustRequestResolver?: (trusted: boolean) => void;
 	private _modalTrustRequestPromise?: Promise<boolean | undefined>;
 	private _modalTrustRequestResolver?: (trusted: boolean | undefined) => void;
 	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
@@ -303,20 +301,18 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	}
 
 	private onTrustStateChanged(trusted: boolean): void {
-		// Resolve any pending soft requests for workspace trust
-		if (this._trustRequestResolver) {
-			this._trustRequestResolver(trusted);
-
-			this._trustRequestResolver = undefined;
-			this._trustRequestPromise = undefined;
-		}
-
-		// Update context if there are no pending requests
-		if (!this._modalTrustRequestPromise && !this._trustRequestPromise) {
-			this._ctxWorkspaceTrustPendingRequest.set(false);
-		}
-
 		this.trusted = trusted;
+		this.resolveRequest(trusted);
+		this._ctxWorkspaceTrustPendingRequest.set(false);
+	}
+
+	private resolveRequest(trusted?: boolean): void {
+		if (this._modalTrustRequestResolver) {
+			this._modalTrustRequestResolver(trusted ?? this.trusted);
+
+			this._modalTrustRequestResolver = undefined;
+			this._modalTrustRequestPromise = undefined;
+		}
 	}
 
 	cancelRequest(): void {
@@ -329,25 +325,12 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	}
 
 	completeRequest(trusted?: boolean): void {
-		if (this._modalTrustRequestResolver) {
-			this._modalTrustRequestResolver(trusted ?? this.trusted);
-
-			this._modalTrustRequestResolver = undefined;
-			this._modalTrustRequestPromise = undefined;
-		}
-		if (this._trustRequestResolver) {
-			this._trustRequestResolver(trusted ?? this.trusted);
-
-			this._trustRequestResolver = undefined;
-			this._trustRequestPromise = undefined;
-		}
-
-		if (trusted === undefined) {
+		if (trusted === undefined || trusted === this.trusted) {
+			this.resolveRequest(trusted);
 			return;
 		}
 
 		this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
-		this._onDidCompleteWorkspaceTrustRequest.fire(trusted);
 	}
 
 	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: false }): Promise<boolean | undefined> {
@@ -356,34 +339,21 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 			return this.trusted;
 		}
 
-		if (options.modal) {
-			// Modal request
-			if (!this._modalTrustRequestPromise) {
-				// Create promise
-				this._modalTrustRequestPromise = new Promise(resolve => {
-					this._modalTrustRequestResolver = resolve;
-				});
-			} else {
-				// Return existing promise
-				return this._modalTrustRequestPromise;
-			}
+		// Modal request
+		if (!this._modalTrustRequestPromise) {
+			// Create promise
+			this._modalTrustRequestPromise = new Promise(resolve => {
+				this._modalTrustRequestResolver = resolve;
+			});
 		} else {
-			// Soft request
-			if (!this._trustRequestPromise) {
-				// Create promise
-				this._trustRequestPromise = new Promise(resolve => {
-					this._trustRequestResolver = resolve;
-				});
-			} else {
-				// Return existing promise
-				return this._trustRequestPromise;
-			}
+			// Return existing promise
+			return this._modalTrustRequestPromise;
 		}
 
 		this._ctxWorkspaceTrustPendingRequest.set(true);
 		this._onDidInitiateWorkspaceTrustRequest.fire(options);
 
-		return options.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
+		return this._modalTrustRequestPromise;
 	}
 }
 
