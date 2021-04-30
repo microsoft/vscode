@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { CHANGE_CELL_LANGUAGE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CHANGE_CELL_LANGUAGE, EXECUTE_CELL_COMMAND_ID, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProvider {
 	readonly selector: NotebookSelector = {
@@ -26,7 +26,6 @@ class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProv
 
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) { }
 
 	async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined> {
@@ -38,19 +37,11 @@ class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProv
 
 		let text: string;
 		if (cell.cellKind === CellKind.Code) {
-			const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID)?.getLabel();
-			if (!keybinding) {
-				return;
-			}
-
-			text = localize('notebook.cell.status.codeExecuteTip', "Press {0} to execute cell", keybinding);
+			text = isWindows ?
+				localize('notebook.cell.status.codeExecuteTipWin', "Press Ctrl+Alt+Enter to execute cell") :
+				localize('notebook.cell.status.codeExecuteTipNotWin', "Press Ctrl+Enter to execute cell");
 		} else {
-			const keybinding = this._keybindingService.lookupKeybinding(QUIT_EDIT_CELL_COMMAND_ID)?.getLabel();
-			if (!keybinding) {
-				return;
-			}
-
-			text = localize('notebook.cell.status.markdownExecuteTip', "Press {0} to stop editing", keybinding);
+			text = localize('notebook.cell.status.markdownExecuteTip', "Press Escape to stop editing");
 		}
 
 		const item = <INotebookCellStatusBarItem>{
