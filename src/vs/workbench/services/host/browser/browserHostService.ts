@@ -11,7 +11,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
-import { whenTextEditorClosed } from 'vs/workbench/browser/editor';
+import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IModifierKeyStatus, ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
@@ -315,7 +315,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					(async () => {
 
 						// Wait for the resources to be closed in the text editor...
-						await this.instantiationService.invokeFunction(accessor => whenTextEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
+						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
 
 						// ...before deleting the wait marker file
 						await this.fileService.del(waitMarkerFileURI);
