@@ -1610,6 +1610,11 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			getSelectedInstances(accessor)?.forEach(instance => instance.dispose(true));
+			const terminalService = accessor.get(ITerminalService);
+			if (terminalService.terminalInstances.length > 0) {
+				terminalService.focusTabs();
+				focusNext(accessor);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1890,4 +1895,9 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 		}
 	}
 	return instances;
+}
+
+function focusNext(accessor: ServicesAccessor): void {
+	const listService = accessor.get(IListService);
+	listService.lastFocusedList?.focusNext();
 }

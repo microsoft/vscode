@@ -178,7 +178,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IListService private readonly _listService: IListService
 	) {
 	}
 
@@ -361,6 +362,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		} else {
 			callback(instance);
 		}
+		this._terminalService.focusTabs();
+		this._listService.lastFocusedList?.focusNext();
 	}
 }
 
