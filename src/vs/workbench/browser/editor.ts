@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorInput, EditorResourceAccessor, IEditorInput, IEditorInputFactoryRegistry, SideBySideEditorInput, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorResourceAccessor, IEditorInput, EditorExtensions, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -15,7 +15,6 @@ import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/workbench/workbench.web.api';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -196,39 +195,20 @@ Registry.add(EditorExtensions.Editors, new EditorRegistry());
 
 //#endregion
 
-//#region Text Editor Close Tracker
+//#region Editor Close Tracker
 
-export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[]): Promise<void> {
+export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const workingCopyService = accessor.get(IWorkingCopyService);
-
-	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	return new Promise(resolve => {
 		let remainingResources = [...resources];
 
 		// Observe any editor closing from this moment on
 		const listener = editorService.onDidCloseEditor(async event => {
-			let primaryResource: URI | undefined = undefined;
-			let secondaryResource: URI | undefined = undefined;
-
-			// Resolve the resources from the editor that closed
-			// but only consider file editor inputs, given we
-			// are only tracking text editors.
-			if (event.editor instanceof SideBySideEditorInput) {
-				if (fileEditorInputFactory.isFileEditorInput(event.editor.primary)) {
-					primaryResource = EditorResourceAccessor.getOriginalUri(event.editor.primary);
-				}
-
-				if (fileEditorInputFactory.isFileEditorInput(event.editor.secondary)) {
-					secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor.secondary);
-				}
-			} else {
-				if (fileEditorInputFactory.isFileEditorInput(event.editor)) {
-					primaryResource = EditorResourceAccessor.getOriginalUri(event.editor);
-				}
-			}
+			const primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			const secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
 
 			// Remove from resources to wait for being closed based on the
 			// resources from editors that got closed
@@ -247,10 +227,10 @@ export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[
 				// to close the editor while the save still continues in the background. As such
 				// we have to also check if the editors to track for are dirty and if so wait
 				// for them to get saved.
-				const dirtyResources = resources.filter(resource => workingCopyService.isDirty(resource, NO_TYPE_ID /* only check on text file working copies */));
+				const dirtyResources = resources.filter(resource => workingCopyService.isDirty(resource));
 				if (dirtyResources.length > 0) {
 					await Promises.settled(dirtyResources.map(async resource => await new Promise<void>(resolve => {
-						if (!workingCopyService.isDirty(resource, NO_TYPE_ID /* only check on text file working copies */)) {
+						if (!workingCopyService.isDirty(resource)) {
 							return resolve(); // return early if resource is not dirty
 						}
 
