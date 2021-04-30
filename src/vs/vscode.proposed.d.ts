@@ -2152,14 +2152,15 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/16221
 
-	// todo@API rename to InlayHint
+	// todo@API Split between Inlay- and OverlayHints (InlayHint are for a position, OverlayHints for a non-empty range)
 	// todo@API add "mini-markdown" for links and styles
-	// todo@API remove description
-	// (done:)  add InlayHintKind with type, argument, etc
+	// (done) remove description
+	// (done) rename to InlayHint
+	// (done)  add InlayHintKind with type, argument, etc
 
 	export namespace languages {
 		/**
-		 * Register a inline hints provider.
+		 * Register a inlay hints provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
 		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
@@ -2169,10 +2170,10 @@ declare module 'vscode' {
 		 * @param provider An inline hints provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
+		export function registerInlayHintsProvider(selector: DocumentSelector, provider: InlayHintsProvider): Disposable;
 	}
 
-	export enum InlineHintKind {
+	export enum InlayHintKind {
 		Other = 0,
 		Type = 1,
 		Parameter = 2,
@@ -2181,20 +2182,19 @@ declare module 'vscode' {
 	/**
 	 * Inline hint information.
 	 */
-	export class InlineHint {
+	export class InlayHint {
 		/**
 		 * The text of the hint.
 		 */
 		text: string;
 		/**
-		 * The range of the hint.
+		 * The position of this hint.
 		 */
-		range: Range;
-
-		kind?: InlineHintKind;
-
-		// todo@API remove this
-		description?: string | MarkdownString;
+		position: Position;
+		/**
+		 * The kind of this hint.
+		 */
+		kind?: InlayHintKind;
 		/**
 		 * Whitespace before the hint.
 		 */
@@ -2205,20 +2205,20 @@ declare module 'vscode' {
 		whitespaceAfter?: boolean;
 
 		// todo@API make range first argument
-		constructor(text: string, range: Range, kind?: InlineHintKind);
+		constructor(text: string, position: Position, kind?: InlayHintKind);
 	}
 
 	/**
 	 * The inline hints provider interface defines the contract between extensions and
 	 * the inline hints feature.
 	 */
-	export interface InlineHintsProvider {
+	export interface InlayHintsProvider {
 
 		/**
 		 * An optional event to signal that inline hints have changed.
 		 * @see [EventEmitter](#EventEmitter)
 		 */
-		onDidChangeInlineHints?: Event<void>;
+		onDidChangeInlayHints?: Event<void>;
 
 		/**
 		 * @param model The document in which the command was invoked.
@@ -2227,7 +2227,7 @@ declare module 'vscode' {
 		 *
 		 * @return A list of arguments labels or a thenable that resolves to such.
 		 */
-		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+		provideInlayHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
 	}
 	//#endregion
 
