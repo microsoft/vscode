@@ -141,14 +141,11 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
-export interface INotebookMarkupRendererInfo {
-	readonly id: string;
+export interface INotebookMarkdownRendererInfo {
 	readonly entrypoint: URI;
 	readonly extensionLocation: URI;
 	readonly extensionId: ExtensionIdentifier;
 	readonly extensionIsBuiltin: boolean;
-	readonly dependsOn: string | undefined;
-	readonly mimeTypes: readonly string[] | undefined;
 }
 
 export interface NotebookCellOutputMetadata {

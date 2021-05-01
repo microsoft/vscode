@@ -3,37 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const MarkdownIt = require('markdown-it');
+import * as MarkdownIt from 'markdown-it';
 
-export async function activate(ctx: {
-	dependencies: ReadonlyArray<{ entrypoint: string }>
-}) {
-	let markdownIt = new MarkdownIt({
+declare const acquireNotebookRendererApi: any;
+type extendMarkdownItFnType = (
+	(f: (md: MarkdownIt.MarkdownIt) => void) => void
+);
+
+(function () {
+	const markdownIt = new MarkdownIt({
 		html: true
 	});
 
-	// Should we load the deps before this point?
-	// Also could we await inside `renderMarkup`?
-	await Promise.all(ctx.dependencies.map(async (dep) => {
-		try {
-			const api = await import(dep.entrypoint);
-			if (api?.extendMarkdownIt) {
-				markdownIt = api.extendMarkdownIt(markdownIt);
-			}
-		} catch (e) {
-			console.error('Could not load markdown entryPoint', e);
-		}
-	}));
+	(globalThis as any).extendMarkdownIt = ((f: (md: MarkdownIt.MarkdownIt) => void) => {
+		f(markdownIt);
+	}) as extendMarkdownItFnType;
 
-	return {
-		renderMarkup: (context: { element: HTMLElement, content: string }) => {
-			const rendered = markdownIt.render(context.content);
-			context.element.innerHTML = rendered;
+	const notebook = acquireNotebookRendererApi('notebookCoreTestRenderer');
 
-			// Insert styles into markdown preview shadow dom so that they are applied
-			for (const markdownStyleNode of document.getElementsByClassName('markdown-style')) {
-				context.element.appendChild(markdownStyleNode.cloneNode(true));
-			}
+	notebook.onDidCreateMarkdown(({ element, content }: any) => {
+		const rendered = markdownIt.render(content);
+		element.innerHTML = rendered;
+
+		// Insert styles into markdown preview shadow dom so that they are applied
+		for (const markdownStyleNode of document.getElementsByClassName('markdown-style')) {
+			element.appendChild(markdownStyleNode.cloneNode(true));
 		}
-	};
-}
+	});
+}());
