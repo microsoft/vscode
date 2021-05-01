@@ -28,6 +28,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
@@ -349,6 +350,14 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
 					label: nls.localize('closeRemote.title', 'Close Remote Connection')
 				});
+
+				if (this.connectionState === 'disconnected') {
+					items.push({
+						type: 'item',
+						id: ReloadWindowAction.ID,
+						label: nls.localize('reloadWindow', 'Reload Window')
+					});
+				}
 			}
 			return items;
 		};
