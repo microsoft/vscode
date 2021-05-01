@@ -624,6 +624,10 @@
 	top: 0;
 }
 
+.codicon-getting-started-setup::before, .codicon-getting-started-beginner::before, .codicon-getting-started-intermediate::before, .codicon-close::before {
+	vertical-align: middle;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .codicon-close {
 	visibility: hidden;
 }
