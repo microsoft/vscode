@@ -9,7 +9,7 @@ import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExtern
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { extractDriveLetter } from 'vs/base/common/labels';
+import { getDriveLetter } from 'vs/base/common/extpath';
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
@@ -112,7 +112,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			};
 
 			if (cwd) {
-				const driveLetter = extractDriveLetter(cwd);
+				const driveLetter = getDriveLetter(cwd);
 				if (driveLetter) {
 					command += `${driveLetter}:; `;
 				}
@@ -145,7 +145,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			};
 
 			if (cwd) {
-				const driveLetter = extractDriveLetter(cwd);
+				const driveLetter = getDriveLetter(cwd);
 				if (driveLetter) {
 					command += `${driveLetter}: && `;
 				}

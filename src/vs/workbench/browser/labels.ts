@@ -22,6 +22,7 @@ import { getIconClasses, detectModeId } from 'vs/editor/common/services/getIconC
 import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI, secondary?: URI };
@@ -100,6 +101,10 @@ export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
 };
 
 export class ResourceLabels extends Disposable {
+
+	private _onDidChangeDecorations = this._register(new Emitter<void>());
+	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
+
 	private widgets: ResourceLabelWidget[] = [];
 	private labels: IResourceLabel[] = [];
 
@@ -148,7 +153,18 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when file decoration changes
-		this._register(this.decorationsService.onDidChangeDecorations(e => this.widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
+		this._register(this.decorationsService.onDidChangeDecorations(e => {
+			let notifyDidChangeDecorations = false;
+			this.widgets.forEach(widget => {
+				if (widget.notifyFileDecorationsChanges(e)) {
+					notifyDidChangeDecorations = true;
+				}
+			});
+
+			if (notifyDidChangeDecorations) {
+				this._onDidChangeDecorations.fire();
+			}
+		}));
 
 		// notify when theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.widgets.forEach(widget => widget.notifyThemeChange())));
@@ -211,7 +227,7 @@ export class ResourceLabels extends Disposable {
 		this.labels = [];
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.clear();
@@ -311,19 +327,21 @@ class ResourceLabelWidget extends IconLabel {
 		}
 	}
 
-	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): void {
+	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): boolean {
 		if (!this.options) {
-			return;
+			return false;
 		}
 
 		const resource = toResource(this.label);
 		if (!resource) {
-			return;
+			return false;
 		}
 
 		if (this.options.fileDecorations && e.affectsResource(resource)) {
-			this.render(false);
+			return this.render(false);
 		}
+
+		return false;
 	}
 
 	notifyExtensionsRegistered(): void {
@@ -351,10 +369,10 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	setFile(resource: URI, options?: IFileLabelOptions): void {
-		const hideLabel = options && options.hideLabel;
+		const hideLabel = options?.hideLabel;
 		let name: string | undefined;
 		if (!hideLabel) {
-			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
+			if (options?.fileKind === FileKind.ROOT_FOLDER) {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 				if (workspaceFolder) {
 					name = workspaceFolder.name;
@@ -362,7 +380,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 
 			if (!name) {
-				name = basenameOrAuthority(resource);
+				name = normalizeDriveLetter(basenameOrAuthority(resource));
 			}
 		}
 
@@ -465,7 +483,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.setLabel('');
 	}
 
-	private render(clearIconCache: boolean): void {
+	private render(clearIconCache: boolean): boolean {
 		if (this.isHidden) {
 			if (!this.needsRedraw) {
 				this.needsRedraw = clearIconCache ? Redraw.Full : Redraw.Basic;
@@ -475,7 +493,7 @@ class ResourceLabelWidget extends IconLabel {
 				this.needsRedraw = Redraw.Full;
 			}
 
-			return;
+			return false;
 		}
 
 		if (this.label) {
@@ -492,7 +510,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (!this.label) {
-			return;
+			return false;
 		}
 
 		this.renderDisposables.clear();
@@ -528,11 +546,11 @@ class ResourceLabelWidget extends IconLabel {
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
 
-		if (this.options && this.options.extraClasses) {
+		if (this.options?.extraClasses) {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
-		if (this.options && this.options.fileDecorations && resource) {
+		if (this.options?.fileDecorations && resource) {
 			const deco = this.decorationsService.getDecoration(
 				resource,
 				this.options.fileKind !== FileKind.FILE
@@ -551,6 +569,7 @@ class ResourceLabelWidget extends IconLabel {
 
 				if (this.options.fileDecorations.badges) {
 					iconLabelOptions.extraClasses.push(deco.badgeClassName);
+					iconLabelOptions.extraClasses.push(deco.iconClassName);
 				}
 			}
 		}
@@ -558,9 +577,11 @@ class ResourceLabelWidget extends IconLabel {
 		this.setLabel(label || '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
+
+		return true;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.label = undefined;

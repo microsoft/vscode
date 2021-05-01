@@ -26,21 +26,19 @@ export class OpenExtensionsFolderAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	async run(): Promise<void> {
-		if (this.environmentService.extensionsPath) {
-			const extensionsHome = URI.file(this.environmentService.extensionsPath);
-			const file = await this.fileService.resolve(extensionsHome);
+	override async run(): Promise<void> {
+		const extensionsHome = URI.file(this.environmentService.extensionsPath);
+		const file = await this.fileService.resolve(extensionsHome);
 
-			let itemToShow: URI;
-			if (file.children && file.children.length > 0) {
-				itemToShow = file.children[0].resource;
-			} else {
-				itemToShow = extensionsHome;
-			}
+		let itemToShow: URI;
+		if (file.children && file.children.length > 0) {
+			itemToShow = file.children[0].resource;
+		} else {
+			itemToShow = extensionsHome;
+		}
 
-			if (itemToShow.scheme === Schemas.file) {
-				return this.nativeHostService.showItemInFolder(itemToShow.fsPath);
-			}
+		if (itemToShow.scheme === Schemas.file) {
+			return this.nativeHostService.showItemInFolder(itemToShow.fsPath);
 		}
 	}
 }

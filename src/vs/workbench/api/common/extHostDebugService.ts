@@ -30,7 +30,7 @@ import type * as vscode from 'vscode';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -89,7 +89,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
 
 	private _activeDebugConsole: ExtHostDebugConsole;
-	get activeDebugConsole(): ExtHostDebugConsole { return this._activeDebugConsole; }
+	get activeDebugConsole(): vscode.DebugConsole { return this._activeDebugConsole.value; }
 
 	private _breakpoints: Map<string, vscode.Breakpoint>;
 	private _breakpointEventsActive: boolean;
@@ -152,7 +152,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		const source = <any>src;
 
-		if (typeof source.sourceReference === 'number') {
+		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
 			// src can be retrieved via DAP's "source" request
 
 			let debug = `debug:${encodeURIComponent(source.path || '')}`;
@@ -361,7 +361,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
+	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
 		return Promise.resolve(undefined);
 	}
 
@@ -384,7 +384,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				}
 			};
 		}
-		return this._variableResolver.resolveAny(ws, config);
+		return this._variableResolver.resolveAnyAsync(ws, config);
 	}
 
 	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -911,26 +911,26 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 	}
 }
 
-export class ExtHostDebugConsole implements vscode.DebugConsole {
+export class ExtHostDebugConsole {
 
-	private _debugServiceProxy: MainThreadDebugServiceShape;
+	readonly value: vscode.DebugConsole;
 
 	constructor(proxy: MainThreadDebugServiceShape) {
-		this._debugServiceProxy = proxy;
-	}
 
-	append(value: string): void {
-		this._debugServiceProxy.$appendDebugConsole(value);
-	}
-
-	appendLine(value: string): void {
-		this.append(value + '\n');
+		this.value = Object.freeze({
+			append(value: string): void {
+				proxy.$appendDebugConsole(value);
+			},
+			appendLine(value: string): void {
+				this.append(value + '\n');
+			}
+		});
 	}
 }
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, env?: IProcessEnvironment, workspaceService?: IExtHostWorkspace) {
+	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, workspaceService?: IExtHostWorkspace) {
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
 				const found = folders.filter(f => f.name === folderName);
@@ -945,8 +945,11 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 			getConfigurationValue: (folderUri: URI | undefined, section: string): string | undefined => {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
 			},
+			getAppRoot: (): string | undefined => {
+				return process.cwd();
+			},
 			getExecPath: (): string | undefined => {
-				return env ? env['VSCODE_EXEC_PATH'] : undefined;
+				return process.env['VSCODE_EXEC_PATH'];
 			},
 			getFilePath: (): string | undefined => {
 				if (editorService) {
@@ -987,7 +990,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		}, undefined, env);
+		}, undefined, Promise.resolve(process.env));
 	}
 }
 

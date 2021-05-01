@@ -30,6 +30,7 @@ import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -39,6 +40,17 @@ export interface IWebWorkerExtensionHostInitData {
 export interface IWebWorkerExtensionHostDataProvider {
 	getInitData(): Promise<IWebWorkerExtensionHostInitData>;
 }
+
+const ttPolicy = window.trustedTypes?.createPolicy('webWorkerExtensionHost', { createScriptURL: value => value });
+
+const ttPolicyNestedWorker = window.trustedTypes?.createPolicy('webNestedWorkerExtensionHost', {
+	createScriptURL(value) {
+		if (value.startsWith('blob:')) {
+			return value;
+		}
+		throw new Error(value + ' is NOT allowed');
+	}
+});
 
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
@@ -73,14 +85,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
-	private _wrapInIframe(): boolean {
-		if (this._environmentService.options && typeof this._environmentService.options._wrapWebWorkerExtHostInIframe === 'boolean') {
-			return this._environmentService.options._wrapWebWorkerExtHostInIframe;
-		}
-		// wrap in <iframe> by default
-		return true;
-	}
-
 	private _webWorkerExtensionHostIframeSrc(): string | null {
 		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
 			return this._environmentService.options.webWorkerExtensionHostIframeSrc;
@@ -107,7 +111,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (!this._protocolPromise) {
 			if (platform.isWeb) {
 				const webWorkerExtensionHostIframeSrc = this._webWorkerExtensionHostIframeSrc();
-				if (webWorkerExtensionHostIframeSrc && this._wrapInIframe()) {
+				if (webWorkerExtensionHostIframeSrc) {
 					this._protocolPromise = this._startInsideIframe(webWorkerExtensionHostIframeSrc);
 				} else {
 					console.warn(`The web worker extension host is started without an iframe sandbox!`);
@@ -154,8 +158,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		};
 
 		startTimeout = setTimeout(() => {
-			rejectBarrier(ExtensionHostExitCode.StartTimeout10s, new Error('The Web Worker Extension Host did not start in 10s'));
-		}, 10000);
+			console.warn(`The Web Worker Extension Host did not start in 60s, that might be a problem.`);
+		}, 60000);
 
 		this._register(dom.addDisposableListener(window, 'message', (event) => {
 			if (event.source !== iframe.contentWindow) {
@@ -217,20 +221,48 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const emitter = new Emitter<VSBuffer>();
 
 		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
-		const worker = new Worker(url, { name: 'WorkerExtensionHost' });
+		const worker = new Worker(ttPolicy?.createScriptURL(url) as unknown as string ?? url, { name: 'WorkerExtensionHost' });
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
 
+		const nestedWorker = new Map<string, Worker>();
+
 		worker.onmessage = (event) => {
-			const { data } = event;
-			if (barrier.isOpen() || !(data instanceof MessagePort)) {
+
+			const data: MessagePort | NewWorkerMessage | TerminateWorkerMessage = event.data;
+
+			if (data instanceof MessagePort) {
+				// receiving a message port which is used to communicate
+				// with the web worker extension host
+				if (barrier.isOpen()) {
+					console.warn('UNEXPECTED message', event);
+					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'received a message port AFTER opening the barrier']);
+					return;
+				}
+				port = data;
+				barrier.open();
+
+
+			} else if (data?.type === '_newWorker') {
+				// receiving a message to create a new nested/child worker
+				const worker = new Worker((ttPolicyNestedWorker?.createScriptURL(data.url) ?? data.url) as string, data.options);
+				worker.postMessage(data.port, [data.port]);
+				worker.onerror = console.error.bind(console);
+				nestedWorker.set(data.id, worker);
+
+			} else if (data?.type === '_terminateWorker') {
+				// receiving a message to terminate nested/child worker
+				if (nestedWorker.has(data.id)) {
+					nestedWorker.get(data.id)!.terminate();
+					nestedWorker.delete(data.id);
+				}
+
+			} else {
+				// all other messages are an error
 				console.warn('UNEXPECTED message', event);
 				this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'UNEXPECTED message']);
-				return;
 			}
-			port = data;
-			barrier.open();
 		};
 
 		// await MessagePort and use it to directly communicate
@@ -293,7 +325,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return protocol;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._isTerminating) {
 			return;
 		}

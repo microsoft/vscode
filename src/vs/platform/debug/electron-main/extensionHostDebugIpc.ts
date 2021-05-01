@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
+import { INullableProcessEnvironment, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { createServer, AddressInfo } from 'net';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
+import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
 
@@ -17,7 +16,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		super();
 	}
 
-	call(ctx: TContext, command: string, arg?: any): Promise<any> {
+	override call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
 			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
 		} else {
@@ -25,26 +24,48 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		}
 	}
 
-	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+	private async openExtensionDevelopmentHostWindow(args: string[], env: INullableProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 		const pargs = parseArgs(args, OPTIONS);
 		pargs.debugRenderer = debugRenderer;
 
 		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (!extDevPaths) {
-			return {};
+			return { success: false };
+		}
+
+		// split INullableProcessEnvironment into a IProcessEnvironment and an array of keys to be deleted
+		// TODO: support to delete env vars; currently the "deletes" are ignored
+		let userEnv: IProcessEnvironment | undefined;
+		//let userEnvDeletes: string[] = [];
+		const keys = Object.keys(env);
+		for (let k of keys) {
+			let value = env[k];
+			if (value === null) {
+				//userEnvDeletes.push(k);
+			} else {
+				if (!userEnv) {
+					userEnv = Object.create(null) as IProcessEnvironment;
+				}
+				userEnv[k] = value;
+			}
 		}
 
 		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 			context: OpenContext.API,
 			cli: pargs,
-			userEnv: Object.keys(env).length > 0 ? env : undefined
+			userEnv: userEnv
 		});
 
 		if (!debugRenderer) {
-			return {};
+			return { success: true };
 		}
 
-		const debug = codeWindow.win.webContents.debugger;
+		const win = codeWindow.win;
+		if (!win) {
+			return { success: true };
+		}
+
+		const debug = win.webContents.debugger;
 
 		let listeners = debug.isAttached() ? Infinity : 0;
 		const server = createServer(listener => {
@@ -62,7 +83,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			const onMessage = (_event: Event, method: string, params: unknown, sessionId?: string) =>
 				writeMessage(({ method, params, sessionId }));
 
-			codeWindow.win.on('close', () => {
+			win.on('close', () => {
 				debug.removeListener('message', onMessage);
 				listener.end();
 				closed = true;
@@ -104,8 +125,8 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		});
 
 		await new Promise<void>(r => server.listen(0, r));
-		codeWindow.win.on('close', () => server.close());
+		win.on('close', () => server.close());
 
-		return { rendererDebugPort: (server.address() as AddressInfo).port };
+		return { rendererDebugPort: (server.address() as AddressInfo).port, success: true };
 	}
 }

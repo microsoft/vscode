@@ -21,12 +21,21 @@ const vfs = require('vinyl-fs');
 const uuid = require('uuid');
 
 const extensions = require('../../build/lib/extensions');
+const { getBuiltInExtensions } = require('../../build/lib/builtInExtensions');
 
 const APP_ROOT = path.join(__dirname, '..', '..');
 const BUILTIN_EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const BUILTIN_MARKETPLACE_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInExtensions');
 const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
+
+// This is useful to simulate real world CORS
+const ALLOWED_CORS_ORIGINS = [
+	'http://localhost:8081',
+	'http://127.0.0.1:8081',
+	'http://localhost:8080',
+	'http://127.0.0.1:8080',
+];
 
 const WEB_PLAYGROUND_VERSION = '0.0.10';
 
@@ -37,7 +46,6 @@ const args = minimist(process.argv, {
 		'verbose',
 		'wrap-iframe',
 		'enable-sync',
-		'trusted-types'
 	],
 	string: [
 		'scheme',
@@ -54,7 +62,6 @@ if (args.help) {
 		'yarn web [options]\n' +
 		' --no-launch      Do not open VSCode web in the browser\n' +
 		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
-		' --trusted-types  Enable trusted types (report only)\n' +
 		' --enable-sync    Enable sync by default\n' +
 		' --scheme         Protocol (https or http)\n' +
 		' --host           Remote host\n' +
@@ -82,6 +89,8 @@ const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
 
 async function getBuiltInExtensionInfos() {
+	await getBuiltInExtensions();
+
 	const allExtensions = [];
 	/** @type {Object.<string, string>} */
 	const locations = {};
@@ -217,12 +226,14 @@ const requestHandler = (req, res) => {
 	const parsedUrl = url.parse(req.url, true);
 	const pathname = parsedUrl.pathname;
 
+	res.setHeader('Access-Control-Allow-Origin', '*');
+
 	try {
-		if (pathname === '/favicon.ico') {
+		if (/(\/static)?\/favicon\.ico/.test(pathname)) {
 			// favicon
 			return serveFile(req, res, path.join(APP_ROOT, 'resources', 'win32', 'code.ico'));
 		}
-		if (pathname === '/manifest.json') {
+		if (/(\/static)?\/manifest\.json/.test(pathname)) {
 			// manifest
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			return res.end(JSON.stringify({
@@ -250,6 +261,9 @@ const requestHandler = (req, res) => {
 		} else if (pathname === '/fetch-callback') {
 			// callback fetch support
 			return handleFetchCallback(req, res, parsedUrl);
+		} else if (pathname === '/builtin') {
+			// builtin extnesions JSON
+			return handleBuiltInExtensions(req, res, parsedUrl);
 		}
 
 		return serveError(req, res, 404, 'Not found.');
@@ -283,6 +297,28 @@ secondaryServer.on('error', err => {
 
 /**
  * @param {import('http').IncomingMessage} req
+ */
+function addCORSReplyHeader(req) {
+	if (typeof req.headers['origin'] !== 'string') {
+		// not a CORS request
+		return false;
+	}
+	return (ALLOWED_CORS_ORIGINS.indexOf(req.headers['origin']) >= 0);
+}
+
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ * @param {import('url').UrlWithParsedQuery} parsedUrl
+ */
+async function handleBuiltInExtensions(req, res, parsedUrl) {
+	const { extensions } = await builtInExtensionsPromise;
+	res.writeHead(200, { 'Content-Type': 'application/json' });
+	return res.end(JSON.stringify(extensions));
+}
+
+/**
+ * @param {import('http').IncomingMessage} req
  * @param {import('http').ServerResponse} res
  * @param {import('url').UrlWithParsedQuery} parsedUrl
  */
@@ -291,9 +327,10 @@ async function handleStatic(req, res, parsedUrl) {
 	if (/^\/static\/extensions\//.test(parsedUrl.pathname)) {
 		const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/static/extensions/'.length));
 		const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
-		const responseHeaders = {
-			'Access-Control-Allow-Origin': '*'
-		};
+		const responseHeaders = {};
+		if (addCORSReplyHeader(req)) {
+			responseHeaders['Access-Control-Allow-Origin'] = '*';
+		}
 		if (!filePath) {
 			return serveError(req, res, 400, `Bad request.`, responseHeaders);
 		}
@@ -315,9 +352,10 @@ async function handleExtension(req, res, parsedUrl) {
 	// Strip `/extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
 	const filePath = getExtensionFilePath(relativePath, (await commandlineProvidedExtensionsPromise).locations);
-	const responseHeaders = {
-		'Access-Control-Allow-Origin': '*'
-	};
+	const responseHeaders = {};
+	if (addCORSReplyHeader(req)) {
+		responseHeaders['Access-Control-Allow-Origin'] = '*';
+	}
 	if (!filePath) {
 		return serveError(req, res, 400, `Bad request.`, responseHeaders);
 	}
@@ -377,11 +415,18 @@ async function handleRoot(req, res) {
 		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${staticExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
 	}
 
+	const secondaryHost = (
+		req.headers['host']
+			? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
+			: `${HOST}:${SECONDARY_PORT}`
+	);
 	const webConfigJSON = {
 		folderUri: folderUri,
 		staticExtensions,
-		enableSyncByDefault: args['enable-sync'],
-		webWorkerExtensionHostIframeSrc: `${SCHEME}://${HOST}:${SECONDARY_PORT}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+		settingsSyncOptions: {
+			enabled: args['enable-sync']
+		},
+		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 	};
 	if (args['wrap-iframe']) {
 		webConfigJSON._wrapWebWorkerExtHostInIframe = true;
@@ -404,12 +449,10 @@ async function handleRoot(req, res) {
 		.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
 		.replace('{{WEBVIEW_ENDPOINT}}', '');
 
-
-	const headers = { 'Content-Type': 'text/html' };
-	if (args['trusted-types']) {
-		headers['Content-Security-Policy-Report-Only'] = 'require-trusted-types-for \'script\';';
-	}
-
+	const headers = {
+		'Content-Type': 'text/html',
+		'Content-Security-Policy': 'require-trusted-types-for \'script\';'
+	};
 	res.writeHead(200, headers);
 	return res.end(data);
 }

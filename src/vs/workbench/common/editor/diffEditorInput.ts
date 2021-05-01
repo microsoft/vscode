@@ -13,6 +13,7 @@ import { dirname } from 'vs/base/common/resources';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -20,13 +21,17 @@ import { URI } from 'vs/base/common/uri';
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	static readonly ID = 'workbench.editors.diffEditorInput';
+	static override readonly ID = 'workbench.editors.diffEditorInput';
+
+	override get typeId(): string {
+		return DiffEditorInput.ID;
+	}
 
 	private cachedModel: DiffEditorModel | undefined = undefined;
 
 	constructor(
-		protected name: string | undefined,
-		protected description: string | undefined,
+		name: string | undefined,
+		description: string | undefined,
 		public readonly originalInput: EditorInput,
 		public readonly modifiedInput: EditorInput,
 		private readonly forceOpenAsBinary: boolean | undefined,
@@ -36,19 +41,14 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		super(name, description, originalInput, modifiedInput);
 	}
 
-	getTypeId(): string {
-		return DiffEditorInput.ID;
-	}
-
-	getName(): string {
+	override getName(): string {
 		if (!this.name) {
 
 			// Craft a name from original and modified input that includes the
 			// relative path in case both sides have different parents and we
 			// compare file resources.
 			const fileResources = this.asFileResources();
-			if (fileResources && dirname(fileResources.original).path !== dirname(fileResources.modified).path
-			) {
+			if (fileResources && dirname(fileResources.original).path !== dirname(fileResources.modified).path) {
 				return `${this.labelService.getUriLabel(fileResources.original, { relative: true })} ↔ ${this.labelService.getUriLabel(fileResources.modified, { relative: true })}`;
 			}
 
@@ -58,14 +58,13 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.name;
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+	override getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
 		if (typeof this.description !== 'string') {
 
 			// Pass the description of the modified side in case both original
 			// and modified input have the same parent and we compare file resources.
 			const fileResources = this.asFileResources();
-			if (fileResources && dirname(fileResources.original).path === dirname(fileResources.modified).path
-			) {
+			if (fileResources && dirname(fileResources.original).path === dirname(fileResources.modified).path) {
 				return this.modifiedInput.getDescription(verbosity);
 			}
 		}
@@ -89,7 +88,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return undefined;
 	}
 
-	async resolve(): Promise<EditorModel> {
+	override async resolve(): Promise<EditorModel> {
 
 		// Create Model - we never reuse our cached model if refresh is true because we cannot
 		// decide for the inputs within if the cached model can be reused or not. There may be
@@ -105,20 +104,17 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.cachedModel;
 	}
 
-	getPreferredEditorId(candidates: string[]): string {
+	override getPreferredEditorId(candidates: string[]): string {
 		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
 	}
 
 	private async createModel(): Promise<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
-		const models = await Promise.all([
+		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
 			this.originalInput.resolve(),
 			this.modifiedInput.resolve()
 		]);
-
-		const originalEditorModel = models[0];
-		const modifiedEditorModel = models[1];
 
 		// If both are text models, return textdiffeditor model
 		if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
@@ -126,10 +122,10 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		}
 
 		// Otherwise return normal diff model
-		return new DiffEditorModel(originalEditorModel, modifiedEditorModel);
+		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		if (!super.matches(otherInput)) {
 			return false;
 		}
@@ -137,7 +133,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return otherInput instanceof DiffEditorInput && otherInput.forceOpenAsBinary === this.forceOpenAsBinary;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 
 		// Free the diff editor model but do not propagate the dispose() call to the two inputs
 		// We never created the two inputs (original and modified) so we can not dispose

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as ts from 'typescript';
+import type * as ts from 'typescript';
 import * as path from 'path';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
@@ -26,7 +26,7 @@ type SourceFileGetter = (moduleId: string) => ts.SourceFile | null;
 type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration | ts.TypeAliasDeclaration | ts.FunctionDeclaration | ts.ModuleDeclaration;
 type TSTopLevelDeclare = TSTopLevelDeclaration | ts.VariableStatement;
 
-function isDeclaration(a: TSTopLevelDeclare): a is TSTopLevelDeclaration {
+function isDeclaration(ts: typeof import('typescript'), a: TSTopLevelDeclare): a is TSTopLevelDeclaration {
 	return (
 		a.kind === ts.SyntaxKind.InterfaceDeclaration
 		|| a.kind === ts.SyntaxKind.EnumDeclaration
@@ -37,7 +37,7 @@ function isDeclaration(a: TSTopLevelDeclare): a is TSTopLevelDeclaration {
 	);
 }
 
-function visitTopLevelDeclarations(sourceFile: ts.SourceFile, visitor: (node: TSTopLevelDeclare) => boolean): void {
+function visitTopLevelDeclarations(ts: typeof import('typescript'), sourceFile: ts.SourceFile, visitor: (node: TSTopLevelDeclare) => boolean): void {
 	let stop = false;
 
 	let visit = (node: ts.Node): void => {
@@ -66,9 +66,9 @@ function visitTopLevelDeclarations(sourceFile: ts.SourceFile, visitor: (node: TS
 }
 
 
-function getAllTopLevelDeclarations(sourceFile: ts.SourceFile): TSTopLevelDeclare[] {
+function getAllTopLevelDeclarations(ts: typeof import('typescript'), sourceFile: ts.SourceFile): TSTopLevelDeclare[] {
 	let all: TSTopLevelDeclare[] = [];
-	visitTopLevelDeclarations(sourceFile, (node) => {
+	visitTopLevelDeclarations(ts, sourceFile, (node) => {
 		if (node.kind === ts.SyntaxKind.InterfaceDeclaration || node.kind === ts.SyntaxKind.ClassDeclaration || node.kind === ts.SyntaxKind.ModuleDeclaration) {
 			let interfaceDeclaration = <ts.InterfaceDeclaration>node;
 			let triviaStart = interfaceDeclaration.pos;
@@ -90,10 +90,10 @@ function getAllTopLevelDeclarations(sourceFile: ts.SourceFile): TSTopLevelDeclar
 }
 
 
-function getTopLevelDeclaration(sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare | null {
+function getTopLevelDeclaration(ts: typeof import('typescript'), sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare | null {
 	let result: TSTopLevelDeclare | null = null;
-	visitTopLevelDeclarations(sourceFile, (node) => {
-		if (isDeclaration(node) && node.name) {
+	visitTopLevelDeclarations(ts, sourceFile, (node) => {
+		if (isDeclaration(ts, node) && node.name) {
 			if (node.name.text === typeName) {
 				result = node;
 				return true /*stop*/;
@@ -127,24 +127,24 @@ function hasModifier(modifiers: ts.NodeArray<ts.Modifier> | undefined, kind: ts.
 	return false;
 }
 
-function isStatic(member: ts.ClassElement | ts.TypeElement): boolean {
+function isStatic(ts: typeof import('typescript'), member: ts.ClassElement | ts.TypeElement): boolean {
 	return hasModifier(member.modifiers, ts.SyntaxKind.StaticKeyword);
 }
 
-function isDefaultExport(declaration: ts.InterfaceDeclaration | ts.ClassDeclaration): boolean {
+function isDefaultExport(ts: typeof import('typescript'), declaration: ts.InterfaceDeclaration | ts.ClassDeclaration): boolean {
 	return (
 		hasModifier(declaration.modifiers, ts.SyntaxKind.DefaultKeyword)
 		&& hasModifier(declaration.modifiers, ts.SyntaxKind.ExportKeyword)
 	);
 }
 
-function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: IEnumEntry[]): string {
+function getMassagedTopLevelDeclarationText(ts: typeof import('typescript'), sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: IEnumEntry[]): string {
 	let result = getNodeText(sourceFile, declaration);
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
 
 		const staticTypeName = (
-			isDefaultExport(interfaceDeclaration)
+			isDefaultExport(ts, interfaceDeclaration)
 				? `${importName}.default`
 				: `${importName}.${declaration.name!.text}`
 		);
@@ -168,7 +168,7 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 				} else {
 					const memberName = (<ts.Identifier | ts.StringLiteral>member.name).text;
 					const memberAccess = (memberName.indexOf('.') >= 0 ? `['${memberName}']` : `.${memberName}`);
-					if (isStatic(member)) {
+					if (isStatic(ts, member)) {
 						usage.push(`a = ${staticTypeName}${memberAccess};`);
 					} else {
 						usage.push(`a = (<${instanceTypeName}>b)${memberAccess};`);
@@ -222,7 +222,7 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 	return result;
 }
 
-function format(text: string, endl: string): string {
+function format(ts: typeof import('typescript'), text: string, endl: string): string {
 	const REALLY_FORMAT = false;
 
 	text = preformat(text, endl);
@@ -396,7 +396,7 @@ interface IEnumEntry {
 	text: string;
 }
 
-function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
+function generateDeclarationFile(ts: typeof import('typescript'), recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
 	const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
 
 	let lines = recipe.split(endl);
@@ -452,14 +452,14 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 				if (typeName.length === 0) {
 					return;
 				}
-				let declaration = getTopLevelDeclaration(sourceFile, typeName);
+				let declaration = getTopLevelDeclaration(ts, sourceFile, typeName);
 				if (!declaration) {
 					logErr(`While handling ${line}`);
 					logErr(`Cannot find ${typeName}`);
 					failed = true;
 					return;
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(ts, sourceFile, declaration, importName, usage, enums)));
 			});
 			return;
 		}
@@ -491,8 +491,8 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 				typesToExcludeArr.push(typeName);
 			});
 
-			getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
-				if (isDeclaration(declaration) && declaration.name) {
+			getAllTopLevelDeclarations(ts, sourceFile).forEach((declaration) => {
+				if (isDeclaration(ts, declaration) && declaration.name) {
 					if (typesToExcludeMap[declaration.name.text]) {
 						return;
 					}
@@ -505,7 +505,7 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 						}
 					}
 				}
-				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage, enums)));
+				result.push(replacer(getMassagedTopLevelDeclarationText(ts, sourceFile, declaration, importName, usage, enums)));
 			});
 			return;
 		}
@@ -530,7 +530,7 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
 	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
 	resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
-	resultTxt = format(resultTxt, endl);
+	resultTxt = format(ts, resultTxt, endl);
 	resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
 
 	enums.sort((e1, e2) => {
@@ -553,7 +553,7 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 		''
 	].concat(enums.map(e => e.text)).join(endl);
 	resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
-	resultEnums = format(resultEnums, endl);
+	resultEnums = format(ts, resultEnums, endl);
 	resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
 
 	return {
@@ -571,9 +571,9 @@ export interface IMonacoDeclarationResult {
 	isTheSame: boolean;
 }
 
-function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
+function _run(ts: typeof import('typescript'), sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
 	const recipe = fs.readFileSync(RECIPE_PATH).toString();
-	const t = generateDeclarationFile(recipe, sourceFileGetter);
+	const t = generateDeclarationFile(ts, recipe, sourceFileGetter);
 	if (!t) {
 		return null;
 	}
@@ -617,9 +617,11 @@ class CacheEntry {
 
 export class DeclarationResolver {
 
+	public readonly ts: typeof import('typescript');
 	private _sourceFileCache: { [moduleId: string]: CacheEntry | null; };
 
 	constructor(private readonly _fsProvider: FSProvider) {
+		this.ts = require('typescript') as typeof import('typescript');
 		this._sourceFileCache = Object.create(null);
 	}
 
@@ -659,7 +661,7 @@ export class DeclarationResolver {
 			// const mtime = this._fsProvider.statFileSync()
 			const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
 			return new CacheEntry(
-				ts.createSourceFile(fileName, fileContents, ts.ScriptTarget.ES5),
+				this.ts.createSourceFile(fileName, fileContents, this.ts.ScriptTarget.ES5),
 				mtime
 			);
 		}
@@ -667,10 +669,10 @@ export class DeclarationResolver {
 		const fileMap: IFileMap = {
 			'file.ts': fileContents
 		};
-		const service = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, fileMap, {}));
+		const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, {}, fileMap, {}));
 		const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
 		return new CacheEntry(
-			ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5),
+			this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5),
 			mtime
 		);
 	}
@@ -678,7 +680,7 @@ export class DeclarationResolver {
 
 export function run3(resolver: DeclarationResolver): IMonacoDeclarationResult | null {
 	const sourceFileGetter = (moduleId: string) => resolver.getDeclarationSourceFile(moduleId);
-	return _run(sourceFileGetter);
+	return _run(resolver.ts, sourceFileGetter);
 }
 
 
@@ -689,11 +691,13 @@ interface IFileMap { [fileName: string]: string; }
 
 class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 
+	private readonly _ts: typeof import('typescript');
 	private readonly _libs: ILibMap;
 	private readonly _files: IFileMap;
 	private readonly _compilerOptions: ts.CompilerOptions;
 
-	constructor(libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
+	constructor(ts: typeof import('typescript'), libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
+		this._ts = ts;
 		this._libs = libs;
 		this._files = files;
 		this._compilerOptions = compilerOptions;
@@ -719,15 +723,15 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	}
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
 		if (this._files.hasOwnProperty(fileName)) {
-			return ts.ScriptSnapshot.fromString(this._files[fileName]);
+			return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
 		} else if (this._libs.hasOwnProperty(fileName)) {
-			return ts.ScriptSnapshot.fromString(this._libs[fileName]);
+			return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
 		} else {
-			return ts.ScriptSnapshot.fromString('');
+			return this._ts.ScriptSnapshot.fromString('');
 		}
 	}
 	getScriptKind(_fileName: string): ts.ScriptKind {
-		return ts.ScriptKind.TS;
+		return this._ts.ScriptKind.TS;
 	}
 	getCurrentDirectory(): string {
 		return '';

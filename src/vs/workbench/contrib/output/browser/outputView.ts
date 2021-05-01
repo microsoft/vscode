@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
@@ -22,7 +21,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -37,6 +36,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Dimension } from 'vs/base/browser/dom';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export class OutputViewPane extends ViewPane {
 
@@ -80,14 +80,14 @@ export class OutputViewPane extends ViewPane {
 		}
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		if (this.editorPromise) {
 			this.editorPromise.then(() => this.editor.focus());
 		}
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.editor.create(container);
 		container.classList.add('output-view');
@@ -117,12 +117,12 @@ export class OutputViewPane extends ViewPane {
 		}));
 	}
 
-	layoutBody(height: number, width: number): void {
+	override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.editor.layout(new Dimension(width, height));
 	}
 
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === 'workbench.output.action.switchBetweenOutputs') {
 			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
 		}
@@ -164,11 +164,6 @@ export class OutputViewPane extends ViewPane {
 
 export class OutputEditor extends AbstractTextResourceEditor {
 
-	// Override the instantiation service to use to be the scoped one
-	private scopedInstantiationService: IInstantiationService;
-	protected get instantiationService(): IInstantiationService { return this.scopedInstantiationService; }
-	protected set instantiationService(instantiationService: IInstantiationService) { }
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -177,26 +172,21 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService
 	) {
 		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
-
-		// Initially, the scoped instantiation service is the global
-		// one until the editor is created later on
-		this.scopedInstantiationService = instantiationService;
 	}
 
-	getId(): string {
+	override getId(): string {
 		return OUTPUT_VIEW_ID;
 	}
 
-	getTitle(): string {
+	override getTitle(): string {
 		return nls.localize('output', "Output");
 	}
 
-	protected getConfigurationOverrides(): IEditorOptions {
+	protected override getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 		options.wordWrap = 'on';				// all output editors wrap
 		options.lineNumbers = 'off';			// all output editors hide line numbers
@@ -229,7 +219,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputViewWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputViewAriaLabel', "Output panel");
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const focus = !(options && options.preserveFocus);
 		if (input.matches(this.input)) {
 			return;
@@ -246,7 +236,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		this.revealLastLine();
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		if (this.input) {
 			// Dispose current input (Output panel is not a workbench editor)
 			this.input.dispose();
@@ -254,17 +244,16 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		super.clearInput();
 	}
 
-	protected createEditor(parent: HTMLElement): void {
+	protected override createEditor(parent: HTMLElement): void {
 
 		parent.setAttribute('role', 'document');
 
-		// First create the scoped instantiation service and only then construct the editor using the scoped service
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-
 		super.createEditor(parent);
 
-		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
+		const scopedContextKeyService = this.scopedContextKeyService;
+		if (scopedContextKeyService) {
+			CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
+		}
 	}
 }
 
@@ -292,7 +281,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		this.updateOtions();
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('switch-output');
 		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
@@ -300,7 +289,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		}));
 	}
 
-	protected getActionContext(option: string, index: number): string {
+	protected override getActionContext(option: string, index: number): string {
 		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
 		return channel ? channel.id : option;
 	}

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, createMatches } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, createMatches, anyScore } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
 	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
-		assert.deepEqual(r, highlights);
+		assert.deepStrictEqual(r, highlights);
 	}
 }
 
@@ -28,22 +28,22 @@ suite('Filters', () => {
 		counters = [0, 0];
 		filter = or(newFilter(0, false), newFilter(1, false));
 		filterNotOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 1]);
+		assert.deepStrictEqual(counters, [1, 1]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, true), newFilter(1, false));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 0]);
+		assert.deepStrictEqual(counters, [1, 0]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, true), newFilter(1, true));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 0]);
+		assert.deepStrictEqual(counters, [1, 0]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, false), newFilter(1, true));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 1]);
+		assert.deepStrictEqual(counters, [1, 1]);
 	});
 
 	test('PrefixFilter - case sensitive', function () {
@@ -201,7 +201,7 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
 		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		// assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 
 		filterOk(matchesWords, 'bar', 'foo-bar');
 		filterOk(matchesWords, 'bar test', 'foo-bar test');
@@ -233,7 +233,7 @@ suite('Filters', () => {
 				pos = match.end;
 			}
 			actualWord += word.substring(pos);
-			assert.equal(actualWord, decoratedWord);
+			assert.strictEqual(actualWord, decoratedWord);
 		}
 	}
 
@@ -285,7 +285,7 @@ suite('Filters', () => {
 		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
 		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
-		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'Textedit', '^Text^e^d^i^t', fuzzyScore);
 		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
 		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
 		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^E^d^i^torDecorationType', fuzzyScore);
@@ -442,7 +442,7 @@ suite('Filters', () => {
 				}
 			}
 		}
-		assert.equal(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
+		assert.strictEqual(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
 	}
 
 	test('topScore - fuzzyScore', function () {
@@ -476,9 +476,9 @@ suite('Filters', () => {
 		// assertTopScore(fuzzyScore, 'Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 
 		assertTopScore(fuzzyScore, '-mo', 1, '-ms-ime-mode', '-moz-columns');
-		// // dupe, issue #14861
+		// dupe, issue #14861
 		assertTopScore(fuzzyScore, 'convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
-		// // dupe, issue #14942
+		// dupe, issue #14942
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
 		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
@@ -522,6 +522,12 @@ suite('Filters', () => {
 			fuzzyScore
 		);
 		assertMatches(
+			'Aoo',
+			'Affffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			'^Affffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_f^o^o',
+			fuzzyScore
+		);
+		assertMatches(
 			'foo',
 			'Gffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
 			undefined,
@@ -534,8 +540,19 @@ suite('Filters', () => {
 		assert.ok(Boolean(match));
 	});
 
+	test('Wrong highlight after emoji #113404', function () {
+		assertMatches('di', '✨div classname=""></div>', '✨^d^iv classname=""></div>', fuzzyScore);
+		assertMatches('di', 'adiv classname=""></div>', 'adiv classname=""></^d^iv>', fuzzyScore);
+	});
+
 	test('Suggestion is not highlighted #85826', function () {
 		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScore);
 		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScoreGracefulAggressive);
+	});
+
+	test('IntelliSense completion not correctly highlighting text in front of cursor #115250', function () {
+		assertMatches('lo', 'log', '^l^og', fuzzyScore);
+		assertMatches('.lo', 'log', '^l^og', anyScore);
+		assertMatches('.', 'log', 'log', anyScore);
 	});
 });

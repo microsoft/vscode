@@ -8,12 +8,13 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IListService } from 'vs/platform/list/browser/listService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-sandbox/fileCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -21,7 +22,6 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ContextKeyOrExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
@@ -35,10 +35,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: (accessor: ServicesAccessor, _resource: URI | object) => {
-		const explorerService = accessor.get(IExplorerService);
-		const resources = explorerService.getContext(false).map(item => item.resource);
-		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
+	handler: (accessor: ServicesAccessor, resource: URI | object) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
 
@@ -54,7 +53,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { filterByScheme: Schemas.file, supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
-		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
+		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
 

@@ -18,10 +18,10 @@ import { nullExtensionDescription } from 'vs/workbench/services/extensions/commo
 suite('ExtHostDiagnostics', () => {
 
 	class DiagnosticsShape extends mock<MainThreadDiagnosticsShape>() {
-		$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+		override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 			//
 		}
-		$clear(owner: string): void {
+		override $clear(owner: string): void {
 			//
 		}
 	}
@@ -45,26 +45,26 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostic collection, forEach, clear, has', function () {
 		let collection = new DiagnosticCollection('test', 'test', 100, new DiagnosticsShape(), new Emitter());
-		assert.equal(collection.name, 'test');
+		assert.strictEqual(collection.name, 'test');
 		collection.dispose();
 		assert.throws(() => collection.name);
 
 		let c = 0;
 		collection = new DiagnosticCollection('test', 'test', 100, new DiagnosticsShape(), new Emitter());
 		collection.forEach(() => c++);
-		assert.equal(c, 0);
+		assert.strictEqual(c, 0);
 
 		collection.set(URI.parse('foo:bar'), [
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-1'),
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
 		]);
 		collection.forEach(() => c++);
-		assert.equal(c, 1);
+		assert.strictEqual(c, 1);
 
 		c = 0;
 		collection.clear();
 		collection.forEach(() => c++);
-		assert.equal(c, 0);
+		assert.strictEqual(c, 0);
 
 		collection.set(URI.parse('foo:bar1'), [
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-1'),
@@ -75,7 +75,7 @@ suite('ExtHostDiagnostics', () => {
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
 		]);
 		collection.forEach(() => c++);
-		assert.equal(c, 2);
+		assert.strictEqual(c, 2);
 
 		assert.ok(collection.has(URI.parse('foo:bar1')));
 		assert.ok(collection.has(URI.parse('foo:bar2')));
@@ -105,7 +105,7 @@ suite('ExtHostDiagnostics', () => {
 		});
 
 		array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
-		assert.equal(array.length, 2);
+		assert.strictEqual(array.length, 2);
 
 		collection.dispose();
 	});
@@ -121,10 +121,10 @@ suite('ExtHostDiagnostics', () => {
 		]);
 
 		let array = collection.get(uri);
-		assert.equal(array.length, 2);
+		assert.strictEqual(array.length, 2);
 		let [first, second] = array;
-		assert.equal(first.message, 'message-1');
-		assert.equal(second.message, 'message-2');
+		assert.strictEqual(first.message, 'message-1');
+		assert.strictEqual(second.message, 'message-2');
 
 		// clear
 		collection.delete(uri);
@@ -152,10 +152,10 @@ suite('ExtHostDiagnostics', () => {
 		]);
 
 		array = collection.get(uri);
-		assert.equal(array.length, 2);
+		assert.strictEqual(array.length, 2);
 		[first, second] = array;
-		assert.equal(first.message, 'message-2');
-		assert.equal(second.message, 'message-3');
+		assert.strictEqual(first.message, 'message-2');
+		assert.strictEqual(second.message, 'message-3');
 
 		collection.dispose();
 	});
@@ -164,7 +164,7 @@ suite('ExtHostDiagnostics', () => {
 
 		let lastEntries!: [UriComponents, IMarkerData[]][];
 		let collection = new DiagnosticCollection('test', 'test', 100, new class extends DiagnosticsShape {
-			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}
@@ -172,21 +172,21 @@ suite('ExtHostDiagnostics', () => {
 		let uri = URI.parse('sc:hightower');
 
 		collection.set([[uri, [new Diagnostic(new Range(0, 0, 1, 1), 'error')]]]);
-		assert.equal(collection.get(uri).length, 1);
-		assert.equal(collection.get(uri)[0].message, 'error');
-		assert.equal(lastEntries.length, 1);
+		assert.strictEqual(collection.get(uri).length, 1);
+		assert.strictEqual(collection.get(uri)[0].message, 'error');
+		assert.strictEqual(lastEntries.length, 1);
 		let [[, data1]] = lastEntries;
-		assert.equal(data1.length, 1);
-		assert.equal(data1[0].message, 'error');
+		assert.strictEqual(data1.length, 1);
+		assert.strictEqual(data1[0].message, 'error');
 		lastEntries = undefined!;
 
 		collection.set([[uri, [new Diagnostic(new Range(0, 0, 1, 1), 'warning')]]]);
-		assert.equal(collection.get(uri).length, 1);
-		assert.equal(collection.get(uri)[0].message, 'warning');
-		assert.equal(lastEntries.length, 1);
+		assert.strictEqual(collection.get(uri).length, 1);
+		assert.strictEqual(collection.get(uri)[0].message, 'warning');
+		assert.strictEqual(lastEntries.length, 1);
 		let [[, data2]] = lastEntries;
-		assert.equal(data2.length, 1);
-		assert.equal(data2[0].message, 'warning');
+		assert.strictEqual(data2.length, 1);
+		assert.strictEqual(data2[0].message, 'warning');
 		lastEntries = undefined!;
 	});
 
@@ -198,7 +198,7 @@ suite('ExtHostDiagnostics', () => {
 		const emitter = new Emitter<any>();
 		emitter.event(_ => eventCount += 1);
 		const collection = new DiagnosticCollection('test', 'test', 100, new class extends DiagnosticsShape {
-			$changeMany() {
+			override $changeMany() {
 				changeCount += 1;
 			}
 		}, emitter);
@@ -207,12 +207,12 @@ suite('ExtHostDiagnostics', () => {
 		let diag = new Diagnostic(new Range(0, 0, 0, 1), 'ffff');
 
 		collection.set(uri, [diag]);
-		assert.equal(changeCount, 1);
-		assert.equal(eventCount, 1);
+		assert.strictEqual(changeCount, 1);
+		assert.strictEqual(eventCount, 1);
 
 		collection.set(uri, [diag]);
-		assert.equal(changeCount, 2);
-		assert.equal(eventCount, 2);
+		assert.strictEqual(changeCount, 2);
+		assert.strictEqual(eventCount, 2);
 	});
 
 	test('diagnostics collection, tuples and undefined (small array), #15585', function () {
@@ -232,8 +232,8 @@ suite('ExtHostDiagnostics', () => {
 			[uri2, [diag]],
 		]);
 
-		assert.equal(collection.get(uri).length, 1);
-		assert.equal(collection.get(uri2).length, 1);
+		assert.strictEqual(collection.get(uri).length, 1);
+		assert.strictEqual(collection.get(uri2).length, 1);
 	});
 
 	test('diagnostics collection, tuples and undefined (large array), #15585', function () {
@@ -254,8 +254,8 @@ suite('ExtHostDiagnostics', () => {
 
 		for (let i = 0; i < 500; i++) {
 			let uri = URI.parse('sc:hightower#' + i);
-			assert.equal(collection.has(uri), true);
-			assert.equal(collection.get(uri).length, 1);
+			assert.strictEqual(collection.has(uri), true);
+			assert.strictEqual(collection.get(uri).length, 1);
 		}
 	});
 
@@ -263,7 +263,7 @@ suite('ExtHostDiagnostics', () => {
 
 		let lastEntries!: [UriComponents, IMarkerData[]][];
 		let collection = new DiagnosticCollection('test', 'test', 250, new class extends DiagnosticsShape {
-			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}
@@ -278,12 +278,12 @@ suite('ExtHostDiagnostics', () => {
 		}
 
 		collection.set(uri, diagnostics);
-		assert.equal(collection.get(uri).length, 500);
-		assert.equal(lastEntries.length, 1);
-		assert.equal(lastEntries[0][1].length, 251);
-		assert.equal(lastEntries[0][1][0].severity, MarkerSeverity.Error);
-		assert.equal(lastEntries[0][1][200].severity, MarkerSeverity.Warning);
-		assert.equal(lastEntries[0][1][250].severity, MarkerSeverity.Info);
+		assert.strictEqual(collection.get(uri).length, 500);
+		assert.strictEqual(lastEntries.length, 1);
+		assert.strictEqual(lastEntries[0][1].length, 251);
+		assert.strictEqual(lastEntries[0][1][0].severity, MarkerSeverity.Error);
+		assert.strictEqual(lastEntries[0][1][200].severity, MarkerSeverity.Warning);
+		assert.strictEqual(lastEntries[0][1][250].severity, MarkerSeverity.Info);
 	});
 
 	test('diagnostic eventing', async function () {
@@ -295,19 +295,19 @@ suite('ExtHostDiagnostics', () => {
 		let diag3 = new Diagnostic(new Range(1, 1, 2, 3), 'diag3');
 
 		let p = Event.toPromise(emitter.event).then(a => {
-			assert.equal(a.length, 1);
-			assert.equal(a[0].toString(), 'aa:bb');
+			assert.strictEqual(a.length, 1);
+			assert.strictEqual(a[0].toString(), 'aa:bb');
 			assert.ok(URI.isUri(a[0]));
 		});
 		collection.set(URI.parse('aa:bb'), []);
 		await p;
 
 		p = Event.toPromise(emitter.event).then(e => {
-			assert.equal(e.length, 2);
+			assert.strictEqual(e.length, 2);
 			assert.ok(URI.isUri(e[0]));
 			assert.ok(URI.isUri(e[1]));
-			assert.equal(e[0].toString(), 'aa:bb');
-			assert.equal(e[1].toString(), 'aa:cc');
+			assert.strictEqual(e[0].toString(), 'aa:bb');
+			assert.strictEqual(e[1].toString(), 'aa:cc');
 		});
 		collection.set([
 			[URI.parse('aa:bb'), [diag1]],
@@ -316,7 +316,7 @@ suite('ExtHostDiagnostics', () => {
 		await p;
 
 		p = Event.toPromise(emitter.event).then(e => {
-			assert.equal(e.length, 2);
+			assert.strictEqual(e.length, 2);
 			assert.ok(URI.isUri(e[0]));
 			assert.ok(URI.isUri(e[1]));
 		});
@@ -333,7 +333,7 @@ suite('ExtHostDiagnostics', () => {
 		// delete
 		collection.set(URI.parse('aa:bb'), [diag1]);
 		let p = Event.toPromise(emitter.event).then(e => {
-			assert.equal(e[0].toString(), 'aa:bb');
+			assert.strictEqual(e[0].toString(), 'aa:bb');
 		});
 		collection.delete(URI.parse('aa:bb'));
 		await p;
@@ -341,7 +341,7 @@ suite('ExtHostDiagnostics', () => {
 		// set->undefined (as delete)
 		collection.set(URI.parse('aa:bb'), [diag1]);
 		p = Event.toPromise(emitter.event).then(e => {
-			assert.equal(e[0].toString(), 'aa:bb');
+			assert.strictEqual(e[0].toString(), 'aa:bb');
 		});
 		collection.set(URI.parse('aa:bb'), undefined!);
 		await p;
@@ -350,16 +350,16 @@ suite('ExtHostDiagnostics', () => {
 	test('diagnostics with related information', function (done) {
 
 		let collection = new DiagnosticCollection('ddd', 'test', 100, new class extends DiagnosticsShape {
-			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
+			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
 
 				let [[, data]] = entries;
-				assert.equal(entries.length, 1);
-				assert.equal(data.length, 1);
+				assert.strictEqual(entries.length, 1);
+				assert.strictEqual(data.length, 1);
 
 				let [diag] = data;
-				assert.equal(diag.relatedInformation!.length, 2);
-				assert.equal(diag.relatedInformation![0].message, 'more1');
-				assert.equal(diag.relatedInformation![1].message, 'more2');
+				assert.strictEqual(diag.relatedInformation!.length, 2);
+				assert.strictEqual(diag.relatedInformation![0].message, 'more1');
+				assert.strictEqual(diag.relatedInformation![1].message, 'more2');
 				done();
 			}
 		}, new Emitter<any>());
@@ -400,15 +400,15 @@ suite('ExtHostDiagnostics', () => {
 		collection1.clear();
 		collection2.clear();
 
-		assert.equal(ownerHistory.length, 2);
-		assert.equal(ownerHistory[0], 'foo');
-		assert.equal(ownerHistory[1], 'foo0');
+		assert.strictEqual(ownerHistory.length, 2);
+		assert.strictEqual(ownerHistory[0], 'foo');
+		assert.strictEqual(ownerHistory[1], 'foo0');
 	});
 
 	test('Error updating diagnostics from extension #60394', function () {
 		let callCount = 0;
 		let collection = new DiagnosticCollection('ddd', 'test', 100, new class extends DiagnosticsShape {
-			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
+			override $changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
 				callCount += 1;
 			}
 		}, new Emitter<any>());
@@ -420,14 +420,14 @@ suite('ExtHostDiagnostics', () => {
 		array.push(diag1, diag2);
 
 		collection.set(URI.parse('test:me'), array);
-		assert.equal(callCount, 1);
+		assert.strictEqual(callCount, 1);
 
 		collection.set(URI.parse('test:me'), array);
-		assert.equal(callCount, 2); // equal array
+		assert.strictEqual(callCount, 2); // equal array
 
 		array.push(diag2);
 		collection.set(URI.parse('test:me'), array);
-		assert.equal(callCount, 3); // same but un-equal array
+		assert.strictEqual(callCount, 3); // same but un-equal array
 	});
 
 	test('Diagnostics created by tasks aren\'t accessible to extensions #47292', async function () {
@@ -461,11 +461,11 @@ suite('ExtHostDiagnostics', () => {
 		const p1 = Event.toPromise(diags.onDidChangeDiagnostics);
 		diags.$acceptMarkersChange([[uri, data]]);
 		await p1;
-		assert.equal(diags.getDiagnostics(uri).length, 1);
+		assert.strictEqual(diags.getDiagnostics(uri).length, 1);
 
 		const p2 = Event.toPromise(diags.onDidChangeDiagnostics);
 		diags.$acceptMarkersChange([[uri, []]]);
 		await p2;
-		assert.equal(diags.getDiagnostics(uri).length, 0);
+		assert.strictEqual(diags.getDiagnostics(uri).length, 0);
 	});
 });

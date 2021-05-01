@@ -25,6 +25,7 @@ export class ViewCursors extends ViewPart {
 	private _cursorStyle: TextEditorCursorStyle;
 	private _cursorSmoothCaretAnimation: boolean;
 	private _selectionIsEmpty: boolean;
+	private _isComposingInput: boolean;
 
 	private _isVisible: boolean;
 
@@ -49,6 +50,7 @@ export class ViewCursors extends ViewPart {
 		this._cursorStyle = options.get(EditorOption.cursorStyle);
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._selectionIsEmpty = true;
+		this._isComposingInput = false;
 
 		this._isVisible = false;
 
@@ -72,7 +74,7 @@ export class ViewCursors extends ViewPart {
 		this._updateBlinking();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		this._startCursorBlinkAnimation.dispose();
 		this._cursorFlatBlinkInterval.dispose();
@@ -83,8 +85,17 @@ export class ViewCursors extends ViewPart {
 	}
 
 	// --- begin event handlers
-
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onCompositionStart(e: viewEvents.ViewCompositionStartEvent): boolean {
+		this._isComposingInput = true;
+		this._updateBlinking();
+		return true;
+	}
+	public override onCompositionEnd(e: viewEvents.ViewCompositionEndEvent): boolean {
+		this._isComposingInput = false;
+		this._updateBlinking();
+		return true;
+	}
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 
 		this._readOnly = options.get(EditorOption.readOnly);
@@ -127,7 +138,7 @@ export class ViewCursors extends ViewPart {
 		}
 
 	}
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		const positions: Position[] = [];
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			positions[i] = e.selections[i].getPosition();
@@ -143,31 +154,31 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return true;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this._editorHasFocus = e.isFocused;
 		this._updateBlinking();
 		return false;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return true;
 	}
-	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		const shouldRender = (position: Position) => {
 			for (let i = 0, len = e.ranges.length; i < len; i++) {
 				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
@@ -186,7 +197,7 @@ export class ViewCursors extends ViewPart {
 		}
 		return false;
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -195,6 +206,10 @@ export class ViewCursors extends ViewPart {
 	// ---- blinking logic
 
 	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {
+		if (this._isComposingInput) {
+			// avoid double cursors
+			return TextEditorCursorBlinkingStyle.Hidden;
+		}
 		if (!this._editorHasFocus) {
 			return TextEditorCursorBlinkingStyle.Hidden;
 		}

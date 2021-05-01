@@ -110,6 +110,12 @@ export interface ISCMInput {
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
 
+	setFocus(): void;
+	readonly onDidChangeFocus: Event<void>;
+
+	showValidationMessage(message: string, type: InputValidationType): void;
+	readonly onDidChangeValidationMessage: Event<IInputValidation>;
+
 	showNextHistoryValue(): void;
 	showPreviousHistoryValue(): void;
 }
@@ -145,7 +151,6 @@ export interface ISCMRepositoryMenus {
 }
 
 export interface ISCMMenus {
-	readonly titleMenu: ISCMTitleMenu;
 	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
 }
 

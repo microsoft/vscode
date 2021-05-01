@@ -26,7 +26,7 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		this._register(_editor.onMouseDown((e) => this.onMouseDown(e)));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 	}
 
@@ -47,7 +47,7 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		}
 
 		const hoverController = this._editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-		if (!hoverController.contentWidget.isColorPickerVisible()) {
+		if (!hoverController.isColorPickerVisible()) {
 			const range = new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1);
 			hoverController.showContentHover(range, HoverStartMode.Delayed, false);
 		}

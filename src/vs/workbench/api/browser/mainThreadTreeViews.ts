@@ -31,7 +31,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean }): void {
+	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean }): Promise<void> {
 		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -147,7 +147,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return viewDescriptor ? viewDescriptor.treeView : null;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._dataProviders.forEach((dataProvider, treeViewId) => {
 			const treeView = this.getTreeView(treeViewId);
 			if (treeView) {
@@ -222,8 +222,8 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		const hasResolve = await this.hasResolve;
 		if (elements) {
 			for (const element of elements) {
-				const resolvable = new ResolvableTreeItem(element, hasResolve ? () => {
-					return this._proxy.$resolve(this.treeViewId, element.handle);
+				const resolvable = new ResolvableTreeItem(element, hasResolve ? (token) => {
+					return this._proxy.$resolve(this.treeViewId, element.handle, token);
 				} : undefined);
 				this.itemsMap.set(element.handle, resolvable);
 				result.push(resolvable);
@@ -235,9 +235,13 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	private updateTreeItem(current: ITreeItem, treeItem: ITreeItem): void {
 		treeItem.children = treeItem.children ? treeItem.children : undefined;
 		if (current) {
-			const properties = distinct([...Object.keys(current), ...Object.keys(treeItem)]);
+			const properties = distinct([...Object.keys(current instanceof ResolvableTreeItem ? current.asTreeItem() : current),
+			...Object.keys(treeItem)]);
 			for (const property of properties) {
 				(<any>current)[property] = (<any>treeItem)[property];
+			}
+			if (current instanceof ResolvableTreeItem) {
+				current.resetResolve();
 			}
 		}
 	}

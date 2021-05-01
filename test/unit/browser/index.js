@@ -7,9 +7,9 @@
 
 const path = require('path');
 const glob = require('glob');
-const fs = require('fs');
 const events = require('events');
 const mocha = require('mocha');
+const createStatsCollector = require('../../../node_modules/mocha/lib/stats-collector');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
@@ -131,6 +131,19 @@ const testModules = (async function () {
 	})
 })();
 
+function consoleLogFn(msg) {
+	const type = msg.type();
+	const candidate = console[type];
+	if (candidate) {
+		return candidate;
+	}
+
+	if (type === 'warning') {
+		return console.warn;
+	}
+
+	return console.log;
+}
 
 async function runTestsInBrowser(testModules, browserType) {
 	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
@@ -149,7 +162,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	});
 
 	page.on('console', async msg => {
-		console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
 	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));
@@ -186,6 +199,7 @@ class EchoRunner extends events.EventEmitter {
 
 	constructor(event, title = '') {
 		super();
+		createStatsCollector(this);
 		event.on('start', () => this.emit('start'));
 		event.on('end', () => this.emit('end'));
 		event.on('suite', (suite) => this.emit('suite', EchoRunner.deserializeSuite(suite, title)));
@@ -205,10 +219,10 @@ class EchoRunner extends events.EventEmitter {
 			suites: suite.suites,
 			tests: suite.tests,
 			title: titleExtra && suite.title ? `${suite.title} - /${titleExtra}/` : suite.title,
+			titlePath: () => suite.titlePath,
 			fullTitle: () => suite.fullTitle,
 			timeout: () => suite.timeout,
 			retries: () => suite.retries,
-			enableTimeouts: () => suite.enableTimeouts,
 			slow: () => suite.slow,
 			bail: () => suite.bail
 		};
@@ -218,6 +232,7 @@ class EchoRunner extends events.EventEmitter {
 		return {
 			title: runnable.title,
 			fullTitle: () => titleExtra && runnable.fullTitle ? `${runnable.fullTitle} - /${titleExtra}/` : runnable.fullTitle,
+			titlePath: () => runnable.titlePath,
 			async: runnable.async,
 			slow: () => runnable.slow,
 			speed: runnable.speed,

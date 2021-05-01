@@ -28,6 +28,7 @@ export const ViewIdentifierMap: { [key: string]: string } = {
 	'explorer': 'workbench.explorer.emptyView',
 	'debug': 'workbench.debug.welcome',
 	'scm': 'workbench.scm',
+	'testing': 'workbench.view.testing'
 };
 
 const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySchema>({
@@ -68,7 +69,7 @@ const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySch
 			},
 			[ViewsWelcomeExtensionPointFields.enablement]: {
 				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.enablement', "Condition when the welcome content buttons should be enabled."),
+				description: nls.localize('contributes.viewsWelcome.view.enablement', "Condition when the welcome content buttons and command links should be enabled."),
 			},
 		}
 	}

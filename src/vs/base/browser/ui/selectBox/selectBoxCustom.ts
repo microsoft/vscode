@@ -293,14 +293,20 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	public focus(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = 0;
 			this.selectElement.focus();
 		}
 	}
 
 	public blur(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = -1;
 			this.selectElement.blur();
 		}
+	}
+
+	public setFocusable(focusable: boolean): void {
+		this.selectElement.tabIndex = focusable ? 0 : -1;
 	}
 
 	public render(container: HTMLElement): void {
@@ -736,8 +742,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(e => this.onEnter(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(e => this.onUpArrow(e), this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(e => this.onDownArrow(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDown, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUp, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Home).on(this.onHome, this));
@@ -916,8 +922,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	// List navigation - have to handle a disabled option (jump over)
-	private onDownArrow(): void {
+	private onDownArrow(e: StandardKeyboardEvent): void {
 		if (this.selected < this.options.length - 1) {
+			dom.EventHelper.stop(e, true);
 
 			// Skip disabled options
 			const nextOptionDisabled = this.options[this.selected + 1].isDisabled;
@@ -937,8 +944,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 	}
 
-	private onUpArrow(): void {
+	private onUpArrow(e: StandardKeyboardEvent): void {
 		if (this.selected > 0) {
+			dom.EventHelper.stop(e, true);
 			// Skip disabled options
 			const previousOptionDisabled = this.options[this.selected - 1].isDisabled;
 			if (previousOptionDisabled && this.selected > 1) {
@@ -1038,7 +1046,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this.hideSelectDropDown(false);
 		super.dispose();
 	}

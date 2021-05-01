@@ -3,48 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, ILoggerService, ILogger } from 'vs/platform/log/common/log';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { ILogService, ILoggerService, ILogger, ILoggerOptions, AbstractLoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { basename, extname, dirname } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { FileLogService } from 'vs/platform/log/common/fileLogService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { FileLogger } from 'vs/platform/log/common/fileLog';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { IFileService } from 'vs/platform/files/common/files';
+import { generateUuid } from 'vs/base/common/uuid';
 
-export class LoggerService extends Disposable implements ILoggerService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private readonly loggers = new Map<string, ILogger>();
+export class LoggerService extends AbstractLoggerService implements ILoggerService {
 
 	constructor(
-		@ILogService private logService: ILogService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
+		@IFileService private readonly fileService: IFileService
 	) {
-		super();
-		this._register(logService.onDidChangeLogLevel(level => this.loggers.forEach(logger => logger.setLevel(level))));
+		super(logService.getLevel(), logService.onDidChangeLogLevel);
 	}
 
-	getLogger(resource: URI): ILogger {
-		let logger = this.loggers.get(resource.toString());
-		if (!logger) {
-			if (resource.scheme === Schemas.file) {
-				const baseName = basename(resource);
-				const ext = extname(resource);
-				logger = new SpdLogService(baseName.substring(0, baseName.length - ext.length), dirname(resource).fsPath, this.logService.getLevel());
-			} else {
-				logger = this.instantiationService.createInstance(FileLogService, basename(resource), resource, this.logService.getLevel());
+	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
+		if (resource.scheme === Schemas.file) {
+			const logger = new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, logLevel);
+			if (options?.donotUseFormatters) {
+				(<SpdLogLogger>logger).clearFormatters();
 			}
-			this.loggers.set(resource.toString(), logger);
+			return logger;
+		} else {
+			return new FileLogger(options?.name ?? basename(resource), resource, logLevel, this.fileService);
 		}
-		return logger;
-	}
-
-	dispose(): void {
-		this.loggers.forEach(logger => logger.dispose());
-		this.loggers.clear();
-		super.dispose();
 	}
 }
 

@@ -21,7 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -250,6 +250,31 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- inline values
+
+	$registerInlineValuesProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.InlineValuesProvider>{
+			provideInlineValues: (model: ITextModel, viewPort: EditorRange, context: modes.InlineValueContext, token: CancellationToken): Promise<modes.InlineValue[] | undefined> => {
+				return this._proxy.$provideInlineValues(handle, model.uri, viewPort, context, token);
+			}
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlineValues = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.InlineValuesProviderRegistry.register(selector, provider));
+	}
+
+	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
+	}
+
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
@@ -260,12 +285,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
-	// --- on type rename
+	// --- linked editing
 
-	$registerOnTypeRenameRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.OnTypeRenameRangeProviderRegistry.register(selector, <modes.OnTypeRenameRangeProvider>{
-			provideOnTypeRenameRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.OnTypeRenameRanges | undefined> => {
-				const res = await this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
+	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, modes.LinkedEditingRangeProviderRegistry.register(selector, <modes.LinkedEditingRangeProvider>{
+			provideLinkedEditingRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> => {
+				const res = await this._proxy.$provideLinkedEditingRanges(handle, model.uri, position, token);
 				if (res) {
 					return {
 						ranges: res.ranges,
@@ -497,6 +522,32 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- inline hints
+
+	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.InlayHintsProvider>{
+			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlayHint[] | undefined> => {
+				const result = await this._proxy.$provideInlayHints(handle, model.uri, range, token);
+				return result?.hints;
+			}
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlayHints = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
+	}
+
+	$emitInlayHintsEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
+	}
+
 	// --- links
 
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void {
@@ -662,7 +713,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
 			afterText: onEnterRule.afterText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText) : undefined,
-			oneLineAboveText: onEnterRule.oneLineAboveText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.oneLineAboveText) : undefined,
+			previousLineText: onEnterRule.previousLineText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.previousLineText) : undefined,
 			action: onEnterRule.action
 		};
 	}
@@ -701,7 +752,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration));
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
 		}
 	}
 

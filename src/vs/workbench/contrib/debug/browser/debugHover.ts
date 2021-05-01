@@ -105,7 +105,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
 		const tip = dom.append(this.complexValueContainer, $('.tip'));
-		tip.textContent = nls.localize('quickTip', 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
+		tip.textContent = nls.localize({ key: 'quickTip', comment: ['"switch to editor language hover" means to show the programming language hover widget instead of the debug hover'] }, 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
 		const dataSource = new DebugHoverDataSource();
 
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
@@ -309,7 +309,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private layoutTreeAndContainer(initialLayout: boolean): void {
 		const scrollBarHeight = 10;
-		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.7, this.tree.contentHeight + scrollBarHeight);
+		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.55, this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
 		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
 		this.editor.layoutContentWidget(this);

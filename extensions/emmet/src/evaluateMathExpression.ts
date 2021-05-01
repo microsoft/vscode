@@ -7,7 +7,6 @@
 
 import * as vscode from 'vscode';
 import evaluate, { extract } from '@emmetio/math-expression';
-import { DocumentStreamReader } from './bufferStream';
 
 export function evaluateMathExpression(): Thenable<boolean> {
 	if (!vscode.window.activeTextEditor) {
@@ -15,13 +14,12 @@ export function evaluateMathExpression(): Thenable<boolean> {
 		return Promise.resolve(false);
 	}
 	const editor = vscode.window.activeTextEditor;
-	const stream = new DocumentStreamReader(editor.document);
 	return editor.edit(editBuilder => {
 		editor.selections.forEach(selection => {
 			// startpos always comes before endpos
 			const startpos = selection.isReversed ? selection.active : selection.anchor;
 			const endpos = selection.isReversed ? selection.anchor : selection.active;
-			const selectionText = stream.substring(startpos, endpos);
+			const selectionText = editor.document.getText(new vscode.Range(startpos, endpos));
 
 			try {
 				if (selectionText) {
@@ -30,7 +28,7 @@ export function evaluateMathExpression(): Thenable<boolean> {
 					editBuilder.replace(new vscode.Range(startpos, endpos), result);
 				} else {
 					// no selection made, extract expression from line
-					const lineToSelectionEnd = stream.substring(new vscode.Position(selection.end.line, 0), endpos);
+					const lineToSelectionEnd = editor.document.getText(new vscode.Range(new vscode.Position(selection.end.line, 0), endpos));
 					const extractedIndices = extract(lineToSelectionEnd);
 					if (!extractedIndices) {
 						throw new Error('Invalid extracted indices');

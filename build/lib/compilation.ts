@@ -8,9 +8,6 @@
 import * as es from 'event-stream';
 import * as fs from 'fs';
 import * as gulp from 'gulp';
-import * as bom from 'gulp-bom';
-import * as sourcemaps from 'gulp-sourcemaps';
-import * as tsb from 'gulp-tsb';
 import * as path from 'path';
 import * as monacodts from './monaco-api';
 import * as nls from './nls';
@@ -41,12 +38,17 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 }
 
 function createCompile(src: string, build: boolean, emitError?: boolean) {
+	const tsb = require('gulp-tsb') as typeof import('gulp-tsb');
+	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
+
+
 	const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
 	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
 
 	const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
+		const bom = require('gulp-bom') as typeof import('gulp-bom');
 
 		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
@@ -61,7 +63,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 			.pipe(util.loadSourcemaps())
 			.pipe(compilation(token))
 			.pipe(noDeclarationsFilter)
-			.pipe(build ? nls() : es.through())
+			.pipe(build ? nls.nls() : es.through())
 			.pipe(noDeclarationsFilter.restore)
 			.pipe(sourcemaps.write('.', {
 				addComment: false,

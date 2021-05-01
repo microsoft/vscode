@@ -25,13 +25,13 @@ import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
@@ -45,11 +45,15 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
+
+
+const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action codicon-chevron-up';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
 const COMMENT_SCHEME = 'comment';
 
 
@@ -176,7 +180,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return undefined;
 	}
 
-	protected revealLine(lineNumber: number) {
+	protected override revealLine(lineNumber: number) {
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 
@@ -234,15 +238,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
 		this._actionbarWidget = new ActionBar(actionsContainer, {
-			actionViewItemProvider: (action: IAction) => {
-				if (action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-				} else if (action instanceof SubmenuItemAction) {
-					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-				} else {
-					return new ActionViewItem({}, action, { label: false, icon: true });
-				}
-			}
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
 		});
 
 		this._disposables.add(this._actionbarWidget);
@@ -401,11 +397,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.setFocusedComment(this._focusedComment);
 	}
 
-	protected _onWidth(widthInPixel: number): void {
+	protected override _onWidth(widthInPixel: number): void {
 		this._commentReplyComponent?.editor.layout({ height: 5 * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this._commentReplyComponent?.editor.layout({ height: 5 * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
@@ -945,10 +941,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		const fontFamilyVar = '--comment-thread-editor-font-family';
+		const fontSizeVar = '--comment-thread-editor-font-size';
+		const fontWeightVar = '--comment-thread-editor-font-weight';
+		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
+		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
+		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
+
 		content.push(`.monaco-editor .review-widget .body code {
-			font-family: ${fontInfo.fontFamily};
-			font-size: ${fontInfo.fontSize}px;
-			font-weight: ${fontInfo.fontWeight};
+			font-family: var(${fontFamilyVar});
+			font-weight: var(${fontWeightVar});
+			font-size: var(${fontSizeVar});
 		}`);
 
 		this._styleElement.textContent = content.join('\n');
@@ -957,13 +960,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.setCommentEditorDecorations();
 	}
 
-	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+	override show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
 		this._isExpanded = true;
 		super.show(rangeOrPos, heightInLines);
 		this._refresh();
 	}
 
-	hide() {
+	override hide() {
 		if (this._isExpanded) {
 			this._isExpanded = false;
 			// Focus the container so that the comment editor will be blurred before it is hidden
@@ -972,7 +975,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super.hide();
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		if (this._resizeObserver) {
 			this._resizeObserver.disconnect();

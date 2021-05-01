@@ -6,7 +6,6 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
@@ -16,9 +15,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -26,7 +26,7 @@ interface IResourceUriProvider {
 
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
-	extensionLocation: URI;
+	extensionLocation: UriComponents;
 	isBuiltin?: boolean;
 }
 
@@ -46,16 +46,22 @@ interface ITunnelProvider {
 	tunnelFactory?: ITunnelFactory;
 
 	/**
-	 * Support for filtering candidate ports
+	 * Support for filtering candidate ports.
 	 */
 	showPortCandidate?: IShowPortCandidate;
+
+	/**
+	 * The features that the tunnel provider supports.
+	 */
+	features?: TunnelProviderFeatures;
 }
 
 interface ITunnelFactory {
-	(tunnelOptions: ITunnelOptions, elevate?: boolean): Promise<ITunnel> | undefined;
+	(tunnelOptions: ITunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<ITunnel> | undefined;
 }
 
 interface ITunnelOptions {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -64,9 +70,20 @@ interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
+
+	public?: boolean;
 }
 
-interface ITunnel extends IDisposable {
+export interface TunnelCreationOptions {
+
+	/**
+	 * True when the local operating system will require elevation to use the requested local port.
+	 */
+	elevationRequired?: boolean;
+}
+
+interface ITunnel {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -74,10 +91,14 @@ interface ITunnel extends IDisposable {
 	 */
 	localAddress: string;
 
+	public?: boolean;
+
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
 }
 
 interface IShowPortCandidate {
@@ -166,46 +187,6 @@ interface IInitialColorTheme {
 	colors?: { [colorId: string]: string };
 }
 
-interface IDefaultSideBarLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active: true;
-		order?: number;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	} | {
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false;
-		order?: number;
-		visible?: boolean;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	})[];
-}
-
-interface IDefaultPanelLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active: true;
-	} | {
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active?: false;
-		visible?: boolean;
-	})[];
-}
-
 interface IDefaultView {
 	readonly id: string;
 }
@@ -219,6 +200,8 @@ interface IDefaultEditor {
 interface IDefaultLayout {
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
+	/** Forces this layout to be applied even if this isn't the first time the workspace has been opened */
+	readonly force?: boolean;
 }
 
 interface IProductQualityChangeHandler {
@@ -234,10 +217,17 @@ interface IProductQualityChangeHandler {
  * Settings sync options
  */
 interface ISettingsSyncOptions {
+
 	/**
 	 * Is settings sync enabled
 	 */
 	readonly enabled: boolean;
+
+	/**
+	 * Version of extensions sync state.
+	 * Extensions sync state will be reset if version is provided and different from previous version.
+	 */
+	readonly extensionsSyncStateVersion?: string;
 
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
@@ -329,21 +319,14 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
 	 */
-	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
+	readonly staticExtensions?: readonly IStaticExtension[];
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
-	 * Defaults to false on serverful and true on serverless.
+	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable `<iframe>` wrapping.
-	 * Defaults to false.
-	 */
-	readonly _wrapWebWorkerExtHostInIframe?: boolean;
 
 	/**
 	 * Support for URL callbacks.
@@ -364,7 +347,7 @@ interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened.
+	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -420,7 +403,15 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 
 
-	//#region Diagnostics
+	//#region Development options
+
+	readonly developmentOptions?: IDevelopmentOptions;
+
+	//#endregion
+
+}
+
+interface IDevelopmentOptions {
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.
@@ -428,17 +419,58 @@ interface IWorkbenchConstructionOptions {
 	readonly logLevel?: LogLevel;
 
 	/**
+	 * Location of a module containing extension tests to run once the workbench is open.
+	 */
+	readonly extensionTestsPath?: UriComponents;
+
+	/**
+	 * Add extensions under development.
+	 */
+	readonly extensions?: readonly IStaticExtension[];
+
+	/**
 	 * Whether to enable the smoke test driver.
 	 */
-	readonly driver?: boolean;
+	readonly enableSmokeTestDriver?: boolean;
+}
 
-	//#endregion
+interface IPerformanceMark {
+
+	/**
+	 * The name of a performace marker.
+	 */
+	readonly name: string;
+
+	/**
+	 * The UNIX timestamp at which the marker has been set.
+	 */
+	readonly startTime: number;
 }
 
 interface IWorkbench {
+
 	commands: {
+		/**
+		 * @see [executeCommand](#commands.executeCommand)
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	},
+	}
+
+	env: {
+		/**
+		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
+		 */
+		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+	}
+
+	/**
+	 * Triggers shutdown of the workbench programmatically. After this method is
+	 * called, the workbench is not usable anymore and the page needs to reload
+	 * or closed.
+	 *
+	 * This will also remove any `beforeUnload` handlers that would bring up a
+	 * confirmation dialog.
+	 */
 	shutdown: () => void;
 }
 
@@ -454,8 +486,7 @@ const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseReso
 function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
-	mark('didLoadWorkbenchMain');
-	performance.mark('workbench-start');
+	mark('code/didLoadWorkbenchMain');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
@@ -511,6 +542,26 @@ namespace commands {
 	}
 }
 
+namespace env {
+
+	/**
+	 * Retrieve performance marks that have been collected during startup. This function
+	 * returns tuples of source and marks. A source is a dedicated context, like
+	 * the renderer or an extension host.
+	 *
+	 * *Note* that marks can be collected on different machines and in different processes
+	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+	 * across contexts should be taken with a grain of salt.
+	 *
+	 * @returns A promise that resolves to tuples of source and marks.
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.retrievePerformanceMarks();
+	}
+}
+
 export {
 
 	// Factory
@@ -529,12 +580,6 @@ export {
 	// Workspace
 	IWorkspace,
 	IWorkspaceProvider,
-
-	// FileSystem
-	IFileSystemProvider,
-	FileSystemProviderCapabilities,
-	IFileChange,
-	FileChangeType,
 
 	// WebSockets
 	IWebSocketFactory,
@@ -593,8 +638,13 @@ export {
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
-	IDefaultPanelLayout,
-	IDefaultSideBarLayout
+
+	// Env
+	IPerformanceMark,
+	env,
+
+	// Development
+	IDevelopmentOptions
 };
 
 //#endregion

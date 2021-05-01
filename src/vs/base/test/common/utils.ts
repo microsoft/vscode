@@ -5,46 +5,9 @@
 
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { canceled } from 'vs/base/common/errors';
 import { isWindows } from 'vs/base/common/platform';
 
 export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
-
-export class DeferredPromise<T> {
-
-	private completeCallback!: ValueCallback<T>;
-	private errorCallback!: (err: any) => void;
-
-	public p: Promise<any>;
-
-	constructor() {
-		this.p = new Promise<any>((c, e) => {
-			this.completeCallback = c;
-			this.errorCallback = e;
-		});
-	}
-
-	public complete(value: T) {
-		return new Promise<void>(resolve => {
-			this.completeCallback(value);
-			resolve();
-		});
-	}
-
-	public error(err: any) {
-		return new Promise<void>(resolve => {
-			this.errorCallback(err);
-			resolve();
-		});
-	}
-
-	public cancel() {
-		new Promise<void>(resolve => {
-			this.errorCallback(canceled());
-			resolve();
-		});
-	}
-}
 
 export function toResource(this: any, path: string) {
 	if (isWindows) {
@@ -60,8 +23,19 @@ export function suiteRepeat(n: number, description: string, callback: (this: any
 	}
 }
 
-export function testRepeat(n: number, description: string, callback: (this: any, done: MochaDone) => any): void {
+export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
 	for (let i = 0; i < n; i++) {
 		test(`${description} (iteration ${i})`, callback);
 	}
+}
+
+export async function assertThrowsAsync(block: () => any, message: string | Error = 'Missing expected exception'): Promise<void> {
+	try {
+		await block();
+	} catch {
+		return;
+	}
+
+	const err = message instanceof Error ? message : new Error(message);
+	throw err;
 }

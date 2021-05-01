@@ -66,32 +66,11 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 		return this._mapper.getAriaLabelForKeyCode(keybinding.keyCode);
 	}
 
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		// electron menus always do the correct rendering on Windows
-		return KeyCodeUtils.toString(keyCode);
-	}
-
 	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isDuplicateModifierCase()) {
 			return null;
 		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
+		return this._mapper.getElectronAcceleratorForKeyBinding(keybinding);
 	}
 
 	protected _getUserSettingsLabel(keybinding: SimpleKeybinding): string | null {
@@ -143,6 +122,22 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 		return result;
 	}
 
+	protected _getSingleModifierDispatchPart(keybinding: SimpleKeybinding): string | null {
+		if (keybinding.keyCode === KeyCode.Ctrl && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
+			return 'ctrl';
+		}
+		if (keybinding.keyCode === KeyCode.Shift && !keybinding.ctrlKey && !keybinding.altKey && !keybinding.metaKey) {
+			return 'shift';
+		}
+		if (keybinding.keyCode === KeyCode.Alt && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.metaKey) {
+			return 'alt';
+		}
+		if (keybinding.keyCode === KeyCode.Meta && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.altKey) {
+			return 'meta';
+		}
+		return null;
+	}
+
 	private static getProducedCharCode(kb: ScanCodeBinding, mapping: IScanCodeMapping): string | null {
 		if (!mapping) {
 			return null;
@@ -185,7 +180,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
-			if (immutableKeyCode !== -1) {
+			if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
 				this._scanCodeToKeyCode[scanCode] = immutableKeyCode;
 				this._keyCodeToLabel[immutableKeyCode] = KeyCodeUtils.toString(immutableKeyCode);
 				this._keyCodeExists[immutableKeyCode] = true;
@@ -206,7 +201,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				const rawMapping = rawMappings[strCode];
 
 				const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
-				if (immutableKeyCode !== -1) {
+				if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
 					const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
 					if (keyCode === KeyCode.Unknown || immutableKeyCode === keyCode) {
 						continue;
@@ -342,7 +337,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		let cnt = 0;
 		result.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
-			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
+			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== KeyCode.DependsOnKbLayout) {
 				if (immutableSamples.indexOf(scanCode) === -1) {
 					continue;
 				}
@@ -407,6 +402,53 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			return KeyCodeUtils.toUserSettingsUS(keyCode);
 		}
 		return KeyCodeUtils.toUserSettingsGeneral(keyCode);
+	}
+
+	public getElectronAcceleratorForKeyBinding(keybinding: SimpleKeybinding): string | null {
+		if (!this.isUSStandard) {
+			// See https://github.com/electron/electron/issues/26888
+			// Electron does not render accelerators respecting the current keyboard layout since 3.x
+			const keyCode = keybinding.keyCode;
+			const isOEMKey = (
+				keyCode === KeyCode.US_SEMICOLON
+				|| keyCode === KeyCode.US_EQUAL
+				|| keyCode === KeyCode.US_COMMA
+				|| keyCode === KeyCode.US_MINUS
+				|| keyCode === KeyCode.US_DOT
+				|| keyCode === KeyCode.US_SLASH
+				|| keyCode === KeyCode.US_BACKTICK
+				|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
+				|| keyCode === KeyCode.US_BACKSLASH
+				|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
+				|| keyCode === KeyCode.OEM_8
+				|| keyCode === KeyCode.OEM_102
+			);
+			if (isOEMKey) {
+				return null;
+			}
+		}
+		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
+	}
+
+	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// Electron cannot handle numpad keys
+			return null;
+		}
+
+		switch (keyCode) {
+			case KeyCode.UpArrow:
+				return 'Up';
+			case KeyCode.DownArrow:
+				return 'Down';
+			case KeyCode.LeftArrow:
+				return 'Left';
+			case KeyCode.RightArrow:
+				return 'Right';
+		}
+
+		// electron menus always do the correct rendering on Windows
+		return KeyCodeUtils.toString(keyCode);
 	}
 
 	private _getLabelForKeyCode(keyCode: KeyCode): string {

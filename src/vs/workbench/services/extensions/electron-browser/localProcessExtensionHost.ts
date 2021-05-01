@@ -45,6 +45,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { isUUID } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
+import { Readable, Writable } from 'stream';
+import { StringDecoder } from 'string_decoder';
+import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -53,6 +56,11 @@ export interface ILocalProcessExtensionHostInitData {
 
 export interface ILocalProcessExtensionHostDataProvider {
 	getInitData(): Promise<ILocalProcessExtensionHostInitData>;
+}
+
+const enum NativeLogMarkers {
+	Start = 'START_NATIVE_LOG',
+	End = 'END_NATIVE_LOG',
 }
 
 export class LocalProcessExtensionHost implements IExtensionHost {
@@ -97,7 +105,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IHostService private readonly _hostService: IHostService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -118,7 +127,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
-		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
+		this._toDispose.add(this._lifecycleService.onDidShutdown(reason => this.terminate()));
 		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._nativeHostService.closeWindow();
@@ -150,14 +159,14 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
-				this._tryFindDebugPort()
-			]).then(data => {
-				const pipeName = data[0];
-				const portNumber = data[1];
-				const env = objects.mixin(objects.deepClone(process.env), {
-					AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: true,
+				this._tryFindDebugPort(),
+				this._shellEnvironmentService.getShellEnv()
+			]).then(([pipeName, portNumber, processEnv]) => {
+				const env = objects.mixin(processEnv, {
+					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_VERBOSE_LOGGING: true,
+					VSCODE_LOG_NATIVE: this._isExtensionDevHost,
 					VSCODE_IPC_HOOK_EXTHOST: pipeName,
 					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
@@ -196,6 +205,14 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					opts.execArgv = ['--inspect-port=0'];
 				}
 
+				if (this._environmentService.args['prof-v8-extensions']) {
+					opts.execArgv.unshift('--prof');
+				}
+
+				if (this._environmentService.args['max-memory']) {
+					opts.execArgv.unshift(`--max-old-space-size=${this._environmentService.args['max-memory']}`);
+				}
+
 				// On linux crash reporter needs to be started on child node processes explicitly
 				if (platform.isLinux) {
 					const crashReporterStartOptions: CrashReporterStartOptions = {
@@ -217,7 +234,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					// For https://github.com/microsoft/vscode/issues/105743
 					const extHostCrashDirectory = this._environmentService.crashReporterDirectory || this._environmentService.userDataPath;
 					opts.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `${ExtensionHostLogFileName} Crash Reports`);
-					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
+					opts.env.VSCODE_CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
 				}
 
 				// Run Extension Host as fork of current process
@@ -225,13 +242,11 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
-				this._extensionHostProcess.stdout!.setEncoding('utf8');
-				this._extensionHostProcess.stderr!.setEncoding('utf8');
-				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout!, 'data');
-				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr!, 'data');
+				const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.stdout!);
+				const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.stderr!);
 				const onOutput = Event.any(
-					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+					Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
+					Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
 				);
 
 				// Debounce all output, so we can render it in the Chrome console as a group
@@ -497,11 +512,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 			// Send to local console
 			log(entry, 'Extension Host');
-
-			// Broadcast to other windows if we are in development mode
-			if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
-				this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
-			}
 		}
 	}
 
@@ -523,6 +533,44 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		this._onExit.fire([code, signal]);
+	}
+
+	private _handleProcessOutputStream(stream: Readable) {
+		let last = '';
+		let isOmitting = false;
+		const event = new Emitter<string>();
+		const decoder = new StringDecoder('utf-8');
+		stream.pipe(new Writable({
+			write(chunk, _encoding, callback) {
+				// not a fancy approach, but this is the same approach used by the split2
+				// module which is well-optimized (https://github.com/mcollina/split2)
+				last += typeof chunk === 'string' ? chunk : decoder.write(chunk);
+				let lines = last.split(/\r?\n/g);
+				last = lines.pop()!;
+
+				// protected against an extension spamming and leaking memory if no new line is written.
+				if (last.length > 10_000) {
+					lines.push(last);
+					last = '';
+				}
+
+				for (const line of lines) {
+					if (isOmitting) {
+						if (line === NativeLogMarkers.End) {
+							isOmitting = false;
+						}
+					} else if (line === NativeLogMarkers.Start) {
+						isOmitting = true;
+					} else if (line.length) {
+						event.fire(line + '\n');
+					}
+				}
+
+				callback();
+			}
+		}));
+
+		return event;
 	}
 
 	public async enableInspectPort(): Promise<boolean> {
@@ -614,7 +662,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		// to communicate this back to the main side to terminate the debug session
 		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
 			this._extensionHostDebugService.terminateSession(this._environmentService.debugExtensionHost.debugId);
-			event.join(timeout(100 /* wait a bit for IPC to get delivered */));
+			event.join(timeout(100 /* wait a bit for IPC to get delivered */), 'join.extensionDevelopment');
 		}
 	}
 }

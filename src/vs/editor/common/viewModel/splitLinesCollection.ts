@@ -503,15 +503,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			return null;
 		}
 
-		let hiddenAreas = this.getHiddenAreas();
-		let isInHiddenArea = false;
-		let testPosition = new Position(fromLineNumber, 1);
-		for (const hiddenArea of hiddenAreas) {
-			if (hiddenArea.containsPosition(testPosition)) {
-				isInHiddenArea = true;
-				break;
-			}
-		}
+		// cannot use this.getHiddenAreas() because those decorations have already seen the effect of this model change
+		const isInHiddenArea = (fromLineNumber > 2 && !this.lines[fromLineNumber - 2].isVisible());
 
 		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
 

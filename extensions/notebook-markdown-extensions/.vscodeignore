@@ -1,0 +1,5 @@
+notebook/**
+extension-browser.webpack.config.js
+cgmanifest.json
+yarn.lock
+webpack.config.js

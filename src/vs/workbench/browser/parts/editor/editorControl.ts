@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorRegistry, IEditorDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,8 +31,8 @@ export class EditorControl extends Disposable {
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
-	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange = this._onDidSizeConstraintsChange.event;
+	private _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
 
 	private _activeEditorPane: EditorPane | null = null;
 	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
@@ -58,7 +58,7 @@ export class EditorControl extends Disposable {
 		// Editor pane
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 		if (!descriptor) {
-			throw new Error(`No editor descriptor found for input id ${editor.getTypeId()}`);
+			throw new Error(`No editor descriptor found for input id ${editor.typeId}`);
 		}
 		const editorPane = this.doShowEditorPane(descriptor);
 
@@ -139,12 +139,12 @@ export class EditorControl extends Disposable {
 
 		// Listen to editor pane changes
 		if (editorPane) {
-			this.activeEditorPaneDisposables.add(editorPane.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeEditorPaneDisposables.add(editorPane.onDidChangeSizeConstraints(e => this._onDidChangeSizeConstraints.fire(e)));
 			this.activeEditorPaneDisposables.add(editorPane.onDidFocus(() => this._onDidFocus.fire()));
 		}
 
 		// Indicate that size constraints could have changed due to new editor
-		this._onDidSizeConstraintsChange.fire(undefined);
+		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
 	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {

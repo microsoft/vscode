@@ -55,23 +55,6 @@
 	height: 100%;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-item {
-	margin-left: 4px;
-}
-
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label {
-	width: 16px;
-	height: 100%;
-	margin: 0;
-	line-height: inherit;
-	background-repeat: no-repeat;
-	background-position: center center;
-}
-
-.monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label.codicon {
-	margin: 0;
-}
-
 .monaco-editor .peekview-widget > .body {
 	border-top: 1px solid;
 	position: relative;

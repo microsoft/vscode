@@ -14,7 +14,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -25,6 +25,8 @@ import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { localize } from 'vs/nls';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
@@ -42,6 +44,7 @@ export interface ITemplateData {
 	ratings: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
+	workspaceTrustDescription: HTMLElement;
 	extension: IExtension | null;
 	disposables: IDisposable[];
 	extensionDisposables: IDisposable[];
@@ -64,6 +67,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
@@ -86,6 +90,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const syncIgnore = append(header, $('span.sync-ignored'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
+		const workspaceTrustDescription = append(details, $('.workspace-trust-description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, {
@@ -97,9 +102,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				if (action instanceof ExtensionDropDownAction) {
 					return action.createActionViewItem();
 				}
-				return new ExtensionActionViewItem(null, action, actionOptions);
-			}
+				return undefined;
+			},
+			focusOnlyEnabledItems: true
 		});
+		actionbar.setFocusable(false);
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
@@ -112,6 +119,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
+			this.instantiationService.createInstance(WebInstallAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
 			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ManageExtensionAction)
@@ -135,7 +143,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, disposables: [disposable], actionbar,
+			root, element, icon, name, installCount, ratings, author, description, workspaceTrustDescription, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -196,6 +204,19 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
+
+		if (extension.local?.manifest.capabilities?.untrustedWorkspaces?.supported) {
+			const untrustedWorkspaceCapability = extension.local.manifest.capabilities.untrustedWorkspaces;
+			const untrustedWorkspaceSupported = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest);
+			if (untrustedWorkspaceSupported !== true && untrustedWorkspaceCapability.supported !== true) {
+				data.workspaceTrustDescription.textContent = untrustedWorkspaceCapability.description;
+			} else if (untrustedWorkspaceSupported === false) {
+				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
+			} else if (untrustedWorkspaceSupported === 'limited') {
+				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
+			}
+		}
+
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.extension = extension;
@@ -206,21 +227,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.extensionViewState.onFocus(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => {
-					if (item instanceof ExtensionActionViewItem || item instanceof ExtensionActionWithDropdownActionViewItem) {
-						item.setFocus(true);
-					}
-				});
+				data.actionbar.setFocusable(true);
 			}
 		}, this, data.extensionDisposables);
 
 		this.extensionViewState.onBlur(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => {
-					if (item instanceof ExtensionActionViewItem || item instanceof ExtensionActionWithDropdownActionViewItem) {
-						item.setFocus(false);
-					}
-				});
+				data.actionbar.setFocusable(false);
 			}
 		}, this, data.extensionDisposables);
 	}

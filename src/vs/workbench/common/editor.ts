@@ -9,11 +9,11 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType, EditorOverride } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITextModel } from 'vs/editor/common/model';
+import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -24,32 +24,39 @@ import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
+// Static values for editor contributions
+export const EditorExtensions = {
+	Editors: 'workbench.contributions.editors',
+	Associations: 'workbench.editors.associations',
+	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
+};
+
 // Editor State Context Keys
-export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false);
-export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false);
-export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
-export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
+export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
+export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
+export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false, localize('activeEditorIsPinned', "Whether the active editor is pinned"));
+export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is readonly"));
 
 // Editor Kind Context Keys
-export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
-export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '');
-export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
-export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
+export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null, { type: 'string', description: localize('activeEditor', "The identifier of the active editor") });
+export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '', localize('activeEditorAvailableEditorIds', "The available editor identifiers that are usable for the active editor"));
+export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));
+export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false, localize('textCompareEditorActive', "Whether a text compare editor is active"));
 
 // Editor Group Context Keys
-export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
-export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
-export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0);
-export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false);
-export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
+export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0, localize('groupEditorsCount', "The number of opened editor groups"));
+export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false, localize('activeEditorGroupEmpty', "Whether the active editor group is empty"));
+export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0, localize('activeEditorGroupIndex', "The index of the active editor group"));
+export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false, localize('activeEditorGroupLast', "Whether the active editor group is the last group"));
+export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 
 // Editor Layout Context Keys
-export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
-export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
-export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
-export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
-export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true);
+export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));
+export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false, localize('inZenMode', "Whether Zen mode is enabled"));
+export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false, localize('isCenteredLayout', "Whether centered layout is enabled"));
+export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
+export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
 
 /**
  * Text diff editor id.
@@ -74,7 +81,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned options of the editor.
 	 */
-	readonly options: EditorOptions | undefined;
+	readonly options: IEditorOptions | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
@@ -104,7 +111,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * An event to notify whenever minimum/maximum width/height changes.
 	 */
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
+	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number; } | undefined>;
 
 	/**
 	 * The context key service for this editor. Should be overridden by
@@ -176,6 +183,11 @@ export interface IEditorControl extends ICompositeControl { }
 export interface IFileEditorInputFactory {
 
 	/**
+	 * The type identifier of the file editor input.
+	 */
+	typeId: string;
+
+	/**
 	 * Creates new new editor input capable of showing files.
 	 */
 	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
@@ -186,8 +198,19 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
-interface ICustomEditorInputFactory {
+/**
+ * @deprecated obsolete
+ *
+ * TODO@bpasero remove this API and users once the generic backup restorer has been removed
+ */
+export interface ICustomEditorInputFactory {
+	/**
+	 * @deprecated obsolete
+	 */
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
+	/**
+	 * @deprecated obsolete
+	 */
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
 
@@ -205,29 +228,33 @@ export interface IEditorInputFactoryRegistry {
 
 	/**
 	 * Registers the custom editor input factory to use for custom inputs.
+	 *
+	 * @deprecated obsolete
 	 */
 	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void;
 
 	/**
 	 * Returns the custom editor input factory to use for custom inputs.
+	 *
+	 * @deprecated obsolete
 	 */
 	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
 	/**
-	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
-	 * is capable of serializing and deserializing editor inputs from string data.
+	 * Registers a editor input serializer for the given editor input to the registry.
+	 * An editor input serializer is capable of serializing and deserializing editor
+	 * inputs from string data.
 	 *
-	 * @param editorInputId the identifier of the editor input
-	 * @param factory the editor input factory for serialization/deserialization
+	 * @param editorInputTypeId the type identifier of the editor input
+	 * @param serializer the editor input serializer for serialization/deserialization
 	 */
-	registerEditorInputFactory<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputFactory }): IDisposable;
+	registerEditorInputSerializer<Services extends BrandedService[]>(editorInputTypeId: string, ctor: { new(...Services: Services): IEditorInputSerializer }): IDisposable;
 
 	/**
-	 * Returns the editor input factory for the given editor input.
-	 *
-	 * @param editorInputId the identifier of the editor input
+	 * Returns the editor input serializer for the given editor input.
 	 */
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined;
+	getEditorInputSerializer(editorInput: IEditorInput): IEditorInputSerializer | undefined;
+	getEditorInputSerializer(editorInputTypeId: string): IEditorInputSerializer | undefined;
 
 	/**
 	 * Starts the registry by providing the required services.
@@ -235,10 +262,10 @@ export interface IEditorInputFactoryRegistry {
 	start(accessor: ServicesAccessor): void;
 }
 
-export interface IEditorInputFactory {
+export interface IEditorInputSerializer {
 
 	/**
-	 * Determines whether the given editor input can be serialized by the factory.
+	 * Determines whether the given editor input can be serialized by the serializer.
 	 */
 	canSerialize(editorInput: IEditorInput): boolean;
 
@@ -373,9 +400,9 @@ export interface IMoveResult {
 export interface IEditorInput extends IDisposable {
 
 	/**
-	 * Triggered when this input is disposed.
+	 * Triggered when this input is about to be disposed.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Triggered when this input changes its dirty state.
@@ -386,6 +413,14 @@ export interface IEditorInput extends IDisposable {
 	 * Triggered when this input changes its label
 	 */
 	readonly onDidChangeLabel: Event<void>;
+
+	/**
+	 * Unique type identifier for this inpput. Every editor input of the
+	 * same class should share the same type identifier. The type identifier
+	 * is used for example for serialising/deserialising editor inputs
+	 * via the serialisers of the `IEditorInputFactoryRegistry`.
+	 */
+	readonly typeId: string;
 
 	/**
 	 * Returns the optional associated resource of this input.
@@ -399,11 +434,6 @@ export interface IEditorInput extends IDisposable {
 	 * Please refer to `EditorResourceAccessor` documentation in that case.
 	 */
 	readonly resource: URI | undefined;
-
-	/**
-	 * Unique type identifier for this inpput.
-	 */
-	getTypeId(): string;
 
 	/**
 	 * Returns the display name of this input.
@@ -495,7 +525,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Subclasses can set this to false if it does not make sense to split the editor input.
 	 */
-	supportsSplitEditor(): boolean;
+	canSplit(): boolean;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -506,6 +536,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * Returns a copy of the current editor input. Used when we can't just reuse the input
+	 */
+	copy(): IEditorInput;
 }
 
 /**
@@ -520,17 +555,17 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed: boolean = false;
 
+	abstract get typeId(): string;
+
 	abstract get resource(): URI | undefined;
 
-	abstract getTypeId(): string;
-
 	getName(): string {
-		return `Editor ${this.getTypeId()}`;
+		return `Editor ${this.typeId}`;
 	}
 
 	getDescription(verbosity?: Verbosity): string | undefined {
@@ -564,7 +599,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		return { typeId: this.getTypeId() };
+		return { typeId: this.typeId };
 	}
 
 	isReadonly(): boolean {
@@ -601,7 +636,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return undefined;
 	}
 
-	supportsSplitEditor(): boolean {
+	canSplit(): boolean {
 		return true;
 	}
 
@@ -609,52 +644,22 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this === otherInput;
 	}
 
+	copy(): IEditorInput {
+		return this;
+	}
+
 	isDisposed(): boolean {
 		return this.disposed;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		if (!this.disposed) {
 			this.disposed = true;
-			this._onDispose.fire();
+			this._onWillDispose.fire();
 		}
 
 		super.dispose();
 	}
-}
-
-export const enum EncodingMode {
-
-	/**
-	 * Instructs the encoding support to encode the current input with the provided encoding
-	 */
-	Encode,
-
-	/**
-	 * Instructs the encoding support to decode the current input with the provided encoding
-	 */
-	Decode
-}
-
-export interface IEncodingSupport {
-
-	/**
-	 * Gets the encoding of the type if known.
-	 */
-	getEncoding(): string | undefined;
-
-	/**
-	 * Sets the encoding for the type for saving.
-	 */
-	setEncoding(encoding: string, mode: EncodingMode): void;
-}
-
-export interface IModeSupport {
-
-	/**
-	 * Sets the language mode of the type.
-	 */
-	setMode(mode: string): void;
 }
 
 export interface IEditorInputWithPreferredResource {
@@ -750,6 +755,10 @@ export class SideBySideEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
+	override get typeId(): string {
+		return SideBySideEditorInput.ID;
+	}
+
 	constructor(
 		protected readonly name: string | undefined,
 		protected readonly description: string | undefined,
@@ -764,14 +773,14 @@ export class SideBySideEditorInput extends EditorInput {
 	private registerListeners(): void {
 
 		// When the primary or secondary input gets disposed, dispose this diff editor input
-		const onceSecondaryDisposed = Event.once(this.secondary.onDispose);
+		const onceSecondaryDisposed = Event.once(this.secondary.onWillDispose);
 		this._register(onceSecondaryDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		const oncePrimaryDisposed = Event.once(this.primary.onDispose);
+		const oncePrimaryDisposed = Event.once(this.primary.onWillDispose);
 		this._register(oncePrimaryDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
@@ -799,11 +808,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this._secondary;
 	}
 
-	getTypeId(): string {
-		return SideBySideEditorInput.ID;
-	}
-
-	getName(): string {
+	override getName(): string {
 		if (!this.name) {
 			return localize('sideBySideLabels', "{0} - {1}", this._secondary.getName(), this._primary.getName());
 		}
@@ -811,45 +816,45 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.name;
 	}
 
-	getDescription(): string | undefined {
+	override getDescription(): string | undefined {
 		return this.description;
 	}
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return this.primary.isReadonly();
 	}
 
-	isUntitled(): boolean {
+	override isUntitled(): boolean {
 		return this.primary.isUntitled();
 	}
 
-	isDirty(): boolean {
+	override isDirty(): boolean {
 		return this.primary.isDirty();
 	}
 
-	isSaving(): boolean {
+	override isSaving(): boolean {
 		return this.primary.isSaving();
 	}
 
-	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		return this.primary.save(group, options);
 	}
 
-	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		return this.primary.saveAs(group, options);
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.primary.revert(group, options);
 	}
 
-	getTelemetryDescriptor(): { [key: string]: unknown } {
+	override getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = this.primary.getTelemetryDescriptor();
 
 		return Object.assign(descriptor, super.getTelemetryDescriptor());
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		if (otherInput === this) {
 			return true;
 		}
@@ -862,34 +867,31 @@ export class SideBySideEditorInput extends EditorInput {
 	}
 }
 
-export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: ITextModel;
-}
-
 /**
  * The editor model is the heavyweight counterpart of editor input. Depending on the editor input, it
- * connects to the disk to retrieve content and may allow for saving it back or reverting it. Editor models
- * are typically cached for some while because they are expensive to construct.
+ * resolves from a file system retrieve content and may allow for saving it back or reverting it.
+ * Editor models are typically cached for some while because they are expensive to construct.
  */
 export class EditorModel extends Disposable implements IEditorModel {
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed = false;
+	private resolved = false;
 
 	/**
-	 * Causes this model to load returning a promise when loading is completed.
+	 * Causes this model to resolve returning a promise when loading is completed.
 	 */
-	async load(): Promise<IEditorModel> {
-		return this;
+	async resolve(): Promise<void> {
+		this.resolved = true;
 	}
 
 	/**
 	 * Returns whether this model was loaded or not.
 	 */
 	isResolved(): boolean {
-		return true;
+		return this.resolved;
 	}
 
 	/**
@@ -902,9 +904,9 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Subclasses should implement to free resources that have been claimed through loading.
 	 */
-	dispose(): void {
+	override dispose(): void {
 		this.disposed = true;
-		this._onDispose.fire();
+		this._onWillDispose.fire();
 
 		super.dispose();
 	}
@@ -913,6 +915,10 @@ export class EditorModel extends Disposable implements IEditorModel {
 export interface IEditorInputWithOptions {
 	editor: IEditorInput;
 	options?: IEditorOptions | ITextEditorOptions;
+}
+
+export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
+	group?: IEditorGroup;
 }
 
 export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
@@ -1006,10 +1012,10 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
-	 * - `false`: disable overrides
 	 * - `string`: specific override by id
+	 * - `EditorOverride`: specific override handling
 	 */
-	override?: false | string;
+	override: string | EditorOverride | undefined;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -1067,7 +1073,7 @@ export class EditorOptions implements IEditorOptions {
 			this.index = options.index;
 		}
 
-		if (typeof options.override === 'string' || options.override === false) {
+		if (options.override !== undefined) {
 			this.override = options.override;
 		}
 
@@ -1110,7 +1116,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	/**
 	 * Helper to convert options bag to real class
 	 */
-	static create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
+	static override create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
 		const textEditorOptions = new TextEditorOptions();
 		textEditorOptions.overwrite(options);
 
@@ -1120,7 +1126,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	/**
 	 * Overwrites option values from the provided bag.
 	 */
-	overwrite(options: ITextEditorOptions): TextEditorOptions {
+	override overwrite(options: ITextEditorOptions): TextEditorOptions {
 		super.overwrite(options);
 
 		if (options.selection) {
@@ -1215,7 +1221,7 @@ export interface IEditorOpenContext {
 	 * An editor is new for a group if it was not part of the group before and
 	 * otherwise was already opened in the group and just became the active editor.
 	 *
-	 * This hint can e.g. be used to decide wether to restore view state or not.
+	 * This hint can e.g. be used to decide whether to restore view state or not.
 	 */
 	newInGroup?: boolean;
 }
@@ -1243,7 +1249,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	run(action: IAction): Promise<void> {
+	override run(action: IAction): Promise<void> {
 		return super.run(action, this.context);
 	}
 }
@@ -1254,17 +1260,22 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 	sticky: boolean;
 }
 
+export interface IEditorMoveEvent extends IEditorIdentifier {
+	target: GroupIdentifier;
+}
+
 export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {
-	workbench: {
-		editor: IEditorPartConfiguration,
-		iconTheme: string;
+	workbench?: {
+		editor?: IEditorPartConfiguration,
+		iconTheme?: string;
 	};
 }
 
 interface IEditorPartConfiguration {
 	showTabs?: boolean;
+	wrapTabs?: boolean;
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
@@ -1275,6 +1286,7 @@ interface IEditorPartConfiguration {
 	showIcons?: boolean;
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;
+	enablePreviewFromCodeNavigation?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	openSideBySideDirection?: 'right' | 'down';
@@ -1290,6 +1302,10 @@ interface IEditorPartConfiguration {
 		value?: number;
 		perEditorGroup?: boolean;
 	};
+	decorations?: {
+		badges?: boolean;
+		colors?: boolean;
+	}
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -1328,7 +1344,9 @@ class EditorResourceAccessorImpl {
 	/**
 	 * The original URI of an editor is the URI that was used originally to open
 	 * the editor and should be used whenever the URI is presented to the user,
-	 * e.g. as a label.
+	 * e.g. as a label together with utility methods such as `ResourceLabel` or
+	 * `ILabelService` that can turn this original URI into the best form for
+	 * presenting.
 	 *
 	 * In contrast, the canonical URI (#getCanonicalUri) may be different and should
 	 * be used whenever the URI is used to e.g. compare with other editors or when
@@ -1455,33 +1473,61 @@ export interface IEditorMemento<T> {
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
-	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
-	private customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
-	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
-	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
+	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
+	private readonly customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
+
+	private readonly editorInputSerializerConstructors: Map<string /* Type ID */, IConstructorSignature0<IEditorInputSerializer>> = new Map();
+	private readonly editorInputSerializerInstances: Map<string /* Type ID */, IEditorInputSerializer> = new Map();
 
 	start(accessor: ServicesAccessor): void {
 		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
 
-		this.editorInputFactoryConstructors.forEach((ctor, key) => {
-			this.createEditorInputFactory(key, ctor, instantiationService);
-		});
+		for (const [key, ctor] of this.editorInputSerializerConstructors) {
+			this.createEditorInputSerializer(key, ctor, instantiationService);
+		}
 
-		this.editorInputFactoryConstructors.clear();
+		this.editorInputSerializerConstructors.clear();
 	}
 
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>, instantiationService: IInstantiationService): void {
+	private createEditorInputSerializer(editorInputTypeId: string, ctor: IConstructorSignature0<IEditorInputSerializer>, instantiationService: IInstantiationService): void {
 		const instance = instantiationService.createInstance(ctor);
-		this.editorInputFactoryInstances.set(editorInputId, instance);
+		this.editorInputSerializerInstances.set(editorInputTypeId, instance);
 	}
 
 	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void {
+		if (this.fileEditorInputFactory) {
+			throw new Error('Can only register one file editor input factory.');
+		}
+
 		this.fileEditorInputFactory = factory;
 	}
 
 	getFileEditorInputFactory(): IFileEditorInputFactory {
 		return assertIsDefined(this.fileEditorInputFactory);
+	}
+
+	registerEditorInputSerializer(editorInputTypeId: string, ctor: IConstructorSignature0<IEditorInputSerializer>): IDisposable {
+		if (this.editorInputSerializerConstructors.has(editorInputTypeId) || this.editorInputSerializerInstances.has(editorInputTypeId)) {
+			throw new Error(`A editor input serializer with type ID '${editorInputTypeId}' was already registered.`);
+		}
+
+		if (!this.instantiationService) {
+			this.editorInputSerializerConstructors.set(editorInputTypeId, ctor);
+		} else {
+			this.createEditorInputSerializer(editorInputTypeId, ctor, this.instantiationService);
+		}
+
+		return toDisposable(() => {
+			this.editorInputSerializerConstructors.delete(editorInputTypeId);
+			this.editorInputSerializerInstances.delete(editorInputTypeId);
+		});
+	}
+
+	getEditorInputSerializer(editorInput: IEditorInput): IEditorInputSerializer | undefined;
+	getEditorInputSerializer(editorInputTypeId: string): IEditorInputSerializer | undefined;
+	getEditorInputSerializer(arg1: string | IEditorInput): IEditorInputSerializer | undefined {
+		return this.editorInputSerializerInstances.get(typeof arg1 === 'string' ? arg1 : arg1.typeId);
 	}
 
 	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void {
@@ -1491,31 +1537,9 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined {
 		return this.customEditorInputFactoryInstances.get(scheme);
 	}
-
-	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
-		if (!this.instantiationService) {
-			this.editorInputFactoryConstructors.set(editorInputId, ctor);
-		} else {
-			this.createEditorInputFactory(editorInputId, ctor, this.instantiationService);
-
-		}
-
-		return toDisposable(() => {
-			this.editorInputFactoryConstructors.delete(editorInputId);
-			this.editorInputFactoryInstances.delete(editorInputId);
-		});
-	}
-
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined {
-		return this.editorInputFactoryInstances.get(editorInputId);
-	}
 }
 
-export const Extensions = {
-	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
-};
-
-Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
+Registry.add(EditorExtensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
 export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
 	if (!paths || !paths.length) {
@@ -1539,11 +1563,11 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 				startColumn: path.columnNumber || 1
 			},
 			pinned: true,
-			override: path.overrideId
+			override: path.editorOverrideId
 		} : {
-				pinned: true,
-				override: path.overrideId
-			};
+			pinned: true,
+			override: path.editorOverrideId
+		};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
@@ -1570,29 +1594,6 @@ export const enum EditorsOrder {
 	 */
 	SEQUENTIAL
 }
-
-export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
-	let ariaLabel = input.getAriaLabel();
-	if (group && !group.isPinned(input)) {
-		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
-	}
-
-	if (group && group.isSticky(index ?? input)) {
-		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
-	}
-
-	// Apply group information to help identify in
-	// which group we are (only if more than one group
-	// is actually opened)
-	if (group && groupCount > 1) {
-		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
-	}
-
-	return ariaLabel;
-}
-
-
-//#region Editor Group Column
 
 /**
  * A way to address editor groups through a column based system
@@ -1622,12 +1623,8 @@ export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService
 }
 
 export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorGroupColumn {
-	const group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
-	if (!group) {
-		throw new Error('Invalid group provided');
-	}
+	let group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
+	group = group ?? editorGroupService.activeGroup;
 
 	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
 }
-
-//#endregion

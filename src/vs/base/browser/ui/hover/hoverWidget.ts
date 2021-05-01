@@ -10,6 +10,10 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 
 const $ = dom.$;
 
+export const enum HoverPosition {
+	LEFT, RIGHT, BELOW, ABOVE
+}
+
 export class HoverWidget extends Disposable {
 
 	public readonly containerDomNode: HTMLElement;
@@ -27,7 +31,9 @@ export class HoverWidget extends Disposable {
 		this.contentsDomNode = document.createElement('div');
 		this.contentsDomNode.className = 'monaco-hover-content';
 
-		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {}));
+		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
+			consumeMouseWheelIfScrollbarIsNeeded: true
+		}));
 		this.containerDomNode.appendChild(this._scrollbar.getDomNode());
 	}
 

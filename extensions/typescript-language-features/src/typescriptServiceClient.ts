@@ -97,6 +97,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly pathSeparator: string;
 	private readonly inMemoryResourcePrefix = '^';
 
+	private readonly workspaceState: vscode.Memento;
+
 	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private _configuration: TypeScriptServiceConfiguration;
 	private pluginPathsProvider: TypeScriptPluginPathsProvider;
@@ -125,7 +127,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly processFactory: TsServerProcessFactory;
 
 	constructor(
-		private readonly workspaceState: vscode.Memento,
+		private readonly context: vscode.ExtensionContext,
 		onCaseInsenitiveFileSystem: boolean,
 		services: {
 			pluginManager: PluginManager,
@@ -137,6 +139,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		allModeIds: readonly string[]
 	) {
 		super();
+
+		this.workspaceState = context.workspaceState;
 
 		this.pluginManager = services.pluginManager;
 		this.logDirectoryProvider = services.logDirectoryProvider;
@@ -257,7 +261,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this._configuration;
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 
 		this.bufferSyncSupport.dispose();
@@ -374,7 +378,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.info(`Using tsserver from: ${version.path}`);
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
-		let mytoken = ++this.token;
+		const mytoken = ++this.token;
 		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, this.cancellerFactory, {
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
@@ -686,6 +690,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public toResource(filepath: string): vscode.Uri {
+		if (isWeb()) {
+			// On web, treat absolute paths as pointing to standard lib files
+			if (filepath.startsWith('/')) {
+				return vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', 'typescript', 'lib', filepath.slice(1));
+			}
+		}
+
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
 			const resource = vscode.Uri.parse(filepath.slice(1));
 			return this.bufferSyncSupport.toVsCodeResource(resource);
@@ -699,16 +710,20 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
-		if (resource.scheme === fileSchemes.file || resource.scheme === fileSchemes.untitled) {
-			for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
-				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
-					return root.uri.fsPath;
+		switch (resource.scheme) {
+			case fileSchemes.file:
+			case fileSchemes.untitled:
+			case fileSchemes.vscodeNotebookCell:
+				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
+					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
+						return root.uri.fsPath;
+					}
 				}
-			}
-			return roots[0].uri.fsPath;
-		}
+				return roots[0].uri.fsPath;
 
-		return undefined;
+			default:
+				return undefined;
+		}
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
@@ -752,11 +767,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: any): void {
-		this.executeImpl(command, args, {
+		const promise = this.executeImpl(command, args, {
 			isAsync: false,
 			token: undefined,
-			expectsResult: false
+			expectsResult: command === 'updateOpen'
 		});
+
+		if (command === 'updateOpen') {
+			// If update open has completed, consider that the project has loaded
+			promise.then(() => {
+				this.loadingIndicator.reset();
+			});
+		}
 	}
 
 	public executeAsync(command: keyof TypeScriptRequests, args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>> {
@@ -877,7 +899,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private dispatchTelemetryEvent(telemetryData: Proto.TelemetryEventBody): void {
-		const properties: ObjectMap<string> = Object.create(null);
+		const properties: { [key: string]: string } = Object.create(null);
 		switch (telemetryData.telemetryEventName) {
 			case 'typingsInstalled':
 				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);

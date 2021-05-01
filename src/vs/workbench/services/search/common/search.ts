@@ -15,8 +15,11 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
-import { relative } from 'vs/base/common/path';
+import * as paths from 'vs/base/common/path';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+
+export { TextSearchCompleteMessageType };
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
@@ -76,6 +79,8 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
+
+	onlyOpenEditors?: boolean;
 
 	maxResults?: number;
 	usingSearchPaths?: boolean;
@@ -203,6 +208,7 @@ export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProg
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
+	messages: { text: string, type: TextSearchCompleteMessageType }[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
@@ -365,6 +371,7 @@ export interface ISearchConfigurationProperties {
 	seedOnFocus: boolean;
 	seedWithNearestWord: boolean;
 	searchOnTypeDebouncePeriod: number;
+	mode: 'view' | 'reuseEditor' | 'newEditor';
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
 		reusePriorSearchConfiguration: boolean,
@@ -406,21 +413,25 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 		return false;
 	}
 
-	if (queryProps.includePattern && !glob.match(queryProps.includePattern, fsPath)) {
-		return false;
-	}
+	if (queryProps.includePattern || queryProps.usingSearchPaths) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
+			return true;
+		}
 
-	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-	if (queryProps.usingSearchPaths) {
-		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
-			const searchPath = fq.folder.fsPath;
-			if (extpath.isEqualOrParent(fsPath, searchPath)) {
-				const relPath = relative(searchPath, fsPath);
-				return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
-			} else {
-				return false;
-			}
-		});
+		// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
+		if (queryProps.usingSearchPaths) {
+			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
+				const searchPath = fq.folder.fsPath;
+				if (extpath.isEqualOrParent(fsPath, searchPath)) {
+					const relPath = paths.relative(searchPath, fsPath);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+				} else {
+					return false;
+				}
+			});
+		}
+
+		return false;
 	}
 
 	return true;
@@ -497,11 +508,13 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
+	messages: { text: string, type: TextSearchCompleteMessageType }[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchEngineSuccess {
 	limitHit: boolean;
+	messages: { text: string, type: TextSearchCompleteMessageType }[];
 	stats: ISearchEngineStats;
 }
 

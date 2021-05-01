@@ -73,8 +73,8 @@ export interface IPickerQuickAccessProviderOptions<T extends IPickerQuickAccessI
 }
 
 export type Pick<T> = T | IQuickPickSeparator;
-export type PicksWithActive<T> = { items: ReadonlyArray<Pick<T>>, active?: T };
-export type Picks<T> = ReadonlyArray<Pick<T>> | PicksWithActive<T>;
+export type PicksWithActive<T> = { items: readonly Pick<T>[], active?: T };
+export type Picks<T> = readonly Pick<T>[] | PicksWithActive<T>;
 export type FastAndSlowPicks<T> = { picks: Picks<T>, additionalPicks: Promise<Picks<T>> };
 
 function isPicksWithActive<T>(obj: unknown): obj is PicksWithActive<T> {
@@ -125,7 +125,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			const providedPicks = this.getPicks(picksFilter, picksDisposables, picksToken);
 
 			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {
-				let items: ReadonlyArray<Pick<T>>;
+				let items: readonly Pick<T>[];
 				let activeItem: T | undefined = undefined;
 
 				if (isPicksWithActive(picks)) {
@@ -191,7 +191,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 								return;
 							}
 
-							let picks: ReadonlyArray<Pick<T>>;
+							let picks: readonly Pick<T>[];
 							let activePick: Pick<T> | undefined = undefined;
 							if (isPicksWithActive(providedPicks.picks)) {
 								picks = providedPicks.picks.items;
@@ -200,7 +200,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 								picks = providedPicks.picks;
 							}
 
-							let additionalPicks: ReadonlyArray<Pick<T>>;
+							let additionalPicks: readonly Pick<T>[];
 							let additionalActivePick: Pick<T> | undefined = undefined;
 							if (isPicksWithActive(awaitedAdditionalPicks)) {
 								additionalPicks = awaitedAdditionalPicks.items;

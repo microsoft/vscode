@@ -9,7 +9,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
 import { TopmostLineMonitor } from '../util/topmostLineMonitor';
-import { DynamicMarkdownPreview, ManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
+import { DynamicMarkdownPreview, ManagedMarkdownPreview, StartingScrollFragment, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
 
@@ -23,7 +23,7 @@ class PreviewStore<T extends ManagedMarkdownPreview> extends Disposable {
 
 	private readonly _previews = new Set<T>();
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		for (const preview of this._previews) {
 			preview.dispose();
@@ -106,7 +106,10 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			preview = this.createNewDynamicPreview(resource, settings);
 		}
 
-		preview.update(resource);
+		preview.update(
+			resource,
+			resource.fragment ? new StartingScrollFragment(resource.fragment) : undefined
+		);
 	}
 
 	public get activePreviewResource() {

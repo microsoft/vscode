@@ -68,8 +68,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.equal(event.reason, TextDocumentSaveReason.Manual);
-			assert.equal(typeof event.waitUntil, 'function');
+			assert.strictEqual(event.reason, TextDocumentSaveReason.Manual);
+			assert.strictEqual(typeof event.waitUntil, 'function');
 		});
 	});
 
@@ -100,7 +100,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			const [first] = values;
-			assert.equal(first, false);
+			assert.strictEqual(first, false);
 		});
 	});
 
@@ -128,11 +128,11 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		let counter = 0;
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			assert.equal(counter++, 0);
+			assert.strictEqual(counter++, 0);
 		});
 
 		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			assert.equal(counter++, 1);
+			assert.strictEqual(counter++, 1);
 		});
 
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
@@ -156,7 +156,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
 
 		sub.dispose();
-		assert.equal(callCount, 2);
+		assert.strictEqual(callCount, 2);
 	});
 
 	test('event delivery, overall timeout', () => {
@@ -182,8 +182,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub2.dispose();
 			sub3.dispose();
 
-			assert.equal(callCount, 2);
-			assert.equal(values.length, 2);
+			assert.strictEqual(callCount, 2);
+			assert.strictEqual(values.length, 2);
 		});
 	});
 
@@ -226,18 +226,19 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 	});
 
-	test('event delivery, waitUntil will timeout', () => {
+	test('event delivery, waitUntil will timeout', function () {
+
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 5, errors: 3 });
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			event.waitUntil(timeout(15));
+			event.waitUntil(timeout(100));
 		});
 
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
 			sub.dispose();
 
 			const [first] = values;
-			assert.equal(first, false);
+			assert.strictEqual(first, false);
 		});
 	});
 
@@ -278,7 +279,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 
-			assert.equal(dto.edits.length, 2);
+			assert.strictEqual(dto.edits.length, 2);
 			assert.ok((<IWorkspaceTextEditDto>dto.edits[0]).edit);
 			assert.ok((<IWorkspaceTextEditDto>dto.edits[1]).edit);
 		});
@@ -314,8 +315,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
 			sub.dispose();
 
-			assert.equal(edits, undefined);
-			assert.equal(values[0], false);
+			assert.strictEqual(edits, undefined);
+			assert.strictEqual(values[0], false);
 		});
 
 	});
@@ -350,16 +351,16 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			// the document state we started with
-			assert.equal(document.version, 1);
-			assert.equal(document.getText(), 'foo');
+			assert.strictEqual(document.version, 1);
+			assert.strictEqual(document.getText(), 'foo');
 
 			e.waitUntil(Promise.resolve([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
 
 		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			// the document state AFTER the first listener kicked in
-			assert.equal(document.version, 2);
-			assert.equal(document.getText(), 'barfoo');
+			assert.strictEqual(document.version, 2);
+			assert.strictEqual(document.getText(), 'barfoo');
 
 			e.waitUntil(Promise.resolve([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
@@ -369,8 +370,8 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub2.dispose();
 
 			// the document state AFTER eventing is done
-			assert.equal(document.version, 3);
-			assert.equal(document.getText(), 'barbarfoo');
+			assert.strictEqual(document.version, 3);
+			assert.strictEqual(document.getText(), 'barbarfoo');
 		});
 
 	});
@@ -378,7 +379,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('Log failing listener', function () {
 		let didLogSomething = false;
 		let participant = new ExtHostDocumentSaveParticipant(new class extends NullLogService {
-			error(message: string | Error, ...args: any[]): void {
+			override error(message: string | Error, ...args: any[]): void {
 				didLogSomething = true;
 			}
 		}, documents, mainThreadBulkEdits);
@@ -390,7 +391,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
-			assert.equal(didLogSomething, true);
+			assert.strictEqual(didLogSomething, true);
 		});
 	});
 });

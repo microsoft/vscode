@@ -178,7 +178,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._updateHeight();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
@@ -255,7 +255,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 		let result = this._linesLayout.getLinesTotalHeight();
 		if (options.get(EditorOption.scrollBeyondLastLine)) {
-			result += height - options.get(EditorOption.lineHeight);
+			result += Math.max(0, height - options.get(EditorOption.lineHeight) - options.get(EditorOption.padding).bottom);
 		} else {
 			result += this._getHorizontalScrollbarHeight(width, contentWidth);
 		}

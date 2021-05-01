@@ -7,7 +7,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { Event } from 'vs/base/common/event';
 import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { memoize } from 'vs/base/common/decorators';
@@ -17,11 +17,30 @@ export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTree
 	readonly sorter?: ITreeSorter<T>;
 }
 
+export interface IObjectTreeSetChildrenOptions<T> {
+
+	/**
+	 * If set, child updates will recurse the given number of levels even if
+	 * items in the splice operation are unchanged. `Infinity` is a valid value.
+	 */
+	readonly diffDepth?: number;
+
+	/**
+	 * Identity provider used to optimize splice() calls in the IndexTree. If
+	 * this is not present, optimized splicing is not enabled.
+	 *
+	 * Warning: if this is present, calls to `setChildren()` will not replace
+	 * or update nodes if their identity is the same, even if the elements are
+	 * different. For this, you should call `rerender()`.
+	 */
+	readonly diffIdentityProvider?: IIdentityProvider<T>;
+}
+
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected model!: IObjectTreeModel<T, TFilterData>;
+	protected override model!: IObjectTreeModel<T, TFilterData>;
 
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
+	override get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 
 	constructor(
 		user: string,
@@ -33,8 +52,8 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
 	}
 
-	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty()): void {
-		this.model.setChildren(element, children);
+	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
+		this.model.setChildren(element, children, options);
 	}
 
 	rerender(element?: T): void {
@@ -50,7 +69,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.updateElementHeight(element, height);
 	}
 
-	resort(element: T, recursive = true): void {
+	resort(element: T | null, recursive = true): void {
 		this.model.resort(element, recursive);
 	}
 
@@ -175,7 +194,7 @@ export interface ICompressibleObjectTreeOptionsUpdate extends IAbstractTreeOptio
 
 export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
-	protected model!: CompressibleObjectTreeModel<T, TFilterData>;
+	protected override model!: CompressibleObjectTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,
@@ -189,15 +208,15 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		super(user, container, delegate, compressibleRenderers, asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options));
 	}
 
-	setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty()): void {
-		this.model.setChildren(element, children);
+	override setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
+		this.model.setChildren(element, children, options);
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+	protected override createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new CompressibleObjectTreeModel(user, view, options);
 	}
 
-	updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate = {}): void {
+	override updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate = {}): void {
 		super.updateOptions(optionsUpdate);
 
 		if (typeof optionsUpdate.compressionEnabled !== 'undefined') {

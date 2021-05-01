@@ -27,11 +27,12 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
+import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Cache } from './cache';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { CancellationError } from 'vs/base/common/errors';
 
 // --- adapter
 
@@ -290,6 +291,24 @@ class EvaluatableExpressionAdapter {
 	}
 }
 
+class InlineValuesAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.InlineValuesProvider,
+	) { }
+
+	public provideInlineValues(resource: URI, viewPort: IRange, context: extHostProtocol.IInlineValueContextDto, token: CancellationToken): Promise<modes.InlineValue[] | undefined> {
+		const doc = this._documents.getDocument(resource);
+		return asPromise(() => this._provider.provideInlineValues(doc, typeConvert.Range.to(viewPort), typeConvert.InlineValueContext.to(context), token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(iv => typeConvert.InlineValue.from(iv));
+			}
+			return undefined;
+		});
+	}
+}
+
 class DocumentHighlightAdapter {
 
 	constructor(
@@ -311,18 +330,18 @@ class DocumentHighlightAdapter {
 	}
 }
 
-class OnTypeRenameRangeAdapter {
+class LinkedEditingRangeAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.OnTypeRenameRangeProvider
+		private readonly _provider: vscode.LinkedEditingRangeProvider
 	) { }
 
-	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.OnTypeRenameRanges | undefined> {
+	provideLinkedEditingRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		return asPromise(() => this._provider.provideOnTypeRenameRanges(doc, pos, token)).then(value => {
+		return asPromise(() => this._provider.provideLinkedEditingRanges(doc, pos, token)).then(value => {
 			if (value && Array.isArray(value.ranges)) {
 				return {
 					ranges: coalesce(value.ranges.map(typeConvert.Range.from)),
@@ -393,7 +412,8 @@ class CodeActionAdapter {
 
 		const codeActionContext: vscode.CodeActionContext = {
 			diagnostics: allDiagnostics,
-			only: context.only ? new CodeActionKind(context.only) : undefined
+			only: context.only ? new CodeActionKind(context.only) : undefined,
+			triggerKind: typeConvert.CodeActionTriggerKind.to(context.trigger),
 		};
 
 		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then((commandsOrActions): extHostProtocol.ICodeActionListDto | undefined => {
@@ -1062,6 +1082,20 @@ class SignatureHelpAdapter {
 	}
 }
 
+class InlayHintsAdapter {
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.InlayHintsProvider,
+	) { }
+
+	provideInlayHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
+		const doc = this._documents.getDocument(resource);
+		return asPromise(() => this._provider.provideInlayHints(doc, typeConvert.Range.to(range), token)).then(value => {
+			return value ? { hints: value.map(typeConvert.InlayHint.from) } : undefined;
+		});
+	}
+}
+
 class LinkProviderAdapter {
 
 	private _cache = new Cache<vscode.DocumentLink>('DocumentLink');
@@ -1319,8 +1353,9 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
-	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter
-	| OnTypeRenameRangeAdapter;
+	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
+	| EvaluatableExpressionAdapter | InlineValuesAdapter
+	| LinkedEditingRangeAdapter | InlayHintsAdapter;
 
 class AdapterData {
 	constructor(
@@ -1403,7 +1438,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A; }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>, fallbackValue: R): Promise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A; }, callback: (adapter: A, extension: IExtensionDescription | undefined) => Promise<R>, fallbackValue: R, allowCancellationError: boolean = false): Promise<R> {
 		const data = this._adapter.get(handle);
 		if (!data) {
 			return Promise.resolve(fallbackValue);
@@ -1421,8 +1456,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				Promise.resolve(p).then(
 					() => this._logService.trace(`[${extension.identifier.value}] provider DONE after ${Date.now() - t1}ms`),
 					err => {
-						this._logService.error(`[${extension.identifier.value}] provider FAILED`);
-						this._logService.error(err);
+						const isExpectedError = allowCancellationError && (err instanceof CancellationError);
+						if (!isExpectedError) {
+							this._logService.error(`[${extension.identifier.value}] provider FAILED`);
+							this._logService.error(err);
+						}
 					}
 				);
 			}
@@ -1550,6 +1588,27 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, EvaluatableExpressionAdapter, adapter => adapter.provideEvaluatableExpression(URI.revive(resource), position, token), undefined);
 	}
 
+	// --- debug inline values
+
+	registerInlineValuesProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineValuesProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
+
+		const eventHandle = typeof provider.onDidChangeInlineValues === 'function' ? this._nextHandle() : undefined;
+		const handle = this._addNewAdapter(new InlineValuesAdapter(this._documents, provider), extension);
+
+		this._proxy.$registerInlineValuesProvider(handle, this._transformDocumentSelector(selector), eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChangeInlineValues!(_ => this._proxy.$emitInlineValuesEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+		return result;
+	}
+
+	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: extHostProtocol.IInlineValueContextDto, token: CancellationToken): Promise<modes.InlineValue[] | undefined> {
+		return this._withAdapter(handle, InlineValuesAdapter, adapter => adapter.provideInlineValues(URI.revive(resource), range, context, token), undefined);
+	}
+
 	// --- occurrences
 
 	registerDocumentHighlightProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
@@ -1562,17 +1621,17 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined);
 	}
 
-	// --- on type rename
+	// --- linked editing
 
-	registerOnTypeRenameRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameRangeProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new OnTypeRenameRangeAdapter(this._documents, provider), extension);
-		this._proxy.$registerOnTypeRenameRangeProvider(handle, this._transformDocumentSelector(selector));
+	registerLinkedEditingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.LinkedEditingRangeProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new LinkedEditingRangeAdapter(this._documents, provider), extension);
+		this._proxy.$registerLinkedEditingRangeProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.IOnTypeRenameRangesDto | undefined> {
-		return this._withAdapter(handle, OnTypeRenameRangeAdapter, async adapter => {
-			const res = await adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token);
+	$provideLinkedEditingRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ILinkedEditingRangesDto | undefined> {
+		return this._withAdapter(handle, LinkedEditingRangeAdapter, async adapter => {
+			const res = await adapter.provideLinkedEditingRanges(URI.revive(resource), position, token);
 			if (res) {
 				return {
 					ranges: res.ranges,
@@ -1711,7 +1770,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.provideDocumentSemanticTokens(URI.revive(resource), previousResultId, token), null);
+		return this._withAdapter(handle, DocumentSemanticTokensAdapter, adapter => adapter.provideDocumentSemanticTokens(URI.revive(resource), previousResultId, token), null, true);
 	}
 
 	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void {
@@ -1725,7 +1784,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, DocumentRangeSemanticTokensAdapter, adapter => adapter.provideDocumentRangeSemanticTokens(URI.revive(resource), range, token), null);
+		return this._withAdapter(handle, DocumentRangeSemanticTokensAdapter, adapter => adapter.provideDocumentRangeSemanticTokens(URI.revive(resource), range, token), null, true);
 	}
 
 	//#endregion
@@ -1768,6 +1827,27 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$releaseSignatureHelp(handle: number, id: number): void {
 		this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.releaseSignatureHelp(id), undefined);
+	}
+
+	// --- inline hints
+
+	registerInlayHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
+
+		const eventHandle = typeof provider.onDidChangeInlayHints === 'function' ? this._nextHandle() : undefined;
+		const handle = this._addNewAdapter(new InlayHintsAdapter(this._documents, provider), extension);
+
+		this._proxy.$registerInlayHintsProvider(handle, this._transformDocumentSelector(selector), eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChangeInlayHints!(_ => this._proxy.$emitInlayHintsEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+		return result;
+	}
+
+	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
+		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.provideInlayHints(URI.revive(resource), range, token), undefined);
 	}
 
 	// --- links
@@ -1882,7 +1962,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return {
 			beforeText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.beforeText),
 			afterText: onEnterRule.afterText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText) : undefined,
-			oneLineAboveText: onEnterRule.oneLineAboveText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.oneLineAboveText) : undefined,
+			previousLineText: onEnterRule.previousLineText ? ExtHostLanguageFeatures._serializeRegExp(onEnterRule.previousLineText) : undefined,
 			action: onEnterRule.action
 		};
 	}

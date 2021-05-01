@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { getLocation, Location, parse } from 'jsonc-parser';
 import * as nls from 'vscode-nls';
-import { provideInstalledExtensionProposals } from './extensionsProposals';
+import { provideInstalledExtensionProposals, provideWorkspaceTrustExtensionProposals } from './extensionsProposals';
 
 const localize = nls.loadMessageBundle();
 
@@ -48,7 +48,25 @@ export class SettingsDocument {
 			try {
 				ignoredExtensions = parse(this.document.getText())['settingsSync.ignoredExtensions'];
 			} catch (e) {/* ignore error */ }
-			return provideInstalledExtensionProposals(ignoredExtensions, range, true);
+			return provideInstalledExtensionProposals(ignoredExtensions, '', range, true);
+		}
+
+		// remote.extensionKind
+		if (location.path[0] === 'remote.extensionKind' && location.path.length === 2 && location.isAtPropertyKey) {
+			let alreadyConfigured: string[] = [];
+			try {
+				alreadyConfigured = Object.keys(parse(this.document.getText())['remote.extensionKind']);
+			} catch (e) {/* ignore error */ }
+			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
+		}
+
+		// extensions.supportUntrustedWorkspaces
+		if (location.path[0] === 'extensions.supportUntrustedWorkspaces' && location.path.length === 2 && location.isAtPropertyKey) {
+			let alreadyConfigured: string[] = [];
+			try {
+				alreadyConfigured = Object.keys(parse(this.document.getText())['extensions.supportUntrustedWorkspaces']);
+			} catch (e) {/* ignore error */ }
+			return provideWorkspaceTrustExtensionProposals(alreadyConfigured, range);
 		}
 
 		return this.provideLanguageOverridesCompletionItems(location, position);

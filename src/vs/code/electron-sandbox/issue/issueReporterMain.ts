@@ -7,15 +7,14 @@ import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
-import * as collections from 'vs/base/common/collections';
+import { groupBy } from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
+import { isWindows, isLinux, isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
@@ -23,9 +22,11 @@ import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IssueReporterWindowConfiguration, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
+import { Codicon } from 'vs/base/common/codicons';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -35,27 +36,14 @@ interface SearchResult {
 	state?: string;
 }
 
-export interface IssueReporterConfiguration extends IWindowConfiguration {
-	windowId: number;
-	disableExtensions: boolean;
-	data: IssueReporterData;
-	features: IssueReporterFeatures;
-	os: {
-		type: string;
-		arch: string;
-		release: string;
-	},
-	product: {
-		nameShort: string;
-		version: string;
-		commit: string | undefined;
-		date: string | undefined;
-		reportIssueUrl: string | undefined;
-	}
+enum IssueSource {
+	VSCode = 'vscode',
+	Extension = 'extension',
+	Marketplace = 'marketplace'
 }
 
-export function startup(configuration: IssueReporterConfiguration) {
-	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+export function startup(configuration: IssueReporterWindowConfiguration) {
+	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 	document.body.classList.add(platformClass); // used by our fonts
 
 	safeInnerHtml(document.body, BaseHtml());
@@ -77,19 +65,17 @@ export class IssueReporter extends Disposable {
 
 	private readonly previewButton!: Button;
 
-	constructor(private readonly configuration: IssueReporterConfiguration) {
+	constructor(private readonly configuration: IssueReporterWindowConfiguration) {
 		super();
 
 		this.initServices(configuration);
-
-		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
-				vscodeVersion: `${configuration.product.nameShort} ${configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
-				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${isSnap ? ' snap' : ''}`
+				vscodeVersion: `${configuration.product.nameShort} ${!!configuration.product.darwinUniversalAssetId ? `${configuration.product.version} (Universal)` : configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
+				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${isLinuxSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
@@ -250,7 +236,7 @@ export class IssueReporter extends Disposable {
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
 		const installedExtensions = extensions.filter(x => !x.isBuiltin);
-		const { nonThemes, themes } = collections.groupBy(installedExtensions, ext => {
+		const { nonThemes, themes } = groupBy(installedExtensions, ext => {
 			return ext.isTheme ? 'themes' : 'nonThemes';
 		});
 
@@ -265,9 +251,9 @@ export class IssueReporter extends Disposable {
 		this.updateExtensionSelector(installedExtensions);
 	}
 
-	private initServices(configuration: IssueReporterConfiguration): void {
+	private initServices(configuration: IssueReporterWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
-		const mainProcessService = new MainProcessService(configuration.windowId);
+		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
@@ -326,17 +312,18 @@ export class IssueReporter extends Disposable {
 				hide(problemSourceHelpText);
 			}
 
-			const fileOnExtension = JSON.parse(value);
-			this.issueReporterModel.update({ fileOnExtension: fileOnExtension });
+			let fileOnExtension, fileOnMarketplace = false;
+			if (value === IssueSource.Extension) {
+				fileOnExtension = true;
+			} else if (value === IssueSource.Marketplace) {
+				fileOnMarketplace = true;
+			}
+
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-			if (fileOnExtension) {
-				this.searchExtensionIssues(title);
-			} else {
-				const description = this.issueReporterModel.getData().issueDescription;
-				this.searchVSCodeIssues(title, description);
-			}
+			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
 		this.addEventListener('description', 'input', (e: Event) => {
@@ -353,23 +340,19 @@ export class IssueReporter extends Disposable {
 		this.addEventListener('issue-title', 'input', (e: Event) => {
 			const title = (<HTMLInputElement>e.target).value;
 			const lengthValidationMessage = this.getElementById('issue-title-length-validation-error');
-			if (title && this.getIssueUrlWithTitle(title).length > MAX_URL_LENGTH) {
+			const issueUrl = this.getIssueUrl();
+			if (title && this.getIssueUrlWithTitle(title, issueUrl).length > MAX_URL_LENGTH) {
 				show(lengthValidationMessage);
 			} else {
 				hide(lengthValidationMessage);
 			}
-
-			const fileOnExtension = this.issueReporterModel.fileOnExtension();
-			if (fileOnExtension === undefined) {
+			const issueSource = this.getElementById<HTMLSelectElement>('issue-source');
+			if (!issueSource || issueSource.value === '') {
 				return;
 			}
 
-			if (fileOnExtension) {
-				this.searchExtensionIssues(title);
-			} else {
-				const description = this.issueReporterModel.getData().issueDescription;
-				this.searchVSCodeIssues(title, description);
-			}
+			const { fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
+			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
 		this.previewButton.onDidClick(() => this.createIssue());
@@ -396,7 +379,7 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.onkeydown = async (e: KeyboardEvent) => {
-			const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
 				if (await this.createIssue()) {
@@ -430,7 +413,7 @@ export class IssueReporter extends Disposable {
 
 			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac
 			// Manually perform the selection
-			if (platform.isMacintosh) {
+			if (isMacintosh) {
 				if (cmdOrCtrlKey && e.keyCode === 65 && e.target) {
 					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
 						(<HTMLInputElement>e.target).select();
@@ -442,7 +425,11 @@ export class IssueReporter extends Disposable {
 
 	private updatePreviewButtonState() {
 		if (this.isPreviewEnabled()) {
-			this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			if (this.configuration.data.githubAccessToken) {
+				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
+			} else {
+				this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			}
 			this.previewButton.enabled = true;
 		} else {
 			this.previewButton.enabled = false;
@@ -485,6 +472,19 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private searchIssues(title: string, fileOnExtension: boolean | undefined, fileOnMarketplace: boolean | undefined): void {
+		if (fileOnExtension) {
+			return this.searchExtensionIssues(title);
+		}
+
+		if (fileOnMarketplace) {
+			return this.searchMarketplaceIssues(title);
+		}
+
+		const description = this.issueReporterModel.getData().issueDescription;
+		this.searchVSCodeIssues(title, description);
+	}
+
 	private searchExtensionIssues(title: string): void {
 		const url = this.getExtensionGitHubUrl();
 		if (title) {
@@ -503,6 +503,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		this.clearSearchResults();
+	}
+
+	private searchMarketplaceIssues(title: string): void {
+		if (title) {
+			const gitHubInfo = this.parseGitHubUrl(this.configuration.product.reportMarketplaceIssueUrl!);
+			if (gitHubInfo) {
+				return this.searchGitHub(`${gitHubInfo.owner}/${gitHubInfo.repositoryName}`, title);
+			}
+		}
 	}
 
 	private clearSearchResults(): void {
@@ -598,8 +607,7 @@ export class IssueReporter extends Disposable {
 					issueState = $('span.issue-state');
 
 					const issueIcon = $('span.issue-icon');
-					const codicon = new CodiconLabel(issueIcon);
-					codicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+					issueIcon.appendChild(renderIcon(issue.state === 'open' ? Codicon.issueOpened : Codicon.issueClosed));
 
 					const issueStateLabel = $('span.issue-state.label');
 					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
@@ -633,7 +641,7 @@ export class IssueReporter extends Disposable {
 		reset(typeSelect,
 			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
 			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
+			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
 		);
 
 		typeSelect.value = issueType.toString();
@@ -663,19 +671,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		sourceSelect.innerText = '';
-		if (issueType === IssueType.FeatureRequest) {
-			sourceSelect.append(...[
-				this.makeOption('', localize('selectSource', "Select source"), true),
-				this.makeOption('false', localize('vscode', "Visual Studio Code"), false),
-				this.makeOption('true', localize('extension', "An extension"), false)
-			]);
-		} else {
-			sourceSelect.append(...[
-				this.makeOption('', localize('selectSource', "Select source"), true),
-				this.makeOption('false', localize('vscode', "Visual Studio Code"), false),
-				this.makeOption('true', localize('extension', "An extension"), false),
-				this.makeOption('', localize('unknown', "Don't Know"), false)
-			]);
+		sourceSelect.append(this.makeOption('', localize('selectSource', "Select source"), true));
+		sourceSelect.append(this.makeOption('vscode', localize('vscode', "Visual Studio Code"), false));
+		sourceSelect.append(this.makeOption('extension', localize('extension', "An extension"), false));
+		if (this.configuration.product.reportMarketplaceIssueUrl) {
+			sourceSelect.append(this.makeOption('marketplace', localize('marketplace', "Extensions marketplace"), false));
+		}
+
+		if (issueType !== IssueType.FeatureRequest) {
+			sourceSelect.append(this.makeOption('', localize('unknown', "Don't know"), false));
 		}
 
 		if (selected !== -1 && selected < sourceSelect.options.length) {
@@ -688,7 +692,7 @@ export class IssueReporter extends Disposable {
 
 	private renderBlocks(): void {
 		// Depending on Issue Type, we render different blocks and text
-		const { issueType, fileOnExtension } = this.issueReporterModel.getData();
+		const { issueType, fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
 		const blockContainer = this.getElementById('block-container');
 		const systemBlock = document.querySelector('.block-system');
 		const processBlock = document.querySelector('.block-process');
@@ -712,29 +716,35 @@ export class IssueReporter extends Disposable {
 		hide(extensionSelector);
 
 		if (issueType === IssueType.Bug) {
-			show(blockContainer);
-			show(systemBlock);
 			show(problemSource);
-			show(experimentsBlock);
+
+			if (!fileOnMarketplace) {
+				show(blockContainer);
+				show(systemBlock);
+				show(experimentsBlock);
+			}
 
 			if (fileOnExtension) {
 				show(extensionSelector);
-			} else {
+			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
-			show(blockContainer);
-			show(systemBlock);
-			show(processBlock);
-			show(workspaceBlock);
 			show(problemSource);
-			show(experimentsBlock);
+
+			if (!fileOnMarketplace) {
+				show(blockContainer);
+				show(systemBlock);
+				show(processBlock);
+				show(workspaceBlock);
+				show(experimentsBlock);
+			}
 
 			if (fileOnExtension) {
 				show(extensionSelector);
-			} else {
+			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
 
@@ -778,6 +788,35 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
+	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string, repositoryName: string }): Promise<boolean> {
+		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
+		const init = {
+			method: 'POST',
+			body: JSON.stringify({
+				title: issueTitle,
+				body: issueBody
+			}),
+			headers: new Headers({
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.configuration.data.githubAccessToken}`
+			})
+		};
+
+		return new Promise((resolve, reject) => {
+			window.fetch(url, init).then((response) => {
+				if (response.ok) {
+					response.json().then(result => {
+						ipcRenderer.send('vscode:openExternal', result.html_url);
+						ipcRenderer.send('vscode:closeIssueReporter');
+						resolve(true);
+					});
+				} else {
+					resolve(false);
+				}
+			});
+		});
+	}
+
 	private async createIssue(): Promise<boolean> {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
@@ -810,8 +849,16 @@ export class IssueReporter extends Disposable {
 
 		this.hasBeenSubmitted = true;
 
-		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
+		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
+
+		const issueUrl = this.getIssueUrl();
+		const gitHubDetails = this.parseGitHubUrl(issueUrl);
+		if (this.configuration.data.githubAccessToken && gitHubDetails) {
+			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
+		}
+
+		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (url.length > MAX_URL_LENGTH) {
@@ -841,6 +888,28 @@ export class IssueReporter extends Disposable {
 		});
 	}
 
+	private getIssueUrl(): string {
+		return this.issueReporterModel.fileOnExtension()
+			? this.getExtensionGitHubUrl()
+			: this.issueReporterModel.getData().fileOnMarketplace
+				? this.configuration.product.reportMarketplaceIssueUrl!
+				: this.configuration.product.reportIssueUrl!;
+	}
+
+	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
+		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
+		// Repository name and owner cannot contain '/'
+		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
+		if (match && match.length) {
+			return {
+				owner: match[1],
+				repositoryName: match[2]
+			};
+		}
+
+		return undefined;
+	}
+
 	private getExtensionGitHubUrl(): string {
 		let repositoryUrl = '';
 		const bugsUrl = this.getExtensionBugsUrl();
@@ -855,16 +924,12 @@ export class IssueReporter extends Disposable {
 		return repositoryUrl;
 	}
 
-	private getIssueUrlWithTitle(issueTitle: string): string {
-		let repositoryUrl = this.configuration.product.reportIssueUrl;
+	private getIssueUrlWithTitle(issueTitle: string, repositoryUrl: string): string {
 		if (this.issueReporterModel.fileOnExtension()) {
-			const extensionGitHubUrl = this.getExtensionGitHubUrl();
-			if (extensionGitHubUrl) {
-				repositoryUrl = extensionGitHubUrl + '/issues/new';
-			}
+			repositoryUrl = repositoryUrl + '/issues/new';
 		}
 
-		const queryStringPrefix = this.configuration.product.reportIssueUrl && this.configuration.product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const queryStringPrefix = repositoryUrl.indexOf('?') === -1 ? '?' : '&';
 		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
@@ -1102,7 +1167,7 @@ export class IssueReporter extends Disposable {
 			),
 			...extensions.map(extension => $('tr', undefined,
 				$('td', undefined, extension.name),
-				$('td', undefined, extension.publisher.substr(0, 3)),
+				$('td', undefined, extension.publisher?.substr(0, 3) ?? 'N/A'),
 				$('td', undefined, extension.version),
 			))
 		);

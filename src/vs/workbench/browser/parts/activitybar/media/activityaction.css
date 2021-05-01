@@ -57,6 +57,7 @@
 	z-index: 1;
 	display: flex;
 	overflow: hidden;
+	width: 48px;
 	height: 48px;
 	margin-right: 0;
 	box-sizing: border-box;
@@ -76,10 +77,9 @@
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	content: "";
 	position: absolute;
-	top: 0;
 	z-index: 1;
 	top: 0;
 	height: 100%;
@@ -92,12 +92,9 @@
 	height: 100%;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
-	visibility: hidden; /* don't show active border + focus at the same time, focus takes priority */
-}
 
 /* Hides active elements in high contrast mode */
-.monaco-workbench.hc-black .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+.monaco-workbench.hc-black .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator {
 	display: none;
 }
 
@@ -105,13 +102,11 @@
 	border-left: none !important; /* no focus feedback when using mouse */
 }
 
-.monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
-.monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before{
+.monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item .active-item-indicator:before{
 	left: 0;
 }
 
-.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before,
-.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
+.monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item .active-item-indicator:before {
 	right: 0;
 }
 
@@ -155,6 +150,20 @@
 	border-radius: 20px;
 	text-align: center;
 }
+
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .codicon.badge-content {
+	font-size: 12px;
+	font-weight: unset;
+	padding: 0;
+	justify-content: center;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .codicon.badge-content::before {
+	text-align: center;
+	vertical-align: baseline;
+}
+
 
 /* Right aligned */
 

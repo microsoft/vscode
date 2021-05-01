@@ -20,8 +20,8 @@ export class OpenProcessExplorer extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
-		return this.issueService.openProcessExplorer().then(() => true);
+	override run(): Promise<void> {
+		return this.issueService.openProcessExplorer();
 	}
 }
 
@@ -37,7 +37,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
-		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue }).then(() => true);
+	override run(): Promise<void> {
+		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue });
 	}
 }

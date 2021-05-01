@@ -9,16 +9,19 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { mock } from 'vs/base/test/common/mock';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { sep } from 'vs/base/common/path';
+import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Snippet Variables Resolver', function () {
 
 	const labelService = new class extends mock<ILabelService>() {
-		getUriLabel(uri: URI) {
+		override getUriLabel(uri: URI) {
 			return uri.fsPath;
 		}
 	};
@@ -48,9 +51,9 @@ suite('Snippet Variables Resolver', function () {
 		const variable = <Variable>snippet.children[0];
 		variable.resolve(resolver);
 		if (variable.children.length === 0) {
-			assert.equal(undefined, expected);
+			assert.strictEqual(undefined, expected);
 		} else {
-			assert.equal(variable.toString(), expected);
+			assert.strictEqual(variable.toString(), expected);
 		}
 	}
 
@@ -89,7 +92,7 @@ suite('Snippet Variables Resolver', function () {
 	test('Path delimiters in code snippet variables aren\'t specific to remote OS #76840', function () {
 
 		const labelService = new class extends mock<ILabelService>() {
-			getUriLabel(uri: URI) {
+			override getUriLabel(uri: URI) {
 				return uri.fsPath.replace(/\/|\\/g, '|');
 			}
 		};
@@ -127,17 +130,17 @@ suite('Snippet Variables Resolver', function () {
 
 	test('TextmateSnippet, resolve variable', function () {
 		const snippet = new SnippetParser().parse('"$TM_CURRENT_WORD"', true);
-		assert.equal(snippet.toString(), '""');
+		assert.strictEqual(snippet.toString(), '""');
 		snippet.resolveVariables(resolver);
-		assert.equal(snippet.toString(), '"this"');
+		assert.strictEqual(snippet.toString(), '"this"');
 
 	});
 
 	test('TextmateSnippet, resolve variable with default', function () {
 		const snippet = new SnippetParser().parse('"${TM_CURRENT_WORD:foo}"', true);
-		assert.equal(snippet.toString(), '"foo"');
+		assert.strictEqual(snippet.toString(), '"foo"');
 		snippet.resolveVariables(resolver);
-		assert.equal(snippet.toString(), '"this"');
+		assert.strictEqual(snippet.toString(), '"this"');
 	});
 
 	test('More useful environment variables for snippets, #32737', function () {
@@ -169,14 +172,14 @@ suite('Snippet Variables Resolver', function () {
 			.resolveVariables({ resolve(variable) { return varValue || variable.name; } });
 
 		const actual = snippet.toString();
-		assert.equal(actual, expected);
+		assert.strictEqual(actual, expected);
 	}
 
 	test('Variable Snippet Transform', function () {
 
 		const snippet = new SnippetParser().parse('name=${TM_FILENAME/(.*)\\..+$/$1/}', true);
 		snippet.resolveVariables(resolver);
-		assert.equal(snippet.toString(), 'name=text');
+		assert.strictEqual(snippet.toString(), 'name=text');
 
 		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2/}', 'Var');
 		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2-${1:/downcase}/}', 'Var-t');
@@ -267,7 +270,7 @@ suite('Snippet Variables Resolver', function () {
 		const snippet = new SnippetParser().parse(`$${varName}`);
 		const variable = <Variable>snippet.children[0];
 
-		assert.equal(variable.resolve(resolver), true, `${varName} failed to resolve`);
+		assert.strictEqual(variable.resolve(resolver), true, `${varName} failed to resolve`);
 	}
 
 	test('Add time variables for snippets #41631, #43140', function () {
@@ -292,10 +295,10 @@ suite('Snippet Variables Resolver', function () {
 
 		const snippet = new SnippetParser().parse('${TM_LINE_NUMBER/(10)/${1:?It is:It is not}/} line 10', true);
 		snippet.resolveVariables({ resolve() { return '10'; } });
-		assert.equal(snippet.toString(), 'It is line 10');
+		assert.strictEqual(snippet.toString(), 'It is line 10');
 
 		snippet.resolveVariables({ resolve() { return '11'; } });
-		assert.equal(snippet.toString(), 'It is not line 10');
+		assert.strictEqual(snippet.toString(), 'It is not line 10');
 	});
 
 	test('Add workspace name and folder variables for snippets #68261', function () {
@@ -307,6 +310,7 @@ suite('Snippet Variables Resolver', function () {
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkspaceName = this._throw;
+			onWillChangeWorkspaceFolders = this._throw;
 			onDidChangeWorkspaceFolders = this._throw;
 			getCompleteWorkspace = this._throw;
 			getWorkspace(): IWorkspace { return workspace; }
@@ -332,10 +336,55 @@ suite('Snippet Variables Resolver', function () {
 
 		// workspace with config
 		const workspaceConfigPath = URI.file('testWorkspace.code-workspace');
-		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath), workspaceConfigPath);
+		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath, extUriBiasedIgnorePathCase), workspaceConfigPath);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/');
+		}
+	});
+
+	test('Add RELATIVE_FILEPATH snippet variable #114208', function () {
+
+		let resolver: VariableResolver;
+
+		// Mock a label service (only coded for file uris)
+		const workspaceLabelService = ((rootPath: string): ILabelService => {
+			const labelService = new class extends mock<ILabelService>() {
+				override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
+					const rootFsPath = URI.file(rootPath).fsPath + sep;
+					const fsPath = uri.fsPath;
+					if (options.relative && rootPath && fsPath.startsWith(rootFsPath)) {
+						return fsPath.substring(rootFsPath.length);
+					}
+					return fsPath;
+				}
+			};
+			return labelService;
+		});
+
+		const model = createTextModel('', undefined, undefined, URI.parse('file:///foo/files/text.txt'));
+
+		// empty workspace
+		resolver = new ModelBasedVariableResolver(
+			workspaceLabelService(''),
+			model
+		);
+
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '/foo/files/text.txt');
+		} else {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '\\foo\\files\\text.txt');
+		}
+
+		// single folder workspace
+		resolver = new ModelBasedVariableResolver(
+			workspaceLabelService('/foo'),
+			model
+		);
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', 'files/text.txt');
+		} else {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', 'files\\text.txt');
 		}
 	});
 });

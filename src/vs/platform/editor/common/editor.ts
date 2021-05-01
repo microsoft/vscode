@@ -9,14 +9,19 @@ import { Event } from 'vs/base/common/event';
 export interface IEditorModel {
 
 	/**
-	 * Emitted when the model is disposed.
+	 * Emitted when the model is about to be disposed.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
-	 * Loads the model.
+	 * Resolves the model.
 	 */
-	load(): Promise<IEditorModel>;
+	resolve(): Promise<void>;
+
+	/**
+	 * Find out if the editor model was resolved or not.
+	 */
+	isResolved(): boolean;
 
 	/**
 	 * Find out if this model has been disposed.
@@ -65,6 +70,23 @@ export interface IBaseResourceEditorInput {
 	readonly forceUntitled?: boolean;
 }
 
+/**
+ * This identifier allows to uniquely identify an editor with a
+ * resource and type identifier.
+ */
+export interface IResourceEditorInputIdentifier {
+
+	/**
+	 * The resource URI of the editor.
+	 */
+	readonly resource: URI;
+
+	/**
+	 * The type of the editor.
+	 */
+	readonly typeId: string;
+}
+
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
@@ -109,6 +131,19 @@ export enum EditorActivation {
 	 * automatically.
 	 */
 	PRESERVE
+}
+
+export enum EditorOverride {
+
+	/**
+	 * Displays a picker and allows the user to decide which editor to use
+	 */
+	PICK = 1,
+
+	/**
+	 * Disables overrides
+	 */
+	DISABLED
 }
 
 export enum EditorOpenContext {
@@ -204,10 +239,10 @@ export interface IEditorOptions {
 	/**
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
-	 * - `false`: disable overrides
 	 * - `string`: specific override by id
+	 * - `EditorOverride`: specific override handling
 	 */
-	readonly override?: false | string;
+	readonly override?: string | EditorOverride;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

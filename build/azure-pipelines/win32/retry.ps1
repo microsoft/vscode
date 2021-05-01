@@ -11,7 +11,7 @@ function Retry
 			& $cmd
 			return
 		} catch {
-			Write-Error -ErrorRecord $_
+			# noop
 		}
 	}
 

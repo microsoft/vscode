@@ -6,9 +6,8 @@
 import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-gracefulFs.gracefulify(fs);
-import * as extpath from 'vs/base/common/extpath';
 import * as glob from 'vs/base/common/glob';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -19,6 +18,8 @@ import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/f
 import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
+
+gracefulFs.gracefulify(fs); // enable gracefulFs
 
 process.noAsar = true; // disable ASAR support in watcher process
 
@@ -48,7 +49,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 	get wacherCount() { return this._watcherCount; }
 
 	private pollingInterval?: number;
-	private usePolling?: boolean;
+	private usePolling?: boolean | string[];
 	private verboseLogging: boolean | undefined;
 
 	private spamCheckStartTime: number | undefined;
@@ -100,7 +101,11 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 
 	private watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
 		const pollingInterval = this.pollingInterval || 5000;
-		const usePolling = this.usePolling;
+		let usePolling = this.usePolling; // boolean or a list of path patterns
+		if (Array.isArray(usePolling)) {
+			// switch to polling if one of the paths matches with a watched path
+			usePolling = usePolling.some(pattern => requests.some(r => glob.match(pattern, r.path)));
+		}
 
 		const watcherOpts: chokidar.WatchOptions = {
 			ignoreInitial: true,
@@ -141,9 +146,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
-		if (this.verboseLogging) {
-			this.log(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
-		}
+		this.debug(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
@@ -296,6 +299,10 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 		this._onDidLogMessage.fire({ type: 'trace', message: `[File Watcher (chokidar)] ` + message });
 	}
 
+	private debug(message: string) {
+		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (chokidar)] ` + message });
+	}
+
 	private warn(message: string) {
 		this._onDidLogMessage.fire({ type: 'warn', message: `[File Watcher (chokidar)] ` + message });
 	}
@@ -311,7 +318,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 			return false;
 		}
 
-		if (extpath.isEqualOrParent(path, request.path)) {
+		if (isEqualOrParent(path, request.path)) {
 			if (!request.parsedPattern) {
 				if (request.excludes && request.excludes.length > 0) {
 					const pattern = `{${request.excludes.join(',')}}`;
@@ -343,7 +350,7 @@ export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string
 	for (const request of requests) {
 		const basePath = request.path;
 		const ignored = (request.excludes || []).sort();
-		if (prevRequest && (extpath.isEqualOrParent(basePath, prevRequest.path))) {
+		if (prevRequest && (isEqualOrParent(basePath, prevRequest.path))) {
 			if (!isEqualIgnore(ignored, prevRequest.excludes)) {
 				result[prevRequest.path].push({ path: basePath, excludes: ignored });
 			}

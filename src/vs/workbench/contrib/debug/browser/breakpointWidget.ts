@@ -166,7 +166,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
-	show(rangeOrPos: IRange | IPosition): void {
+	override show(rangeOrPos: IRange | IPosition): void {
 		const lineNum = this.input.getModel().getLineCount();
 		super.show(rangeOrPos, lineNum + 1);
 	}
@@ -203,7 +203,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		setTimeout(() => this.input.focus(), 150);
 	}
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this.heightInPx = heightInPixel;
 		this.input.layout({ height: heightInPixel, width: widthInPixel - 113 });
 		this.centerInputVertically();
@@ -221,6 +221,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.input = <IActiveCodeEditor>scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
+		if (this.editor.hasModel()) {
+			model.setMode(this.editor.getModel().getLanguageIdentifier());
+		}
 		this.input.setModel(model);
 		this.toDispose.push(model);
 		const setDecorations = () => {
@@ -333,7 +336,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.dispose();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.input.dispose();
 		lifecycle.dispose(this.toDispose);

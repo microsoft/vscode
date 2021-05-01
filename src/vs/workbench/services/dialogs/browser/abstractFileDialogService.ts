@@ -20,11 +20,12 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
 import { coalesce, distinct } from 'vs/base/common/arrays';
-import { trim } from 'vs/base/common/strings';
+import { compareIgnoreCase, trim } from 'vs/base/common/strings';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
+import { PLAINTEXT_EXTENSION } from 'vs/editor/common/modes/modesRegistry';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -76,10 +77,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		if (!candidate) {
-			candidate = await this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+		} else {
+			return resources.dirname(candidate);
 		}
-
-		return candidate && resources.dirname(candidate) || undefined;
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): Promise<URI> {
@@ -162,7 +163,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			}
 
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
-				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
+				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 			} else {
 				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
@@ -179,7 +180,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
 
 			if (options.forceNewWindow || preferNewWindow) {
-				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
+				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 			} else {
 				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
@@ -192,7 +193,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
-			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow });
+			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 		}
 	}
 
@@ -203,7 +204,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
 		if (uri) {
-			return this.hostService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow });
+			return this.hostService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 		}
 	}
 
@@ -275,7 +276,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Build the file filter by using our known languages
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
-		const registeredLanguageFilters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
+
+		const registeredLanguageNames = this.modeService.getRegisteredLanguageNames().sort((a, b) => compareIgnoreCase(a, b));
+		const registeredLanguageFilters: IFilter[] = coalesce(registeredLanguageNames.map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
@@ -283,10 +286,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 			const filter: IFilter = { name: languageName, extensions: distinct(extensions).slice(0, 10).map(e => trim(e, '.')) };
 
-			if (ext && extensions.indexOf(ext) >= 0) {
+			if (!matchingFilter && extensions.indexOf(ext || PLAINTEXT_EXTENSION /* https://github.com/microsoft/vscode/issues/115860 */) >= 0) {
 				matchingFilter = filter;
 
-				return null; // matching filter will be added last to the top
+				return null; // first matching filter will be added to the top
 			}
 
 			return filter;

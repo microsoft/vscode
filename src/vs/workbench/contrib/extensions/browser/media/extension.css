@@ -76,21 +76,21 @@
 
 .extension-list-item > .details > .header-container > .header > .name {
 	font-weight: bold;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
-}
-
-.extension-list-item > .details > .header-container > .header > .version {
-	opacity: 0.85;
-	font-size: 80%;
-	padding-left: 6px;
-	min-width: fit-content;
-	min-width: -moz-fit-content;
 }
 
 .extension-list-item > .details > .header-container > .header > .version {
 	flex: 1;
+	opacity: 0.85;
+	font-size: 80%;
+	padding: 2px 0px 0px 6px;
+	min-width: 36px;
+}
+
+.extension-list-item > .details > .header-container > .header > .name,
+.extension-list-item > .details > .header-container > .header > .version {
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .extension-list-item > .details > .header-container > .header > .install-count,
@@ -152,6 +152,11 @@
 	padding-right: 11px;
 }
 
+.extension-list-item > .details > .workspace-trust-description {
+	display: none;
+	padding-right: 11px;
+}
+
 .extension-list-item > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
@@ -176,6 +181,19 @@
 	flex-wrap: wrap-reverse;
 }
 
+
+.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label:not(.icon) {
+	border-radius: 0;
+}
+
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
+}
+
+.extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	margin-right: 4px;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
+	min-width: 0;
 }

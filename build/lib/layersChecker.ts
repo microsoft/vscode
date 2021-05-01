@@ -25,8 +25,6 @@ import { match } from 'minimatch';
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
 	'require', // from our AMD loader
-	// 'atob',
-	// 'btoa',
 	'setTimeout',
 	'clearTimeout',
 	'setInterval',
@@ -60,6 +58,7 @@ const CORE_TYPES = [
 const NATIVE_TYPES = [
 	'NativeParsedArgs',
 	'INativeEnvironmentService',
+	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
 	'ICommonNativeHostService'
 ];
@@ -89,20 +88,9 @@ const RULES = [
 		]
 	},
 
-	// Common: vs/platform/environment/common/argv.ts
+	// Common: vs/platform/environment/common/*
 	{
-		target: '**/vs/platform/environment/common/argv.ts',
-		disallowedTypes: [/* Ignore native types that are defined from here */],
-		allowedTypes: CORE_TYPES,
-		disallowedDefinitions: [
-			'lib.dom.d.ts', // no DOM
-			'@types/node'	// no node.js
-		]
-	},
-
-	// Common: vs/platform/environment/common/environment.ts
-	{
-		target: '**/vs/platform/environment/common/environment.ts',
+		target: '**/vs/platform/environment/common/*.ts',
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [

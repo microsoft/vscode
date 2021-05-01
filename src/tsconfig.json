@@ -12,12 +12,13 @@
 			"semver",
 			"sinon",
 			"winreg",
-			"trusted-types"
+			"trusted-types",
+			"wicg-file-system-access"
 		],
 		"plugins": [
 			{
-				// the path is relative to TS server, "../../" points to the root dir
-				"name": "../../node_modules/tsec/lib/tsec_lib/language_service_plugin.js"
+				"name": "tsec",
+				"exemptionConfig": "./tsec.exemptions.json"
 			}
 		]
 	},

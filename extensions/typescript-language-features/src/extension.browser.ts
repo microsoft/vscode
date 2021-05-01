@@ -16,6 +16,7 @@ import API from './utils/api';
 import { CommandManager } from './commands/commandManager';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
+import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -49,11 +50,14 @@ export function activate(
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);
 
+	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
+	context.subscriptions.push(activeJsTsEditorTracker);
+
 	const versionProvider = new StaticVersionProvider(
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
-			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript-web/tsserver.web.js').toString(),
-			API.fromSimpleString('4.0.3')));
+			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
+			API.fromSimpleString('4.2.0')));
 
 	const lazyClientHost = createLazyClientHost(context, false, {
 		pluginManager,
@@ -61,12 +65,13 @@ export function activate(
 		logDirectoryProvider: noopLogDirectoryProvider,
 		cancellerFactory: noopRequestCancellerFactory,
 		versionProvider,
-		processFactory: WorkerServerProcess
+		processFactory: WorkerServerProcess,
+		activeJsTsEditorTracker
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});
 
-	registerBaseCommands(commandManager, lazyClientHost, pluginManager);
+	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
 
 	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
 
@@ -74,7 +79,7 @@ export function activate(
 		context.subscriptions.push(module.register());
 	});
 
-	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager));
+	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }

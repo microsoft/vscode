@@ -14,7 +14,7 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -50,6 +50,7 @@ import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
+import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -250,12 +251,24 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateSchema()));
 
+		// for standard keybindings
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
 			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
 			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+			this.isComposingGlobalContextKey.set(false);
+		}));
+
+		// for single modifier chord keybindings (e.g. shift shift)
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			this.isComposingGlobalContextKey.set(e.isComposing);
+			const keyEvent = new StandardKeyboardEvent(e);
+			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
@@ -340,7 +353,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return JSON.stringify(info, null, '\t');
 	}
 
-	public customKeybindingsCount(): number {
+	public override customKeybindingsCount(): number {
 		return this.userKeybindings.keybindings.length;
 	}
 
@@ -441,23 +454,26 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				partModifiersMask |= KeyMod.WinCtrl;
 			}
 
-			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_W) {
-				// console.warn('Ctrl/Cmd+W keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+			// re https://github.com/microsoft/vscode/issues/108788.
+			// since we introduced `window.confirmBeforeQuit`, we should probably not unbind cmd+w/t/n.
 
-				return true;
-			}
+			// if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_W) {
+			// 	// console.warn('Ctrl/Cmd+W keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
 
-			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_N) {
-				// console.warn('Ctrl/Cmd+N keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+			// 	return true;
+			// }
 
-				return true;
-			}
+			// if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_N) {
+			// 	// console.warn('Ctrl/Cmd+N keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
 
-			if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_T) {
-				// console.warn('Ctrl/Cmd+T keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+			// 	return true;
+			// }
 
-				return true;
-			}
+			// if ((partModifiersMask & modifiersMask) === KeyMod.CtrlCmd && part.keyCode === KeyCode.KEY_T) {
+			// 	// console.warn('Ctrl/Cmd+T keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
+
+			// 	return true;
+			// }
 
 			if ((partModifiersMask & modifiersMask) === (KeyMod.CtrlCmd | KeyMod.Alt) && (part.keyCode === KeyCode.LeftArrow || part.keyCode === KeyCode.RightArrow)) {
 				// console.warn('Ctrl/Cmd+Arrow keybindings should not be used by default in web. Offender: ', kb.getHashCode(), ' for ', commandId);
@@ -562,7 +578,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return desc;
 	}
 
-	public getDefaultKeybindingsContent(): string {
+	public override getDefaultKeybindingsContent(): string {
 		const resolver = this._getResolver();
 		const defaultKeybindings = resolver.getDefaultKeybindings();
 		const boundCommands = resolver.getDefaultBoundCommands();
@@ -591,12 +607,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
-		const unboundCommands = KeybindingResolver.getAllUnboundCommands(boundCommands);
+		const unboundCommands = getAllUnboundCommands(boundCommands);
 		let pretty = unboundCommands.sort().join('\n// - ');
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
-	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+	override mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		if (event.ctrlKey || event.metaKey || event.altKey) {
 			// ignore ctrl/cmd/alt-combination but not shift-combinatios
 			return false;
@@ -661,6 +677,8 @@ class UserKeybindings extends Disposable {
 		super();
 
 		this._register(fileService.watch(dirname(keybindingsResource)));
+		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
+		this._register(this.fileService.watch(this.keybindingsResource));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
@@ -786,7 +804,11 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 		}
 
 		const argsSchema = commandDescription.args[0].schema;
-		const argsRequired = Array.isArray(argsSchema.required) && argsSchema.required.length > 0;
+		const argsRequired = (
+			(typeof commandDescription.args[0].isOptional !== 'undefined')
+				? (!commandDescription.args[0].isOptional)
+				: (Array.isArray(argsSchema.required) && argsSchema.required.length > 0)
+		);
 		const addition = {
 			'if': {
 				'properties': {
@@ -821,11 +843,12 @@ const keyboardConfiguration: IConfigurationNode = {
 	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
 	'properties': {
 		'keyboard.dispatch': {
-			'type': 'string',
-			'enum': ['code', 'keyCode'],
-			'default': 'code',
-			'markdownDescription': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
-			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
+			scope: ConfigurationScope.APPLICATION,
+			type: 'string',
+			enum: ['code', 'keyCode'],
+			default: 'code',
+			markdownDescription: nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
+			included: OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
 		}
 	}
 };

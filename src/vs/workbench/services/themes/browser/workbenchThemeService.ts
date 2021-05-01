@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, ThemeSettings, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -36,9 +36,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 // implementation
 
@@ -131,7 +131,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.fileIconThemeSequencer = new Sequencer();
 
 		this.productIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentProductIconTheme.bind(this));
-		this.productIconThemeRegistry = new ThemeRegistry(productIconThemesExtPoint, ProductIconThemeData.fromExtensionTheme, true, ProductIconThemeData.defaultTheme, true);
+		this.productIconThemeRegistry = new ThemeRegistry(productIconThemesExtPoint, ProductIconThemeData.fromExtensionTheme, true, ProductIconThemeData.defaultTheme);
 		this.onProductIconThemeChange = new Emitter<IWorkbenchProductIconTheme>();
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
@@ -140,6 +140,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
+		if (themeData && this.settings.colorTheme !== themeData.settingsId && this.settings.isDefaultColorTheme()) {
+			// the web has different defaults than the desktop, therefore do not restore when the setting is the default theme and the storage doesn't match that.
+			themeData = undefined;
+		}
 
 		// the preferred color scheme (high contrast, light, dark) has changed since the last start
 		const preferredColorScheme = this.getPreferredColorScheme();
@@ -179,12 +183,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
+		const iconsStyleSheet = getIconsStyleSheet();
 		function updateAll() {
-			codiconStyleSheet.textContent = CodiconStyles.getCSS();
+			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		CodiconStyles.onDidChange(() => delayer.schedule());
+		iconsStyleSheet.onDidChange(() => delayer.schedule());
 		delayer.schedule();
 	}
 
@@ -409,7 +414,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onColorThemeChange.event;
 	}
 
-	public setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchColorTheme | null> {
+	public setColorTheme(themeId: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null> {
 		return this.colorThemeSequencer.queue(() => {
 			if (!themeId) {
 				return Promise.resolve(null);
@@ -428,16 +433,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				themeData.setCustomizations(this.settings);
 				return this.applyTheme(themeData, settingsTarget);
 			}, error => {
-				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location!.toString(), error.message)));
+				return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location?.toString(), error.message)));
 			});
 		});
 	}
 
 	private reloadCurrentColorTheme() {
 		return this.colorThemeSequencer.queue(async () => {
-			await this.currentColorTheme.reload(this.extensionResourceLoaderService);
-			this.currentColorTheme.setCustomizations(this.settings);
-			await this.applyTheme(this.currentColorTheme, undefined, false);
+			try {
+				await this.currentColorTheme.reload(this.extensionResourceLoaderService);
+				this.currentColorTheme.setCustomizations(this.settings);
+				await this.applyTheme(this.currentColorTheme, undefined, false);
+			} catch (error) {
+				this.logService.info('Unable to reload {0}: {1}', this.currentColorTheme.location?.toString());
+			}
 		});
 	}
 
@@ -467,7 +476,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget | undefined | 'auto', silent = false): Promise<IWorkbenchColorTheme | null> {
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
 		this.updateDynamicCSSRules(newTheme);
 
 		if (this.currentColorTheme.id) {
@@ -546,7 +555,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 
-	public async setFileIconTheme(iconTheme: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme> {
+	public async setFileIconTheme(iconTheme: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme> {
 		return this.fileIconThemeSequencer.queue(async () => {
 			iconTheme = iconTheme || '';
 			if (iconTheme === this.currentFileIconTheme.id && this.currentFileIconTheme.isLoaded) {
@@ -622,7 +631,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onProductIconThemeChange.event;
 	}
 
-	public async setProductIconTheme(iconTheme: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchProductIconTheme> {
+	public async setProductIconTheme(iconTheme: string | undefined, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme> {
 		return this.productIconThemeSequencer.queue(async () => {
 			iconTheme = iconTheme || '';
 			if (iconTheme === this.currentProductIconTheme.id && this.currentProductIconTheme.isLoaded) {
@@ -683,19 +692,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 class ThemeFileWatcher {
 
-	private inExtensionDevelopment: boolean;
 	private watchedLocation: URI | undefined;
 	private watcherDisposable: IDisposable | undefined;
 	private fileChangeListener: IDisposable | undefined;
 
-	constructor(private fileService: IFileService, environmentService: IWorkbenchEnvironmentService, private onUpdate: () => void) {
-		this.inExtensionDevelopment = !!environmentService.extensionDevelopmentLocationURI;
+	constructor(private fileService: IFileService, private environmentService: IWorkbenchEnvironmentService, private onUpdate: () => void) {
 	}
 
 	update(theme: { location?: URI, watch?: boolean; }) {
 		if (!resources.isEqual(theme.location, this.watchedLocation)) {
 			this.dispose();
-			if (theme.location && (theme.watch || this.inExtensionDevelopment)) {
+			if (theme.location && (theme.watch || this.environmentService.isExtensionDevelopment)) {
 				this.watchedLocation = theme.location;
 				this.watcherDisposable = this.fileService.watch(theme.location);
 				this.fileService.onDidFilesChange(e => {

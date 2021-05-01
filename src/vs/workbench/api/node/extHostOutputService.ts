@@ -7,14 +7,36 @@ import { MainThreadOutputServiceShape } from '../common/extHost.protocol';
 import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
-import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
 import { toLocalISOString } from 'vs/base/common/date';
-import { dirExists, mkdirp } from 'vs/base/node/pfs';
+import { SymlinkSupport } from 'vs/base/node/pfs';
+import { promises } from 'fs';
 import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputService, LazyOutputChannel } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
+import { RotatingLogger } from 'spdlog';
+import { ByteSize } from 'vs/platform/files/common/files';
+
+class OutputAppender {
+
+	private appender: RotatingLogger;
+
+	constructor(name: string, readonly file: string) {
+		this.appender = createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
+		this.appender.clearFormatters();
+	}
+
+	append(content: string): void {
+		this.appender.critical(content);
+	}
+
+	flush(): void {
+		this.appender.flush();
+	}
+}
+
 
 export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
@@ -25,23 +47,23 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 		this._appender = appender;
 	}
 
-	append(value: string): void {
+	override append(value: string): void {
 		super.append(value);
 		this._appender.append(value);
 		this._onDidAppend.fire();
 	}
 
-	update(): void {
+	override update(): void {
 		this._appender.flush();
 		super.update();
 	}
 
-	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+	override show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
 		this._appender.flush();
 		super.show(columnOrPreserveFocus, preserveFocus);
 	}
 
-	clear(): void {
+	override clear(): void {
 		this._appender.flush();
 		super.clear();
 	}
@@ -63,7 +85,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 		this._logsLocation = initData.logsLocation;
 	}
 
-	$setVisibleChannel(channelId: string): void {
+	override $setVisibleChannel(channelId: string): void {
 		if (channelId) {
 			const channel = this._channels.get(channelId);
 			if (channel) {
@@ -72,7 +94,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 		}
 	}
 
-	createOutputChannel(name: string): vscode.OutputChannel {
+	override createOutputChannel(name: string): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
@@ -85,9 +107,9 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 	private async _doCreateOutChannel(name: string): Promise<AbstractExtHostOutputChannel> {
 		try {
 			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-			const exists = await dirExists(outputDirPath);
+			const exists = await SymlinkSupport.existsDirectory(outputDirPath);
 			if (!exists) {
-				await mkdirp(outputDirPath);
+				await promises.mkdir(outputDirPath, { recursive: true });
 			}
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
 			const file = URI.file(join(outputDirPath, `${fileName}.log`));

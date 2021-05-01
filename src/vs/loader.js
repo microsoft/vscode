@@ -36,7 +36,7 @@ var AMDLoader;
                 this._detect();
                 return this._isWindows;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isNode", {
@@ -44,7 +44,7 @@ var AMDLoader;
                 this._detect();
                 return this._isNode;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isElectronRenderer", {
@@ -52,7 +52,7 @@ var AMDLoader;
                 this._detect();
                 return this._isElectronRenderer;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isWebWorker", {
@@ -60,7 +60,7 @@ var AMDLoader;
                 this._detect();
                 return this._isWebWorker;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Environment.prototype._detect = function () {
@@ -196,6 +196,10 @@ var AMDLoader;
         };
         Utilities.recursiveClone = function (obj) {
             if (!obj || typeof obj !== 'object' || obj instanceof RegExp) {
+                return obj;
+            }
+            if (!Array.isArray(obj) && Object.getPrototypeOf(obj) !== Object.prototype) {
+                // only clone "simple" objects
                 return obj;
             }
             var result = Array.isArray(obj) ? [] : {};
@@ -618,37 +622,8 @@ var AMDLoader;
         };
         return OnlyOnceScriptLoader;
     }());
-    var trustedTypesPolyfill = new /** @class */ (function () {
-        function class_1() {
-        }
-        class_1.prototype.installIfNeeded = function () {
-            if (typeof globalThis.trustedTypes !== 'undefined') {
-                return; // already defined
-            }
-            var _defaultRules = {
-                createHTML: function () { throw new Error('Policy\'s TrustedTypePolicyOptions did not specify a \'createHTML\' member'); },
-                createScript: function () { throw new Error('Policy\'s TrustedTypePolicyOptions did not specify a \'createScript\' member'); },
-                createScriptURL: function () { throw new Error('Policy\'s TrustedTypePolicyOptions did not specify a \'createScriptURL\' member'); },
-            };
-            globalThis.trustedTypes = {
-                createPolicy: function (name, rules) {
-                    var _a, _b, _c;
-                    return {
-                        name: name,
-                        createHTML: (_a = rules.createHTML) !== null && _a !== void 0 ? _a : _defaultRules.createHTML,
-                        createScript: (_b = rules.createScript) !== null && _b !== void 0 ? _b : _defaultRules.createScript,
-                        createScriptURL: (_c = rules.createScriptURL) !== null && _c !== void 0 ? _c : _defaultRules.createScriptURL,
-                    };
-                }
-            };
-        };
-        return class_1;
-    }());
-    //#endregion
     var BrowserScriptLoader = /** @class */ (function () {
         function BrowserScriptLoader() {
-            // polyfill trustedTypes-support if missing
-            trustedTypesPolyfill.installIfNeeded();
         }
         /**
          * Attach load / error listeners to a script element and remove them when either one has fired.
@@ -691,12 +666,9 @@ var AMDLoader;
                 script.setAttribute('async', 'async');
                 script.setAttribute('type', 'text/javascript');
                 this.attachListeners(script, callback, errorback);
-                var createTrustedScriptURL = moduleManager.getConfig().getOptionsLiteral().createTrustedScriptURL;
-                if (createTrustedScriptURL) {
-                    if (!this.scriptSourceURLPolicy) {
-                        this.scriptSourceURLPolicy = trustedTypes.createPolicy('amdLoader', { createScriptURL: createTrustedScriptURL });
-                    }
-                    scriptSrc = this.scriptSourceURLPolicy.createScriptURL(scriptSrc);
+                var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+                if (trustedTypesPolicy) {
+                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
                 }
                 script.setAttribute('src', scriptSrc);
                 // Propagate CSP nonce to dynamically created script tag.
@@ -711,18 +683,32 @@ var AMDLoader;
     }());
     var WorkerScriptLoader = /** @class */ (function () {
         function WorkerScriptLoader() {
-            // polyfill trustedTypes-support if missing
-            trustedTypesPolyfill.installIfNeeded();
         }
         WorkerScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            var createTrustedScriptURL = moduleManager.getConfig().getOptionsLiteral().createTrustedScriptURL;
-            if (createTrustedScriptURL) {
-                if (!this.scriptSourceURLPolicy) {
-                    this.scriptSourceURLPolicy = trustedTypes.createPolicy('amdLoader', { createScriptURL: createTrustedScriptURL });
-                }
-                scriptSrc = this.scriptSourceURLPolicy.createScriptURL(scriptSrc);
+            var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+            var isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, self.origin.length) !== self.origin);
+            if (!isCrossOrigin) {
+                // use `fetch` if possible because `importScripts`
+                // is synchronous and can lead to deadlocks on Safari
+                fetch(scriptSrc).then(function (response) {
+                    if (response.status !== 200) {
+                        throw new Error(response.statusText);
+                    }
+                    return response.text();
+                }).then(function (text) {
+                    text = text + "\n//# sourceURL=" + scriptSrc;
+                    var func = (trustedTypesPolicy
+                        ? self.eval(trustedTypesPolicy.createScript('', text))
+                        : new Function(text));
+                    func.call(self);
+                    callback();
+                }).then(undefined, errorback);
+                return;
             }
             try {
+                if (trustedTypesPolicy) {
+                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
+                }
                 importScripts(scriptSrc);
                 callback();
             }
@@ -774,8 +760,11 @@ var AMDLoader;
                         // nothing
                     }
                 };
-                require.resolve = function resolve(request) {
-                    return Module._resolveFilename(request, mod);
+                require.resolve = function resolve(request, options) {
+                    return Module._resolveFilename(request, mod, false, options);
+                };
+                require.resolve.paths = function paths(request) {
+                    return Module._resolveLookupPaths(request, mod);
                 };
                 require.main = process.mainModule;
                 require.extensions = Module._extensions;
@@ -896,7 +885,7 @@ var AMDLoader;
             }
         };
         NodeScriptLoader.prototype._getCachedDataPath = function (config, filename) {
-            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(config.seed, 'utf8').digest('hex');
+            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(config.seed, 'utf8').update(process.arch, '').digest('hex');
             var basename = this._path.basename(filename).replace(/\.js$/, '');
             return this._path.join(config.path, basename + "-" + hash + ".code");
         };
@@ -1251,6 +1240,7 @@ var AMDLoader;
             this._requireFunc = requireFunc;
             this._moduleIdProvider = new ModuleIdProvider();
             this._config = new AMDLoader.Configuration(this._env);
+            this._hasDependencyCycle = false;
             this._modules2 = [];
             this._knownModules2 = [];
             this._inverseDependencies2 = [];
@@ -1595,6 +1585,9 @@ var AMDLoader;
             result.getStats = function () {
                 return _this.getLoaderEvents();
             };
+            result.hasDependencyCycle = function () {
+                return _this._hasDependencyCycle;
+            };
             result.config = function (params, shouldOverwrite) {
                 if (shouldOverwrite === void 0) { shouldOverwrite = false; }
                 _this.configure(params, shouldOverwrite);
@@ -1700,6 +1693,7 @@ var AMDLoader;
                         continue;
                     }
                     if (this._hasDependencyPath(dependency.id, module.id)) {
+                        this._hasDependencyCycle = true;
                         console.warn('There is a dependency cycle between \'' + this._moduleIdProvider.getStrModuleId(dependency.id) + '\' and \'' + this._moduleIdProvider.getStrModuleId(module.id) + '\'. The cyclic path follows:');
                         var cyclePath = this._findCyclePath(dependency.id, module.id, 0) || [];
                         cyclePath.reverse();

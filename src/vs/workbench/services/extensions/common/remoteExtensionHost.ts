@@ -57,6 +57,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
 
 	private _protocol: PersistentProtocol | null;
+	private _hasLostConnection: boolean;
 	private _terminating: boolean;
 	private readonly _isExtensionDevHost: boolean;
 
@@ -77,9 +78,10 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		super();
 		this.remoteAuthority = this._initDataProvider.remoteAuthority;
 		this._protocol = null;
+		this._hasLostConnection = false;
 		this._terminating = false;
 
-		this._register(this._lifecycleService.onShutdown(reason => this.dispose()));
+		this._register(this._lifecycleService.onDidShutdown(() => this.dispose()));
 
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -130,7 +132,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, debugPort, this._initDataProvider.remoteAuthority);
 				}
 
-				protocol.onClose(() => {
+				protocol.onDidDispose(() => {
 					this._onExtHostConnectionLost();
 				});
 
@@ -188,6 +190,11 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	}
 
 	private _onExtHostConnectionLost(): void {
+		if (this._hasLostConnection) {
+			// avoid re-entering this method
+			return;
+		}
+		this._hasLostConnection = true;
 
 		if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId) {
 			this._extensionHostDebugService.close(this._environmentService.debugExtensionHost.debugId);
@@ -262,7 +269,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		return Promise.resolve(false);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this._terminating = true;

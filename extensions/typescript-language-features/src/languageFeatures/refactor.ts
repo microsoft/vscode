@@ -284,7 +284,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<TsCodeAction[] | undefined> {
-		if (!this.shouldTrigger(rangeOrSelection, context)) {
+		if (!this.shouldTrigger(context)) {
 			return undefined;
 		}
 		if (!this.client.toOpenedFilePath(document)) {
@@ -298,9 +298,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs = {
+			const args: Proto.GetApplicableRefactorsRequestArgs & { kind?: string } = {
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
+				kind: context.only?.value
 			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
@@ -308,7 +309,17 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const actions = this.convertApplicableRefactors(response.body, document, rangeOrSelection);
+		const actions = this.convertApplicableRefactors(response.body, document, rangeOrSelection).filter(action => {
+			if (this.client.apiVersion.lt(API.v430)) {
+				// Don't show 'infer return type' refactoring unless it has been explicitly requested
+				// https://github.com/microsoft/TypeScript/issues/42993
+				if (!context.only && action.kind?.value === 'refactor.rewrite.function.returnType') {
+					return false;
+				}
+			}
+			return true;
+		});
+
 		if (!context.only) {
 			return actions;
 		}
@@ -326,10 +337,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Proto.RefactorTriggerReason | undefined {
-		if (!context.only) {
-			return;
+		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
+			return 'invoked';
 		}
-		return 'invoked';
+		return undefined;
 	}
 
 	private convertApplicableRefactors(
@@ -375,15 +386,18 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		return codeAction;
 	}
 
-	private shouldTrigger(rangeOrSelection: vscode.Range | vscode.Selection, context: vscode.CodeActionContext) {
+	private shouldTrigger(context: vscode.CodeActionContext) {
 		if (context.only && !vscode.CodeActionKind.Refactor.contains(context.only)) {
 			return false;
 		}
 
-		return rangeOrSelection instanceof vscode.Selection;
+		return context.triggerKind === vscode.CodeActionTriggerKind.Invoke;
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {
+		if ((refactor as Proto.RefactorActionInfo & { kind?: string }).kind) {
+			return vscode.CodeActionKind.Empty.append((refactor as Proto.RefactorActionInfo & { kind?: string }).kind!);
+		}
 		const match = allKnownCodeActionKinds.find(kind => kind.matches(refactor));
 		return match ? match.kind : vscode.CodeActionKind.Refactor;
 	}

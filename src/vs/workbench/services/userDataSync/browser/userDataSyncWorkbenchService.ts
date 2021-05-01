@@ -30,6 +30,10 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -108,6 +112,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
@@ -268,7 +273,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		const syncTitle = SYNC_TITLE;
 		const title = `${syncTitle} [(${localize('show log', "show log")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
 		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
-		const disposable = this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask)));
+		const disposable = isWeb
+			? Disposable.None /* In web long running shutdown handlers will not work */
+			: this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask), 'veto.settingsSync'));
 
 		try {
 			await this.syncBeforeTurningOn(title, manualSyncTask);
@@ -277,11 +284,35 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		await this.userDataAutoSyncService.turnOn();
+
+		if (this.userDataSyncStoreManagementService.userDataSyncStore?.canSwitch) {
+			await this.synchroniseUserDataSyncStoreType();
+		}
+
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
 	}
 
 	turnoff(everywhere: boolean): Promise<void> {
 		return this.userDataAutoSyncService.turnOff(everywhere);
+	}
+
+	async synchroniseUserDataSyncStoreType(): Promise<void> {
+		if (!this.userDataSyncAccountService.account) {
+			throw new Error('Cannot update because you are signed out from settings sync. Please sign in and try again.');
+		}
+		if (!isWeb || !this.userDataSyncStoreManagementService.userDataSyncStore) {
+			// Not supported
+			return;
+		}
+
+		const userDataSyncStoreUrl = this.userDataSyncStoreManagementService.userDataSyncStore.type === 'insiders' ? this.userDataSyncStoreManagementService.userDataSyncStore.stableUrl : this.userDataSyncStoreManagementService.userDataSyncStore.insidersUrl;
+		const userDataSyncStoreClient = this.instantiationService.createInstance(UserDataSyncStoreClient, userDataSyncStoreUrl);
+		userDataSyncStoreClient.setAuthToken(this.userDataSyncAccountService.account.token, this.userDataSyncAccountService.account.authenticationProviderId);
+		await this.instantiationService.createInstance(UserDataSyncStoreTypeSynchronizer, userDataSyncStoreClient).sync(this.userDataSyncStoreManagementService.userDataSyncStore.type);
+	}
+
+	syncNow(): Promise<void> {
+		return this.userDataAutoSyncService.triggerSync(['Sync Now'], false, true);
 	}
 
 	private async onBeforeShutdown(manualSyncTask: IManualSyncTask): Promise<boolean> {
@@ -468,7 +499,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 		let sessionId: string, accountName: string, accountId: string;
 		if (isAuthenticationProvider(result)) {
-			const session = await this.authenticationService.login(result.id, result.scopes);
+			const session = await this.authenticationService.createSession(result.id, result.scopes);
 			sessionId = session.id;
 			accountName = session.account.label;
 			accountId = session.account.id;
@@ -578,7 +609,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.currentSessionId && e.removed.includes(this.currentSessionId)) {
+		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
 			this.currentSessionId = undefined;
 		}
 		this.update();

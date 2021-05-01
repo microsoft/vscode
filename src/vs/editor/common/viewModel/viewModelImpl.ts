@@ -142,7 +142,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCountNow();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		// First remove listeners, as disposing the lines might end up sending
 		// model decoration changed events ... and we no longer care about them ...
 		super.dispose();
@@ -181,6 +181,14 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._cursor.setHasFocus(hasFocus);
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
 		this._eventDispatcher.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
+	}
+
+	public onCompositionStart(): void {
+		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionStartEvent());
+	}
+
+	public onCompositionEnd(): void {
+		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionEndEvent());
 	}
 
 	public onDidColorThemeChange(): void {
@@ -808,7 +816,23 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
 		const colorMap = this._getColorMap();
-		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
+		const hasBadChars = (/[:;\\\/<>]/.test(fontInfo.fontFamily));
+		const useDefaultFontFamily = (hasBadChars || fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily);
+		let fontFamily: string;
+		if (useDefaultFontFamily) {
+			fontFamily = EDITOR_FONT_DEFAULTS.fontFamily;
+		} else {
+			fontFamily = fontInfo.fontFamily;
+			fontFamily = fontFamily.replace(/"/g, '\'');
+			const hasQuotesOrIsList = /[,']/.test(fontFamily);
+			if (!hasQuotesOrIsList) {
+				const needsQuotes = /[+ ]/.test(fontFamily);
+				if (needsQuotes) {
+					fontFamily = `'${fontFamily}'`;
+				}
+			}
+			fontFamily = `${fontFamily}, ${EDITOR_FONT_DEFAULTS.fontFamily}`;
+		}
 
 		return {
 			mode: languageId.language,
@@ -890,6 +914,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getCursorColumnSelectData(): IColumnSelectData {
 		return this._cursor.getCursorColumnSelectData();
 	}
+	public getCursorAutoClosedCharacters(): Range[] {
+		return this._cursor.getAutoClosedCharacters();
+	}
 	public setCursorColumnSelectData(columnSelectData: IColumnSelectData): void {
 		this._cursor.setCursorColumnSelectData(columnSelectData);
 	}
@@ -908,8 +935,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getPosition(): Position {
 		return this._cursor.getPrimaryCursorState().modelState.position;
 	}
-	public setSelections(source: string | null | undefined, selections: readonly ISelection[]): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.setSelections(eventsCollector, source, selections));
+	public setSelections(source: string | null | undefined, selections: readonly ISelection[], reason = CursorChangeReason.NotSet): void {
+		this._withViewEventsCollector(eventsCollector => this._cursor.setSelections(eventsCollector, source, selections, reason));
 	}
 	public saveCursorState(): ICursorState[] {
 		return this._cursor.saveState();
@@ -940,8 +967,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	public type(text: string, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.type(eventsCollector, text, source));
 	}
-	public replacePreviousChar(text: string, replaceCharCnt: number, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.replacePreviousChar(eventsCollector, text, replaceCharCnt, source));
+	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
 	}
 	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));

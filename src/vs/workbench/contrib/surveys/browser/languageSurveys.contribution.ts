@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { language } from 'vs/base/common/platform';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISurveyData, IProductService } from 'vs/platform/product/common/productService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ISurveyData } from 'vs/base/common/product';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -27,7 +28,7 @@ class LanguageSurvey extends Disposable {
 		storageService: IStorageService,
 		notificationService: INotificationService,
 		telemetryService: ITelemetryService,
-		modelService: IModelService,
+		modeService: IModeService,
 		textFileService: ITextFileService,
 		openerService: IOpenerService,
 		productService: IProductService
@@ -96,9 +97,9 @@ class LanguageSurvey extends Disposable {
 
 		notificationService.prompt(
 			Severity.Info,
-			nls.localize('helpUs', "Help us improve our support for {0}", data.languageId),
+			localize('helpUs', "Help us improve our support for {0}", modeService.getLanguageName(data.languageId) ?? data.languageId),
 			[{
-				label: nls.localize('takeShortSurvey', "Take Short Survey"),
+				label: localize('takeShortSurvey', "Take Short Survey"),
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
 					telemetryService.getTelemetryInfo().then(info => {
@@ -108,13 +109,13 @@ class LanguageSurvey extends Disposable {
 					});
 				}
 			}, {
-				label: nls.localize('remindLater', "Remind Me later"),
+				label: localize('remindLater', "Remind Me later"),
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/remindMeLater`);
 					storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL, StorageTarget.USER);
 				}
 			}, {
-				label: nls.localize('neverAgain', "Don't Show Again"),
+				label: localize('neverAgain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/dontShowAgain`);
@@ -133,10 +134,10 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IModelService modelService: IModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IOpenerService openerService: IOpenerService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IModeService modeService: IModeService
 	) {
 		if (!productService.surveys) {
 			return;
@@ -144,7 +145,7 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 
 		productService.surveys
 			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability)
-			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modelService, textFileService, openerService, productService));
+			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modeService, textFileService, openerService, productService));
 	}
 }
 

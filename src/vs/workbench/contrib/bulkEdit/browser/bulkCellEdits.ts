@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { groupBy } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -19,7 +20,7 @@ export class ResourceNotebookCellEdit extends ResourceEdit {
 		readonly resource: URI,
 		readonly cellEdit: ICellEditOperation,
 		readonly versionId?: number,
-		readonly metadata?: WorkspaceEditMetadata
+		metadata?: WorkspaceEditMetadata
 	) {
 		super(metadata);
 	}
@@ -31,6 +32,7 @@ export class BulkCellEdits {
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		undoRedoSource: UndoRedoSource | undefined,
 		private readonly _progress: IProgress<void>,
+		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceNotebookCellEdit[],
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
 	) { }
@@ -40,18 +42,21 @@ export class BulkCellEdits {
 		const editsByNotebook = groupBy(this._edits, (a, b) => compare(a.resource.toString(), b.resource.toString()));
 
 		for (let group of editsByNotebook) {
+			if (this._token.isCancellationRequested) {
+				break;
+			}
 			const [first] = group;
 			const ref = await this._notebookModelService.resolve(first.resource);
 
 			// check state
-			// if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
-			// 	ref.dispose();
-			// 	throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
-			// }
+			if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
+				ref.dispose();
+				throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
+			}
 
 			// apply edits
 			const edits = group.map(entry => entry.cellEdit);
-			ref.object.notebook.applyEdits(ref.object.notebook.versionId, edits, true, undefined, () => undefined, this._undoRedoGroup);
+			ref.object.notebook.applyEdits(edits, true, undefined, () => undefined, this._undoRedoGroup);
 			ref.dispose();
 
 			this._progress.report(undefined);

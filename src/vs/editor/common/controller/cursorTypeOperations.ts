@@ -258,32 +258,31 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static replacePreviousChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], txt: string, replaceCharCnt: number): EditOperationResult {
-		let commands: Array<ICommand | null> = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			if (!selection.isEmpty()) {
-				// looks like https://github.com/microsoft/vscode/issues/2773
-				// where a cursor operation occurred before a canceled composition
-				// => ignore composition
-				commands[i] = null;
-				continue;
-			}
-			const pos = selection.getPosition();
-			const startColumn = Math.max(1, pos.column - replaceCharCnt);
-			const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
-			const oldText = model.getValueInRange(range);
-			if (oldText === txt) {
-				// => ignore composition that doesn't do anything
-				commands[i] = null;
-				continue;
-			}
-			commands[i] = new ReplaceCommand(range, txt);
-		}
+	public static compositionType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): EditOperationResult {
+		const commands = selections.map(selection => this._compositionType(model, selection, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
 		return new EditOperationResult(EditOperationType.Typing, commands, {
 			shouldPushStackElementBefore: (prevEditOperationType !== EditOperationType.Typing),
 			shouldPushStackElementAfter: false
 		});
+	}
+
+	private static _compositionType(model: ITextModel, selection: Selection, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
+		if (!selection.isEmpty()) {
+			// looks like https://github.com/microsoft/vscode/issues/2773
+			// where a cursor operation occurred before a canceled composition
+			// => ignore composition
+			return null;
+		}
+		const pos = selection.getPosition();
+		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
+		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
+		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
+		const oldText = model.getValueInRange(range);
+		if (oldText === text && positionDelta === 0) {
+			// => ignore composition that doesn't do anything
+			return null;
+		}
+		return new ReplaceCommandWithOffsetCursorState(range, text, 0, positionDelta);
 	}
 
 	private static _typeCommand(range: Range, text: string, keepPosition: boolean): ICommand {
@@ -351,13 +350,6 @@ export class TypeOperations {
 			if (ir) {
 				let oldEndViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
 				const oldEndColumn = range.endColumn;
-
-				let beforeText = '\n';
-				if (indentation !== config.normalizeIndentation(ir.beforeEnter)) {
-					beforeText = config.normalizeIndentation(ir.beforeEnter) + lineText.substring(indentation.length, range.startColumn - 1) + '\n';
-					range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
-				}
-
 				const newLineContent = model.getLineContent(range.endLineNumber);
 				const firstNonWhitespace = strings.firstNonWhitespaceIndex(newLineContent);
 				if (firstNonWhitespace >= 0) {
@@ -367,7 +359,7 @@ export class TypeOperations {
 				}
 
 				if (keepPosition) {
-					return new ReplaceCommandWithoutChangingPosition(range, beforeText + config.normalizeIndentation(ir.afterEnter), true);
+					return new ReplaceCommandWithoutChangingPosition(range, '\n' + config.normalizeIndentation(ir.afterEnter), true);
 				} else {
 					let offset = 0;
 					if (oldEndColumn <= firstNonWhitespace + 1) {
@@ -376,7 +368,7 @@ export class TypeOperations {
 						}
 						offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
 					}
-					return new ReplaceCommandWithOffsetCursorState(range, beforeText + config.normalizeIndentation(ir.afterEnter), 0, offset, true);
+					return new ReplaceCommandWithOffsetCursorState(range, '\n' + config.normalizeIndentation(ir.afterEnter), 0, offset, true);
 				}
 			}
 		}
@@ -965,7 +957,7 @@ export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorSt
 		this.enclosingRange = null;
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let range = inverseEditOperations[0].range;
 		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);

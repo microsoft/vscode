@@ -14,7 +14,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ITextEditorOptions, IResourceEditorInput, EditorActivation } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
@@ -27,7 +27,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { revive } from 'vs/base/common/marshalling';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
-function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
+export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
 		return [];
 	}
@@ -142,7 +142,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: false
+			override: EditorOverride.DISABLED
 		};
 
 		const input: IResourceEditorInput = {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor } from 'vs/base/browser/browser';
-import * as DOM from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, Dimension, EventType, hide, prepend, runAtThisOrScheduleAtNextAnimationFrame, show } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -24,9 +24,9 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
+import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 
 export class TitlebarPart extends BrowserTitleBarPart {
-	private appIcon: HTMLElement | undefined;
 	private windowControls: HTMLElement | undefined;
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
@@ -41,14 +41,16 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		return 22;
 	}
 
-	get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
-	get maximumHeight(): number { return this.minimumHeight; }
+	override get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
+	override get maximumHeight(): number { return this.minimumHeight; }
+
+	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -62,9 +64,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
+
+		this.environmentService = environmentService;
 	}
 
-	private onUpdateAppIconDragBehavior() {
+	private onUpdateAppIconDragBehavior(): void {
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
 		if (setting && this.appIcon) {
 			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
@@ -73,7 +77,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	private onDidChangeMaximized(maximized: boolean) {
+	private onDidChangeWindowMaximized(maximized: boolean): void {
 		if (this.maxRestoreControl) {
 			if (maximized) {
 				this.maxRestoreControl.classList.remove(...Codicon.chromeMaximize.classNamesArray);
@@ -86,40 +90,39 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 		if (this.resizer) {
 			if (maximized) {
-				DOM.hide(this.resizer);
+				hide(this.resizer);
 			} else {
-				DOM.show(this.resizer);
+				show(this.resizer);
 			}
 		}
 
 		this.adjustTitleMarginToCenter();
 	}
 
-	private onMenubarFocusChanged(focused: boolean) {
+	private onMenubarFocusChanged(focused: boolean): void {
 		if ((isWindows || isLinux) && this.currentMenubarVisibility !== 'compact' && this.dragRegion) {
 			if (focused) {
-				DOM.hide(this.dragRegion);
+				hide(this.dragRegion);
 			} else {
-				DOM.show(this.dragRegion);
+				show(this.dragRegion);
 			}
 		}
 	}
 
-	protected onMenubarVisibilityChanged(visible: boolean) {
+	protected override onMenubarVisibilityChanged(visible: boolean): void {
 		// Hide title when toggling menu bar
 		if ((isWindows || isLinux) && this.currentMenubarVisibility === 'toggle' && visible) {
 			// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
 			if (this.dragRegion) {
-				DOM.hide(this.dragRegion);
-				setTimeout(() => DOM.show(this.dragRegion!), 50);
+				hide(this.dragRegion);
+				setTimeout(() => show(this.dragRegion!), 50);
 			}
 		}
 
 		super.onMenubarVisibilityChanged(visible);
 	}
 
-	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
-
+	protected override onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		super.onConfigurationChanged(event);
 
 		if (event.affectsConfiguration('window.doubleClickIconToClose')) {
@@ -129,7 +132,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	protected adjustTitleMarginToCenter(): void {
+	protected override adjustTitleMarginToCenter(): void {
 		if (this.customMenubar && this.menubar) {
 			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
 			const rightMarker = this.element.clientWidth - (this.windowControls ? this.windowControls.clientWidth : 0) - 10;
@@ -148,9 +151,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.title.style.position = 'absolute';
 		this.title.style.left = '50%';
 		this.title.style.transform = 'translate(-50%, 0)';
+		this.title.style.maxWidth = `calc(100vw - ${2 * ((this.windowControls?.clientWidth || 70) + 10)}px)`;
 	}
 
-	protected installMenubar(): void {
+	protected override installMenubar(): void {
 		super.installMenubar();
 
 		if (this.menubar) {
@@ -162,35 +166,39 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		const ret = super.createContentArea(parent);
 
+		// Native menu controller
+		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
+			this._register(this.instantiationService.createInstance(NativeMenubarControl));
+		}
+
 		// App Icon (Native Windows/Linux)
-		if (!isMacintosh) {
-			this.appIcon = DOM.prepend(this.element, DOM.$('div.window-appicon'));
+		if (this.appIcon) {
 			this.onUpdateAppIconDragBehavior();
 
-			this._register(DOM.addDisposableListener(this.appIcon, DOM.EventType.DBLCLICK, (e => {
+			this._register(addDisposableListener(this.appIcon, EventType.DBLCLICK, (e => {
 				this.nativeHostService.closeWindow();
 			})));
 		}
 
 		// Draggable region that we can manipulate for #52522
-		this.dragRegion = DOM.prepend(this.element, DOM.$('div.titlebar-drag-region'));
+		this.dragRegion = prepend(this.element, $('div.titlebar-drag-region'));
 
 		// Window Controls (Native Windows/Linux)
 		if (!isMacintosh) {
-			this.windowControls = DOM.append(this.element, DOM.$('div.window-controls-container'));
+			this.windowControls = append(this.element, $('div.window-controls-container'));
 
 			// Minimize
-			const minimizeIcon = DOM.append(this.windowControls, DOM.$('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
-			this._register(DOM.addDisposableListener(minimizeIcon, DOM.EventType.CLICK, e => {
+			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
+			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
 				this.nativeHostService.minimizeWindow();
 			}));
 
 			// Restore
-			this.maxRestoreControl = DOM.append(this.windowControls, DOM.$('div.window-icon.window-max-restore'));
-			this._register(DOM.addDisposableListener(this.maxRestoreControl, DOM.EventType.CLICK, async e => {
+			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore'));
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
 				if (maximized) {
 					return this.nativeHostService.unmaximizeWindow();
@@ -200,22 +208,22 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 
 			// Close
-			const closeIcon = DOM.append(this.windowControls, DOM.$('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
-			this._register(DOM.addDisposableListener(closeIcon, DOM.EventType.CLICK, e => {
+			const closeIcon = append(this.windowControls, $('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
+			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.nativeHostService.closeWindow();
 			}));
 
 			// Resizer
-			this.resizer = DOM.append(this.element, DOM.$('div.resizer'));
+			this.resizer = append(this.element, $('div.resizer'));
 
-			this._register(this.layoutService.onMaximizeChange(maximized => this.onDidChangeMaximized(maximized)));
-			this.onDidChangeMaximized(this.layoutService.isWindowMaximized());
+			this._register(this.layoutService.onDidChangeWindowMaximized(maximized => this.onDidChangeWindowMaximized(maximized)));
+			this.onDidChangeWindowMaximized(this.layoutService.isWindowMaximized());
 		}
 
 		return ret;
 	}
 
-	updateLayout(dimension: DOM.Dimension): void {
+	override updateLayout(dimension: Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
@@ -244,10 +252,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				}
 			}
 
-			DOM.runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
+			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
 			if (this.customMenubar) {
-				const menubarDimension = new DOM.Dimension(0, dimension.height);
+				const menubarDimension = new Dimension(0, dimension.height);
 				this.customMenubar.layout(menubarDimension);
 			}
 		}

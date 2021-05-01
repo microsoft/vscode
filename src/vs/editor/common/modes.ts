@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -211,9 +211,9 @@ export interface ITokenizationSupport {
 	getInitialState(): IState;
 
 	// add offsetDelta to each of the returned indices
-	tokenize(line: string, state: IState, offsetDelta: number): TokenizationResult;
+	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult;
 
-	tokenize2(line: string, state: IState, offsetDelta: number): TokenizationResult2;
+	tokenize2(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2;
 }
 
 /**
@@ -266,7 +266,7 @@ export interface HoverProvider {
 }
 
 /**
- * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
+ * An evaluatable expression represents additional information for an expression in a document. Evaluatable expressions are
  * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
  * @internal
  */
@@ -275,15 +275,16 @@ export interface EvaluatableExpression {
 	 * The range to which this expression applies.
 	 */
 	range: IRange;
-	/*
+	/**
 	 * This expression overrides the expression extracted from the range.
 	 */
 	expression?: string;
 }
 
+
 /**
- * The hover provider interface defines the contract between extensions and
- * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+ * The evaluatable expression provider interface defines the contract between extensions and
+ * the debug hover.
  * @internal
  */
 export interface EvaluatableExpressionProvider {
@@ -293,6 +294,73 @@ export interface EvaluatableExpressionProvider {
 	 * to the word range at the position when omitted.
 	 */
 	provideEvaluatableExpression(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
+}
+
+/**
+	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
+ * @internal
+ */
+export interface InlineValueContext {
+	frameId: number;
+	stoppedLocation: Range;
+}
+
+/**
+ * Provide inline value as text.
+ * @internal
+ */
+export interface InlineValueText {
+	type: 'text';
+	range: IRange;
+	text: string;
+}
+
+/**
+ * Provide inline value through a variable lookup.
+ * @internal
+ */
+export interface InlineValueVariableLookup {
+	type: 'variable';
+	range: IRange;
+	variableName?: string;
+	caseSensitiveLookup: boolean;
+}
+
+/**
+ * Provide inline value through an expression evaluation.
+ * @internal
+ */
+export interface InlineValueExpression {
+	type: 'expression';
+	range: IRange;
+	expression?: string;
+}
+
+/**
+ * Inline value information can be provided by different means:
+ * - directly as a text value (class InlineValueText).
+ * - as a name to use for a variable lookup (class InlineValueVariableLookup)
+ * - as an evaluatable expression (class InlineValueEvaluatableExpression)
+ * The InlineValue types combines all inline value types into one type.
+ * @internal
+ */
+export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueExpression;
+
+/**
+ * The inline values provider interface defines the contract between extensions and
+ * the debugger's inline values feature.
+ * @internal
+ */
+export interface InlineValuesProvider {
+	/**
+	 */
+	onDidChangeInlineValues?: Event<void> | undefined;
+	/**
+	 * Provide the "inline values" for the given range and document. Multiple hovers at the same
+	 * position will be merged by the editor. A hover can have a range which defaults
+	 * to the word range at the position when omitted.
+	 */
+	provideInlineValues(model: model.ITextModel, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
 }
 
 export const enum CompletionItemKind {
@@ -631,8 +699,8 @@ export interface CodeAction {
  * @internal
  */
 export const enum CodeActionTriggerType {
-	Auto = 1,
-	Manual = 2,
+	Invoke = 1,
+	Auto = 2,
 }
 
 /**
@@ -819,24 +887,24 @@ export interface DocumentHighlightProvider {
 }
 
 /**
- * The rename range provider interface defines the contract between extensions and
- * the live-rename feature.
+ * The linked editing range provider interface defines the contract between extensions and
+ * the linked editing feature.
  */
-export interface OnTypeRenameRangeProvider {
+export interface LinkedEditingRangeProvider {
 
 	/**
-	 * Provide a list of ranges that can be live-renamed together.
+	 * Provide a list of ranges that can be edited together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<OnTypeRenameRanges>;
+	provideLinkedEditingRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
 }
 
 /**
- * Represents a list of ranges that can be renamed together along with a word pattern to describe valid range contents.
+ * Represents a list of ranges that can be edited together along with a word pattern to describe valid contents.
  */
-export interface OnTypeRenameRanges {
+export interface LinkedEditingRanges {
 	/**
-	 * A list of ranges that can be renamed together. The ranges must have
-	 * identical length and contain identical text content. The ranges cannot overlap
+	 * A list of ranges that can be edited together. The ranges must have
+	 * identical length and text content. The ranges cannot overlap
 	 */
 	ranges: IRange[];
 
@@ -1439,9 +1507,9 @@ export interface AuthenticationSession {
  * @internal
  */
 export interface AuthenticationSessionsChangeEvent {
-	added: ReadonlyArray<string>;
-	removed: ReadonlyArray<string>;
-	changed: ReadonlyArray<string>;
+	added: ReadonlyArray<AuthenticationSession>;
+	removed: ReadonlyArray<AuthenticationSession>;
+	changed: ReadonlyArray<AuthenticationSession>;
 }
 
 /**
@@ -1615,33 +1683,6 @@ export interface CommentThreadChangedEvent {
 	readonly changed: CommentThread[];
 }
 
-/**
- * @internal
- */
-export interface IWebviewPortMapping {
-	webviewPort: number;
-	extensionHostPort: number;
-}
-
-/**
- * @internal
- */
-export interface IWebviewOptions {
-	readonly enableScripts?: boolean;
-	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
-}
-
-/**
- * @internal
- */
-export interface IWebviewPanelOptions {
-	readonly enableFindWidget?: boolean;
-	readonly retainContextWhenHidden?: boolean;
-}
-
-
 export interface CodeLens {
 	range: IRange;
 	id?: string;
@@ -1657,6 +1698,26 @@ export interface CodeLensProvider {
 	onDidChange?: Event<this>;
 	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+}
+
+
+export enum InlayHintKind {
+	Other = 0,
+	Type = 1,
+	Parameter = 2,
+}
+
+export interface InlayHint {
+	text: string;
+	position: IPosition;
+	kind: InlayHintKind;
+	whitespaceBefore?: boolean;
+	whitespaceAfter?: boolean;
+}
+
+export interface InlayHintsProvider {
+	onDidChangeInlayHints?: Event<void> | undefined;
+	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
 }
 
 export interface SemanticTokensLegend {
@@ -1727,6 +1788,11 @@ export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry
 /**
  * @internal
  */
+export const InlineValuesProviderRegistry = new LanguageFeatureRegistry<InlineValuesProvider>();
+
+/**
+ * @internal
+ */
 export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
 
 /**
@@ -1737,7 +1803,7 @@ export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<Doc
 /**
  * @internal
  */
-export const OnTypeRenameRangeProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameRangeProvider>();
+export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
 
 /**
  * @internal
@@ -1763,6 +1829,11 @@ export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDe
  * @internal
  */
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
+
+/**
+ * @internal
+ */
+export const InlayHintsProviderRegistry = new LanguageFeatureRegistry<InlayHintsProvider>();
 
 /**
  * @internal
@@ -1876,3 +1947,14 @@ export interface ITokenizationRegistry {
  * @internal
  */
 export const TokenizationRegistry = new TokenizationRegistryImpl();
+
+
+/**
+ * @internal
+ */
+export enum ExternalUriOpenerPriority {
+	None = 0,
+	Option = 1,
+	Default = 2,
+	Preferred = 3,
+}

@@ -6,22 +6,19 @@
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class BrowserTextFileService extends AbstractTextFileService {
 
-	protected registerListeners(): void {
+	protected override registerListeners(): void {
 		super.registerListeners();
 
 		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.textFiles'));
 	}
 
-	protected onBeforeShutdown(reason: ShutdownReason): boolean {
+	private onBeforeShutdown(): boolean {
 		if (this.files.models.some(model => model.hasState(TextFileEditorModelState.PENDING_SAVE))) {
-			this.logService.warn('Unload veto: pending file saves');
-
-			return true; // files are pending to be saved: veto
+			return true; // files are pending to be saved: veto (as there is no support for long running operations on shutdown)
 		}
 
 		return false;

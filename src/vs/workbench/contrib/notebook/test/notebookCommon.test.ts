@@ -5,18 +5,19 @@
 
 import * as assert from 'assert';
 import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangesToIndexes, cellIndexesToRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { URI } from 'vs/base/common/uri';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 suite('NotebookCommon', () => {
 	const instantiationService = setupInstantiationService();
-	const textModelService = instantiationService.get(ITextModelService);
+	const modeService = instantiationService.get(IModeService);
 
 	test('sortMimeTypes default orders', function () {
 		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
 
-		assert.deepEqual(sortMimeTypes(
+		assert.deepStrictEqual(sortMimeTypes(
 			[
 				'application/json',
 				'application/javascript',
@@ -26,30 +27,7 @@ suite('NotebookCommon', () => {
 				'image/png',
 				'image/jpeg',
 				'text/plain'
-			], [], [], defaultDisplayOrder),
-			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				'text/markdown',
-				'image/png',
-				'image/jpeg',
-				'text/plain'
-			]
-		);
-
-		assert.deepEqual(sortMimeTypes(
-			[
-				'application/json',
-				'text/markdown',
-				'application/javascript',
-				'text/html',
-				'text/plain',
-				'image/png',
-				'image/jpeg',
-				'image/svg+xml'
-			], [], [], defaultDisplayOrder),
+			], [], defaultDisplayOrder),
 			[
 				'application/json',
 				'application/javascript',
@@ -62,7 +40,30 @@ suite('NotebookCommon', () => {
 			]
 		);
 
-		assert.deepEqual(sortMimeTypes(
+		assert.deepStrictEqual(sortMimeTypes(
+			[
+				'application/json',
+				'text/markdown',
+				'application/javascript',
+				'text/html',
+				'text/plain',
+				'image/png',
+				'image/jpeg',
+				'image/svg+xml'
+			], [], defaultDisplayOrder),
+			[
+				'application/json',
+				'application/javascript',
+				'text/html',
+				'image/svg+xml',
+				'text/markdown',
+				'image/png',
+				'image/jpeg',
+				'text/plain'
+			]
+		);
+
+		assert.deepStrictEqual(sortMimeTypes(
 			[
 				'text/markdown',
 				'application/json',
@@ -72,7 +73,7 @@ suite('NotebookCommon', () => {
 				'text/html',
 				'image/png',
 				'image/svg+xml'
-			], [], [], defaultDisplayOrder),
+			], [], defaultDisplayOrder),
 			[
 				'application/json',
 				'application/javascript',
@@ -86,68 +87,11 @@ suite('NotebookCommon', () => {
 		);
 	});
 
-	test('sortMimeTypes document orders', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
-		assert.deepEqual(sortMimeTypes(
-			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				'text/markdown',
-				'image/png',
-				'image/jpeg',
-				'text/plain'
-			], [],
-			[
-				'text/markdown',
-				'text/html',
-				'application/json'
-			], defaultDisplayOrder),
-			[
-				'text/markdown',
-				'text/html',
-				'application/json',
-				'application/javascript',
-				'image/svg+xml',
-				'image/png',
-				'image/jpeg',
-				'text/plain'
-			]
-		);
 
-		assert.deepEqual(sortMimeTypes(
-			[
-				'text/markdown',
-				'application/json',
-				'text/plain',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				'image/jpeg',
-				'image/png'
-			], [],
-			[
-				'text/html',
-				'text/markdown',
-				'application/json'
-			], defaultDisplayOrder),
-			[
-				'text/html',
-				'text/markdown',
-				'application/json',
-				'application/javascript',
-				'image/svg+xml',
-				'image/png',
-				'image/jpeg',
-				'text/plain'
-			]
-		);
-	});
 
 	test('sortMimeTypes user orders', function () {
 		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
-		assert.deepEqual(sortMimeTypes(
+		assert.deepStrictEqual(sortMimeTypes(
 			[
 				'application/json',
 				'application/javascript',
@@ -161,8 +105,6 @@ suite('NotebookCommon', () => {
 			[
 				'image/png',
 				'text/plain',
-			],
-			[
 				'text/markdown',
 				'text/html',
 				'application/json'
@@ -179,7 +121,7 @@ suite('NotebookCommon', () => {
 			]
 		);
 
-		assert.deepEqual(sortMimeTypes(
+		assert.deepStrictEqual(sortMimeTypes(
 			[
 				'text/markdown',
 				'application/json',
@@ -193,8 +135,6 @@ suite('NotebookCommon', () => {
 			[
 				'application/json',
 				'text/html',
-			],
-			[
 				'text/html',
 				'text/markdown',
 				'application/json'
@@ -216,14 +156,14 @@ suite('NotebookCommon', () => {
 		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
 
 		// unknown mime types come last
-		assert.deepEqual(sortMimeTypes(
+		assert.deepStrictEqual(sortMimeTypes(
 			[
 				'application/json',
 				'application/vnd-vega.json',
 				'application/vnd-plot.json',
 				'application/javascript',
 				'text/html'
-			], [],
+			],
 			[
 				'text/markdown',
 				'text/html',
@@ -239,14 +179,14 @@ suite('NotebookCommon', () => {
 			'unknown mimetypes keep the ordering'
 		);
 
-		assert.deepEqual(sortMimeTypes(
+		assert.deepStrictEqual(sortMimeTypes(
 			[
 				'application/json',
 				'application/javascript',
 				'text/html',
 				'application/vnd-plot.json',
 				'application/vnd-vega.json'
-			], [],
+			],
 			[
 				'application/vnd-vega*',
 				'text/markdown',
@@ -269,11 +209,11 @@ suite('NotebookCommon', () => {
 
 		for (let i = 0; i < 5; i++) {
 			cells.push(
-				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], textModelService)
+				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], modeService)
 			);
 		}
 
-		assert.deepEqual(diff<TestCell>(cells, [], (cell) => {
+		assert.deepStrictEqual(diff<TestCell>(cells, [], (cell) => {
 			return cells.indexOf(cell) > -1;
 		}), [
 			{
@@ -284,7 +224,7 @@ suite('NotebookCommon', () => {
 		]
 		);
 
-		assert.deepEqual(diff<TestCell>([], cells, (cell) => {
+		assert.deepStrictEqual(diff<TestCell>([], cells, (cell) => {
 			return false;
 		}), [
 			{
@@ -295,8 +235,8 @@ suite('NotebookCommon', () => {
 		]
 		);
 
-		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], textModelService);
-		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], textModelService);
+		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], modeService);
+		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], modeService);
 
 		const modifiedCells = [
 			cells[0],
@@ -311,7 +251,7 @@ suite('NotebookCommon', () => {
 			return cells.indexOf(cell) > -1;
 		});
 
-		assert.deepEqual(splices,
+		assert.deepStrictEqual(splices,
 			[
 				{
 					start: 2,
@@ -339,8 +279,8 @@ suite('CellUri', function () {
 		const data = CellUri.generate(nb, id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
-		assert.equal(actual?.handle, id);
-		assert.equal(actual?.notebook.toString(), nb.toString());
+		assert.strictEqual(actual?.handle, id);
+		assert.strictEqual(actual?.notebook.toString(), nb.toString());
 	});
 
 	test('parse, generate (foo-scheme)', function () {
@@ -351,7 +291,35 @@ suite('CellUri', function () {
 		const data = CellUri.generate(nb, id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
-		assert.equal(actual?.handle, id);
-		assert.equal(actual?.notebook.toString(), nb.toString());
+		assert.strictEqual(actual?.handle, id);
+		assert.strictEqual(actual?.notebook.toString(), nb.toString());
+	});
+});
+
+
+suite('CellRange', function () {
+
+	test('Cell range to index', function () {
+		assert.deepStrictEqual(cellRangesToIndexes([]), []);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 0 }]), []);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 1 }]), [0]);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }]), [0, 1]);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }, { start: 2, end: 3 }]), [0, 1, 2]);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }, { start: 3, end: 4 }]), [0, 1, 3]);
+	});
+
+	test('Cell index to range', function () {
+		assert.deepStrictEqual(cellIndexesToRanges([]), []);
+		assert.deepStrictEqual(cellIndexesToRanges([0]), [{ start: 0, end: 1 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([0, 1]), [{ start: 0, end: 2 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 2]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 3]), [{ start: 0, end: 2 }, { start: 3, end: 4 }]);
+
+		assert.deepStrictEqual(cellIndexesToRanges([1, 0]), [{ start: 0, end: 2 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([1, 2, 0]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([3, 1, 0]), [{ start: 0, end: 2 }, { start: 3, end: 4 }]);
+
+		assert.deepStrictEqual(cellIndexesToRanges([9, 10]), [{ start: 9, end: 11 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([10, 9]), [{ start: 9, end: 11 }]);
 	});
 });

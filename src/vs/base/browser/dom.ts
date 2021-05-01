@@ -20,18 +20,15 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
-		node.removeChild(node.firstChild);
+		node.firstChild.remove();
 	}
 }
 
+/**
+ * @deprecated Use node.isConnected directly
+ */
 export function isInDOM(node: Node | null): boolean {
-	while (node) {
-		if (node === document.body) {
-			return true;
-		}
-		node = node.parentNode || (node as ShadowRoot).host;
-	}
-	return false;
+	return node?.isConnected ?? false;
 }
 
 class DomListener implements IDisposable {
@@ -287,7 +284,7 @@ export function modify(callback: () => void): IDisposable {
 }
 
 /**
- * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
+ * Add a throttled listener. `handler` is fired at most every 8.33333ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
 	(lastEvent: R | null, currentEvent: E): R;
@@ -298,7 +295,7 @@ export interface DOMEvent {
 	stopPropagation(): void;
 }
 
-const MINIMUM_TIME_MS = 16;
+const MINIMUM_TIME_MS = 8;
 const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
@@ -450,6 +447,8 @@ export interface IDimension {
 }
 
 export class Dimension implements IDimension {
+
+	static readonly None = new Dimension(0, 0);
 
 	constructor(
 		public readonly width: number,
@@ -842,7 +841,7 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
-	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
+	MOUSE_WHEEL: 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',
@@ -1002,9 +1001,13 @@ export function after<T extends Node>(sibling: HTMLElement, child: T): T {
 	return child;
 }
 
-export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
-	children.forEach(child => parent.appendChild(child));
-	return children[children.length - 1];
+export function append<T extends Node>(parent: HTMLElement, child: T): T;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
+	parent.append(...children);
+	if (children.length === 1 && typeof children[0] !== 'string') {
+		return <T>children[0];
+	}
 }
 
 export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
@@ -1012,26 +1015,12 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
-
 /**
  * Removes all children from `parent` and appends `children`
  */
 export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
 	parent.innerText = '';
-	appendChildren(parent, ...children);
-}
-
-/**
- * Appends `children` to `parent`
- */
-export function appendChildren(parent: HTMLElement, ...children: Array<Node | string>): void {
-	for (const child of children) {
-		if (child instanceof Node) {
-			parent.appendChild(child);
-		} else if (typeof child === 'string') {
-			parent.appendChild(document.createTextNode(child));
-		}
-	}
+	append(parent, ...children);
 }
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
@@ -1085,13 +1074,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	for (const child of children) {
-		if (child instanceof Node) {
-			result.appendChild(child);
-		} else if (typeof child === 'string') {
-			result.appendChild(document.createTextNode(child));
-		}
-	}
+	result.append(...children);
 
 	return result as T;
 }
@@ -1210,17 +1193,21 @@ export function computeScreenAwareSize(cssPx: number): number {
  * to change the location of the current page.
  * See https://mathiasbynens.github.io/rel-noopener/
  */
-export function windowOpenNoOpener(url: string): void {
-	if (platform.isNative || browser.isEdgeWebView) {
+export function windowOpenNoOpener(url: string): boolean {
+	if (browser.isElectron || browser.isEdgeLegacyWebView) {
 		// In VSCode, window.open() always returns null...
 		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
+		// Also call directly window.open in sandboxed Electron (see https://github.com/microsoft/monaco-editor/issues/2220)
 		window.open(url);
+		return true;
 	} else {
 		let newTab = window.open();
 		if (newTab) {
 			(newTab as any).opener = null;
 			newTab.location.href = url;
+			return true;
 		}
+		return false;
 	}
 }
 
@@ -1246,10 +1233,14 @@ export function asCSSUrl(uri: URI): string {
 	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
+export function asCSSPropertyValue(value: string) {
+	return `'${value.replace(/'/g, '%27')}'`;
+}
+
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 
 	// If the data is provided as Buffer, we create a
-	// blog URL out of it to produce a valid link
+	// blob URL out of it to produce a valid link
 	let url: string;
 	if (URI.isUri(dataOrUri)) {
 		url = dataOrUri.toString(true);
@@ -1298,7 +1289,7 @@ export interface IDetectedFullscreen {
 	mode: DetectedFullscreenMode;
 
 	/**
-	 * Wether we know for sure that we are in fullscreen mode or
+	 * Whether we know for sure that we are in fullscreen mode or
 	 * it is a guess.
 	 */
 	guess: boolean;
@@ -1373,8 +1364,8 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	const options = _extInsaneOptions({
 		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 		allowedAttributes: {
-			'a': ['href'],
-			'button': ['data-href'],
+			'a': ['href', 'x-dispatch'],
+			'button': ['data-href', 'x-dispatch'],
 			'input': ['type', 'placeholder', 'checked', 'required'],
 			'label': ['for'],
 			'select': ['required'],
@@ -1385,7 +1376,7 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	}, ['class', 'id', 'role', 'tabindex']);
 
 	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
-	node.innerHTML = html as unknown as string;
+	node.innerHTML = html as string;
 }
 
 /**
@@ -1398,7 +1389,12 @@ function toBinary(str: string): string {
 	for (let i = 0; i < codeUnits.length; i++) {
 		codeUnits[i] = str.charCodeAt(i);
 	}
-	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+	let binary = '';
+	const uint8array = new Uint8Array(codeUnits.buffer);
+	for (let i = 0; i < uint8array.length; i++) {
+		binary += String.fromCharCode(uint8array[i]);
+	}
+	return binary;
 }
 
 /**
@@ -1416,37 +1412,8 @@ export function multibyteAwareBtoa(str: string): string {
  */
 export namespace WebFileSystemAccess {
 
-	// https://wicg.github.io/file-system-access/#dom-window-showdirectorypicker
-	export interface FileSystemAccess {
-		showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemdirectoryhandle
-	export interface FileSystemDirectoryHandle {
-		readonly kind: 'directory',
-		readonly name: string,
-
-		getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
-		getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemfilehandle
-	export interface FileSystemFileHandle {
-		readonly kind: 'file',
-		readonly name: string,
-
-		createWritable: (options?: { keepExistingData?: boolean }) => Promise<FileSystemWritableFileStream>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemwritablefilestream
-	export interface FileSystemWritableFileStream {
-		write: (buffer: Uint8Array) => Promise<void>;
-		close: () => Promise<void>;
-	}
-
-	export function supported(obj: any & Window): obj is FileSystemAccess {
-		const candidate = obj as FileSystemAccess;
-		if (typeof candidate?.showDirectoryPicker === 'function') {
+	export function supported(obj: any & Window): boolean {
+		if (typeof obj?.showDirectoryPicker === 'function') {
 			return true;
 		}
 
@@ -1482,8 +1449,14 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
+		this._subscriptions.add(domEvent(window, 'keydown', true)(e => {
+
 			const event = new StandardKeyboardEvent(e);
+			// If Alt-key keydown event is repeated, ignore it #112347
+			// Only known to be necessary for Alt-Key at the moment #115810
+			if (event.keyCode === KeyCode.Alt && e.repeat) {
+				return;
+			}
 
 			if (e.altKey && !this._keyStatus.altKey) {
 				this._keyStatus.lastKeyPressed = 'alt';
@@ -1510,7 +1483,7 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			}
 		}));
 
-		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
+		this._subscriptions.add(domEvent(window, 'keyup', true)(e => {
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -1590,8 +1563,14 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		return ModifierKeyEmitter.instance;
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		this._subscriptions.dispose();
 	}
+}
+
+export function getCookieValue(name: string): string | undefined {
+	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+	return match ? match.pop() : undefined;
 }

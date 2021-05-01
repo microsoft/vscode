@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import * as DOM from 'vs/base/browser/dom';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { Separator } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
@@ -21,14 +21,14 @@ import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { env } from 'vs/base/common/process';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -39,15 +39,8 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUpdateService } from 'vs/platform/update/common/update';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IPreferencesService } from '../services/preferences/common/preferences';
-import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
-import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
-import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -55,8 +48,8 @@ import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -64,6 +57,9 @@ import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgen
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { whenEditorClosed } from 'vs/workbench/browser/editor';
 
 export class NativeWindow extends Disposable {
 
@@ -80,7 +76,7 @@ export class NativeWindow extends Disposable {
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
 
-	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
+	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onDidAllEditorsClose(), 50));
 
 	private isDocumentedEdited = false;
 
@@ -102,7 +98,6 @@ export class NativeWindow extends Disposable {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
@@ -112,7 +107,9 @@ export class NativeWindow extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -122,13 +119,16 @@ export class NativeWindow extends Disposable {
 
 	private registerListeners(): void {
 
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
-		// prevent opening a real URL inside the shell
-		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
+		// prevent opening a real URL inside the window
+		[EventType.DRAG_OVER, EventType.DROP].forEach(event => {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
-				DOM.EventHelper.stop(e);
+				EventHelper.stop(e);
 			});
 		});
 
@@ -173,7 +173,7 @@ export class NativeWindow extends Disposable {
 		// Error reporting from main
 		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
 			if (error) {
-				errors.onUnexpectedError(JSON.parse(error));
+				onUnexpectedError(JSON.parse(error));
 			}
 		});
 
@@ -188,13 +188,13 @@ export class NativeWindow extends Disposable {
 
 		// Shell Environment Issue Notifications
 		const choices: IPromptChoice[] = [{
-			label: nls.localize('learnMode', "Learn More"),
+			label: localize('learnMore', "Learn More"),
 			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 		}];
 
 		ipcRenderer.on('vscode:showShellEnvSlowWarning', () => this.notificationService.prompt(
 			Severity.Warning,
-			nls.localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
+			localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
 			choices,
 			{
 				sticky: true,
@@ -204,7 +204,7 @@ export class NativeWindow extends Disposable {
 
 		ipcRenderer.on('vscode:showShellEnvTimeoutError', () => this.notificationService.prompt(
 			Severity.Error,
-			nls.localize('shellEnvTimeoutError', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
+			localize('shellEnvTimeoutError', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
 			choices
 		));
 
@@ -222,20 +222,20 @@ export class NativeWindow extends Disposable {
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
 			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
-			const result = await this.dialogService.input(Severity.Warning, nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
+			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
-					nls.localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					nls.localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+					localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
 				],
 				[
-					{ placeholder: nls.localize('username', "Username"), value: payload.username },
-					{ placeholder: nls.localize('password', "Password"), type: 'password', value: payload.password }
+					{ placeholder: localize('username', "Username"), value: payload.username },
+					{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
 				],
 				{
 					cancelId: 1,
-					detail: nls.localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+					detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
 					checkbox: {
-						label: nls.localize('rememberCredentials', "Remember my credentials"),
+						label: localize('rememberCredentials', "Remember my credentials"),
 						checked: rememberCredentials
 					}
 				});
@@ -278,7 +278,7 @@ export class NativeWindow extends Disposable {
 		}));
 
 		// Listen to visible editor changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
 
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.environmentService.configuration.filesToWait;
@@ -303,8 +303,8 @@ export class NativeWindow extends Disposable {
 		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
 			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
 
-			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
-				DOM.EventHelper.stop(e);
+			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
+				EventHelper.stop(e);
 
 				this.nativeHostService.handleTitleDoubleClick();
 			}));
@@ -326,15 +326,31 @@ export class NativeWindow extends Disposable {
 		this._register(Event.any(
 			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
 			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
-		)(e => this.onDidChangeMaximized(e)));
+		)(e => this.onDidChangeWindowMaximized(e)));
 
-		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+		this.onDidChangeWindowMaximized(this.environmentService.configuration.maximized ?? false);
 
 		// Detect panel position to determine minimum width
-		this._register(this.layoutService.onPanelPositionChange(pos => {
-			this.onDidPanelPositionChange(positionFromString(pos));
-		}));
-		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
+		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
+		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
+	}
+
+	private onWindowResize(e: UIEvent, retry: boolean): void {
+		if (e.target === window) {
+			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
+				// TODO@electron this is an electron issue on macOS when simple fullscreen is enabled
+				// where for some reason the window clientWidth is reported as 0 when switching
+				// between simple fullscreen and normal screen. In that case we schedule the layout
+				// call at the next animation frame once, in the hope that the dimensions are
+				// proper then.
+				if (retry) {
+					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+				}
+				return;
+			}
+
+			this.layoutService.layout();
+		}
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
@@ -345,27 +361,28 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onDidChangeMaximized(maximized: boolean): void {
+	private onDidChangeWindowMaximized(maximized: boolean): void {
 		this.layoutService.updateWindowMaximizedState(maximized);
 	}
 
 	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
+
 		// if panel is on the side, then return the larger minwidth
 		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
 		if (panelOnSide) {
 			return WindowMinimumSize.WIDTH_WITH_VERTICAL_PANEL;
 		}
-		else {
-			return WindowMinimumSize.WIDTH;
-		}
+
+		return WindowMinimumSize.WIDTH;
 	}
 
-	private onDidPanelPositionChange(pos: Position): void {
+	private onDidChangePanelPosition(pos: Position): void {
 		const minWidth = this.getWindowMinimumWidth(pos);
+
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidVisibleEditorsChange(): void {
+	private onDidChangeVisibleEditors(): void {
 
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
@@ -379,7 +396,7 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onAllEditorsClosed(): void {
+	private onDidAllEditorsClose(): void {
 		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
 		if (visibleEditorPanes === 0) {
 			this.nativeHostService.closeWindow();
@@ -447,11 +464,6 @@ export class NativeWindow extends Disposable {
 
 	private create(): void {
 
-		// Native menu controller
-		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
-			this._register(this.instantiationService.createInstance(NativeMenubarControl));
-		}
-
 		// Handle open calls
 		this.setupOpenHandlers();
 
@@ -459,7 +471,7 @@ export class NativeWindow extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
 
 		// Integrity warning
-		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
+		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
 
 		// Root warning
 		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
@@ -470,12 +482,23 @@ export class NativeWindow extends Disposable {
 
 			// Show warning message (unix only)
 			if (isAdmin && !isWindows) {
-				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
+				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
 			}
 		});
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
+
+		// Check for cyclic dependencies
+		if (require.hasDependencyCycle()) {
+			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
+				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
+			} else {
+				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"), [localize('ok', "OK")]);
+				this.nativeHostService.openDevTools();
+			}
+		}
 	}
 
 	private setupOpenHandlers(): void {
@@ -486,7 +509,7 @@ export class NativeWindow extends Disposable {
 		};
 
 		// Handle external open() calls
-		this.openerService.setExternalOpener({
+		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				const success = await this.nativeHostService.openExternal(href);
 				if (!success) {
@@ -515,8 +538,10 @@ export class NativeWindow extends Disposable {
 						} : undefined;
 						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						if (tunnel) {
+							const addressAsUri = URI.parse(tunnel.localAddress);
+							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 							return {
-								resolved: uri.with({ authority: tunnel.localAddress }),
+								resolved,
 								dispose: () => tunnel.dispose(),
 							};
 						}
@@ -643,8 +668,8 @@ export class NativeWindow extends Disposable {
 
 	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
 
-		// Wait for the resources to be closed in the editor...
-		await this.editorService.whenClosed(resourcesToWaitFor.map(resource => ({ resource })), { waitForSaved: true });
+		// Wait for the resources to be closed in the text editor...
+		await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
 
 		// ...before deleting the wait marker file
 		await this.fileService.del(waitMarkerFile);
@@ -665,201 +690,5 @@ export class NativeWindow extends Disposable {
 
 		// Otherwise open all
 		return this.editorService.openEditors(resources);
-	}
-}
-
-class NativeMenubarControl extends MenubarControl {
-	constructor(
-		@IMenuService menuService: IMenuService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILabelService labelService: ILabelService,
-		@IUpdateService updateService: IUpdateService,
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@IPreferencesService preferencesService: IPreferencesService,
-		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IMenubarService private readonly menubarService: IMenubarService,
-		@IHostService hostService: IHostService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
-	) {
-		super(
-			menuService,
-			workspacesService,
-			contextKeyService,
-			keybindingService,
-			configurationService,
-			labelService,
-			updateService,
-			storageService,
-			notificationService,
-			preferencesService,
-			environmentService,
-			accessibilityService,
-			hostService
-		);
-
-		if (isMacintosh) {
-			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
-			this.topLevelTitles['Preferences'] = nls.localize('mPreferences', "Preferences");
-		}
-
-		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
-			const menu = this.menus[topLevelMenuName];
-			if (menu) {
-				this._register(menu.onDidChange(() => this.updateMenubar()));
-			}
-		}
-
-		(async () => {
-			this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
-
-			this.doUpdateMenubar();
-		})();
-
-		this.registerListeners();
-	}
-
-	protected doUpdateMenubar(): void {
-		// Since the native menubar is shared between windows (main process)
-		// only allow the focused window to update the menubar
-		if (!this.hostService.hasFocus) {
-			return;
-		}
-
-		// Send menus to main process to be rendered by Electron
-		const menubarData = { menus: {}, keybindings: {} };
-		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.nativeHostService.windowId, menubarData);
-		}
-	}
-
-	private getMenubarMenus(menubarData: IMenubarData): boolean {
-		if (!menubarData) {
-			return false;
-		}
-
-		menubarData.keybindings = this.getAdditionalKeybindings();
-		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
-			const menu = this.menus[topLevelMenuName];
-			if (menu) {
-				const menubarMenu: IMenubarMenu = { items: [] };
-				this.populateMenuItems(menu, menubarMenu, menubarData.keybindings);
-				if (menubarMenu.items.length === 0) {
-					return false; // Menus are incomplete
-				}
-				menubarData.menus[topLevelMenuName] = menubarMenu;
-			}
-		}
-
-		return true;
-	}
-
-	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
-		let groups = menu.getActions();
-		for (let group of groups) {
-			const [, actions] = group;
-
-			actions.forEach(menuItem => {
-
-				if (menuItem instanceof SubmenuItemAction) {
-					const submenu = { items: [] };
-
-					if (!this.menus[menuItem.item.submenu.id]) {
-						const menu = this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
-						this._register(menu.onDidChange(() => this.updateMenubar()));
-					}
-
-					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
-					this.populateMenuItems(menuToDispose, submenu, keybindings);
-
-					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
-						id: menuItem.id,
-						label: menuItem.label,
-						submenu: submenu
-					};
-
-					menuToPopulate.items.push(menubarSubmenuItem);
-					menuToDispose.dispose();
-				} else {
-					if (menuItem.id === 'workbench.action.openRecent') {
-						const actions = this.getOpenRecentActions().map(this.transformOpenRecentAction);
-						menuToPopulate.items.push(...actions);
-					}
-
-					let menubarMenuItem: IMenubarMenuItemAction = {
-						id: menuItem.id,
-						label: menuItem.label
-					};
-
-					if (menuItem.checked) {
-						menubarMenuItem.checked = true;
-					}
-
-					if (!menuItem.enabled) {
-						menubarMenuItem.enabled = false;
-					}
-
-					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
-					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
-					menuToPopulate.items.push(menubarMenuItem);
-				}
-			});
-
-			menuToPopulate.items.push({ id: 'vscode.menubar.separator' });
-		}
-
-		if (menuToPopulate.items.length > 0) {
-			menuToPopulate.items.pop();
-		}
-	}
-
-	private transformOpenRecentAction(action: Separator | (IAction & { uri: URI })): MenubarMenuItem {
-		if (action instanceof Separator) {
-			return { id: 'vscode.menubar.separator' };
-		}
-
-		return {
-			id: action.id,
-			uri: action.uri,
-			enabled: action.enabled,
-			label: action.label
-		};
-	}
-
-	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
-		const keybindings: { [id: string]: IMenubarKeybinding } = {};
-		if (isMacintosh) {
-			const keybinding = this.getMenubarKeybinding('workbench.action.quit');
-			if (keybinding) {
-				keybindings['workbench.action.quit'] = keybinding;
-			}
-		}
-
-		return keybindings;
-	}
-
-	private getMenubarKeybinding(id: string): IMenubarKeybinding | undefined {
-		const binding = this.keybindingService.lookupKeybinding(id);
-		if (!binding) {
-			return undefined;
-		}
-
-		// first try to resolve a native accelerator
-		const electronAccelerator = binding.getElectronAccelerator();
-		if (electronAccelerator) {
-			return { label: electronAccelerator, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
-		}
-
-		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
-		const acceleratorLabel = binding.getLabel();
-		if (acceleratorLabel) {
-			return { label: acceleratorLabel, isNative: false, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
-		}
-
-		return undefined;
 	}
 }

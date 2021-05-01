@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
-import * as env from 'vs/base/common/platform';
+import * as platform from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
@@ -25,10 +25,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
 
-
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
-	readonly _serviceBrand: undefined;
+	override readonly _serviceBrand: undefined;
 
 	private _integratedTerminalInstances = new DebugTerminalCollection();
 	private _terminalDisposedListener: IDisposable | undefined;
@@ -44,7 +43,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
 	}
 
-	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
+	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
 		switch (adapter.type) {
 			case 'server':
 				return new SocketDebugAdapter(adapter);
@@ -56,7 +55,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		return super.createDebugAdapter(adapter, session);
 	}
 
-	protected daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
+	protected override daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
 		const dae = ExecutableDebugAdapter.platformAdapterExecutable(extensionRegistry.getAllExtensionDescriptions(), session.type);
 		if (dae) {
 			return new DebugAdapterExecutable(dae.command, dae.args, dae.options);
@@ -64,11 +63,11 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		return undefined;
 	}
 
-	protected createSignService(): ISignService | undefined {
+	protected override createSignService(): ISignService | undefined {
 		return new SignService();
 	}
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
+	public override async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
 
 		if (args.kind === 'integrated') {
 
@@ -104,17 +103,38 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				cwdForPrepareCommand = args.cwd;
 			}
 
-			terminal.show();
+			terminal.show(true);
 
 			const shellProcessId = await terminal.processId;
 
 			if (giveShellTimeToInitialize) {
 				// give a new terminal some time to initialize the shell
 				await new Promise(resolve => setTimeout(resolve, 1000));
+			} else {
+				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
+					// clear terminal before reusing it
+					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
+						terminal.sendText('cls');
+					} else if (shell.indexOf('bash') >= 0) {
+						terminal.sendText('clear');
+					} else if (platform.isWindows) {
+						terminal.sendText('cls');
+					} else {
+						terminal.sendText('clear');
+					}
+				}
 			}
 
 			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
-			terminal.sendText(command, true);
+			terminal.sendText(command);
+
+			// Mark terminal as unused when its session ends, see #112055
+			const sessionListener = this.onDidTerminateDebugSession(s => {
+				if (s.id === sessionId) {
+					this._integratedTerminalInstances.free(terminal!);
+					sessionListener.dispose();
+				}
+			});
 
 			return shellProcessId;
 
@@ -122,11 +142,11 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
-		return super.$runInTerminal(args);
+		return super.$runInTerminal(args, sessionId);
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment, this._workspaceService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._workspaceService);
 	}
 }
 
@@ -139,17 +159,15 @@ class DebugTerminalCollection {
 	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
 
 	public async checkout(config: string) {
-		const entries = [...this._terminalInstances.keys()];
-		const promises = entries.map((terminal) => createCancelablePromise(async ct => {
-			const pid = await terminal.processId;
-			if (await hasChildProcesses(pid)) {
+		const entries = [...this._terminalInstances.entries()];
+		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
+			if (termInfo.lastUsedAt !== -1 && await hasChildProcesses(await terminal.processId)) {
 				return null;
 			}
 
 			// important: date check and map operations must be synchronous
 			const now = Date.now();
-			const termInfo = this._terminalInstances.get(terminal);
-			if (!termInfo || termInfo.lastUsedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
+			if (termInfo.lastUsedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
 				return null;
 			}
 
@@ -166,6 +184,13 @@ class DebugTerminalCollection {
 
 	public insert(terminal: vscode.Terminal, termConfig: string) {
 		this._terminalInstances.set(terminal, { lastUsedAt: Date.now(), config: termConfig });
+	}
+
+	public free(terminal: vscode.Terminal) {
+		const info = this._terminalInstances.get(terminal);
+		if (info) {
+			info.lastUsedAt = -1;
+		}
 	}
 
 	public onTerminalClosed(terminal: vscode.Terminal) {

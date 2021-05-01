@@ -5,11 +5,14 @@
 
 import * as assert from 'assert';
 import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, Uri, env } from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, assertNoRpc } from '../utils';
 
 suite('vscode API - editors', () => {
 
-	teardown(closeAllEditors);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
 	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>): Thenable<boolean> {
 		return createRandomFile(initialContents).then(file => {

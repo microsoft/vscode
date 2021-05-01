@@ -1,0 +1,35 @@
+{
+	"ban-eval-calls": [
+		"vs/workbench/api/worker/extHostExtensionService.ts",
+		"vs/base/worker/workerMain",
+		"vs/workbench/services/extensions/worker/extensionHostWorkerMain"
+	],
+	"ban-function-calls": [
+		"vs/workbench/api/worker/extHostExtensionService.ts",
+		"vs/base/worker/workerMain",
+		"vs/workbench/services/extensions/worker/extensionHostWorkerMain",
+		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
+		"vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils.ts"
+	],
+	"ban-trustedtypes-createpolicy": [
+		"vs/base/browser/dom.ts",
+		"vs/base/browser/markdownRenderer.ts",
+		"vs/base/worker/defaultWorkerFactory.ts",
+		"vs/base/worker/workerMain.ts",
+		"vs/editor/browser/core/markdownRenderer.ts",
+		"vs/editor/browser/view/domLineBreaksComputer.ts",
+		"vs/editor/browser/view/viewLayer.ts",
+		"vs/editor/browser/widget/diffEditorWidget.ts",
+		"vs/editor/browser/widget/diffReview.ts",
+		"vs/editor/standalone/browser/colorizer.ts",
+		"vs/workbench/api/worker/extHostExtensionService.ts",
+		"vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts",
+		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
+		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts",
+		"vs/workbench/services/extensions/worker/extensionHostWorkerMain.ts"
+	],
+	"ban-worker-calls": [
+		"vs/base/worker/defaultWorkerFactory.ts",
+		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
+	]
+}

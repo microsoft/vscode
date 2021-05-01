@@ -95,9 +95,6 @@ function prepareDebPackage(arch) {
 
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ARCHITECTURE@@', debArch))
-			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
-			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'));
 
 		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
@@ -237,6 +234,8 @@ function prepareSnapPackage(arch) {
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit.substr(0, 8)))
+			// Possible run-on values https://snapcraft.io/docs/architectures
+			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })

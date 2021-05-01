@@ -128,7 +128,7 @@ class InsertSnippetAction extends EditorAction {
 
 			if (name) {
 				// take selected snippet
-				const snippet = (await snippetService.getSnippets(languageId)).find(snippet => snippet.name === name);
+				const snippet = (await snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })).find(snippet => snippet.name === name);
 				resolve(snippet);
 
 			} else {
@@ -205,7 +205,7 @@ class InsertSnippetAction extends EditorAction {
 
 		const picker = quickInputService.createQuickPick<ISnippetPick>();
 		picker.placeholder = nls.localize('pick.placeholder', "Select a snippet");
-		picker.matchOnDescription = true;
+		picker.matchOnDetail = true;
 		picker.ignoreFocusOut = false;
 		picker.onDidTriggerItemButton(ctx => {
 			const isEnabled = snippetService.isEnabled(ctx.item.snippet);

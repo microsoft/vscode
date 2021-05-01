@@ -3,19 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspacesService, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IViewDescriptorService, IViewsService, ViewVisibilityState } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -36,7 +32,11 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 
 interface INewWindowAPICommandOptions {
 	reuseWindow?: boolean;
-	remoteAuthority?: string;
+	/**
+	 * If set, defines the remoteAuthority of the new window. `null` will open a local window.
+	 * If not set, defaults to remoteAuthority of the current window.
+	 */
+	remoteAuthority?: string | null;
 }
 
 export class NewWindowAPICommand {
@@ -59,28 +59,6 @@ CommandsRegistry.registerCommand({
 		]
 	}
 });
-
-export class OpenWithAPICommand {
-	public static readonly ID = 'vscode.openWith';
-	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions): Promise<any> {
-		let options: ITextEditorOptions | undefined;
-		let position: EditorGroupColumn | undefined;
-
-		if (typeof columnOrOptions === 'number') {
-			position = typeConverters.ViewColumn.from(columnOrOptions);
-		} else if (typeof columnOrOptions !== 'undefined') {
-			options = typeConverters.TextEditorOpenOptions.from(columnOrOptions);
-		}
-
-		return executor.executeCommand('_workbench.openWith', [
-			resource,
-			viewType,
-			options,
-			position
-		]);
-	}
-}
-CommandsRegistry.registerCommand(OpenWithAPICommand.ID, adjustHandler(OpenWithAPICommand.execute));
 
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
 	const workspacesService = accessor.get(IWorkspacesService);
@@ -121,6 +99,7 @@ interface RecentEntry {
 	uri: URI;
 	type: 'workspace' | 'folder' | 'file';
 	label?: string;
+	remoteAuthority?: string;
 }
 
 CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
@@ -128,13 +107,14 @@ CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async functio
 	let recent: IRecent | undefined = undefined;
 	const uri = recentEntry.uri;
 	const label = recentEntry.label;
+	const remoteAuthority = recentEntry.remoteAuthority;
 	if (recentEntry.type === 'workspace') {
 		const workspace = await workspacesService.getWorkspaceIdentifier(uri);
-		recent = { workspace, label };
+		recent = { workspace, label, remoteAuthority };
 	} else if (recentEntry.type === 'folder') {
-		recent = { folderUri: uri, label };
+		recent = { folderUri: uri, label, remoteAuthority };
 	} else {
-		recent = { fileUri: uri, label };
+		recent = { fileUri: uri, label, remoteAuthority };
 	}
 	return workspacesService.addRecentlyOpened([recent]);
 });
@@ -151,12 +131,6 @@ CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (access
 	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 		logService.setLevel(level);
 	}
-});
-
-CommandsRegistry.registerCommand('_workbench.openExternal', function (accessor: ServicesAccessor, uri: UriComponents, options: { allowTunneling?: boolean }) {
-	// TODO: discuss martin, ben where to put this
-	const openerService = accessor.get(IOpenerService);
-	openerService.open(URI.revive(uri), options);
 });
 
 

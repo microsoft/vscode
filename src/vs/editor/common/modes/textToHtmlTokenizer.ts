@@ -12,12 +12,12 @@ import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
 export interface IReducedTokenizationSupport {
 	getInitialState(): IState;
-	tokenize2(line: string, state: IState, offsetDelta: number): TokenizationResult2;
+	tokenize2(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2;
 }
 
 const fallback: IReducedTokenizationSupport = {
 	getInitialState: () => NULL_STATE,
-	tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
+	tokenize2: (buffer: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
 };
 
 export function tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport = fallback): string {
@@ -110,7 +110,7 @@ function _tokenizeToString(text: string, tokenizationSupport: IReducedTokenizati
 			result += `<br/>`;
 		}
 
-		let tokenizationResult = tokenizationSupport.tokenize2(line, currentState, 0);
+		let tokenizationResult = tokenizationSupport.tokenize2(line, true, currentState, 0);
 		LineTokens.convertToEndOffset(tokenizationResult.tokens, line.length);
 		let lineTokens = new LineTokens(tokenizationResult.tokens, line);
 		let viewLineTokens = lineTokens.inflate();

@@ -81,7 +81,7 @@
 		"type": "label",
 		"name": "*duplicate",
 		"action": "close",
-		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for existing issues [here](https://aka.ms/vscodeissuesearch). See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for existing issues [here](${duplicateQuery}). See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -93,7 +93,7 @@
 		"addLabel": "z-author-verified",
 		"removeLabel": "author-verification-requested",
 		"requireLabel": "author-verification-requested",
-		"disallowLabel": "awaiting-insiders-release"
+		"disallowLabel": "unreleased"
 	},
 	{
 		"type": "comment",
@@ -201,6 +201,19 @@
 		"action": "close",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Python extension. Please file it with the repository [here](https://github.com/microsoft/vscode-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "extJupyter",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Jupyter extension. Please file it with the repository [here](https://github.com/microsoft/vscode-jupyter). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",

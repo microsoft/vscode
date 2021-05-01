@@ -12,6 +12,8 @@ import * as strings from 'vs/base/common/strings';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
 
+const ttPolicy = window.trustedTypes?.createPolicy('domLineBreaksComputer', { createHTML: value => value });
+
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
 	public static create(): DOMLineBreaksComputerFactory {
@@ -108,7 +110,9 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 		allCharOffsets[i] = tmp[0];
 		allVisibleColumns[i] = tmp[1];
 	}
-	containerDomNode.innerHTML = sb.build();
+	const html = sb.build();
+	const trustedhtml = ttPolicy?.createHTML(html) ?? html;
+	containerDomNode.innerHTML = trustedhtml as string;
 
 	containerDomNode.style.position = 'absolute';
 	containerDomNode.style.top = '10000';
@@ -228,11 +232,11 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 				if (strings.isFullWidthCharacter(charCode)) {
 					charWidth++;
 				}
-				// if (renderControlCharacters && charCode < 32) {
-				// 	sb.write1(9216 + charCode);
-				// } else {
-				sb.write1(charCode);
-			// }
+				if (charCode < 32) {
+					sb.write1(9216 + charCode);
+				} else {
+					sb.write1(charCode);
+				}
 		}
 
 		charOffset += producedCharacters;

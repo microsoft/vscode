@@ -110,7 +110,8 @@
 				// "${workspaceFolder}", // Uncomment for running out of sources.
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests"
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests",
+				"--disable-extensions"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -198,12 +199,19 @@
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
 			"port": 9222,
+			"trace": true,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/out/**/*.js"
+			],
 			"perScriptSourcemaps": "yes"
 		},
 		{
 			"type": "pwa-chrome",
 			"request": "launch",
-			"name": "Launch VS Code",
+			"name": "Launch VS Code Internal",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -235,7 +243,9 @@
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"browserLaunchLocation": "workspace",
-			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"hidden": true,
+			}
 		},
 		{
 			"type": "node",
@@ -472,7 +482,7 @@
 			"name": "VS Code",
 			"stopAll": true,
 			"configurations": [
-				"Launch VS Code",
+				"Launch VS Code Internal",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
@@ -486,7 +496,7 @@
 		{
 			"name": "Search and Renderer processes",
 			"configurations": [
-				"Launch VS Code",
+				"Launch VS Code Internal",
 				"Attach to Search Process"
 			],
 			"presentation": {
@@ -497,7 +507,7 @@
 		{
 			"name": "Renderer and Extension Host processes",
 			"configurations": [
-				"Launch VS Code",
+				"Launch VS Code Internal",
 				"Attach to Extension Host"
 			],
 			"presentation": {
@@ -526,6 +536,14 @@
 				"group": "1_vscode",
 				"order": 2
 			}
-		}
+		},
+		{
+			"name": "Launch VS Code",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal",
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies"
+		},
 	]
 }

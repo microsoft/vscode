@@ -6,7 +6,7 @@
 import 'vs/css!./media/notificationsCenter';
 import 'vs/css!./media/notificationsActions';
 import { NOTIFICATIONS_BORDER, NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Emitter } from 'vs/base/common/event';
@@ -59,7 +59,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
-		this._register(this.layoutService.onLayout(dimension => this.layout(Dimension.lift(dimension))));
+		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
 	}
 
 	get isVisible(): boolean {
@@ -248,7 +248,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 
-	protected updateStyles(): void {
+	protected override updateStyles(): void {
 		if (this.notificationsCenterContainer && this.notificationsCenterHeader) {
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
@@ -313,7 +313,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 	const notificationBorderColor = theme.getColor(NOTIFICATIONS_BORDER);
 	if (notificationBorderColor) {
 		collector.addRule(`.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row[data-last-element="false"] > .notification-list-item { border-bottom: 1px solid ${notificationBorderColor}; }`);

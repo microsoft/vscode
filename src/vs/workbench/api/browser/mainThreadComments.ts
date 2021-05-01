@@ -20,9 +20,9 @@ import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comm
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { localize } from 'vs/nls';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -473,11 +473,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!commentsViewAlreadyRegistered) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
-				name: COMMENTS_VIEW_TITLE,
+				title: COMMENTS_VIEW_TITLE,
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 				storageId: COMMENTS_VIEW_TITLE,
 				hideIfEmpty: true,
-				icon: ThemeIcon.fromCodicon(commentsViewIcon),
+				icon: commentsViewIcon,
 				order: 10,
 			}, ViewContainerLocation.Panel);
 
@@ -487,7 +487,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				canToggleVisibility: false,
 				ctorDescriptor: new SyncDescriptor(CommentsPanel),
 				canMoveView: true,
-				containerIcon: ThemeIcon.fromCodicon(commentsViewIcon),
+				containerIcon: commentsViewIcon,
 				focusCommand: {
 					id: 'workbench.action.focusCommentsPanel'
 				}
@@ -535,7 +535,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.updateComments(providerId, event);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._workspaceProviders.forEach(value => dispose(value));
 		this._workspaceProviders.clear();

@@ -96,15 +96,21 @@ export class CodeLensContribution implements IEditorContribution {
 
 		const { codeLensHeight, fontSize } = this._getLayoutInfo();
 		const fontFamily = this._editor.getOption(EditorOption.codeLensFontFamily);
+		const editorFontInfo = this._editor.getOption(EditorOption.fontInfo);
+
+		const fontFamilyVar = `--codelens-font-family${this._styleClassName}`;
+		const fontFeaturesVar = `--codelens-font-features${this._styleClassName}`;
 
 		let newStyle = `
-		.monaco-editor .codelens-decoration.${this._styleClassName} { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontSize * 0.5)}px;}
+		.monaco-editor .codelens-decoration.${this._styleClassName} { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontSize * 0.5)}px; font-feature-settings: var(${fontFeaturesVar}) }
 		.monaco-editor .codelens-decoration.${this._styleClassName} span.codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
 		`;
 		if (fontFamily) {
-			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: ${fontFamily}}`;
+			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: var(${fontFamilyVar})}`;
 		}
 		this._styleElement.textContent = newStyle;
+		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
+		this._editor.getContainerDomNode().style.setProperty(fontFeaturesVar, editorFontInfo.fontFeatureSettings);
 
 		//
 		this._editor.changeViewZones(accessor => {

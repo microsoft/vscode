@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as DOM from 'vs/base/browser/dom';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
@@ -26,7 +26,7 @@ export class VerticalSeparator extends Action {
 }
 
 export class VerticalSeparatorViewItem extends BaseActionViewItem {
-	render(container: HTMLElement) {
+	override render(container: HTMLElement) {
 		container.classList.add('verticalSeparator');
 		// const iconContainer = DOM.append(container, $('.verticalSeparator'));
 		// DOM.addClasses(iconContainer, 'codicon', 'codicon-chrome-minimize');
@@ -83,15 +83,15 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
 	constructor(
-		readonly _action: MenuItemAction,
+		_action: MenuItemAction,
 		keybindingService: IKeybindingService,
 		notificationService: INotificationService,
 	) {
 		super(_action, keybindingService, notificationService);
 	}
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (this.options.label && this.label) {
-			DOM.reset(this.label, ...renderCodicons(this._commandAction.label ?? ''));
+			DOM.reset(this.label, ...renderLabelWithIcons(this._commandAction.label ?? ''));
 		}
 	}
 }

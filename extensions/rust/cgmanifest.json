@@ -6,12 +6,12 @@
 				"git": {
 					"name": "rust-syntax",
 					"repositoryUrl": "https://github.com/dustypomerleau/rust-syntax",
-					"commitHash": "19f9aa86c0850b98db175754f019a2e79413353e"
+					"commitHash": "7b924664814131ae4509a537bb07960fe65dcaac"
 				}
 			},
 			"license": "MIT",
 			"description": "A TextMate-style grammar for Rust.",
-			"version": "0.2.13"
+			"version": "0.4.3"
 		}
 	],
 	"version": 1

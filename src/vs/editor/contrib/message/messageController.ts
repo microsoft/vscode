@@ -24,7 +24,7 @@ export class MessageController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.messageController';
 
-	static readonly MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false);
+	static readonly MESSAGE_VISIBLE = new RawContextKey<boolean>('messageVisible', false, nls.localize('messageVisible', 'Whether the editor is currently showing an inline message'));
 
 	static get(editor: ICodeEditor): MessageController {
 		return editor.getContribution<MessageController>(MessageController.ID);

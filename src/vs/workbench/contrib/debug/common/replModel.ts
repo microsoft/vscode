@@ -5,16 +5,18 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isString, isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
+const getUniqueId = () => `topReplElement:${topReplElementCounter++}`;
 
 export class SimpleReplElement implements IReplElement {
 
@@ -29,9 +31,13 @@ export class SimpleReplElement implements IReplElement {
 		public sourceData?: IReplElementSource,
 	) { }
 
-	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
-		return this.value + sourceStr;
+	toString(includeSource = false): string {
+		let valueRespectCount = this.value;
+		for (let i = 1; i < this.count; i++) {
+			valueRespectCount += (valueRespectCount.endsWith('\n') ? '' : '\n') + this.value;
+		}
+		const sourceStr = (this.sourceData && includeSource) ? ` ${this.sourceData.source.name}` : '';
+		return valueRespectCount + sourceStr;
 	}
 
 	getId(): string {
@@ -125,14 +131,14 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 		super(undefined, undefined, 0, generateUuid());
 	}
 
-	async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
+	override async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
 		const result = await super.evaluateExpression(expression, session, stackFrame, context);
 		this._available = result;
 
 		return result;
 	}
 
-	toString(): string {
+	override toString(): string {
 		return `${this.value}`;
 	}
 }
@@ -160,8 +166,8 @@ export class ReplGroup implements IReplElement {
 		return this.id;
 	}
 
-	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
+	toString(includeSource = false): string {
+		const sourceStr = (includeSource && this.sourceData) ? ` ${this.sourceData.source.name}` : '';
 		return this.name + sourceStr;
 	}
 
@@ -192,10 +198,23 @@ export class ReplGroup implements IReplElement {
 	}
 }
 
+function areSourcesEqual(first: IReplElementSource | undefined, second: IReplElementSource | undefined): boolean {
+	if (!first && !second) {
+		return true;
+	}
+	if (first && second) {
+		return first.column === second.column && first.lineNumber === second.lineNumber && first.source.uri.toString() === second.source.uri.toString();
+	}
+
+	return false;
+}
+
 export class ReplModel {
 	private replElements: IReplElement[] = [];
 	private readonly _onDidChangeElements = new Emitter<void>();
 	readonly onDidChangeElements = this._onDidChangeElements.event;
+
+	constructor(private readonly configurationService: IConfigurationService) { }
 
 	getReplElements(): IReplElement[] {
 		return this.replElements;
@@ -220,19 +239,21 @@ export class ReplModel {
 		if (typeof data === 'string') {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
 			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev) {
-				if (previousElement.value === data) {
+				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+				if (previousElement.value === data && areSourcesEqual(previousElement.sourceData, source) && config.console.collapseIdenticalLines) {
 					previousElement.count++;
 					// No need to fire an event, just the count updates and badge will adjust automatically
 					return;
 				}
 				if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
-					previousElement.value += data;
+					this.replElements[this.replElements.length - 1] = new SimpleReplElement(
+						session, getUniqueId(), previousElement.value + data, sev, source);
 					this._onDidChangeElements.fire();
 					return;
 				}
 			}
 
-			const element = new SimpleReplElement(session, `topReplElement:${topReplElementCounter++}`, data, sev, source);
+			const element = new SimpleReplElement(session, getUniqueId(), data, sev, source);
 			this.addReplElement(element);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
@@ -307,7 +328,7 @@ export class ReplModel {
 				}
 
 				// show object
-				this.appendToRepl(session, new RawObjectReplElement(`topReplElement:${topReplElementCounter++}`, (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
+				this.appendToRepl(session, new RawObjectReplElement(getUniqueId(), (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
 			}
 
 			// string: watch out for % replacement directive

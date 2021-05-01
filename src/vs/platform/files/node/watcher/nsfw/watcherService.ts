@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createChannelSender, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ProxyChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -39,9 +39,9 @@ export class FileWatcher extends Disposable {
 				serverName: 'File Watcher (nsfw)',
 				args: ['--type=watcherService'],
 				env: {
-					AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/nsfw/watcherApp',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: 'true' // transmit console logs from server to client
+					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/nsfw/watcherApp',
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
 			}
 		));
@@ -61,7 +61,7 @@ export class FileWatcher extends Disposable {
 		}));
 
 		// Initialize watcher
-		this.service = createChannelSender<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
+		this.service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
 
 		this.service.setVerboseLogging(this.verboseLogging);
 
@@ -91,7 +91,7 @@ export class FileWatcher extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.isDisposed = true;
 
 		super.dispose();

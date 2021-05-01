@@ -29,7 +29,8 @@
           ".ts.map",
           ".har",
           ".jslintrc",
-          ".jsonld"
+          ".jsonld",
+          ".ipynb"
         ],
         "filenames": [
           "composer.lock",
@@ -74,5 +75,9 @@
         "path": "./syntaxes/JSONC.tmLanguage.json"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

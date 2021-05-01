@@ -103,7 +103,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			const internalArgs = apiCommand.args.map((arg, i) => {
 				if (!arg.validate(apiArgs[i])) {
-					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', receieved: ${apiArgs[i]}`);
+					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', received: ${apiArgs[i]}`);
 				}
 				return arg.convert(apiArgs[i]);
 			});
@@ -194,7 +194,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private _executeContributedCommand<T>(id: string, args: any[]): Promise<T> {
+	private async _executeContributedCommand<T>(id: string, args: any[]): Promise<T> {
 		const command = this._commands.get(id);
 		if (!command) {
 			throw new Error('Unknown command');
@@ -205,17 +205,24 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					return Promise.reject(new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
+					throw new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
 				}
 			}
 		}
 
 		try {
-			const result = callback.apply(thisArg, args);
-			return Promise.resolve(result);
+			return await callback.apply(thisArg, args);
 		} catch (err) {
+			// The indirection-command from the converter can fail when invoking the actual
+			// command and in that case it is better to blame the correct command
+			if (id === this.converter.delegatingCommandId) {
+				const actual = this.converter.getActualCommand(...args);
+				if (actual) {
+					id = actual.command;
+				}
+			}
 			this._logService.error(err, id);
-			return Promise.reject(new Error(`Running the contributed command: '${id}' failed.`));
+			throw new Error(`Running the contributed command: '${id}' failed.`);
 		}
 	}
 
@@ -258,7 +265,7 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 
 export class CommandsConverter {
 
-	private readonly _delegatingCommandId: string;
+	readonly delegatingCommandId: string = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 	private readonly _cache = new Map<number, vscode.Command>();
 	private _cachIdPool = 0;
 
@@ -268,8 +275,7 @@ export class CommandsConverter {
 		private readonly _lookupApiCommand: (id: string) => ApiCommand | undefined,
 		private readonly _logService: ILogService
 	) {
-		this._delegatingCommandId = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
-		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
+		this._commands.registerCommand(true, this.delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
 	toInternal(command: vscode.Command, disposables: DisposableStore): ICommandDto;
@@ -312,7 +318,7 @@ export class CommandsConverter {
 			}));
 			result.$ident = id;
 
-			result.id = this._delegatingCommandId;
+			result.id = this.delegatingCommandId;
 			result.arguments = [id];
 
 			this._logService.trace('CommandsConverter#CREATE', command.command, id);
@@ -336,8 +342,13 @@ export class CommandsConverter {
 		}
 	}
 
+
+	getActualCommand(...args: any[]): vscode.Command | undefined {
+		return this._cache.get(args[0]);
+	}
+
 	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
-		const actualCmd = this._cache.get(args[0]);
+		const actualCmd = this.getActualCommand(...args);
 		this._logService.trace('CommandsConverter#EXECUTE', args[0], actualCmd ? actualCmd.command : 'MISSING');
 
 		if (!actualCmd) {

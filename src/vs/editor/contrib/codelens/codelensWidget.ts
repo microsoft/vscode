@@ -14,7 +14,7 @@ import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegis
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 class CodeLensViewZone implements IViewZone {
 
@@ -88,12 +88,12 @@ class CodeLensContentWidget implements IContentWidget {
 			}
 			hasSymbol = true;
 			if (lens.command) {
-				const title = renderCodicons(lens.command.title.trim());
+				const title = renderLabelWithIcons(lens.command.title.trim());
 				if (lens.command.id) {
-					children.push(dom.$('a', { id: String(i) }, ...title));
+					children.push(dom.$('a', { id: String(i), title: lens.command.tooltip }, ...title));
 					this._commands.set(String(i), lens.command);
 				} else {
-					children.push(dom.$('span', undefined, ...title));
+					children.push(dom.$('span', { title: lens.command.tooltip }, ...title));
 				}
 				if (i + 1 < lenses.length) {
 					children.push(dom.$('span', undefined, '\u00a0|\u00a0'));

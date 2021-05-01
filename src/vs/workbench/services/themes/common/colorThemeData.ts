@@ -515,7 +515,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't pesist names
+			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't persist names
 			semanticTokenRules: this.semanticTokenRules.map(SemanticTokenRule.toJSONObject),
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			themeSemanticHighlighting: this.themeSemanticHighlighting,

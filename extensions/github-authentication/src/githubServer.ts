@@ -9,11 +9,13 @@ import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
+import { ExperimentationTelemetry } from './experimentationService';
 
 const localize = nls.loadMessageBundle();
 
 export const NETWORK_ERROR = 'network error';
 const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
+// const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
@@ -39,10 +41,18 @@ export class GitHubServer {
 	private _statusBarItem: vscode.StatusBarItem | undefined;
 
 	private _pendingStates = new Map<string, string[]>();
-	private _codeExchangePromises = new Map<string, Promise<string>>();
+	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
+
+	constructor(private readonly telemetryReporter: ExperimentationTelemetry) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
-		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
+		return /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
+	}
+
+	// TODO@joaomoreno TODO@RMacfarlane
+	private async isNoCorsEnvironment(): Promise<boolean> {
+		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+		return uri.scheme === 'https' && /^vscode\./.test(uri.authority);
 	}
 
 	public async login(scopes: string): Promise<string> {
@@ -50,7 +60,10 @@ export class GitHubServer {
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+
+		// TODO@joaomoreno TODO@RMacfarlane
+		const nocors = await this.isNoCorsEnvironment();
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate${nocors ? '?nocors=true' : ''}`));
 
 		if (this.isTestEnvironment(callbackUri)) {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
@@ -77,23 +90,30 @@ export class GitHubServer {
 			const existingStates = this._pendingStates.get(scopes) || [];
 			this._pendingStates.set(scopes, [...existingStates, state]);
 
-			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
+			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com${nocors ? '&nocors=true' : ''}`);
 			await vscode.env.openExternal(uri);
 		}
 
 		// Register a single listener for the URI callback, in case the user starts the login process multiple times
 		// before completing it.
-		let existingPromise = this._codeExchangePromises.get(scopes);
-		if (!existingPromise) {
-			existingPromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
-			this._codeExchangePromises.set(scopes, existingPromise);
+		let codeExchangePromise = this._codeExchangePromises.get(scopes);
+		if (!codeExchangePromise) {
+			codeExchangePromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
+			this._codeExchangePromises.set(scopes, codeExchangePromise);
 		}
 
 		return Promise.race([
-			existingPromise,
-			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined): string => { if (!token) { throw new Error('Cancelled'); } return token; })
+			codeExchangePromise.promise,
+			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined, resolve, reject): void => {
+				if (!token) {
+					reject('Cancelled');
+				} else {
+					resolve(token);
+				}
+			}).promise
 		]).finally(() => {
 			this._pendingStates.delete(scopes);
+			codeExchangePromise?.cancel.fire();
 			this._codeExchangePromises.delete(scopes);
 			this.updateStatusBarItem(false);
 		});
@@ -111,23 +131,36 @@ export class GitHubServer {
 				return;
 			}
 
-			try {
-				const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`, {
-					method: 'POST',
-					headers: {
-						Accept: 'application/json'
-					}
-				});
+			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
 
-				if (result.ok) {
-					const json = await result.json();
+			// TODO@joao: remove
+			if (query.nocors) {
+				try {
+					const json: any = await vscode.commands.executeCommand('_workbench.fetchJSON', url, 'POST');
 					Logger.info('Token exchange success!');
 					resolve(json.access_token);
-				} else {
-					reject(result.statusText);
+				} catch (err) {
+					reject(err);
 				}
-			} catch (ex) {
-				reject(ex);
+			} else {
+				try {
+					const result = await fetch(url, {
+						method: 'POST',
+						headers: {
+							Accept: 'application/json'
+						}
+					});
+
+					if (result.ok) {
+						const json = await result.json();
+						Logger.info('Token exchange success!');
+						resolve(json.access_token);
+					} else {
+						reject(result.statusText);
+					}
+				} catch (ex) {
+					reject(ex);
+				}
 			}
 		};
 
@@ -153,7 +186,7 @@ export class GitHubServer {
 		}
 
 		try {
-			const uri = vscode.Uri.parse(uriOrToken);
+			const uri = vscode.Uri.parse(uriOrToken.trim());
 			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }
 			uriHandler.handleUri(uri);
 		} catch (e) {
@@ -209,5 +242,43 @@ export class GitHubServer {
 			Logger.error(`Getting account info failed: ${result.statusText}`);
 			throw new Error(result.statusText);
 		}
+	}
+
+	public async checkIsEdu(token: string): Promise<void> {
+		const nocors = await this.isNoCorsEnvironment();
+
+		if (nocors) {
+			return;
+		}
+
+		try {
+			const result = await fetch('https://education.github.com/api/user', {
+				headers: {
+					Authorization: `token ${token}`,
+					'faculty-check-preview': 'true',
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (result.ok) {
+				const json: { student: boolean, faculty: boolean } = await result.json();
+
+				/* __GDPR__
+					"session" : {
+						"isEdu": { "classification": "NonIdentifiableDemographicInfo", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('session', {
+					isEdu: json.student
+						? 'student'
+						: json.faculty
+							? 'faculty'
+							: 'none'
+				});
+			}
+		} catch (e) {
+			// No-op
+		}
+
 	}
 }

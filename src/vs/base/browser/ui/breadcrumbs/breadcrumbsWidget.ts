@@ -11,34 +11,13 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import 'vs/css!./breadcrumbsWidget';
 
 export abstract class BreadcrumbsItem {
 	dispose(): void { }
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
-}
-
-export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
-
-	constructor(
-		readonly text: string,
-		readonly title: string = text
-	) {
-		super();
-	}
-
-	equals(other: this) {
-		return other === this || other instanceof SimpleBreadcrumbsItem && other.text === this.text && other.title === this.title;
-	}
-
-	render(container: HTMLElement): void {
-		let node = document.createElement('div');
-		node.title = this.title;
-		node.innerText = this.text;
-		container.appendChild(node);
-	}
 }
 
 export interface IBreadcrumbsWidgetStyles {
@@ -56,7 +35,7 @@ export interface IBreadcrumbsItemEvent {
 	payload: any;
 }
 
-const breadcrumbSeparatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight);
+const breadcrumbSeparatorIcon = registerCodicon('breadcrumb-separator', Codicon.chevronRight);
 
 export class BreadcrumbsWidget {
 
@@ -77,6 +56,7 @@ export class BreadcrumbsWidget {
 	private readonly _nodes = new Array<HTMLDivElement>();
 	private readonly _freeNodes = new Array<HTMLDivElement>();
 
+	private _enabled: boolean = true;
 	private _focusedItemIdx: number = -1;
 	private _selectedItemIdx: number = -1;
 
@@ -176,11 +156,16 @@ export class BreadcrumbsWidget {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item.focused.selected { color: ${style.breadcrumbsFocusAndSelectionForeground}}\n`;
 		}
 		if (style.breadcrumbsHoverForeground) {
-			content += `.monaco-breadcrumbs .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
+			content += `.monaco-breadcrumbs:not(.disabled	) .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
 		}
 		if (this._styleElement.innerText !== content) {
 			this._styleElement.innerText = content;
 		}
+	}
+
+	setEnabled(value: boolean) {
+		this._enabled = value;
+		this._domNode.classList.toggle('disabled', !this._enabled);
 	}
 
 	domFocus(): void {
@@ -333,7 +318,12 @@ export class BreadcrumbsWidget {
 	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {
 		dom.clearNode(container);
 		container.className = '';
-		item.render(container);
+		try {
+			item.render(container);
+		} catch (err) {
+			container.innerText = '<<RENDER ERROR>>';
+			console.error(err);
+		}
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');
@@ -342,6 +332,9 @@ export class BreadcrumbsWidget {
 	}
 
 	private _onClick(event: IMouseEvent): void {
+		if (!this._enabled) {
+			return;
+		}
 		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
 			let idx = this._nodes.indexOf(el as HTMLDivElement);
 			if (idx >= 0) {

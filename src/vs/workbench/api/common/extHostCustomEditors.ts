@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { hash } from 'vs/base/common/hash';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { ExtHostWebviews, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import { ExtHostWebviews, shouldSerializeBuffersForPostMessage, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
 import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import type * as vscode from 'vscode';
@@ -178,11 +179,11 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean },
 	): vscode.Disposable {
 		const disposables = new DisposableStore();
-		if ('resolveCustomTextEditor' in provider) {
+		if (isCustomTextEditorProvider(provider)) {
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
 			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
 				supportsMove: !!provider.moveCustomTextEditor,
-			});
+			}, shouldSerializeBuffersForPostMessage(extension));
 		} else {
 			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));
 
@@ -198,7 +199,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				}));
 			}
 
-			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, !!options.supportsMultipleEditorsPerDocument);
+			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, !!options.supportsMultipleEditorsPerDocument, shouldSerializeBuffersForPostMessage(extension));
 		}
 
 		return extHostTypes.Disposable.from(
@@ -208,8 +209,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			}));
 	}
 
-
-	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken) {
+	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, cancellation: CancellationToken) {
 		const entry = this._editorProviders.get(viewType);
 		if (!entry) {
 			throw new Error(`No provider found for '${viewType}'`);
@@ -220,7 +220,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		}
 
 		const revivedResource = URI.revive(resource);
-		const document = await entry.provider.openCustomDocument(revivedResource, { backupId }, cancellation);
+		const document = await entry.provider.openCustomDocument(revivedResource, { backupId, untitledDocumentData: untitledDocumentData?.buffer }, cancellation);
 
 		let storageRoot: URI | undefined;
 		if (this.supportEditing(entry.provider) && this._extensionStoragePaths) {
@@ -251,9 +251,12 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		resource: UriComponents,
 		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
-		title: string,
+		initData: {
+			title: string;
+			webviewOptions: extHostProtocol.IWebviewOptions;
+			panelOptions: extHostProtocol.IWebviewPanelOptions;
+		},
 		position: EditorGroupColumn,
-		options: modes.IWebviewOptions & modes.IWebviewPanelOptions,
 		cancellation: CancellationToken,
 	): Promise<void> {
 		const entry = this._editorProviders.get(viewType);
@@ -261,8 +264,10 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			throw new Error(`No provider found for '${viewType}'`);
 		}
 
-		const webview = this._extHostWebview.createNewWebview(handle, options, entry.extension);
-		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, title, position, options, webview);
+		const viewColumn = typeConverters.ViewColumn.to(position);
+
+		const webview = this._extHostWebview.createNewWebview(handle, initData.webviewOptions, entry.extension);
+		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.panelOptions, webview);
 
 		const revivedResource = URI.revive(resource);
 
@@ -350,7 +355,6 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		return backup.id;
 	}
 
-
 	private getCustomDocumentEntry(viewType: string, resource: UriComponents): CustomDocumentStoreEntry {
 		const entry = this._documents.get(viewType, URI.revive(resource));
 		if (!entry) {
@@ -375,6 +379,9 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 	}
 }
 
+function isCustomTextEditorProvider(provider: vscode.CustomReadonlyEditorProvider<vscode.CustomDocument> | vscode.CustomTextEditorProvider): provider is vscode.CustomTextEditorProvider {
+	return typeof (provider as vscode.CustomTextEditorProvider).resolveCustomTextEditor === 'function';
+}
 
 function isEditEvent(e: vscode.CustomDocumentContentChangeEvent | vscode.CustomDocumentEditEvent): e is vscode.CustomDocumentEditEvent {
 	return typeof (e as vscode.CustomDocumentEditEvent).undo === 'function'

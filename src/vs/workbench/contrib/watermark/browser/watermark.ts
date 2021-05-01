@@ -5,7 +5,7 @@
 
 import 'vs/css!./watermark';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, OS } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,7 +17,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/contrib/search/common/constants';
 import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -27,6 +26,9 @@ import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/termin
 import { assertIsDefined } from 'vs/base/common/types';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 
 const $ = dom.$;
 
@@ -46,7 +48,7 @@ const newUntitledFile: WatermarkEntry = { text: nls.localize('watermark.newUntit
 const newUntitledFileMacOnly: WatermarkEntry = Object.assign({ mac: true }, newUntitledFile);
 const toggleTerminal: WatermarkEntry = { text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: TERMINAL_COMMAND_ID.TOGGLE };
 const findInFiles: WatermarkEntry = { text: nls.localize('watermark.findInFiles', "Find in Files"), id: FindInFilesActionId };
-const startDebugging: WatermarkEntry = { text: nls.localize('watermark.startDebugging', "Start Debugging"), id: StartAction.ID };
+const startDebugging: WatermarkEntry = { text: nls.localize('watermark.startDebugging', "Start Debugging"), id: DEBUG_START_COMMAND_ID };
 
 const noFolderEntries = [
 	showCommands,
@@ -79,7 +81,8 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 
@@ -94,7 +97,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onShutdown(this.dispose, this);
+		this.lifecycleService.onDidShutdown(() => this.dispose());
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKBENCH_TIPS_ENABLED_KEY)) {
@@ -128,17 +131,21 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		const box = dom.append(this.watermark, $('.watermark-box'));
 		const folder = this.workbenchState !== WorkbenchState.EMPTY;
 		const selected = folder ? folderEntries : noFolderEntries
-			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh)
+			.filter(entry => !('mac' in entry) || entry.mac === (isMacintosh && !isWeb))
 			.filter(entry => !!CommandsRegistry.getCommand(entry.id));
+
+		const keybindingLabelStylers = this.watermarkDisposable.add(new DisposableStore());
 
 		const update = () => {
 			dom.clearNode(box);
+			keybindingLabelStylers.clear();
 			selected.map(entry => {
 				const dl = dom.append(box, $('dl'));
 				const dt = dom.append(dl, $('dt'));
 				dt.textContent = entry.text;
 				const dd = dom.append(dl, $('dd'));
 				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
+				keybindingLabelStylers.add(attachKeybindingLabelStyler(keybinding, this.themeService));
 				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
 			});
 		};

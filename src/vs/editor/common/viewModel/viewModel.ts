@@ -164,6 +164,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
 	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
+	onCompositionStart(): void;
+	onCompositionEnd(): void;
 	onDidColorThemeChange(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
@@ -211,6 +213,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getCursorStates(): CursorState[];
 	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
 	getCursorColumnSelectData(): IColumnSelectData;
+	getCursorAutoClosedCharacters(): Range[];
 	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;

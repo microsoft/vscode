@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./actionbar';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator, IActionViewItem, IActionViewItemProvider } from 'vs/base/common/actions';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -13,11 +13,22 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Emitter } from 'vs/base/common/event';
 import { IActionViewItemOptions, ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
+export interface IActionViewItem extends IDisposable {
+	actionRunner: IActionRunner;
+	setActionContext(context: unknown): void;
+	render(element: HTMLElement): void;
+	isEnabled(): boolean;
+	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
+	blur(): void;
+}
+
+export interface IActionViewItemProvider {
+	(action: IAction): IActionViewItem | undefined;
+}
+
 export const enum ActionsOrientation {
 	HORIZONTAL,
-	HORIZONTAL_REVERSE,
 	VERTICAL,
-	VERTICAL_REVERSE,
 }
 
 export interface ActionTrigger {
@@ -27,7 +38,7 @@ export interface ActionTrigger {
 
 export interface IActionBarOptions {
 	readonly orientation?: ActionsOrientation;
-	readonly context?: any;
+	readonly context?: unknown;
 	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly ariaLabel?: string;
@@ -35,7 +46,7 @@ export interface IActionBarOptions {
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
-	readonly ignoreOrientationForPreviousAndNextKey?: boolean;
+	readonly focusOnlyEnabledItems?: boolean;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -62,6 +73,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	// Trigger Key Tracking
 	private triggerKeyDown: boolean = false;
+
+	private focusable: boolean = true;
 
 	// Elements
 	domNode: HTMLElement;
@@ -117,29 +130,20 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		switch (this._orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
-				break;
-			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
-				this.domNode.className += ' reverse';
+				previousKeys = [KeyCode.LeftArrow];
+				nextKeys = [KeyCode.RightArrow];
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
+				previousKeys = [KeyCode.UpArrow];
+				nextKeys = [KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
-				break;
-			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
-				this.domNode.className += ' vertical reverse';
 				break;
 		}
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
+			const focusedItem = typeof this.focusedItem === 'number' ? this.viewItems[this.focusedItem] : undefined;
 
 			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
 				eventHandled = this.focusPrevious();
@@ -147,6 +151,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 				eventHandled = this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
+			} else if (event.equals(KeyCode.Home)) {
+				eventHandled = this.focusFirst();
+			} else if (event.equals(KeyCode.End)) {
+				eventHandled = this.focusLast();
+			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
+				eventHandled = this.focusNext();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this._triggerKeys.keyDown) {
@@ -216,6 +226,25 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
+	// Some action bars should not be focusable at times
+	// When an action bar is not focusable make sure to make all the elements inside it not focusable
+	// When an action bar is focusable again, make sure the first item can be focused
+	setFocusable(focusable: boolean): void {
+		this.focusable = focusable;
+		if (this.focusable) {
+			const firstEnabled = this.viewItems.find(vi => vi instanceof BaseActionViewItem && vi.isEnabled());
+			if (firstEnabled instanceof BaseActionViewItem) {
+				firstEnabled.setFocusable(true);
+			}
+		} else {
+			this.viewItems.forEach(vi => {
+				if (vi instanceof BaseActionViewItem) {
+					vi.setFocusable(false);
+				}
+			});
+		}
+	}
+
 	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
 		let ret = false;
 		this._triggerKeys.keys.forEach(keyCode => {
@@ -235,11 +264,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	get context(): any {
+	get context(): unknown {
 		return this._context;
 	}
 
-	set context(context: any) {
+	set context(context: unknown) {
 		this._context = context;
 		this.viewItems.forEach(i => i.setActionContext(context));
 	}
@@ -294,6 +323,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
 
+			if (this.focusable && item instanceof BaseActionViewItem && this.viewItems.length === 0) {
+				// We need to allow for the first enabled item to be focused on using tab navigation #106441
+				item.setFocusable(true);
+			}
+
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
 				this.viewItems.push(item);
@@ -305,7 +339,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				index++;
 			}
 		});
-		if (this.focusedItem) {
+		if (typeof this.focusedItem === 'number') {
 			// After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
 			this.focus(this.focusedItem);
 		}
@@ -383,15 +417,27 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
+	private focusFirst(): boolean {
+		this.focusedItem = this.length() > 1 ? 1 : 0;
+		return this.focusPrevious();
+	}
+
+	private focusLast(): boolean {
+		this.focusedItem = this.length() < 2 ? 0 : this.length() - 2;
+		return this.focusNext();
+	}
+
 	protected focusNext(): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.viewItems.length - 1;
+		} else if (this.viewItems.length <= 1) {
+			return false;
 		}
 
 		const startIndex = this.focusedItem;
 		let item: IActionViewItem;
-
 		do {
+
 			if (this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
 				this.focusedItem = startIndex;
 				return false;
@@ -399,11 +445,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
 			item = this.viewItems[this.focusedItem];
-		} while (this.focusedItem !== startIndex && !item.isEnabled());
-
-		if (this.focusedItem === startIndex && !item.isEnabled()) {
-			this.focusedItem = undefined;
-		}
+		} while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
 
 		this.updateFocus();
 		return true;
@@ -412,6 +454,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	protected focusPrevious(): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
+		} else if (this.viewItems.length <= 1) {
+			return false;
 		}
 
 		const startIndex = this.focusedItem;
@@ -419,7 +463,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		do {
 			this.focusedItem = this.focusedItem - 1;
-
 			if (this.focusedItem < 0) {
 				if (this.options.preventLoopNavigation) {
 					this.focusedItem = startIndex;
@@ -428,13 +471,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 				this.focusedItem = this.viewItems.length - 1;
 			}
-
 			item = this.viewItems[this.focusedItem];
-		} while (this.focusedItem !== startIndex && !item.isEnabled());
+		} while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
 
-		if (this.focusedItem === startIndex && !item.isEnabled()) {
-			this.focusedItem = undefined;
-		}
 
 		this.updateFocus(true);
 		return true;
@@ -450,12 +489,20 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const actionViewItem = item;
 
 			if (i === this.focusedItem) {
-				if (types.isFunction(actionViewItem.isEnabled)) {
-					if (actionViewItem.isEnabled() && types.isFunction(actionViewItem.focus)) {
-						actionViewItem.focus(fromRight);
-					} else {
-						this.actionsList.focus({ preventScroll });
-					}
+				let focusItem = true;
+
+				if (!types.isFunction(actionViewItem.focus)) {
+					focusItem = false;
+				}
+
+				if (this.options.focusOnlyEnabledItems && types.isFunction(item.isEnabled) && !item.isEnabled()) {
+					focusItem = false;
+				}
+
+				if (focusItem) {
+					actionViewItem.focus(fromRight);
+				} else {
+					this.actionsList.focus({ preventScroll });
 				}
 			} else {
 				if (types.isFunction(actionViewItem.blur)) {
@@ -478,11 +525,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	run(action: IAction, context?: unknown): Promise<void> {
-		return this._actionRunner.run(action, context);
+	async run(action: IAction, context?: unknown): Promise<void> {
+		await this._actionRunner.run(action, context);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		dispose(this.viewItems);
 		this.viewItems = [];
 

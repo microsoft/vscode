@@ -18,16 +18,16 @@ import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/commo
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
-import { IDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { DynamicStandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -42,6 +42,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { splitLines } from 'vs/base/common/strings';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -87,7 +88,9 @@ export function create(domElement: HTMLElement, options?: IStandaloneEditorConst
 			services.get(IStandaloneThemeService),
 			services.get(INotificationService),
 			services.get(IConfigurationService),
-			services.get(IAccessibilityService)
+			services.get(IAccessibilityService),
+			services.get(IModelService),
+			services.get(IModeService),
 		);
 	});
 }
@@ -140,27 +143,18 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, languageSelection: ILanguageSelection, uri?: URI): ITextModel {
-	return StaticServices.modelService.get().createModel(value, languageSelection, uri);
-}
-
 /**
  * Create a new editor model.
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
 export function createModel(value: string, language?: string, uri?: URI): ITextModel {
-	value = value || '';
-
-	if (!language) {
-		let firstLF = value.indexOf('\n');
-		let firstLine = value;
-		if (firstLF !== -1) {
-			firstLine = value.substring(0, firstLF);
-		}
-
-		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(uri || null, firstLine), uri);
-	}
-	return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
+	return createTextModel(
+		StaticServices.modelService.get(),
+		StaticServices.modeService.get(),
+		value,
+		language,
+		uri
+	);
 }
 
 /**
@@ -186,6 +180,14 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
  */
 export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
 	return StaticServices.markerService.get().read(filter);
+}
+
+/**
+ * Emitted when markers change for a model.
+ * @event
+ */
+export function onDidChangeMarkers(listener: (e: readonly URI[]) => void): IDisposable {
+	return StaticServices.markerService.get().onMarkerChanged(listener);
 }
 
 /**
@@ -276,7 +278,7 @@ function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationS
 	}
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset)
+		tokenize: (line: string, hasEOL: boolean, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset)
 	};
 }
 
@@ -294,7 +296,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
 		let line = lines[i];
-		let tokenizationResult = tokenizationSupport.tokenize(line, state, 0);
+		let tokenizationResult = tokenizationSupport.tokenize(line, true, state, 0);
 
 		result[i] = tokenizationResult.tokens;
 		state = tokenizationResult.endState;
@@ -324,6 +326,13 @@ export function remeasureFonts(): void {
 }
 
 /**
+ * Register a command.
+ */
+export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable {
+	return CommandsRegistry.registerCommand({ id, handler });
+}
+
+/**
  * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
@@ -338,6 +347,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		setModelLanguage: <any>setModelLanguage,
 		setModelMarkers: <any>setModelMarkers,
 		getModelMarkers: <any>getModelMarkers,
+		onDidChangeMarkers: <any>onDidChangeMarkers,
 		getModels: <any>getModels,
 		getModel: <any>getModel,
 		onDidCreateModel: <any>onDidCreateModel,
@@ -353,6 +363,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		defineTheme: <any>defineTheme,
 		setTheme: <any>setTheme,
 		remeasureFonts: remeasureFonts,
+		registerCommand: registerCommand,
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,

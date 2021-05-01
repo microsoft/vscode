@@ -57,7 +57,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
 		test('render appendMarkdown', () => {
@@ -85,7 +85,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
 		test('render appendMarkdown with escaped icon', () => {
@@ -111,7 +111,7 @@ suite('MarkdownRenderer', () => {
 
 		const data = <{ script: string, documentUri: URI }>parse(decodeURIComponent(uri.query));
 		assert.ok(data);
-		assert.equal(data.script, 'echo');
+		assert.strictEqual(data.script, 'echo');
 		assert.ok(data.documentUri.toString().startsWith('file:///c%3A/'));
 	});
 

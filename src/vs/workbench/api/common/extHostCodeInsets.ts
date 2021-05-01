@@ -44,8 +44,8 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 	createWebviewEditorInset(editor: vscode.TextEditor, line: number, height: number, options: vscode.WebviewOptions | undefined, extension: IExtensionDescription): vscode.WebviewEditorInset {
 
 		let apiEditor: ExtHostTextEditor | undefined;
-		for (const candidate of this._editors.getVisibleTextEditors()) {
-			if (candidate === editor) {
+		for (const candidate of this._editors.getVisibleTextEditors(true)) {
+			if (candidate.value === editor) {
 				apiEditor = <ExtHostTextEditor>candidate;
 				break;
 			}
@@ -121,7 +121,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 			}
 		};
 
-		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.document.uri, line + 1, height, options || {}, extension.identifier, extension.extensionLocation);
+		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.value.document.uri, line + 1, height, options || {}, extension.identifier, extension.extensionLocation);
 		this._insets.set(handle, { editor, inset, onDidReceiveMessage });
 
 		return inset;

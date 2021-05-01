@@ -43,7 +43,9 @@
 		}
 	],
 	"eslint.options": {
-		"rulePaths": ["./build/lib/eslint"]
+		"rulePaths": [
+			"./build/lib/eslint"
+		]
 	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
@@ -53,11 +55,15 @@
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
-			"fileMatch": ["cgmanifest.json"],
+			"fileMatch": [
+				"cgmanifest.json"
+			],
 			"url": "./.vscode/cgmanifest.schema.json"
 		},
 		{
-			"fileMatch": ["cglicenses.json"],
+			"fileMatch": [
+				"cglicenses.json"
+			],
 			"url": "./.vscode/cglicenses.schema.json"
 		}
 	],
@@ -71,10 +77,14 @@
 		"files.insertFinalNewline": false,
 	},
 	"[typescript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features"
+		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.formatOnSave": true,
 	},
 	"[javascript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features"
+		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.formatOnSave": true,
 	},
-	"typescript.tsc.autoDetect": "off"
+	"typescript.tsc.autoDetect": "off",
+	"notebook.experimental.useMarkdownRenderer": true,
+	"testing.autoRun.mode": "rerun",
 }

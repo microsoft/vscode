@@ -32,7 +32,7 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 		}
 	}
 
-	public get(charCode: number): CharacterClass {
+	public override get(charCode: number): CharacterClass {
 		if (charCode >= 0 && charCode < 256) {
 			return <CharacterClass>this._asciiMap[charCode];
 		} else {
@@ -303,6 +303,19 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 			breakOffsetVisibleColumn = forcedBreakOffsetVisibleColumn;
 		}
 
+		if (breakOffset <= lastBreakingOffset) {
+			// Make sure that we are advancing (at least one character)
+			const charCode = lineText.charCodeAt(lastBreakingOffset);
+			if (strings.isHighSurrogate(charCode)) {
+				// A surrogate pair must always be considered as a single unit, so it is never to be broken
+				breakOffset = lastBreakingOffset + 2;
+				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + 2;
+			} else {
+				breakOffset = lastBreakingOffset + 1;
+				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + computeCharWidth(charCode, lastBreakingOffsetVisibleColumn, tabSize, columnsForFullWidthChar);
+			}
+		}
+
 		lastBreakingOffset = breakOffset;
 		breakingOffsets[breakingOffsetsCount] = breakOffset;
 		lastBreakingOffsetVisibleColumn = breakOffsetVisibleColumn;
@@ -433,6 +446,10 @@ function computeCharWidth(charCode: number, visibleColumn: number, tabSize: numb
 		return (tabSize - (visibleColumn % tabSize));
 	}
 	if (strings.isFullWidthCharacter(charCode)) {
+		return columnsForFullWidthChar;
+	}
+	if (charCode < 32) {
+		// when using `editor.renderControlCharacters`, the substitutions are often wide
 		return columnsForFullWidthChar;
 	}
 	return 1;

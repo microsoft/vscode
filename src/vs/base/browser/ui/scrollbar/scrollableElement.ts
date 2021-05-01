@@ -187,7 +187,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._onScroll.fire(e);
 		}));
 
-		let scrollbarHost: ScrollbarHost = {
+		const scrollbarHost: ScrollbarHost = {
 			onMouseWheel: (mouseWheelEvent: StandardWheelEvent) => this._onMouseWheel(mouseWheelEvent),
 			onDragStart: () => this._onDragStart(),
 			onDragEnd: () => this._onDragEnd(),
@@ -214,7 +214,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._domNode.appendChild(this._topShadowDomNode.domNode);
 
 			this._topLeftShadowDomNode = createFastDomNode(document.createElement('div'));
-			this._topLeftShadowDomNode.setClassName('shadow top-left-corner');
+			this._topLeftShadowDomNode.setClassName('shadow');
 			this._domNode.appendChild(this._topLeftShadowDomNode.domNode);
 		} else {
 			this._leftShadowDomNode = null;
@@ -239,7 +239,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._revealOnScroll = true;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
 		super.dispose();
 	}
@@ -325,7 +325,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	// -------------------- mouse wheel scrolling --------------------
 
 	private _setListeningToMouseWheel(shouldListen: boolean): void {
-		let isListening = (this._mouseWheelToDispose.length > 0);
+		const isListening = (this._mouseWheelToDispose.length > 0);
 
 		if (isListening === shouldListen) {
 			// No change
@@ -337,7 +337,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		// Start listening (if necessary)
 		if (shouldListen) {
-			let onMouseWheel = (browserEvent: IMouseWheelEvent) => {
+			const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
@@ -426,7 +426,15 @@ export abstract class AbstractScrollableElement extends Widget {
 			}
 		}
 
-		if (this._options.alwaysConsumeMouseWheel || didScroll) {
+		let consumeMouseWheel = didScroll;
+		if (!consumeMouseWheel && this._options.alwaysConsumeMouseWheel) {
+			consumeMouseWheel = true;
+		}
+		if (!consumeMouseWheel && this._options.consumeMouseWheelIfScrollbarIsNeeded && (this._verticalScrollbar.isNeeded() || this._horizontalScrollbar.isNeeded())) {
+			consumeMouseWheel = true;
+		}
+
+		if (consumeMouseWheel) {
 			e.preventDefault();
 			e.stopPropagation();
 		}
@@ -473,12 +481,15 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		if (this._options.useShadows) {
 			const scrollState = this._scrollable.getCurrentScrollPosition();
-			let enableTop = scrollState.scrollTop > 0;
-			let enableLeft = scrollState.scrollLeft > 0;
+			const enableTop = scrollState.scrollTop > 0;
+			const enableLeft = scrollState.scrollLeft > 0;
 
-			this._leftShadowDomNode!.setClassName('shadow' + (enableLeft ? ' left' : ''));
-			this._topShadowDomNode!.setClassName('shadow' + (enableTop ? ' top' : ''));
-			this._topLeftShadowDomNode!.setClassName('shadow top-left-corner' + (enableTop ? ' top' : '') + (enableLeft ? ' left' : ''));
+			const leftClassName = (enableLeft ? ' left' : '');
+			const topClassName = (enableTop ? ' top' : '');
+			const topLeftClassName = (enableLeft || enableTop ? ' top-left-corner' : '');
+			this._leftShadowDomNode!.setClassName(`shadow${leftClassName}`);
+			this._topShadowDomNode!.setClassName(`shadow${topClassName}`);
+			this._topLeftShadowDomNode!.setClassName(`shadow${topLeftClassName}${topClassName}${leftClassName}`);
 		}
 	}
 
@@ -549,8 +560,12 @@ export class SmoothScrollableElement extends AbstractScrollableElement {
 		super(element, options, scrollable);
 	}
 
-	public setScrollPosition(update: INewScrollPosition): void {
-		this._scrollable.setScrollPositionNow(update);
+	public setScrollPosition(update: INewScrollPosition & { reuseAnimation?: boolean }): void {
+		if (update.reuseAnimation) {
+			this._scrollable.setScrollPositionSmooth(update, update.reuseAnimation);
+		} else {
+			this._scrollable.setScrollPositionNow(update);
+		}
 	}
 
 	public getScrollPosition(): IScrollPosition {
@@ -593,12 +608,13 @@ export class DomScrollableElement extends ScrollableElement {
 }
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
-	let result: ScrollableElementResolvedOptions = {
+	const result: ScrollableElementResolvedOptions = {
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
 		handleMouseWheel: (typeof opts.handleMouseWheel !== 'undefined' ? opts.handleMouseWheel : true),
 		flipAxes: (typeof opts.flipAxes !== 'undefined' ? opts.flipAxes : false),
+		consumeMouseWheelIfScrollbarIsNeeded: (typeof opts.consumeMouseWheelIfScrollbarIsNeeded !== 'undefined' ? opts.consumeMouseWheelIfScrollbarIsNeeded : false),
 		alwaysConsumeMouseWheel: (typeof opts.alwaysConsumeMouseWheel !== 'undefined' ? opts.alwaysConsumeMouseWheel : false),
 		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),

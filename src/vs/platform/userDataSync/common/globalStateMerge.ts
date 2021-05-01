@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as objects from 'vs/base/common/objects';
-import { IStorageValue } from 'vs/platform/userDataSync/common/userDataSync';
+import { IStorageValue, SYNC_SERVICE_URL_TYPE } from 'vs/platform/userDataSync/common/userDataSync';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -30,8 +30,16 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	const local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> } = { added: {}, removed: [], updated: {} };
 	const remote: IStringDictionary<IStorageValue> = objects.deepClone(remoteStorage);
 
+	const isFirstTimeSync = !baseStorage;
+
 	// Added in local
 	for (const key of baseToLocal.added.values()) {
+		// If syncing for first time remote value gets precedence always,
+		// except for sync service type key - local value takes precedence for this key
+		if (key !== SYNC_SERVICE_URL_TYPE && isFirstTimeSync && baseToRemote.added.has(key)) {
+			continue;
+		}
+
 		remote[key] = localStorage[key];
 	}
 
@@ -56,11 +64,25 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 			logService.info(`GlobalState: Skipped adding ${key} in local storage because it is declared as machine scoped.`);
 			continue;
 		}
-		// Skip if the value is also added in local
-		if (baseToLocal.added.has(key)) {
+		// Skip if the value is also added in local from the time it is last synced
+		if (baseStorage && baseToLocal.added.has(key)) {
 			continue;
 		}
-		local.added[key] = remoteValue;
+		const localValue = localStorage[key];
+		if (localValue && localValue.value === remoteValue.value) {
+			continue;
+		}
+
+		// Local sync service type value takes precedence if syncing for first time
+		if (key === SYNC_SERVICE_URL_TYPE && isFirstTimeSync && baseToLocal.added.has(key)) {
+			continue;
+		}
+
+		if (localValue) {
+			local.updated[key] = remoteValue;
+		} else {
+			local.added[key] = remoteValue;
+		}
 	}
 
 	// Updated in Remote

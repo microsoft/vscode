@@ -111,6 +111,14 @@
 	text-overflow: ellipsis;
 }
 
+.monaco-workbench .part.editor > .content .welcomePage .splash .recent {
+	min-height: 160px;
+}
+
+.monaco-workbench .part.editor > .content .welcomePageContainer.max-height-685px .splash .recent {
+	min-height: unset;
+}
+
 .monaco-workbench .part.editor > .content .welcomePage.emptyRecent .splash .recent .list {
 	display: none;
 }
@@ -245,14 +253,4 @@
 }
 .monaco-workbench.linux .part.editor > .content .welcomePage li.linux-only {
 	display: list-item;
-}
-
-.monaco-workbench .part.editor > .content .welcomePage.empty-window .none-empty-window-only {
-	display: none;
-}
-.monaco-workbench .part.editor > .content .welcomePage .empty-window-only {
-	display: none;
-}
-.monaco-workbench .part.editor > .content .welcomePage.empty-window .empty-window-only {
-	display: initial;
 }

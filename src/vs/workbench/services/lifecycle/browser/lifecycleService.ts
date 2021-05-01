@@ -13,12 +13,11 @@ import { addDisposableListener } from 'vs/base/browser/dom';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private beforeUnloadDisposable: IDisposable | undefined = undefined;
+	private expectedUnload = false;
 
 	constructor(
-		@ILogService readonly logService: ILogService
+		@ILogService logService: ILogService
 	) {
 		super(logService);
 
@@ -32,19 +31,37 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
+		if (this.expectedUnload) {
+			this.logService.info('[lifecycle] onBeforeUnload expected, ignoring once');
+
+			this.expectedUnload = false;
+
+			return; // ignore expected unload only once
+		}
+
 		this.logService.info('[lifecycle] onBeforeUnload triggered');
 
 		this.doShutdown(() => {
+
 			// Veto handling
 			event.preventDefault();
 			event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
 		});
 	}
 
+	withExpectedUnload(callback: Function): void {
+		this.expectedUnload = true;
+		try {
+			callback();
+		} finally {
+			this.expectedUnload = false;
+		}
+	}
+
 	shutdown(): void {
 		this.logService.info('[lifecycle] shutdown triggered');
 
-		// Remove beforeunload listener that would prevent shutdown
+		// Remove `beforeunload` listener that would prevent shutdown
 		this.beforeUnloadDisposable?.dispose();
 
 		// Handle shutdown without veto support
@@ -58,12 +75,17 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 		// Before Shutdown
 		this._onBeforeShutdown.fire({
-			veto(value) {
+			veto(value, id) {
 				if (typeof handleVeto === 'function') {
+					if (value instanceof Promise) {
+						logService.error(`[lifecycle] Long running operations before shutdown are unsupported in the web (id: ${id})`);
+
+						value = true; // implicitly vetos since we cannot handle promises in web
+					}
+
 					if (value === true) {
-						veto = true;
-					} else if (value instanceof Promise && !veto) {
-						logService.error('[lifecycle] Long running onBeforeShutdown currently not supported in the web');
+						logService.info(`[lifecycle]: Unload was prevented (id: ${id})`);
+
 						veto = true;
 					}
 				}
@@ -78,16 +100,16 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			return;
 		}
 
-		// No Veto: continue with Will Shutdown
+		// No Veto: continue with willShutdown
 		this._onWillShutdown.fire({
-			join() {
-				logService.error('[lifecycle] Long running onWillShutdown currently not supported in the web');
+			join(promise, id) {
+				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${id})`);
 			},
 			reason: ShutdownReason.QUIT
 		});
 
-		// Finally end with Shutdown event
-		this._onShutdown.fire();
+		// Finally end with didShutdown
+		this._onDidShutdown.fire();
 	}
 }
 

@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyCodiconAware, parseCodicons } from 'vs/base/common/codicon';
+import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 import { compareAnything } from 'vs/base/common/comparers';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -27,6 +27,7 @@ import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput'
 import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { localize } from 'vs/nls';
+import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -34,6 +35,7 @@ interface IListElement {
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneMeta?: string;
 	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
@@ -49,6 +51,7 @@ class ListElement implements IListElement, IDisposable {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneMeta!: string;
 	saneAriaLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
@@ -127,7 +130,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		const row2 = dom.append(rows, $('.quick-input-list-row'));
 
 		// Label
-		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportCodicons: true });
+		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
 
 		// Keybinding
 		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
@@ -190,12 +193,11 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 				if (button.alwaysVisible) {
 					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
 				}
-				const action = new Action(`id-${index}`, '', cssClasses, true, () => {
+				const action = new Action(`id-${index}`, '', cssClasses, true, async () => {
 					element.fireButtonTriggered({
 						button,
 						item: element.item
 					});
-					return Promise.resolve();
 				});
 				action.tooltip = button.tooltip || '';
 				return action;
@@ -248,6 +250,7 @@ export class QuickInputList {
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
+	matchOnMeta = true;
 	sortByLabel = true;
 	private readonly _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
@@ -421,10 +424,11 @@ export class QuickInputList {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
 				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
 				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
-					.map(s => s && parseCodicons(s).text)
+					.map(s => getCodiconAriaLabel(s))
 					.filter(s => !!s)
 					.join(', ');
 
@@ -432,6 +436,7 @@ export class QuickInputList {
 					index,
 					item,
 					saneLabel,
+					saneMeta,
 					saneAriaLabel,
 					saneDescription,
 					saneDetail,
@@ -597,14 +602,16 @@ export class QuickInputList {
 			});
 		}
 
-		// Filter by value (since we support codicons, use codicon aware fuzzy matching)
+		// Filter by value (since we support icons in labels, use $(..) aware fuzzy matching)
 		else {
+			let currentSeparator: IQuickPickSeparator | undefined;
 			this.elements.forEach(element => {
-				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyCodiconAware(query, parseCodicons(element.saneLabel))) : undefined;
-				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyCodiconAware(query, parseCodicons(element.saneDescription || ''))) : undefined;
-				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyCodiconAware(query, parseCodicons(element.saneDetail || ''))) : undefined;
+				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
+				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
+				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || ''))) : undefined;
+				const metaHighlights = this.matchOnMeta ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneMeta || ''))) : undefined;
 
-				if (labelHighlights || descriptionHighlights || detailHighlights) {
+				if (labelHighlights || descriptionHighlights || detailHighlights || metaHighlights) {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;
@@ -616,6 +623,16 @@ export class QuickInputList {
 					element.hidden = !element.item.alwaysShow;
 				}
 				element.separator = undefined;
+
+				// we can show the separator unless the list gets sorted by match
+				if (!this.sortByLabel) {
+					const previous = element.index && this.inputElements[element.index - 1];
+					currentSeparator = previous && previous.type === 'separator' ? previous : currentSeparator;
+					if (currentSeparator && !element.hidden) {
+						element.separator = currentSeparator;
+						currentSeparator = undefined;
+					}
+				}
 			});
 		}
 

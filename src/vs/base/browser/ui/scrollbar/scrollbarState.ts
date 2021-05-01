@@ -85,7 +85,7 @@ export class ScrollbarState {
 	}
 
 	public setVisibleSize(visibleSize: number): boolean {
-		let iVisibleSize = Math.round(visibleSize);
+		const iVisibleSize = Math.round(visibleSize);
 		if (this._visibleSize !== iVisibleSize) {
 			this._visibleSize = iVisibleSize;
 			this._refreshComputedValues();
@@ -95,7 +95,7 @@ export class ScrollbarState {
 	}
 
 	public setScrollSize(scrollSize: number): boolean {
-		let iScrollSize = Math.round(scrollSize);
+		const iScrollSize = Math.round(scrollSize);
 		if (this._scrollSize !== iScrollSize) {
 			this._scrollSize = iScrollSize;
 			this._refreshComputedValues();
@@ -105,7 +105,7 @@ export class ScrollbarState {
 	}
 
 	public setScrollPosition(scrollPosition: number): boolean {
-		let iScrollPosition = Math.round(scrollPosition);
+		const iScrollPosition = Math.round(scrollPosition);
 		if (this._scrollPosition !== iScrollPosition) {
 			this._scrollPosition = iScrollPosition;
 			this._refreshComputedValues();
@@ -198,7 +198,7 @@ export class ScrollbarState {
 			return 0;
 		}
 
-		let desiredSliderPosition = offset - this._arrowSize - this._computedSliderSize / 2;
+		const desiredSliderPosition = offset - this._arrowSize - this._computedSliderSize / 2;
 		return Math.round(desiredSliderPosition / this._computedSliderRatio);
 	}
 
@@ -214,7 +214,7 @@ export class ScrollbarState {
 			return 0;
 		}
 
-		let correctedOffset = offset - this._arrowSize;  // compensate if has arrows
+		const correctedOffset = offset - this._arrowSize;  // compensate if has arrows
 		let desiredScrollPosition = this._scrollPosition;
 		if (correctedOffset < this._computedSliderPosition) {
 			desiredScrollPosition -= this._visibleSize;  // page up/left
@@ -233,7 +233,7 @@ export class ScrollbarState {
 			return 0;
 		}
 
-		let desiredSliderPosition = this._computedSliderPosition + delta;
+		const desiredSliderPosition = this._computedSliderPosition + delta;
 		return Math.round(desiredSliderPosition / this._computedSliderRatio);
 	}
 }

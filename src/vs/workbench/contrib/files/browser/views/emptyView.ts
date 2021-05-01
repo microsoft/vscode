@@ -11,7 +11,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -45,11 +45,11 @@ export class EmptyView extends ViewPane {
 		this._register(this.labelService.onDidChangeFormatters(() => this.refreshTitle()));
 	}
 
-	shouldShowWelcome(): boolean {
+	override shouldShowWelcome(): boolean {
 		return true;
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._register(new DragAndDropObserver(container, {

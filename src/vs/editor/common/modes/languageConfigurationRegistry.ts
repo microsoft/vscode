@@ -57,33 +57,21 @@ export class RichEditSupport {
 	public readonly indentationRules: IndentationRule | undefined;
 	public readonly foldingRules: FoldingRules;
 
-	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport | undefined, rawConf: LanguageConfiguration) {
+	constructor(languageIdentifier: LanguageIdentifier, rawConf: LanguageConfiguration) {
 		this._languageIdentifier = languageIdentifier;
-
 		this._brackets = null;
 		this._electricCharacter = null;
-
-		let prev: LanguageConfiguration | null = null;
-		if (previous) {
-			prev = previous._conf;
-		}
-
-		this._conf = RichEditSupport._mergeConf(prev, rawConf);
-
+		this._conf = rawConf;
 		this._onEnterSupport = (this._conf.brackets || this._conf.indentationRules || this._conf.onEnterRules ? new OnEnterSupport(this._conf) : null);
 		this.comments = RichEditSupport._handleComments(this._conf);
-
 		this.characterPair = new CharacterPairSupport(this._conf);
-
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
-
 		this.indentationRules = this._conf.indentationRules;
 		if (this._conf.indentationRules) {
 			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
 		} else {
 			this.indentRulesSupport = null;
 		}
-
 		this.foldingRules = this._conf.folding || {};
 	}
 
@@ -101,26 +89,11 @@ export class RichEditSupport {
 		return this._electricCharacter;
 	}
 
-	public onEnter(autoIndent: EditorAutoIndentStrategy, oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
 		if (!this._onEnterSupport) {
 			return null;
 		}
-		return this._onEnterSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
-	}
-
-	private static _mergeConf(prev: LanguageConfiguration | null, current: LanguageConfiguration): LanguageConfiguration {
-		return {
-			comments: (prev ? current.comments || prev.comments : current.comments),
-			brackets: (prev ? current.brackets || prev.brackets : current.brackets),
-			wordPattern: (prev ? current.wordPattern || prev.wordPattern : current.wordPattern),
-			indentationRules: (prev ? current.indentationRules || prev.indentationRules : current.indentationRules),
-			onEnterRules: (prev ? current.onEnterRules || prev.onEnterRules : current.onEnterRules),
-			autoClosingPairs: (prev ? current.autoClosingPairs || prev.autoClosingPairs : current.autoClosingPairs),
-			surroundingPairs: (prev ? current.surroundingPairs || prev.surroundingPairs : current.surroundingPairs),
-			autoCloseBefore: (prev ? current.autoCloseBefore || prev.autoCloseBefore : current.autoCloseBefore),
-			folding: (prev ? current.folding || prev.folding : current.folding),
-			__electricCharacterSupport: (prev ? current.__electricCharacterSupport || prev.__electricCharacterSupport : current.__electricCharacterSupport),
-		};
+		return this._onEnterSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
 	}
 
 	private static _handleComments(conf: LanguageConfiguration): ICommentsConfiguration | null {
@@ -151,38 +124,120 @@ export class LanguageConfigurationChangeEvent {
 	) { }
 }
 
-export class LanguageConfigurationRegistryImpl {
+class LanguageConfigurationEntry {
 
-	private readonly _entries = new Map<LanguageId, RichEditSupport | undefined>();
+	constructor(
+		public readonly configuration: LanguageConfiguration,
+		public readonly priority: number,
+		public readonly order: number
+	) { }
 
-	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
-	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
+	public static cmp(a: LanguageConfigurationEntry, b: LanguageConfigurationEntry) {
+		if (a.priority === b.priority) {
+			// higher order last
+			return a.order - b.order;
+		}
+		// higher priority last
+		return a.priority - b.priority;
+	}
+}
 
-	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration): IDisposable {
-		let previous = this._getRichEditSupport(languageIdentifier.id);
-		let current = new RichEditSupport(languageIdentifier, previous, configuration);
-		this._entries.set(languageIdentifier.id, current);
-		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
+class LanguageConfigurationEntries {
+
+	private readonly _entries: LanguageConfigurationEntry[];
+	private _order: number;
+	private _resolved: RichEditSupport | null = null;
+
+	constructor(
+		public readonly languageIdentifier: LanguageIdentifier
+	) {
+		this._entries = [];
+		this._order = 0;
+		this._resolved = null;
+	}
+
+	public register(configuration: LanguageConfiguration, priority: number): IDisposable {
+		const entry = new LanguageConfigurationEntry(configuration, priority, ++this._order);
+		this._entries.push(entry);
+		this._resolved = null;
 		return toDisposable(() => {
-			if (this._entries.get(languageIdentifier.id) === current) {
-				this._entries.set(languageIdentifier.id, previous);
-				this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
+			for (let i = 0; i < this._entries.length; i++) {
+				if (this._entries[i] === entry) {
+					this._entries.splice(i, 1);
+					this._resolved = null;
+					break;
+				}
 			}
 		});
 	}
 
-	private _getRichEditSupport(languageId: LanguageId): RichEditSupport | undefined {
-		return this._entries.get(languageId);
+	public getRichEditSupport(): RichEditSupport | null {
+		if (!this._resolved) {
+			const config = this._resolve();
+			if (config) {
+				this._resolved = new RichEditSupport(this.languageIdentifier, config);
+			}
+		}
+		return this._resolved;
 	}
 
-	public getIndentationRules(languageId: LanguageId) {
-		const value = this._entries.get(languageId);
-
-		if (!value) {
+	private _resolve(): LanguageConfiguration | null {
+		if (this._entries.length === 0) {
 			return null;
 		}
+		this._entries.sort(LanguageConfigurationEntry.cmp);
+		const result: LanguageConfiguration = {};
+		for (const entry of this._entries) {
+			const conf = entry.configuration;
+			result.comments = conf.comments || result.comments;
+			result.brackets = conf.brackets || result.brackets;
+			result.wordPattern = conf.wordPattern || result.wordPattern;
+			result.indentationRules = conf.indentationRules || result.indentationRules;
+			result.onEnterRules = conf.onEnterRules || result.onEnterRules;
+			result.autoClosingPairs = conf.autoClosingPairs || result.autoClosingPairs;
+			result.surroundingPairs = conf.surroundingPairs || result.surroundingPairs;
+			result.autoCloseBefore = conf.autoCloseBefore || result.autoCloseBefore;
+			result.folding = conf.folding || result.folding;
+			result.__electricCharacterSupport = conf.__electricCharacterSupport || result.__electricCharacterSupport;
+		}
+		return result;
+	}
+}
 
-		return value.indentationRules || null;
+export class LanguageConfigurationRegistryImpl {
+
+	private readonly _entries2 = new Map<LanguageId, LanguageConfigurationEntries>();
+
+	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
+	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
+
+	/**
+	 * @param priority Use a higher number for higher priority
+	 */
+	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration, priority: number = 0): IDisposable {
+		let entries = this._entries2.get(languageIdentifier.id);
+		if (!entries) {
+			entries = new LanguageConfigurationEntries(languageIdentifier);
+			this._entries2.set(languageIdentifier.id, entries);
+		}
+
+		const disposable = entries.register(configuration, priority);
+		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
+
+		return toDisposable(() => {
+			disposable.dispose();
+			this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
+		});
+	}
+
+	private _getRichEditSupport(languageId: LanguageId): RichEditSupport | null {
+		const entries = this._entries2.get(languageId);
+		return entries ? entries.getRichEditSupport() : null;
+	}
+
+	public getIndentationRules(languageId: LanguageId): IndentationRule | null {
+		const value = this._getRichEditSupport(languageId);
+		return value ? value.indentationRules || null : null;
 	}
 
 	// begin electricCharacter
@@ -273,11 +328,12 @@ export class LanguageConfigurationRegistryImpl {
 
 	public getWordDefinitions(): [LanguageId, RegExp][] {
 		let result: [LanguageId, RegExp][] = [];
-		this._entries.forEach((value, language) => {
+		for (const [language, entries] of this._entries2) {
+			const value = entries.getRichEditSupport();
 			if (value) {
 				result.push([language, value.wordDefinition]);
 			}
-		});
+		}
 		return result;
 	}
 
@@ -700,17 +756,17 @@ export class LanguageConfigurationRegistryImpl {
 			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
-		let oneLineAboveText = '';
+		let previousLineText = '';
 		if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 			// This is not the first line and the entire line belongs to this mode
 			const oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber - 1);
 			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
 				// The line above ends with text belonging to the same mode
-				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
+				previousLineText = oneLineAboveScopedLineTokens.getLineContent();
 			}
 		}
 
-		const enterResult = richEditSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
+		const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
 		if (!enterResult) {
 			return null;
 		}
@@ -729,6 +785,8 @@ export class LanguageConfigurationRegistryImpl {
 			} else {
 				appendText = '';
 			}
+		} else if (indentAction === IndentAction.Indent) {
+			appendText = '\t' + appendText;
 		}
 
 		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);

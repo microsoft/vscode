@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as Proto from './protocol';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
-import { ExectuionTarget } from './tsServer/server';
+import { ExecutionTarget } from './tsServer/server';
 import { TypeScriptVersion } from './tsServer/versionProvider';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
@@ -68,6 +68,7 @@ interface StandardTsServerRequests {
 	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
 	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
+	'fileReferences': [Proto.FileRequestArgs, Proto.FileReferencesResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -90,7 +91,7 @@ export type ExecConfig = {
 	readonly lowPriority?: boolean;
 	readonly nonRecoverable?: boolean;
 	readonly cancelOnResourceChange?: vscode.Uri;
-	readonly executionTarget?: ExectuionTarget;
+	readonly executionTarget?: ExecutionTarget;
 };
 
 export enum ClientCapability {

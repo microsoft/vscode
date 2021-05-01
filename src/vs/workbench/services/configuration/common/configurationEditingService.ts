@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
 import * as json from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
@@ -29,6 +28,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -155,7 +155,8 @@ export class ConfigurationEditingService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.queue = new Queue<void>();
 		remoteAgentService.getEnvironment().then(environment => {
@@ -437,8 +438,8 @@ export class ConfigurationEditingService {
 	}
 
 	private defaultResourceValue(resource: URI): string {
-		const basename: string = resources.basename(resource);
-		const configurationValue: string = basename.substr(0, basename.length - resources.extname(resource).length);
+		const basename: string = this.uriIdentityService.extUri.basename(resource);
+		const configurationValue: string = basename.substr(0, basename.length - this.uriIdentityService.extUri.extname(resource).length);
 		switch (configurationValue) {
 			case TASKS_CONFIGURATION_KEY: return TASKS_DEFAULT;
 			default: return '{}';
@@ -585,7 +586,7 @@ export class ConfigurationEditingService {
 	private getConfigurationFileResource(target: EditableConfigurationTarget, relativePath: string, resource: URI | null | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
 			if (relativePath) {
-				return resources.joinPath(resources.dirname(this.environmentService.settingsResource), relativePath);
+				return this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(this.environmentService.settingsResource), relativePath);
 			} else {
 				return this.environmentService.settingsResource;
 			}

@@ -83,9 +83,9 @@ export class UserDataSyncClient extends Disposable {
 		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
 		this.instantiationService.stub(IFileService, fileService);
 
-		this.instantiationService.stub(IStorageService, new InMemoryStorageService());
+		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
 
-		const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
+		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
 
@@ -93,20 +93,20 @@ export class UserDataSyncClient extends Disposable {
 
 		this.instantiationService.stub(IUserDataSyncLogService, logService);
 		this.instantiationService.stub(ITelemetryService, NullTelemetryService);
-		this.instantiationService.stub(IUserDataSyncStoreManagementService, this.instantiationService.createInstance(UserDataSyncStoreManagementService));
-		this.instantiationService.stub(IUserDataSyncStoreService, this.instantiationService.createInstance(UserDataSyncStoreService));
+		this.instantiationService.stub(IUserDataSyncStoreManagementService, this._register(this.instantiationService.createInstance(UserDataSyncStoreManagementService)));
+		this.instantiationService.stub(IUserDataSyncStoreService, this._register(this.instantiationService.createInstance(UserDataSyncStoreService)));
 
-		const userDataSyncAccountService: IUserDataSyncAccountService = this.instantiationService.createInstance(UserDataSyncAccountService);
+		const userDataSyncAccountService: IUserDataSyncAccountService = this._register(this.instantiationService.createInstance(UserDataSyncAccountService));
 		await userDataSyncAccountService.updateAccount({ authenticationProviderId: 'authenticationProviderId', token: 'token' });
 		this.instantiationService.stub(IUserDataSyncAccountService, userDataSyncAccountService);
 
-		this.instantiationService.stub(IUserDataSyncMachinesService, this.instantiationService.createInstance(UserDataSyncMachinesService));
-		this.instantiationService.stub(IUserDataSyncBackupStoreService, this.instantiationService.createInstance(UserDataSyncBackupStoreService));
+		this.instantiationService.stub(IUserDataSyncMachinesService, this._register(this.instantiationService.createInstance(UserDataSyncMachinesService)));
+		this.instantiationService.stub(IUserDataSyncBackupStoreService, this._register(this.instantiationService.createInstance(UserDataSyncBackupStoreService)));
 		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
-		this.instantiationService.stub(IUserDataSyncResourceEnablementService, this.instantiationService.createInstance(UserDataSyncResourceEnablementService));
+		this.instantiationService.stub(IUserDataSyncResourceEnablementService, this._register(this.instantiationService.createInstance(UserDataSyncResourceEnablementService)));
 
-		this.instantiationService.stub(IGlobalExtensionEnablementService, this.instantiationService.createInstance(GlobalExtensionEnablementService));
-		this.instantiationService.stub(IExtensionsStorageSyncService, this.instantiationService.createInstance(ExtensionsStorageSyncService));
+		this.instantiationService.stub(IGlobalExtensionEnablementService, this._register(this.instantiationService.createInstance(GlobalExtensionEnablementService)));
+		this.instantiationService.stub(IExtensionsStorageSyncService, this._register(this.instantiationService.createInstance(ExtensionsStorageSyncService)));
 		this.instantiationService.stub(IIgnoredExtensionsManagementService, this.instantiationService.createInstance(IgnoredExtensionsManagementService));
 		this.instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			async getInstalled() { return []; },
@@ -118,8 +118,8 @@ export class UserDataSyncClient extends Disposable {
 			async getCompatibleExtension() { return null; }
 		});
 
-		this.instantiationService.stub(IUserDataAutoSyncEnablementService, this.instantiationService.createInstance(UserDataAutoSyncEnablementService));
-		this.instantiationService.stub(IUserDataSyncService, this.instantiationService.createInstance(UserDataSyncService));
+		this.instantiationService.stub(IUserDataAutoSyncEnablementService, this._register(this.instantiationService.createInstance(UserDataAutoSyncEnablementService)));
+		this.instantiationService.stub(IUserDataSyncService, this._register(this.instantiationService.createInstance(UserDataSyncService)));
 
 		if (!empty) {
 			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({})));

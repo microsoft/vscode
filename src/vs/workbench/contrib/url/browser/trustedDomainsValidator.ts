@@ -18,10 +18,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IdleValue } from 'vs/base/common/async';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 
 type TrustedDomainsDialogActionClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -42,7 +42,6 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
@@ -70,6 +69,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 			return true;
 		}
 
+		const originalResource = resource;
 		if (typeof resource === 'string') {
 			resource = URI.parse(resource);
 		}
@@ -113,7 +113,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					localize('configureTrustedDomains', 'Configure Trusted Domains')
 				],
 				{
-					detail: formattedLink,
+					detail: typeof originalResource === 'string' ? originalResource : formattedLink,
 					cancelId: 2
 				}
 			);
@@ -132,7 +132,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					'trustedDomains.dialogAction',
 					{ action: 'copy' }
 				);
-				this._clipboardService.writeText(resource.toString(true));
+				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
 			}
 			// Configure Trusted Domains
 			else if (choice === 3) {
@@ -149,8 +149,6 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					this._storageService,
 					this._editorService,
 					this._telemetryService,
-					this._notificationService,
-					this._clipboardService,
 				);
 				// Trust all domains
 				if (pickedDomains.indexOf('*') !== -1) {
@@ -216,94 +214,10 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 			return true;
 		}
 
-		if (isTrusted(url.toString(), trustedDomains[i])) {
+		if (testUrlMatchesGlob(url.toString(), trustedDomains[i])) {
 			return true;
 		}
 	}
 
 	return false;
 }
-
-export const isTrusted = (url: string, trustedURL: string): boolean => {
-	const normalize = (url: string) => url.replace(/\/+$/, '');
-	trustedURL = normalize(trustedURL);
-	url = normalize(url);
-
-	const memo = Array.from({ length: url.length + 1 }).map(() =>
-		Array.from({ length: trustedURL.length + 1 }).map(() => undefined),
-	);
-
-	if (/^[^./:]*:\/\//.test(trustedURL)) {
-		return doURLMatch(memo, url, trustedURL, 0, 0);
-	}
-
-	const scheme = /^(https?):\/\//.exec(url)?.[1];
-	if (scheme) {
-		return doURLMatch(memo, url, `${scheme}://${trustedURL}`, 0, 0);
-	}
-
-	return false;
-};
-
-const doURLMatch = (
-	memo: (boolean | undefined)[][],
-	url: string,
-	trustedURL: string,
-	urlOffset: number,
-	trustedURLOffset: number,
-): boolean => {
-	if (memo[urlOffset]?.[trustedURLOffset] !== undefined) {
-		return memo[urlOffset][trustedURLOffset]!;
-	}
-
-	const options = [];
-
-	// Endgame.
-	// Fully exact match
-	if (urlOffset === url.length) {
-		return trustedURLOffset === trustedURL.length;
-	}
-
-	// Some path remaining in url
-	if (trustedURLOffset === trustedURL.length) {
-		const remaining = url.slice(urlOffset);
-		return remaining[0] === '/';
-	}
-
-	if (url[urlOffset] === trustedURL[trustedURLOffset]) {
-		// Exact match.
-		options.push(doURLMatch(memo, url, trustedURL, urlOffset + 1, trustedURLOffset + 1));
-	}
-
-	if (trustedURL[trustedURLOffset] + trustedURL[trustedURLOffset + 1] === '*.') {
-		// Any subdomain match. Either consume one thing that's not a / or : and don't advance base or consume nothing and do.
-		if (!['/', ':'].includes(url[urlOffset])) {
-			options.push(doURLMatch(memo, url, trustedURL, urlOffset + 1, trustedURLOffset));
-		}
-		options.push(doURLMatch(memo, url, trustedURL, urlOffset, trustedURLOffset + 2));
-	}
-
-	if (trustedURL[trustedURLOffset] === '*') {
-		// Any match. Either consume one thing and don't advance base or consume nothing and do.
-		if (urlOffset + 1 === url.length) {
-			// If we're at the end of the input url consume one from both.
-			options.push(doURLMatch(memo, url, trustedURL, urlOffset + 1, trustedURLOffset + 1));
-		} else {
-			options.push(doURLMatch(memo, url, trustedURL, urlOffset + 1, trustedURLOffset));
-		}
-		options.push(doURLMatch(memo, url, trustedURL, urlOffset, trustedURLOffset + 1));
-	}
-
-	if (trustedURL[trustedURLOffset] + trustedURL[trustedURLOffset + 1] === ':*') {
-		// any port match. Consume a port if it exists otherwise nothing. Always comsume the base.
-		if (url[urlOffset] === ':') {
-			let endPortIndex = urlOffset + 1;
-			do { endPortIndex++; } while (/[0-9]/.test(url[endPortIndex]));
-			options.push(doURLMatch(memo, url, trustedURL, endPortIndex, trustedURLOffset + 2));
-		} else {
-			options.push(doURLMatch(memo, url, trustedURL, urlOffset, trustedURLOffset + 2));
-		}
-	}
-
-	return (memo[urlOffset][trustedURLOffset] = options.some(a => a === true));
-};

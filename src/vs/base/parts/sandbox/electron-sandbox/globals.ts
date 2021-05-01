@@ -4,20 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
+/**
+ * In sandboxed renderers we cannot expose all of the `process` global of node.js
+ */
 export interface ISandboxNodeProcess extends INodeProcess {
 
 	/**
 	 * The process.platform property returns a string identifying the operating system platform
 	 * on which the Node.js process is running.
 	 */
-	readonly platform: 'win32' | 'linux' | 'darwin';
+	readonly platform: string;
 
 	/**
-	 * The type will always be Electron renderer.
+	 * The process.arch property returns a string identifying the CPU architecture
+	 * on which the Node.js process is running.
 	 */
-	readonly type: 'renderer';
+	readonly arch: string;
+
+	/**
+	 * The type will always be `renderer`.
+	 */
+	readonly type: string;
+
+	/**
+	 * Whether the process is sandboxed or not.
+	 */
+	readonly sandboxed: boolean;
 
 	/**
 	 * A list of versions for the current node.js/electron configuration.
@@ -35,27 +50,14 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	readonly execPath: string;
 
 	/**
-	 * Resolve the true process environment to use and apply it to `process.env`.
-	 *
-	 * There are different layers of environment that will apply:
-	 * - `process.env`: this is the actual environment of the process before this method
-	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
-	 *                  variables to get the same experience as if the program was started from
-	 *                  a terminal (Linux, macOS)
-	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
-	 *                  from a terminal and changed certain variables
-	 *
-	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
-	 *
-	 * It is critical that every process awaits this method early on startup to get the right
-	 * set of environment in `process.env`. 
-	 */
-	resolveEnv(userEnv: IProcessEnvironment): Promise<void>;
-
-	/**
 	 * A listener on the process. Only a small subset of listener types are allowed.
 	 */
 	on: (type: string, callback: Function) => void;
+
+	/**
+	 * The current working directory of the process.
+	 */
+	cwd: () => string;
 
 	/**
 	 * Resolves with a ProcessMemoryInfo
@@ -71,17 +73,56 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * process on macOS.
 	 */
 	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
+
+	/**
+	 * Returns a process environment that includes all shell environment variables even if
+	 * the application was not started from a shell / terminal / console.
+	 *
+	 * There are different layers of environment that will apply:
+	 * - `process.env`: this is the actual environment of the process before this method
+	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
+	 *                  variables to get the same experience as if the program was started from
+	 *                  a terminal (Linux, macOS)
+	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
+	 *                  from a terminal and changed certain variables
+	 *
+	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
+	 */
+	shellEnv(): Promise<IProcessEnvironment>;
+}
+
+export interface IpcMessagePort {
+
+	/**
+	 * Establish a connection via `MessagePort` to a target. The main process
+	 * will need to transfer the port over to the `channelResponse` after listening
+	 * to `channelRequest` with a payload of `requestNonce` so that the
+	 * source can correlate the response.
+	 *
+	 * The source should install a `window.on('message')` listener, ensuring `e.data`
+	 * matches `requestNonce`, `e.source` matches `window` and then receiving the
+	 * `MessagePort` via `e.ports[0]`.
+	 */
+	connect(channelRequest: string, channelResponse: string, requestNonce: string): void;
 }
 
 export interface ISandboxContext {
 
 	/**
-	 * Wether the renderer runs with `sandbox` enabled or not.
+	 * A configuration object made accessible from the main side
+	 * to configure the sandbox browser window. Will be `undefined`
+	 * for as long as `resolveConfiguration` is not awaited.
 	 */
-	sandbox: boolean;
+	configuration(): ISandboxConfiguration | undefined;
+
+	/**
+	 * Allows to await the resolution of the configuration object.
+	 */
+	resolveConfiguration(): Promise<ISandboxConfiguration>;
 }
 
 export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
+export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
 export const webFrame: WebFrame = globals.vscode.webFrame;
 export const crashReporter: CrashReporter = globals.vscode.crashReporter;
 export const process: ISandboxNodeProcess = globals.vscode.process;

@@ -14,21 +14,19 @@ import { localize } from 'vs/nls';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { URI } from 'vs/base/common/uri';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -63,13 +61,7 @@ class UXState {
 			let previewEditors: IEditorInput[] = [];
 			for (let input of group.editors) {
 
-				let resource: URI | undefined;
-				if (input instanceof DiffEditorInput) {
-					resource = input.modifiedInput.resource;
-				} else {
-					resource = input.resource;
-				}
-
+				let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
 				if (resource?.scheme === BulkEditPreviewProvider.Schema) {
 					previewEditors.push(input);
 				}
@@ -170,7 +162,7 @@ registerAction2(class ApplyAction extends Action2 {
 			id: 'refactorPreview.apply',
 			title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/check' },
+			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -204,7 +196,7 @@ registerAction2(class DiscardAction extends Action2 {
 			id: 'refactorPreview.discard',
 			title: { value: localize('Discard', "Discard Refactoring"), original: 'Discard Refactoring' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/clear-all' },
+			icon: Codicon.clearAll,
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -265,7 +257,7 @@ registerAction2(class GroupByFile extends Action2 {
 			id: 'refactorPreview.groupByFile',
 			title: { value: localize('groupByFile', "Group Changes By File"), original: 'Group Changes By File' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/ungroup-by-ref-type' },
+			icon: Codicon.ungroupByRefType,
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -292,7 +284,7 @@ registerAction2(class GroupByType extends Action2 {
 			id: 'refactorPreview.groupByType',
 			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/group-by-ref-type' },
+			icon: Codicon.groupByRefType,
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -319,7 +311,7 @@ registerAction2(class ToggleGrouping extends Action2 {
 			id: 'refactorPreview.toggleGrouping',
 			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/list-tree' },
+			icon: Codicon.listTree,
 			toggled: BulkEditPane.ctxGroupByFile.negate(),
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
@@ -346,13 +338,13 @@ const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codic
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: BulkEditPane.ID,
-	name: localize('panel', "Refactor Preview"),
+	title: localize('panel', "Refactor Preview"),
 	hideIfEmpty: true,
 	ctorDescriptor: new SyncDescriptor(
 		ViewPaneContainer,
 		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
 	),
-	icon: ThemeIcon.fromCodicon(refactorPreviewViewIcon),
+	icon: refactorPreviewViewIcon,
 	storageId: BulkEditPane.ID
 }, ViewContainerLocation.Panel);
 
@@ -361,5 +353,5 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	name: localize('panel', "Refactor Preview"),
 	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
-	containerIcon: ThemeIcon.fromCodicon(refactorPreviewViewIcon),
+	containerIcon: refactorPreviewViewIcon,
 }], container);

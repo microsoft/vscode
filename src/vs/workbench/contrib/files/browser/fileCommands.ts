@@ -27,7 +27,7 @@ import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMul
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -40,11 +40,11 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { toAction } from 'vs/base/common/actions';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { hash } from 'vs/base/common/hash';
 
 // Commands
 
@@ -277,8 +277,6 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true }))
 			.join(lineDelimiter);
 		await clipboardService.writeText(text);
-	} else {
-		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
 }
 
@@ -355,15 +353,13 @@ CommandsRegistry.registerCommand({
 	id: OPEN_WITH_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const configurationService = accessor.get(IConfigurationService);
-		const quickInputService = accessor.get(IQuickInputService);
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
-			const input = editorService.createEditorInput({ resource: uri });
-			openEditorWith(input, undefined, undefined, editorGroupsService.activeGroup, editorService, configurationService, quickInputService);
+			return editorService.openEditor({ resource: uri, options: { override: EditorOverride.PICK } });
 		}
+
+		return undefined;
 	}
 });
 
@@ -425,7 +421,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	}
 }
 
-function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<IEditorGroup>, options?: ISaveEditorsOptions): Promise<void> {
+function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly IEditorGroup[], options?: ISaveEditorsOptions): Promise<void> {
 	const dirtyEditors: IEditorIdentifier[] = [];
 	for (const group of groups) {
 		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -441,12 +437,23 @@ function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyAr
 async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const notificationService = accessor.get(INotificationService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	try {
 		await editorService.save(editors, options);
 	} catch (error) {
 		if (!isPromiseCanceledError(error)) {
-			notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+			notificationService.notify({
+				id: editors.map(({ editor }) => hash(editor.resource?.toString())).join(), // ensure unique notification ID per set of editor
+				severity: Severity.Error,
+				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
+				actions: {
+					primary: [
+						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => instantiationService.invokeFunction(accessor => doSaveEditors(accessor, editors, options)) }),
+						toAction({ id: 'workbench.action.files.revertEditors', label: nls.localize('discard', "Discard"), run: () => editorService.revert(editors) })
+					]
+				}
+			});
 		}
 	}
 }
@@ -482,7 +489,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	when: undefined,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: undefined,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_S },
+	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S) },
 	id: SAVE_ALL_COMMAND_ID,
 	handler: (accessor) => {
 		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
@@ -496,7 +508,7 @@ CommandsRegistry.registerCommand({
 
 		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
 
-		let groups: ReadonlyArray<IEditorGroup> | undefined = undefined;
+		let groups: readonly IEditorGroup[] | undefined = undefined;
 		if (!contexts.length) {
 			groups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		} else {
@@ -647,7 +659,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		description: NEW_UNTITLED_FILE_LABEL,
 		args: [
 			{
-				name: 'viewType', description: 'The editor view type', schema: {
+				isOptional: true,
+				name: 'viewType',
+				description: 'The editor view type',
+				schema: {
 					'type': 'object',
 					'required': ['viewType'],
 					'properties': {
@@ -664,12 +679,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (typeof args?.viewType === 'string') {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
-			const configurationService = accessor.get(IConfigurationService);
-			const quickInputService = accessor.get(IQuickInputService);
 
-			const textInput = editorService.createEditorInput({ options: { pinned: true } });
 			const group = editorGroupsService.activeGroup;
-			await openEditorWith(textInput, args.viewType, { pinned: true }, group, editorService, configurationService, quickInputService);
+			await editorService.openEditor({ options: { override: args.viewType, pinned: true } }, group);
 		} else {
 			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 		}

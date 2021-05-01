@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { assertIsDefined, isFunction, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { TextEditorOptions, EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -45,15 +45,15 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
-	getTitle(): string | undefined {
+	override getTitle(): string | undefined {
 		if (this.input) {
 			return this.input.getName();
 		}
 
-		return nls.localize('textEditor', "Text Editor");
+		return localize('textEditor', "Text Editor");
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
@@ -119,7 +119,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
 		this.saveTextResourceEditorViewState(this.input);
@@ -133,7 +133,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Save View State (only for untitled)
 		if (this.input instanceof UntitledTextEditorInput) {
@@ -180,7 +180,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}
 
-	protected createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
+	protected override createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
 		const control = super.createEditorControl(parent, configuration);
 
 		// Install a listener for paste to update this editors

@@ -156,7 +156,7 @@ export class Cursor extends Disposable {
 		this._prevEditOperationType = EditOperationType.Other;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._cursors.dispose();
 		this._autoClosedActions = dispose(this._autoClosedActions);
 		super.dispose();
@@ -393,8 +393,8 @@ export class Cursor extends Disposable {
 		return this._cursors.getPrimaryCursor().modelState.position;
 	}
 
-	public setSelections(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, selections: readonly ISelection[]): void {
-		this.setStates(eventsCollector, source, CursorChangeReason.NotSet, CursorState.fromModelSelections(selections));
+	public setSelections(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, selections: readonly ISelection[], reason: CursorChangeReason): void {
+		this.setStates(eventsCollector, source, reason, CursorState.fromModelSelections(selections));
 	}
 
 	public getPrevEditOperationType(): EditOperationType {
@@ -584,7 +584,7 @@ export class Cursor extends Disposable {
 		});
 		if (selections) {
 			this._isHandling = false;
-			this.setSelections(eventsCollector, source, selections);
+			this.setSelections(eventsCollector, source, selections, CursorChangeReason.NotSet);
 		}
 		if (autoClosedCharactersRanges.length > 0) {
 			this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);
@@ -620,6 +620,10 @@ export class Cursor extends Disposable {
 		this._isDoingComposition = isDoingComposition;
 	}
 
+	public getAutoClosedCharacters(): Range[] {
+		return AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
+	}
+
 	public startComposition(eventsCollector: ViewModelEventsCollector): void {
 		this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
 	}
@@ -628,8 +632,7 @@ export class Cursor extends Disposable {
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
 				// composition finishes, let's check if we need to auto complete if necessary.
-				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
+				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this._selectionsWhenCompositionStarted, this.getSelections(), this.getAutoClosedCharacters()));
 				this._selectionsWhenCompositionStarted = null;
 			}
 		}, eventsCollector, source);
@@ -647,8 +650,7 @@ export class Cursor extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), autoClosedCharacters, chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
 
 					offset += charLength;
 				}
@@ -659,9 +661,21 @@ export class Cursor extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public replacePreviousChar(eventsCollector: ViewModelEventsCollector, text: string, replaceCharCnt: number, source?: string | null | undefined): void {
+	public compositionType(eventsCollector: ViewModelEventsCollector, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
+		if (text.length === 0 && replacePrevCharCnt === 0 && replaceNextCharCnt === 0) {
+			// this edit is a no-op
+			if (positionDelta !== 0) {
+				// but it still wants to move the cursor
+				const newSelections = this.getSelections().map(selection => {
+					const position = selection.getPosition();
+					return new Selection(position.lineNumber, position.column + positionDelta, position.lineNumber, position.column + positionDelta);
+				});
+				this.setSelections(eventsCollector, source, newSelections, CursorChangeReason.NotSet);
+			}
+			return;
+		}
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.replacePreviousChar(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text, replaceCharCnt));
+			this._executeEditOperation(TypeOperations.compositionType(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
 		}, eventsCollector, source);
 	}
 

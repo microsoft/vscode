@@ -5,11 +5,7 @@
 
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import * as fs from 'fs';
-import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
-import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, IExtensionTipsService
@@ -44,11 +40,9 @@ import { IExperimentService } from 'vs/workbench/contrib/experiments/common/expe
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
@@ -62,6 +56,11 @@ import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/e
 import { ExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { joinPath } from 'vs/base/common/resources';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -181,7 +180,6 @@ suite('ExtensionRecommendationsService Test', () => {
 	let instantiationService: TestInstantiationService;
 	let testConfigurationService: TestConfigurationService;
 	let testObject: ExtensionRecommendationsService;
-	let parentResource: string;
 	let installEvent: Emitter<InstallExtensionEvent>,
 		didInstallEvent: Emitter<DidInstallExtensionEvent>,
 		uninstallEvent: Emitter<IExtensionIdentifier>,
@@ -203,6 +201,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			onInstallExtension: installEvent.event,
 			onDidInstallExtension: didInstallEvent.event,
@@ -262,7 +261,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		prompted = false;
 
 		class TestNotificationService2 extends TestNotificationService {
-			public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
+			public override prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 				prompted = true;
 				promptedEmitter.fire();
 				return super.prompt(severity, message, choices, options);
@@ -278,34 +277,30 @@ suite('ExtensionRecommendationsService Test', () => {
 		});
 	});
 
-	teardown(done => {
-		(<ExtensionRecommendationsService>testObject).dispose();
-		if (parentResource) {
-			rimraf(parentResource, RimRafMode.MOVE).then(done, done);
-		} else {
-			done();
-		}
-	});
+	teardown(() => (<ExtensionRecommendationsService>testObject).dispose());
 
 	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		const id = uuid.generateUuid();
-		parentResource = path.join(os.tmpdir(), 'vsctests', id);
-		return setUpFolder(folderName, parentResource, recommendedExtensions, ignoredRecommendations);
+		return setUpFolder(folderName, recommendedExtensions, ignoredRecommendations);
 	}
 
-	async function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
-		const folderDir = path.join(parentDir, folderName);
-		const workspaceSettingsDir = path.join(folderDir, '.vscode');
-		await mkdirp(workspaceSettingsDir, 493);
-		const configPath = path.join(workspaceSettingsDir, 'extensions.json');
-		fs.writeFileSync(configPath, JSON.stringify({
+	async function setUpFolder(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
+		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+		const logService = new NullLogService();
+		const fileService = new FileService(logService);
+		const fileSystemProvider = new InMemoryFileSystemProvider();
+		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+
+		const folderDir = joinPath(ROOT, folderName);
+		const workspaceSettingsDir = joinPath(folderDir, '.vscode');
+		await fileService.createFolder(workspaceSettingsDir);
+		const configPath = joinPath(workspaceSettingsDir, 'extensions.json');
+		await fileService.writeFile(configPath, VSBuffer.fromString(JSON.stringify({
 			'recommendations': recommendedExtensions,
 			'unwantedRecommendations': ignoredRecommendations,
-		}, null, '\t'));
+		}, null, '\t')));
 
-		const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
-		const fileService = new FileService(new NullLogService());
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		const myWorkspace = testWorkspace(folderDir);
+
 		instantiationService.stub(IFileService, fileService);
 		workspaceService = new TestContextService(myWorkspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -318,7 +313,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		return setUpFolderWorkspace('myFolder', recommendations).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
 			return testObject.activationPromise.then(() => {
-				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, recommendations.length);
+				assert.strictEqual(Object.keys(testObject.getAllRecommendationsWithReason()).length, recommendations.length);
 				assert.ok(!prompted);
 			});
 		});
@@ -330,7 +325,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			assert.ok(!prompted);
 
 			return testObject.getWorkspaceRecommendations().then(() => {
-				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, 0);
+				assert.strictEqual(Object.keys(testObject.getAllRecommendationsWithReason()).length, 0);
 				assert.ok(!prompted);
 			});
 		});
@@ -345,7 +340,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations during extension development', () => {
-		instantiationService.stub(IEnvironmentService, { extensionDevelopmentLocationURI: [URI.file('/folder/file')] });
+		instantiationService.stub(IEnvironmentService, { extensionDevelopmentLocationURI: [URI.file('/folder/file')], isExtensionDevelopment: true });
 		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
@@ -359,9 +354,9 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		await Event.toPromise(promptedEmitter.event);
 		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
-		assert.equal(recommendations.length, mockTestData.validRecommendedExtensions.length);
+		assert.strictEqual(recommendations.length, mockTestData.validRecommendedExtensions.length);
 		mockTestData.validRecommendedExtensions.forEach(x => {
-			assert.equal(recommendations.indexOf(x.toLowerCase()) > -1, true);
+			assert.strictEqual(recommendations.indexOf(x.toLowerCase()) > -1, true);
 		});
 
 	});
@@ -522,7 +517,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
 			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
-				assert.equal(recommendations.length, 2);
+				assert.strictEqual(recommendations.length, 2);
 				assert.ok(recommendations.some(extensionId => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
 				assert.ok(recommendations.some(extensionId => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
 				assert.ok(recommendations.every(extensionId => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
@@ -541,7 +536,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
 			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
-				assert.equal(recommendations.length, 2);
+				assert.strictEqual(recommendations.length, 2);
 				assert.ok(recommendations.some(extensionId => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
 				assert.ok(recommendations.some(extensionId => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
 				assert.ok(recommendations.every(extensionId => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips

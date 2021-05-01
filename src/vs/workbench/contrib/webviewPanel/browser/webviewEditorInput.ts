@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { Schemas } from 'vs/base/common/network';
+import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 
 export class WebviewInput extends EditorInput {
 
 	public static typeId = 'workbench.editors.webviewInput';
 
+	public override get typeId(): string {
+		return WebviewInput.typeId;
+	}
+
 	private _name: string;
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
 
-	private _webview: Lazy<WebviewOverlay>;
+	private _webview: WebviewOverlay;
 
 	private _hasTransfered = false;
 
@@ -32,36 +36,32 @@ export class WebviewInput extends EditorInput {
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		webview: Lazy<WebviewOverlay>,
-		@IWebviewService private readonly _webviewService: IWebviewService,
+		webview: WebviewOverlay,
+		private readonly _iconManager: WebviewIconManager,
 	) {
 		super();
 		this._name = name;
 		this._webview = webview;
 	}
 
-	dispose() {
+	override dispose() {
 		if (!this.isDisposed()) {
 			if (!this._hasTransfered) {
-				this._webview.rawValue?.dispose();
+				this._webview?.dispose();
 			}
 		}
 		super.dispose();
 	}
 
-	public getTypeId(): string {
-		return WebviewInput.typeId;
-	}
-
-	public getName(): string {
+	public override getName(): string {
 		return this._name;
 	}
 
-	public getTitle(_verbosity?: Verbosity): string {
+	public override getTitle(_verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
-	public getDescription(): string | undefined {
+	public override getDescription(): string | undefined {
 		return undefined;
 	}
 
@@ -71,7 +71,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public get webview(): WebviewOverlay {
-		return this._webview.getValue();
+		return this._webview;
 	}
 
 	public get extension() {
@@ -84,10 +84,10 @@ export class WebviewInput extends EditorInput {
 
 	public set iconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
-		this._webviewService.setIcons(this.id, value);
+		this._iconManager.setIcons(this.id, value);
 	}
 
-	public matches(other: IEditorInput): boolean {
+	public override matches(other: IEditorInput): boolean {
 		return other === this;
 	}
 
@@ -99,7 +99,7 @@ export class WebviewInput extends EditorInput {
 		this._group = group;
 	}
 
-	public supportsSplitEditor() {
+	public override canSplit() {
 		return false;
 	}
 

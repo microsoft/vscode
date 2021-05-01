@@ -12,11 +12,12 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { Emitter } from 'vs/base/common/event';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
 	readonly themeLabel: string;
-	readonly styles: { readonly [key: string]: string | number; };
+	readonly styles: Readonly<WebviewStyles>;
 }
 
 export class WebviewThemeDataProvider extends Disposable {

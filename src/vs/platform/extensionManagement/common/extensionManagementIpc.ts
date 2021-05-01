@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension, IExtensionTipsService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension, IExtensionTipsService, InstallOptions, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
@@ -128,8 +128,8 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		return Promise.resolve(this.channel.call<ILocalExtension>('installFromGallery', [extension, installOptions])).then(local => transformIncomingExtension(local, null));
 	}
 
-	uninstall(extension: ILocalExtension, force = false): Promise<void> {
-		return Promise.resolve(this.channel.call('uninstall', [extension!, force]));
+	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
+		return Promise.resolve(this.channel.call('uninstall', [extension!, options]));
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> {

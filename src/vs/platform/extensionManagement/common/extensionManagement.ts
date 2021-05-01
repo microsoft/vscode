@@ -104,6 +104,7 @@ export interface ILocalExtension extends IExtension {
 	isMachineScoped: boolean;
 	publisherId: string | null;
 	publisherDisplayName: string | null;
+	installedTimestamp?: number;
 }
 
 export const enum SortBy {
@@ -201,7 +202,8 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
-export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean };
+export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, donotIncludePackAndDependencies?: boolean };
+export type UninstallOptions = { donotIncludePack?: boolean, donotCheckDependents?: boolean };
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
@@ -218,7 +220,7 @@ export interface IExtensionManagementService {
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
-	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;
+	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
@@ -277,3 +279,19 @@ export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Ext
 export const ExtensionsChannelId = 'extensions';
 export const PreferencesLabel = localize('preferences', "Preferences");
 export const PreferencesLocalizedLabel = { value: PreferencesLabel, original: 'Preferences' };
+
+
+export interface CLIOutput {
+	log(s: string): void;
+	error(s: string): void;
+}
+
+export const IExtensionManagementCLIService = createDecorator<IExtensionManagementCLIService>('IExtensionManagementCLIService');
+export interface IExtensionManagementCLIService {
+	readonly _serviceBrand: undefined;
+
+	listExtensions(showVersions: boolean, category?: string, output?: CLIOutput): Promise<void>;
+	installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output?: CLIOutput): Promise<void>;
+	uninstallExtensions(extensions: (string | URI)[], force: boolean, output?: CLIOutput): Promise<void>;
+	locateExtension(extensions: string[], output?: CLIOutput): Promise<void>;
+}

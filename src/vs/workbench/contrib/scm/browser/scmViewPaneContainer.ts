@@ -17,7 +17,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 
 export class SCMViewPaneContainer extends ViewPaneContainer {
 
@@ -36,28 +35,16 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 	}
 
-	create(parent: HTMLElement): void {
+	override create(parent: HTMLElement): void {
 		super.create(parent);
 		parent.classList.add('scm-viewlet');
 	}
 
-	getActionsContext(): unknown {
-		if (this.views.length === 1) {
-			const view = this.views[0];
-
-			if (view instanceof SCMViewPane) {
-				return view.getActionsContext();
-			}
-		}
-
-		return undefined;
-	}
-
-	getOptimalWidth(): number {
+	override getOptimalWidth(): number {
 		return 400;
 	}
 
-	getTitle(): string {
+	override getTitle(): string {
 		return localize('source control', "Source Control");
 	}
 }

@@ -4,26 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { ResourceMap } from 'vs/base/common/map';
-
+import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
 	constructor(@ICommandService private readonly _commandService: ICommandService) { }
 
-	async open(target: URI | string) {
+	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
 		if (!matchesScheme(target, Schemas.command)) {
 			return false;
+		}
+		if (!options?.allowCommands) {
+			// silently ignore commands when command-links are disabled, also
+			// surpress other openers by returning TRUE
+			return true;
 		}
 		// run command or bail out if command isn't known
 		if (typeof target === 'string') {
@@ -100,15 +105,16 @@ export class OpenerService implements IOpenerService {
 	private readonly _resolvers = new LinkedList<IExternalUriResolver>();
 	private readonly _resolvedUriTargets = new ResourceMap<URI>(uri => uri.with({ path: null, fragment: null, query: null }).toString());
 
-	private _externalOpener: IExternalOpener;
+	private _defaultExternalOpener: IExternalOpener;
+	private readonly _externalOpeners = new LinkedList<IExternalOpener>();
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
+		@ICommandService commandService: ICommandService
 	) {
 		// Default external opener is going through window.open()
-		this._externalOpener = {
-			openExternal: href => {
+		this._defaultExternalOpener = {
+			openExternal: async href => {
 				// ensure to open HTTP/HTTPS links into new windows
 				// to not trigger a navigation. Any other link is
 				// safe to be set as HREF to prevent a blank window
@@ -118,11 +124,11 @@ export class OpenerService implements IOpenerService {
 				} else {
 					window.location.href = href;
 				}
-				return Promise.resolve(true);
+				return true;
 			}
 		};
 
-		// Default opener: maito, http(s), command, and catch-all-editors
+		// Default opener: any external, maito, http(s), command, and catch-all-editors
 		this._openers.push({
 			open: async (target: URI | string, options?: OpenOptions) => {
 				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
@@ -152,8 +158,13 @@ export class OpenerService implements IOpenerService {
 		return { dispose: remove };
 	}
 
-	setExternalOpener(externalOpener: IExternalOpener): void {
-		this._externalOpener = externalOpener;
+	setDefaultExternalOpener(externalOpener: IExternalOpener): void {
+		this._defaultExternalOpener = externalOpener;
+	}
+
+	registerExternalOpener(opener: IExternalOpener): IDisposable {
+		const remove = this._externalOpeners.push(opener);
+		return { dispose: remove };
 	}
 
 	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
@@ -182,7 +193,9 @@ export class OpenerService implements IOpenerService {
 		for (const resolver of this._resolvers) {
 			const result = await resolver.resolveExternalUri(resource, options);
 			if (result) {
-				this._resolvedUriTargets.set(result.resolved, resource);
+				if (!this._resolvedUriTargets.has(result.resolved)) {
+					this._resolvedUriTargets.set(result.resolved, resource);
+				}
 				return result;
 			}
 		}
@@ -196,13 +209,29 @@ export class OpenerService implements IOpenerService {
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
 		const { resolved } = await this.resolveExternalUri(uri, options);
 
+		let href: string;
 		if (typeof resource === 'string' && uri.toString() === resolved.toString()) {
 			// open the url-string AS IS
-			return this._externalOpener.openExternal(resource);
+			href = resource;
 		} else {
 			// open URI using the toString(noEncode)+encodeURI-trick
-			return this._externalOpener.openExternal(encodeURI(resolved.toString(true)));
+			href = encodeURI(resolved.toString(true));
 		}
+
+		if (options?.allowContributedOpeners) {
+			const preferredOpenerId = typeof options?.allowContributedOpeners === 'string' ? options?.allowContributedOpeners : undefined;
+			for (const opener of this._externalOpeners) {
+				const didOpen = await opener.openExternal(href, {
+					sourceUri: uri,
+					preferredOpenerId,
+				}, CancellationToken.None);
+				if (didOpen) {
+					return true;
+				}
+			}
+		}
+
+		return this._defaultExternalOpener.openExternal(href, { sourceUri: uri }, CancellationToken.None);
 	}
 
 	dispose() {

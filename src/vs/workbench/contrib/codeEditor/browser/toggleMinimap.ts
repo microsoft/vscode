@@ -23,7 +23,7 @@ export class ToggleMinimapAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		const newValue = !this._configurationService.getValue<boolean>('editor.minimap.enabled');
 		return this._configurationService.updateValue('editor.minimap.enabled', newValue);
 	}

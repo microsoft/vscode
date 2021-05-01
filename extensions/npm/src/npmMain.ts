@@ -8,8 +8,10 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { getPackageManager, invalidateTasksCache, NpmTaskProvider } from './tasks';
+import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
+import { NpmScriptLensProvider } from './npmScriptLens';
+import * as which from 'which';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 
@@ -29,8 +31,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 	}));
 
-	const canRunNPM = canRunNpmInCurrentWorkspace();
-	context.subscriptions.push(addJSONProviders(httpRequest.xhr, canRunNPM));
+	const npmCommandPath = await getNPMCommandPath();
+	context.subscriptions.push(addJSONProviders(httpRequest.xhr, npmCommandPath));
 	registerTaskProvider(context);
 
 	treeDataProvider = registerExplorer(context);
@@ -52,16 +54,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerHoverProvider(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
+
+	if (await hasPackageJson()) {
+		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
+	}
+
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
 	context.subscriptions.push(vscode.commands.registerCommand('npm.refresh', () => {
 		invalidateScriptCaches();
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('npm.packageManager', (args) => {
 		if (args instanceof vscode.Uri) {
-			return getPackageManager(args);
+			return getPackageManager(context, args);
 		}
 		return '';
 	}));
+	context.subscriptions.push(new NpmScriptLensProvider());
+}
+
+async function getNPMCommandPath(): Promise<string | undefined> {
+	if (canRunNpmInCurrentWorkspace()) {
+		try {
+			return await which(process.platform === 'win32' ? 'npm.cmd' : 'npm');
+		} catch (e) {
+			return undefined;
+		}
+	}
+	return undefined;
 }
 
 function canRunNpmInCurrentWorkspace() {
@@ -83,7 +102,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		let workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders((_e) => invalidateScriptCaches());
 		context.subscriptions.push(workspaceWatcher);
 
-		taskProvider = new NpmTaskProvider();
+		taskProvider = new NpmTaskProvider(context);
 		let disposable = vscode.tasks.registerTaskProvider('npm', taskProvider);
 		context.subscriptions.push(disposable);
 		return disposable;

@@ -18,6 +18,7 @@ export class UrlFinder extends Disposable {
 	 * http://0.0.0.0:4000 - Elixir Phoenix
 	 */
 	private static readonly localUrlRegex = /\b\w{2,20}:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{2,5})[\w\-\.\~:\/\?\#[\]\@!\$&\(\)\*\+\,\;\=]*/gim;
+	private static readonly extractPortRegex = /(localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{1,5})/;
 	/**
 	 * https://github.com/microsoft/vscode-remote-release/issues/3949
 	 */
@@ -88,7 +89,7 @@ export class UrlFinder extends Disposable {
 		}
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		const listeners = this.listeners.values();
 		for (const listener of listeners) {
@@ -103,10 +104,16 @@ export class UrlFinder extends Disposable {
 		if (urlMatches && urlMatches.length > 0) {
 			urlMatches.forEach((match) => {
 				// check if valid url
-				const serverUrl = new URL(match);
+				let serverUrl;
+				try {
+					serverUrl = new URL(match);
+				} catch (e) {
+					// Not a valid URL
+				}
 				if (serverUrl) {
 					// check if the port is a valid integer value
-					const port = parseFloat(serverUrl.port!);
+					const portMatch = match.match(UrlFinder.extractPortRegex);
+					const port = parseFloat(serverUrl.port ? serverUrl.port : (portMatch ? portMatch[2] : 'NaN'));
 					if (!isNaN(port) && Number.isInteger(port) && port > 0 && port <= 65535) {
 						// normalize the host name
 						let host = serverUrl.hostname;

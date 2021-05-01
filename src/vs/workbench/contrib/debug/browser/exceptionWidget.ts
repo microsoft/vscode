@@ -10,7 +10,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExceptionInfo, IDebugSession, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,6 +18,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 const $ = dom.$;
 
 // theming
@@ -56,7 +57,7 @@ export class ExceptionWidget extends ZoneWidget {
 		}); // style() will trigger _applyStyles
 	}
 
-	protected _applyStyles(): void {
+	protected override _applyStyles(): void {
 		if (this.container) {
 			this.container.style.backgroundColor = this.backgroundColor ? this.backgroundColor.toString() : '';
 		}
@@ -79,7 +80,7 @@ export class ExceptionWidget extends ZoneWidget {
 		let ariaLabel = label.textContent;
 
 		const actionBar = new ActionBar(actions);
-		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), 'codicon codicon-close', true, async () => {
+		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), ThemeIcon.asClassName(widgetClose), true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
 			contribution.closeExceptionWidget();
 		}), { label: false, icon: true });
@@ -104,7 +105,7 @@ export class ExceptionWidget extends ZoneWidget {
 		container.setAttribute('aria-label', ariaLabel);
 	}
 
-	protected _doLayout(_heightInPixel: number | undefined, _widthInPixel: number | undefined): void {
+	protected override _doLayout(_heightInPixel: number | undefined, _widthInPixel: number | undefined): void {
 		// Reload the height with respect to the exception text content and relayout it to match the line count.
 		this.container!.style.height = 'initial';
 
@@ -118,5 +119,9 @@ export class ExceptionWidget extends ZoneWidget {
 	focus(): void {
 		// Focus into the container for accessibility purposes so the exception and stack trace gets read
 		this.container?.focus();
+	}
+
+	hasfocus(): boolean {
+		return dom.isAncestor(document.activeElement, this.container);
 	}
 }

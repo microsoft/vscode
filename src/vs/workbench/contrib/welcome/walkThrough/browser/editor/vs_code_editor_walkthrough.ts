@@ -7,7 +7,7 @@ export default () => `
 ## Interactive Editor Playground
 The core editor in VS Code is packed with features.  This page highlights a number of them and lets you interactively try them out through the use of a number of embedded editors.  For full details on the editor features for VS Code and more head over to our [documentation](command:workbench.action.openDocumentationUrl).
 
-* [Multi-cursor Editing](#multi-cursor-editing) - block selection, select all occurrences, add additional cursors and more
+* [Multi-cursor Editing](#multi-cursor-editing) - block selection, select all occurrences, add additional cursors and more.
 * [IntelliSense](#intellisense) - get code assistance and parameter suggestions for your code and external modules.
 * [Line Actions](#line-actions) - quickly move lines around to re-order your code.
 * [Rename Refactoring](#rename-refactoring) - quickly rename symbols across your code base.
@@ -38,17 +38,14 @@ That is the tip of the iceberg for multi-cursor editing. Have a look at the sele
 
 ### IntelliSense
 
-Visual Studio Code comes with the powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestion comes from the Request API.
+Visual Studio Code comes with the powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestions come from the Canvas API.
 
 |||js
-const express = require('express');
-const app = express();
+const canvas = document.querySelector('canvas');
+const context = canvas.getContext('2d');
 
-app.get('/',  (req, res) => {
-	res.send(|Hello \${req.}|);
-});
-
-app.listen(3000);
+context.strokeStyle = 'blue';
+context.
 |||
 
 >**Tip:** while we ship JavaScript and TypeScript support out of the box other languages can be upgraded with better IntelliSense through one of the many [extensions](command:workbench.extensions.action.showPopularExtensions).

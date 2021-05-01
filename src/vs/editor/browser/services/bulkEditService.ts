@@ -11,6 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { isObject } from 'vs/base/common/types';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');
 
@@ -46,7 +47,7 @@ export class ResourceTextEdit extends ResourceEdit {
 		readonly resource: URI,
 		readonly textEdit: TextEdit,
 		readonly versionId?: number,
-		readonly metadata?: WorkspaceEditMetadata
+		metadata?: WorkspaceEditMetadata
 	) {
 		super(metadata);
 	}
@@ -57,7 +58,7 @@ export class ResourceFileEdit extends ResourceEdit {
 		readonly oldResource: URI | undefined,
 		readonly newResource: URI | undefined,
 		readonly options?: WorkspaceFileEditOptions,
-		readonly metadata?: WorkspaceEditMetadata
+		metadata?: WorkspaceEditMetadata
 	) {
 		super(metadata);
 	}
@@ -66,11 +67,13 @@ export class ResourceFileEdit extends ResourceEdit {
 export interface IBulkEditOptions {
 	editor?: ICodeEditor;
 	progress?: IProgress<IProgressStep>;
+	token?: CancellationToken;
 	showPreview?: boolean;
 	label?: string;
 	quotableLabel?: string;
 	undoRedoSource?: UndoRedoSource;
 	undoRedoGroupId?: number;
+	confirmBeforeUndo?: boolean;
 }
 
 export interface IBulkEditResult {

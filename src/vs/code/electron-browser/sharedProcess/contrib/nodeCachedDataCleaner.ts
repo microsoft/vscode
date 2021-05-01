@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { readdir, rimraf, stat } from 'vs/base/node/pfs';
-import product from 'vs/platform/product/common/product';
+import { readdir, rimraf } from 'vs/base/node/pfs';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class NodeCachedDataCleaner {
 
-	private static readonly _DataMaxAge = product.nameLong.indexOf('Insiders') >= 0
+	private readonly _DataMaxAge = this.productService.quality !== 'stable'
 		? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
-		private readonly nodeCachedDataDir: string | undefined
+		private readonly nodeCachedDataDir: string | undefined,
+		@IProductService private readonly productService: IProductService
 	) {
 		this._manageCachedDataSoon();
 	}
@@ -54,13 +56,13 @@ export class NodeCachedDataCleaner {
 					if (entry !== nodeCachedDataCurrent) {
 
 						const path = join(nodeCachedDataRootDir, entry);
-						deletes.push(stat(path).then(stats => {
+						deletes.push(promises.stat(path).then(stats => {
 							// stat check
 							// * only directories
 							// * only when old enough
 							if (stats.isDirectory()) {
 								const diff = now - stats.mtime.getTime();
-								if (diff > NodeCachedDataCleaner._DataMaxAge) {
+								if (diff > this._DataMaxAge) {
 									return rimraf(path);
 								}
 							}

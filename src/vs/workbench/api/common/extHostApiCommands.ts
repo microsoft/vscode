@@ -18,8 +18,10 @@ import { ICommandsExecutor, RemoveFromRecentlyOpenedAPICommand, OpenIssueReporte
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
-import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 
 //#region --- NEW world
 
@@ -28,13 +30,13 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeDocumentHighlights', '_executeDocumentHighlights', 'Execute document highlight provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.DocumentHighlight[], types.DocumentHighlight[] | undefined>('A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.', tryMapWith(typeConverters.DocumentHighlight.to))
+		new ApiCommandResult<modes.DocumentHighlight[], types.DocumentHighlight[] | undefined>('A promise that resolves to an array of DocumentHighlight-instances.', tryMapWith(typeConverters.DocumentHighlight.to))
 	),
 	// -- document symbols
 	new ApiCommand(
 		'vscode.executeDocumentSymbolProvider', '_executeDocumentSymbolProvider', 'Execute document symbol provider.',
 		[ApiCommandArgument.Uri],
-		new ApiCommandResult<modes.DocumentSymbol[], vscode.SymbolInformation[] | undefined>('A promise that resolves to an array of DocumentHighlight-instances.', (value, apiArgs) => {
+		new ApiCommandResult<modes.DocumentSymbol[], vscode.SymbolInformation[] | undefined>('A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.', (value, apiArgs) => {
 
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
@@ -58,7 +60,7 @@ const newCommands: ApiCommand[] = [
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
-				containerName!: string;
+				override containerName!: string;
 			}
 			return value.map(MergedInfo.to);
 
@@ -115,7 +117,7 @@ const newCommands: ApiCommand[] = [
 	// -- selection range
 	new ApiCommand(
 		'vscode.executeSelectionRangeProvider', '_executeSelectionRangeProvider', 'Execute selection range provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A positions in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
+		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A position in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
 		new ApiCommandResult<IRange[][], types.SelectionRange[]>('A promise that resolves to an array of ranges.', result => {
 			return result.map(ranges => {
 				let node: types.SelectionRange | undefined;
@@ -160,7 +162,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeDocumentRenameProvider', '_executeDocumentRenameProvider', 'Execute rename provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String.with('newName', 'The new symbol name')],
-		new ApiCommandResult<IWorkspaceEditDto, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {
+		new ApiCommandResult<IWorkspaceEditDto & { rejectReason?: string }, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {
 			if (!value) {
 				return undefined;
 			}
@@ -175,6 +177,57 @@ const newCommands: ApiCommand[] = [
 		'vscode.executeLinkProvider', '_executeLinkProvider', 'Execute document link provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Number.with('linkResolveCount', 'Number of links that should be resolved, only when links are unresolved.').optional()],
 		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
+	),
+	// --- semantic tokens
+	new ApiCommand(
+		'vscode.provideDocumentSemanticTokensLegend', '_provideDocumentSemanticTokensLegend', 'Provide semantic tokens legend for a document',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<modes.SemanticTokensLegend, types.SemanticTokensLegend | undefined>('A promise that resolves to SemanticTokensLegend.', value => {
+			if (!value) {
+				return undefined;
+			}
+			return new types.SemanticTokensLegend(value.tokenTypes, value.tokenModifiers);
+		})
+	),
+	new ApiCommand(
+		'vscode.provideDocumentSemanticTokens', '_provideDocumentSemanticTokens', 'Provide semantic tokens for a document',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<VSBuffer, types.SemanticTokens | undefined>('A promise that resolves to SemanticTokens.', value => {
+			if (!value) {
+				return undefined;
+			}
+			const semanticTokensDto = decodeSemanticTokensDto(value);
+			if (semanticTokensDto.type !== 'full') {
+				// only accepting full semantic tokens from provideDocumentSemanticTokens
+				return undefined;
+			}
+			return new types.SemanticTokens(semanticTokensDto.data, undefined);
+		})
+	),
+	new ApiCommand(
+		'vscode.provideDocumentRangeSemanticTokensLegend', '_provideDocumentRangeSemanticTokensLegend', 'Provide semantic tokens legend for a document range',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<modes.SemanticTokensLegend, types.SemanticTokensLegend | undefined>('A promise that resolves to SemanticTokensLegend.', value => {
+			if (!value) {
+				return undefined;
+			}
+			return new types.SemanticTokensLegend(value.tokenTypes, value.tokenModifiers);
+		})
+	),
+	new ApiCommand(
+		'vscode.provideDocumentRangeSemanticTokens', '_provideDocumentRangeSemanticTokens', 'Provide semantic tokens for a document range',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
+		new ApiCommandResult<VSBuffer, types.SemanticTokens | undefined>('A promise that resolves to SemanticTokens.', value => {
+			if (!value) {
+				return undefined;
+			}
+			const semanticTokensDto = decodeSemanticTokensDto(value);
+			if (semanticTokensDto.type !== 'full') {
+				// only accepting full semantic tokens from provideDocumentRangeSemanticTokens
+				return undefined;
+			}
+			return new types.SemanticTokens(semanticTokensDto.data, undefined);
+		})
 	),
 	// --- completions
 	new ApiCommand(
@@ -271,36 +324,56 @@ const newCommands: ApiCommand[] = [
 			return [];
 		})
 	),
+	// --- inline hints
+	new ApiCommand(
+		'vscode.executeInlayHintProvider', '_executeInlayHintProvider', 'Execute inline hints provider',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
+		new ApiCommandResult<modes.InlayHint[], vscode.InlayHint[]>('A promise that resolves to an array of Inlay objects', result => {
+			return result.map(typeConverters.InlayHint.to);
+		})
+	),
 	// --- notebooks
 	new ApiCommand(
 		'vscode.resolveNotebookContentProviders', '_resolveNotebookContentProvider', 'Resolve Notebook Content Providers',
 		[
-			new ApiCommandArgument<string, string>('viewType', '', v => typeof v === 'string', v => v),
-			new ApiCommandArgument<string, string>('displayName', '', v => typeof v === 'string', v => v),
-			new ApiCommandArgument<object, object>('options', '', v => typeof v === 'object', v => v),
+			// new ApiCommandArgument<string, string>('viewType', '', v => typeof v === 'string', v => v),
+			// new ApiCommandArgument<string, string>('displayName', '', v => typeof v === 'string', v => v),
+			// new ApiCommandArgument<object, object>('options', '', v => typeof v === 'object', v => v),
 		],
 		new ApiCommandResult<{
 			viewType: string;
 			displayName: string;
-			options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
+			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
 			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
 		}[], {
 			viewType: string;
 			displayName: string;
-			filenamePattern: vscode.NotebookFilenamePattern[];
+			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern; })[];
 			options: vscode.NotebookDocumentContentOptions;
 		}[] | undefined>('A promise that resolves to an array of NotebookContentProvider static info objects.', tryMapWith(item => {
 			return {
 				viewType: item.viewType,
 				displayName: item.displayName,
-				options: { transientOutputs: item.options.transientOutputs, transientMetadata: item.options.transientMetadata },
+				options: {
+					transientOutputs: item.options.transientOutputs,
+					transientCellMetadata: item.options.transientCellMetadata,
+					transientDocumentMetadata: item.options.transientDocumentMetadata
+				},
 				filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
 			};
 		}))
 	),
+	// --- debug support
+	new ApiCommand(
+		'vscode.executeInlineValueProvider', '_executeInlineValueProvider', 'Execute inline value provider',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
+		new ApiCommandResult<modes.InlineValue[], vscode.InlineValue[]>('A promise that resolves to an array of InlineValue objects', result => {
+			return result.map(typeConverters.InlineValue.to);
+		})
+	),
 	// --- open'ish commands
 	new ApiCommand(
-		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
+		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or an http(s) URL. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
 		[
 			ApiCommandArgument.Uri,
 			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
@@ -308,7 +381,18 @@ const newCommands: ApiCommand[] = [
 				v => !v ? v : typeof v === 'number' ? [v, undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
 			).optional(),
 			ApiCommandArgument.String.with('label', '').optional()
-
+		],
+		ApiCommandResult.Void
+	),
+	new ApiCommand(
+		'vscode.openWith', '_workbench.openWith', 'Opens the provided resource with a specific editor.',
+		[
+			ApiCommandArgument.Uri.with('resource', 'Resource to open'),
+			ApiCommandArgument.String.with('viewId', 'Custom editor view id or \'default\' to use VS Code\'s default editor'),
+			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
+				v => v === undefined || typeof v === 'number' || typeof v === 'object',
+				v => !v ? v : typeof v === 'number' ? [v, undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)],
+			).optional()
 		],
 		ApiCommandResult.Void
 	),
@@ -316,7 +400,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.diff', '_workbench.diff', 'Opens the provided resources in the diff editor to compare their contents.',
 		[
 			ApiCommandArgument.Uri.with('left', 'Left-hand side resource of the diff editor'),
-			ApiCommandArgument.Uri.with('right', 'Rigth-hand side resource of the diff editor'),
+			ApiCommandArgument.Uri.with('right', 'Right-hand side resource of the diff editor'),
 			ApiCommandArgument.String.with('title', 'Human readable title for the diff editor').optional(),
 			new ApiCommandArgument<typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'object',

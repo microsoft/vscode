@@ -208,7 +208,7 @@ export class BrowserSocketFactory implements ISocketFactory {
 	}
 
 	connect(host: string, port: number, query: string, callback: IConnectCallback): void {
-		const socket = this._webSocketFactory.create(`ws://${host}:${port}/?${query}&skipWebSocketFrames=false`);
+		const socket = this._webSocketFactory.create(`ws://${/:/.test(host) ? `[${host}]` : host}:${port}/?${query}&skipWebSocketFrames=false`);
 		const errorListener = socket.onError((err) => callback(err, undefined));
 		socket.onOpen(() => {
 			errorListener.dispose();

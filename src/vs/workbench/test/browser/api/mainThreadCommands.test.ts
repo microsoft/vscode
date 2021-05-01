@@ -15,7 +15,7 @@ suite('MainThreadCommands', function () {
 	test('dispose on unregister', function () {
 
 		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!, new class extends mock<IExtensionService>() { });
-		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
 
 		// register
 		commands.$registerCommand('foo');
@@ -23,13 +23,13 @@ suite('MainThreadCommands', function () {
 
 		// unregister
 		commands.$unregisterCommand('foo');
-		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
 	});
 
 	test('unregister all on dispose', function () {
 
 		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!, new class extends mock<IExtensionService>() { });
-		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
 
 		commands.$registerCommand('foo');
 		commands.$registerCommand('bar');
@@ -39,8 +39,8 @@ suite('MainThreadCommands', function () {
 
 		commands.dispose();
 
-		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
-		assert.equal(CommandsRegistry.getCommand('bar'), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand('bar'), undefined);
 	});
 
 	test('activate and throw when needed', async function () {
@@ -51,13 +51,13 @@ suite('MainThreadCommands', function () {
 		const commands = new MainThreadCommands(
 			SingleProxyRPCProtocol(null),
 			new class extends mock<ICommandService>() {
-				executeCommand<T>(id: string): Promise<T | undefined> {
+				override executeCommand<T>(id: string): Promise<T | undefined> {
 					runs.push(id);
 					return Promise.resolve(undefined);
 				}
 			},
 			new class extends mock<IExtensionService>() {
-				activateByEvent(id: string) {
+				override activateByEvent(id: string) {
 					activations.push(id);
 					return Promise.resolve();
 				}
@@ -70,18 +70,18 @@ suite('MainThreadCommands', function () {
 			await commands.$executeCommand('bazz', [1, 2, { n: 3 }], true);
 			assert.ok(false);
 		} catch (e) {
-			assert.deepEqual(activations, ['onCommand:bazz']);
-			assert.equal((<Error>e).message, '$executeCommand:retry');
+			assert.deepStrictEqual(activations, ['onCommand:bazz']);
+			assert.strictEqual((<Error>e).message, '$executeCommand:retry');
 		}
 
 		// case 2: no arguments and retry
 		runs.length = 0;
 		await commands.$executeCommand('bazz', [], true);
-		assert.deepEqual(runs, ['bazz']);
+		assert.deepStrictEqual(runs, ['bazz']);
 
 		// case 3: arguments and no retry
 		runs.length = 0;
 		await commands.$executeCommand('bazz', [1, 2, true], false);
-		assert.deepEqual(runs, ['bazz']);
+		assert.deepStrictEqual(runs, ['bazz']);
 	});
 });

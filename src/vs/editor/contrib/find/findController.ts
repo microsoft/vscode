@@ -26,6 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -138,7 +139,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this.disposeModel();
 		super.dispose();
 	}
@@ -421,7 +422,7 @@ export class FindController extends CommonFindController implements IFindControl
 		this._findOptionsWidget = null;
 	}
 
-	protected async _start(opts: IFindStartOptions): Promise<void> {
+	protected override async _start(opts: IFindStartOptions): Promise<void> {
 		if (!this._widget) {
 			this._createFindWidget();
 		}
@@ -458,7 +459,7 @@ export class FindController extends CommonFindController implements IFindControl
 		}
 	}
 
-	public highlightFindOptions(ignoreWhenVisible: boolean = false): void {
+	public override highlightFindOptions(ignoreWhenVisible: boolean = false): void {
 		if (!this._widget) {
 			this._createFindWidget();
 		}
@@ -483,43 +484,44 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 }
 
-export class StartFindAction extends MultiEditorAction {
-
-	constructor() {
-		super({
-			id: FIND_IDS.StartFindAction,
-			label: nls.localize('startFindAction', "Find"),
-			alias: 'Find',
-			precondition: ContextKeyExpr.or(ContextKeyExpr.has('editorFocus'), ContextKeyExpr.has('editorIsOpen')),
-			kbOpts: {
-				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-				weight: KeybindingWeight.EditorContrib
-			},
-			menuOpts: {
-				menuId: MenuId.MenubarEditMenu,
-				group: '3_find',
-				title: nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"),
-				order: 1
-			}
-		});
+export const StartFindAction = registerMultiEditorAction(new MultiEditorAction({
+	id: FIND_IDS.StartFindAction,
+	label: nls.localize('startFindAction', "Find"),
+	alias: 'Find',
+	precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen')),
+	kbOpts: {
+		kbExpr: null,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+		weight: KeybindingWeight.EditorContrib
+	},
+	menuOpts: {
+		menuId: MenuId.MenubarEditMenu,
+		group: '3_find',
+		title: nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"),
+		order: 1
 	}
+}));
 
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
-		let controller = CommonFindController.get(editor);
-		if (controller) {
-			await controller.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection ? 'single' : 'none',
-				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
-				shouldFocus: FindStartFocusAction.FocusFindInput,
-				shouldAnimate: true,
-				updateSearchScope: false,
-				loop: editor.getOption(EditorOption.find).loop
-			});
-		}
+StartFindAction.addImplementation(0, (accessor: ServicesAccessor, args: any): boolean | Promise<void> => {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+	if (!editor) {
+		return false;
 	}
-}
+	const controller = CommonFindController.get(editor);
+	if (!controller) {
+		return false;
+	}
+	return controller.start({
+		forceRevealReplace: false,
+		seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection ? 'single' : 'none',
+		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
+		shouldFocus: FindStartFocusAction.FocusFindInput,
+		shouldAnimate: true,
+		updateSearchScope: false,
+		loop: editor.getOption(EditorOption.find).loop
+	});
+});
 
 export class StartFindWithSelectionAction extends EditorAction {
 
@@ -744,71 +746,66 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 	}
 }
 
-export class StartFindReplaceAction extends MultiEditorAction {
+export const StartFindReplaceAction = registerMultiEditorAction(new MultiEditorAction({
+	id: FIND_IDS.StartFindReplaceAction,
+	label: nls.localize('startReplace', "Replace"),
+	alias: 'Replace',
+	precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen')),
+	kbOpts: {
+		kbExpr: null,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F },
+		weight: KeybindingWeight.EditorContrib
+	},
+	menuOpts: {
+		menuId: MenuId.MenubarEditMenu,
+		group: '3_find',
+		title: nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+		order: 2
+	}
+}));
 
-	constructor() {
-		super({
-			id: FIND_IDS.StartFindReplaceAction,
-			label: nls.localize('startReplace', "Replace"),
-			alias: 'Replace',
-			precondition: ContextKeyExpr.or(ContextKeyExpr.has('editorFocus'), ContextKeyExpr.has('editorIsOpen')),
-			kbOpts: {
-				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F },
-				weight: KeybindingWeight.EditorContrib
-			},
-			menuOpts: {
-				menuId: MenuId.MenubarEditMenu,
-				group: '3_find',
-				title: nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-				order: 2
-			}
-		});
+StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, args: any): boolean | Promise<void> => {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+	if (!editor || !editor.hasModel() || editor.getOption(EditorOption.readOnly)) {
+		return false;
+	}
+	const controller = CommonFindController.get(editor);
+	if (!controller) {
+		return false;
 	}
 
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
-		if (!editor.hasModel() || editor.getOption(EditorOption.readOnly)) {
-			return;
-		}
+	const currentSelection = editor.getSelection();
+	const findInputFocused = controller.isFindInputFocused();
+	// we only seed search string from selection when the current selection is single line and not empty,
+	// + the find input is not focused
+	const seedSearchStringFromSelection = !currentSelection.isEmpty()
+		&& currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getOption(EditorOption.find).seedSearchStringFromSelection
+		&& !findInputFocused;
+	/*
+	* if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input is still empty, so we should focus the Find Input instead of Replace Input.
 
-		let controller = CommonFindController.get(editor);
-		let currentSelection = editor.getSelection();
-		let findInputFocused = controller.isFindInputFocused();
-		// we only seed search string from selection when the current selection is single line and not empty,
-		// + the find input is not focused
-		let seedSearchStringFromSelection = !currentSelection.isEmpty()
-			&& currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getOption(EditorOption.find).seedSearchStringFromSelection
-			&& !findInputFocused;
-		/*
-		 * if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input is still empty, so we should focus the Find Input instead of Replace Input.
+	* findInputFocused true -> seedSearchStringFromSelection false, FocusReplaceInput
+	* findInputFocused false, seedSearchStringFromSelection true FocusReplaceInput
+	* findInputFocused false seedSearchStringFromSelection false FocusFindInput
+	*/
+	const shouldFocus = (findInputFocused || seedSearchStringFromSelection) ?
+		FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput;
 
-		 * findInputFocused true -> seedSearchStringFromSelection false, FocusReplaceInput
-		 * findInputFocused false, seedSearchStringFromSelection true FocusReplaceInput
-		 * findInputFocused false seedSearchStringFromSelection false FocusFindInput
-		 */
-		let shouldFocus = (findInputFocused || seedSearchStringFromSelection) ?
-			FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput;
-
-
-		if (controller) {
-			await controller.start({
-				forceRevealReplace: true,
-				seedSearchStringFromSelection: seedSearchStringFromSelection ? 'single' : 'none',
-				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
-				shouldFocus: shouldFocus,
-				shouldAnimate: true,
-				updateSearchScope: false,
-				loop: editor.getOption(EditorOption.find).loop
-			});
-		}
-	}
-}
+	return controller.start({
+		forceRevealReplace: true,
+		seedSearchStringFromSelection: seedSearchStringFromSelection ? 'single' : 'none',
+		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
+		shouldFocus: shouldFocus,
+		shouldAnimate: true,
+		updateSearchScope: false,
+		loop: editor.getOption(EditorOption.find).loop
+	});
+});
 
 registerEditorContribution(CommonFindController.ID, FindController);
 
-export const EditorStartFindAction = new StartFindAction();
-registerMultiEditorAction(EditorStartFindAction);
 registerEditorAction(StartFindWithSelectionAction);
 registerEditorAction(NextMatchFindAction);
 registerEditorAction(NextMatchFindAction2);
@@ -816,8 +813,6 @@ registerEditorAction(PreviousMatchFindAction);
 registerEditorAction(PreviousMatchFindAction2);
 registerEditorAction(NextSelectionMatchFindAction);
 registerEditorAction(PreviousSelectionMatchFindAction);
-export const EditorStartFindReplaceAction = new StartFindReplaceAction();
-registerMultiEditorAction(EditorStartFindReplaceAction);
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 

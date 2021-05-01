@@ -15,7 +15,6 @@ suite('Processes', () => {
 			ELECTRON_NO_ASAR: 'x',
 			ELECTRON_NO_ATTACH_CONSOLE: 'x',
 			ELECTRON_RUN_AS_NODE: 'x',
-			GOOGLE_API_KEY: 'x',
 			VSCODE_CLI: 'x',
 			VSCODE_DEV: 'x',
 			VSCODE_IPC_HOOK: 'x',
@@ -28,7 +27,7 @@ suite('Processes', () => {
 			GDK_PIXBUF_MODULEDIR: 'x',
 		};
 		processes.sanitizeProcessEnvironment(env);
-		assert.equal(env['FOO'], 'bar');
-		assert.equal(Object.keys(env).length, 1);
+		assert.strictEqual(env['FOO'], 'bar');
+		assert.strictEqual(Object.keys(env).length, 1);
 	});
 });

@@ -13,6 +13,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -55,7 +57,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
 					buttons: [{
-						iconClass: 'codicon-gear',
+						iconClass: ThemeIcon.asClassName(debugConfigure),
 						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
 					}],
 					trigger: () => {
@@ -113,7 +115,8 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				accept: async () => {
 					const pick = await provider.pick();
 					if (pick) {
-						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: pick.config.type });
+						// Use the type of the provider, not of the config since config sometimes have subtypes (for example "node-terminal")
+						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
 						this.debugService.startDebugging(pick.launch, pick.config);
 					}
 				}

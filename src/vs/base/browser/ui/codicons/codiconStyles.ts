@@ -4,26 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./codicon/codicon';
-import 'vs/css!./codicon/codicon-modifications';
-import 'vs/css!./codicon/codicon-animations';
+import 'vs/css!./codicon/codicon-modifiers';
 
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-
-export const CodiconStyles = new class {
-	onDidChange = iconRegistry.onDidRegister;
-	public getCSS(): string {
-		const rules = [];
-		for (let c of iconRegistry.all) {
-			rules.push(formatRule(c));
-		}
-		return rules.join('\n');
-	}
-};
+import { Codicon } from 'vs/base/common/codicons';
 
 export function formatRule(c: Codicon) {
 	let def = c.definition;
 	while (def instanceof Codicon) {
 		def = def.definition;
 	}
-	return `.codicon-${c.id}:before { content: '${def.character}'; }`;
+	return `.codicon-${c.id}:before { content: '${def.fontCharacter}'; }`;
 }

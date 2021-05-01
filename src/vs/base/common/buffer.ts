@@ -34,8 +34,9 @@ export class VSBuffer {
 		return new VSBuffer(actual);
 	}
 
-	static fromString(source: string): VSBuffer {
-		if (hasBuffer) {
+	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean; }): VSBuffer {
+		const dontUseNodeBuffer = options?.dontUseNodeBuffer || false;
+		if (!dontUseNodeBuffer && hasBuffer) {
 			return new VSBuffer(Buffer.from(source));
 		} else if (hasTextEncoder) {
 			if (!textEncoder) {
@@ -233,4 +234,12 @@ export function streamToBufferReadableStream(stream: streams.ReadableStreamEvent
 
 export function newWriteableBufferStream(options?: streams.WriteableStreamOptions): streams.WriteableStream<VSBuffer> {
 	return streams.newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks), options);
+}
+
+export function prefixedBufferReadable(prefix: VSBuffer, readable: VSBufferReadable): VSBufferReadable {
+	return streams.prefixedReadable(prefix, readable, chunks => VSBuffer.concat(chunks));
+}
+
+export function prefixedBufferStream(prefix: VSBuffer, stream: VSBufferReadableStream): VSBufferReadableStream {
+	return streams.prefixedStream(prefix, stream, chunks => VSBuffer.concat(chunks));
 }

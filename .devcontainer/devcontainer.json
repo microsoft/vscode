@@ -2,7 +2,7 @@
 	"name": "Code - OSS",
 
 	// Image contents: https://github.com/microsoft/vscode-dev-containers/blob/master/repository-containers/images/github.com/microsoft/vscode/.devcontainer/base.Dockerfile
-	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:branch-master",
+	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:branch-main",
 
 	"workspaceMount": "source=${localWorkspaceFolder},target=/home/node/workspace/vscode,type=bind,consistency=cached",
 	"workspaceFolder": "/home/node/workspace/vscode",

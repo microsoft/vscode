@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data:; script-src 'unsafe-eval' 'sha256-O98pkmgtvUCQGVoddaGy891K52PVRnySDRxRszVLPNQ=' http: https:; connect-src http: https:" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-LU+tuagpyx5mKuYgHsSvz9593ZGS6yeLPRvzq1lKXlY=' http: https:; connect-src http: https: ws: wss:" />
 	</head>
 	<body>
 	<script>
@@ -22,18 +22,31 @@
 
 	try {
 		const worker = new Worker('extensionHostWorkerMain.js', { name: 'WorkerExtensionHost' });
+		const nestedWorkers = new Map();
 
 		worker.onmessage = (event) => {
 			const { data } = event;
-			if (!(data instanceof MessagePort)) {
-				console.warn('Unknown data received', event);
-				sendError({ name: 'Error', message: 'Unknown data received', stack: [] });
-				return;
+
+			if (data?.type === '_newWorker') {
+				const { id, port, url, options } = data;
+				const newWorker = new Worker(url, options);
+				newWorker.postMessage(port, [port]);
+				worker.onerror = console.error.bind(console);
+				nestedWorkers.set(id, newWorker);
+
+			} else if (data?.type === '_terminateWorker') {
+				const { id } = data;
+				if(nestedWorkers.has(id)) {
+					nestedWorkers.get(id).terminate();
+					nestedWorkers.delete(id);
+				}
+			} else {
+				worker.onerror = console.error.bind(console);
+				window.parent.postMessage({
+					vscodeWebWorkerExtHostId,
+					data
+				}, '*', [data]);
 			}
-			window.parent.postMessage({
-				vscodeWebWorkerExtHostId,
-				data: data
-			}, '*', [data]);
 		};
 
 		worker.onerror = (event) => {

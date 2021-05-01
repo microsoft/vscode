@@ -31,12 +31,13 @@ export class WebviewEditor extends EditorPane {
 	private _element?: HTMLElement;
 	private _dimension?: DOM.Dimension;
 	private _visible = false;
+	private _isDisposed = false;
 
 	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
-	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
+	public override get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 
@@ -57,7 +58,7 @@ export class WebviewEditor extends EditorPane {
 		return this.input instanceof WebviewInput ? this.input.webview : undefined;
 	}
 
-	get scopedContextKeyService(): IContextKeyService | undefined {
+	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService.value;
 	}
 
@@ -70,11 +71,11 @@ export class WebviewEditor extends EditorPane {
 		this._scopedContextKeyService.value = this._contextKeyService.createScoped(element);
 	}
 
-	public dispose(): void {
-		if (this._element) {
-			this._element.remove();
-			this._element = undefined;
-		}
+	public override dispose(): void {
+		this._isDisposed = true;
+
+		this._element?.remove();
+		this._element = undefined;
 
 		super.dispose();
 	}
@@ -86,7 +87,7 @@ export class WebviewEditor extends EditorPane {
 		}
 	}
 
-	public focus(): void {
+	public override focus(): void {
 		super.focus();
 		if (!this._onFocusWindowHandler.value && !isWeb) {
 			// Make sure we restore focus when switching back to a VS Code window
@@ -99,7 +100,7 @@ export class WebviewEditor extends EditorPane {
 		this.webview?.focus();
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
@@ -111,7 +112,7 @@ export class WebviewEditor extends EditorPane {
 		super.setEditorVisible(visible, group);
 	}
 
-	public clearInput() {
+	public override clearInput() {
 		if (this.webview) {
 			this.webview.release(this);
 			this._webviewVisibleDisposables.clear();
@@ -120,7 +121,7 @@ export class WebviewEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	public async setInput(input: EditorInput, options: EditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	public override async setInput(input: EditorInput, options: EditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (input.matches(this.input)) {
 			return;
 		}
@@ -133,7 +134,7 @@ export class WebviewEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		await input.resolve();
 
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this._isDisposed) {
 			return;
 		}
 
@@ -163,7 +164,7 @@ export class WebviewEditor extends EditorPane {
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
 		this._webviewVisibleDisposables.add(this._editorDropService.createEditorDropTarget(input.webview.container, {
-			containsGroup: (group) => this.group?.id === group.group.id
+			containsGroup: (group) => this.group?.id === group.id
 		}));
 
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(() => this.webview));

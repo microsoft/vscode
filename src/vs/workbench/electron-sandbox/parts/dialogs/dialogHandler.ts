@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { fromNow } from 'vs/base/common/date';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -58,13 +58,13 @@ export class NativeDialogHandler implements IDialogHandler {
 		if (confirmation.primaryButton) {
 			buttons.push(confirmation.primaryButton);
 		} else {
-			buttons.push(nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
+			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
 		}
 
 		if (confirmation.secondaryButton) {
 			buttons.push(confirmation.secondaryButton);
 		} else if (typeof confirmation.secondaryButton === 'undefined') {
-			buttons.push(nls.localize('cancelButton', "Cancel"));
+			buttons.push(localize('cancelButton', "Cancel"));
 		}
 
 		const opts: MessageBoxOptions = {
@@ -99,8 +99,8 @@ export class NativeDialogHandler implements IDialogHandler {
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
 			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
 			detail: dialogOptions ? dialogOptions.detail : undefined,
-			checkboxLabel: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.label : undefined,
-			checkboxChecked: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.checked : undefined
+			checkboxLabel: dialogOptions?.checkbox?.label ?? undefined,
+			checkboxChecked: dialogOptions?.checkbox?.checked ?? undefined
 		});
 
 		const result = await this.nativeHostService.showMessageBox(options);
@@ -159,13 +159,14 @@ export class NativeDialogHandler implements IDialogHandler {
 		let version = this.productService.version;
 		if (this.productService.target) {
 			version = `${version} (${this.productService.target} setup)`;
+		} else if (this.productService.darwinUniversalAssetId) {
+			version = `${version} (Universal)`;
 		}
 
-		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		const osProps = await this.nativeHostService.getOSProperties();
 
 		const detailString = (useAgo: boolean): string => {
-			return nls.localize({ key: 'aboutDetail', comment: ['Electron, Chrome, Node.js and V8 are product names that need no translation'] },
+			return localize({ key: 'aboutDetail', comment: ['Electron, Chrome, Node.js and V8 are product names that need no translation'] },
 				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
 				version,
 				this.productService.commit || 'Unknown',
@@ -174,15 +175,15 @@ export class NativeDialogHandler implements IDialogHandler {
 				process.versions['chrome'],
 				process.versions['node'],
 				process.versions['v8'],
-				`${osProps.type} ${osProps.arch} ${osProps.release}${isSnap ? ' snap' : ''}`
+				`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
 			);
 		};
 
 		const detail = detailString(true);
 		const detailToCopy = detailString(false);
 
-		const ok = nls.localize('okButton', "OK");
-		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
+		const ok = localize('okButton', "OK");
+		const copy = mnemonicButtonLabel(localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
 		let buttons: string[];
 		if (isLinux) {
 			buttons = [copy, ok];
@@ -206,4 +207,3 @@ export class NativeDialogHandler implements IDialogHandler {
 		}
 	}
 }
-

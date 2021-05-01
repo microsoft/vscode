@@ -16,7 +16,7 @@ export function setup() {
 		after(async function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard origin/master --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
 		afterEach(async function () {
@@ -25,36 +25,36 @@ export function setup() {
 			await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
 		});
 
-		it('inserts/edits code cell', async function () {
-			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
-			await app.workbench.notebook.focusNextCell();
-			await app.workbench.notebook.insertNotebookCell('code');
-			await app.workbench.notebook.waitForTypeInEditor('// some code');
-			await app.workbench.notebook.stopEditingCell();
-		});
+		// it('inserts/edits code cell', async function () {
+		// 	const app = this.app as Application;
+		// 	await app.workbench.notebook.openNotebook();
+		// 	await app.workbench.notebook.focusNextCell();
+		// 	await app.workbench.notebook.insertNotebookCell('code');
+		// 	await app.workbench.notebook.waitForTypeInEditor('// some code');
+		// 	await app.workbench.notebook.stopEditingCell();
+		// });
 
-		it('inserts/edits markdown cell', async function () {
-			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
-			await app.workbench.notebook.focusNextCell();
-			await app.workbench.notebook.insertNotebookCell('markdown');
-			await app.workbench.notebook.waitForTypeInEditor('## hello2! ');
-			await app.workbench.notebook.stopEditingCell();
-			await app.workbench.notebook.waitForMarkdownContents('h2', 'hello2!');
-		});
+		// it('inserts/edits markdown cell', async function () {
+		// 	const app = this.app as Application;
+		// 	await app.workbench.notebook.openNotebook();
+		// 	await app.workbench.notebook.focusNextCell();
+		// 	await app.workbench.notebook.insertNotebookCell('markdown');
+		// 	await app.workbench.notebook.waitForTypeInEditor('## hello2! ');
+		// 	await app.workbench.notebook.stopEditingCell();
+		// 	await app.workbench.notebook.waitForMarkdownContents('h2', 'hello2!');
+		// });
 
-		it('moves focus as it inserts/deletes a cell', async function () {
-			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
-			await app.workbench.notebook.insertNotebookCell('code');
-			await app.workbench.notebook.waitForActiveCellEditorContents('');
-			await app.workbench.notebook.stopEditingCell();
-			await app.workbench.notebook.deleteActiveCell();
-			await app.workbench.notebook.waitForMarkdownContents('p', 'Markdown Cell');
-		});
+		// it('moves focus as it inserts/deletes a cell', async function () {
+		// 	const app = this.app as Application;
+		// 	await app.workbench.notebook.openNotebook();
+		// 	await app.workbench.notebook.insertNotebookCell('code');
+		// 	await app.workbench.notebook.waitForActiveCellEditorContents('');
+		// 	await app.workbench.notebook.stopEditingCell();
+		// 	await app.workbench.notebook.deleteActiveCell();
+		// 	await app.workbench.notebook.waitForMarkdownContents('p', 'Markdown Cell');
+		// });
 
-		it.skip('moves focus in and out of output', async function () {
+		it.skip('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/113882
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.executeActiveCell();

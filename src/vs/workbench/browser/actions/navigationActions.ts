@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -17,7 +17,6 @@ import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/c
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isAncestor } from 'vs/base/browser/dom';
 
 abstract class BaseNavigationAction extends Action {
 
@@ -33,7 +32,7 @@ abstract class BaseNavigationAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<boolean | IViewlet | IPanel> {
+	override async run(): Promise<void> {
 		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
@@ -42,7 +41,7 @@ abstract class BaseNavigationAction extends Action {
 		if (isEditorFocus) {
 			const didNavigate = this.navigateAcrossEditorGroup(this.toGroupDirection(this.direction));
 			if (didNavigate) {
-				return true;
+				return;
 			}
 
 			neighborPart = this.layoutService.getVisibleNeighborPart(Parts.EDITOR_PART, this.direction);
@@ -57,18 +56,12 @@ abstract class BaseNavigationAction extends Action {
 		}
 
 		if (neighborPart === Parts.EDITOR_PART) {
-			return this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
+			this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
+		} else if (neighborPart === Parts.SIDEBAR_PART) {
+			this.navigateToSidebar();
+		} else if (neighborPart === Parts.PANEL_PART) {
+			this.navigateToPanel();
 		}
-
-		if (neighborPart === Parts.SIDEBAR_PART) {
-			return this.navigateToSidebar();
-		}
-
-		if (neighborPart === Parts.PANEL_PART) {
-			return this.navigateToPanel();
-		}
-
-		return false;
 	}
 
 	private async navigateToPanel(): Promise<IPanel | boolean> {
@@ -138,7 +131,7 @@ abstract class BaseNavigationAction extends Action {
 class NavigateLeftAction extends BaseNavigationAction {
 
 	static readonly ID = 'workbench.action.navigateLeft';
-	static readonly LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
+	static readonly LABEL = localize('navigateLeft', "Navigate to the View on the Left");
 
 	constructor(
 		id: string,
@@ -155,7 +148,7 @@ class NavigateLeftAction extends BaseNavigationAction {
 class NavigateRightAction extends BaseNavigationAction {
 
 	static readonly ID = 'workbench.action.navigateRight';
-	static readonly LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
+	static readonly LABEL = localize('navigateRight', "Navigate to the View on the Right");
 
 	constructor(
 		id: string,
@@ -172,7 +165,7 @@ class NavigateRightAction extends BaseNavigationAction {
 class NavigateUpAction extends BaseNavigationAction {
 
 	static readonly ID = 'workbench.action.navigateUp';
-	static readonly LABEL = nls.localize('navigateUp', "Navigate to the View Above");
+	static readonly LABEL = localize('navigateUp', "Navigate to the View Above");
 
 	constructor(
 		id: string,
@@ -189,7 +182,7 @@ class NavigateUpAction extends BaseNavigationAction {
 class NavigateDownAction extends BaseNavigationAction {
 
 	static readonly ID = 'workbench.action.navigateDown';
-	static readonly LABEL = nls.localize('navigateDown', "Navigate to the View Below");
+	static readonly LABEL = localize('navigateDown', "Navigate to the View Below");
 
 	constructor(
 		id: string,
@@ -215,7 +208,10 @@ function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Part
 }
 
 function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
-	const currentlyFocusedPart = isActiveElementInNotebookEditor(editorService) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.EDITOR_PART) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
+	// Need to ask if the active editor has focus since the layoutService is not aware of some custom editor focus behavior(notebooks)
+	// Also need to ask the layoutService for the case if no editor is opened
+	const editorFocused = editorService.activeEditorPane?.hasFocus() || layoutService.hasFocus(Parts.EDITOR_PART);
+	const currentlyFocusedPart = editorFocused ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
 		layoutService.hasFocus(Parts.STATUSBAR_PART) ? Parts.STATUSBAR_PART : layoutService.hasFocus(Parts.SIDEBAR_PART) ? Parts.SIDEBAR_PART : layoutService.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : undefined;
 	let partToFocus = Parts.EDITOR_PART;
 	if (currentlyFocusedPart) {
@@ -225,20 +221,9 @@ function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorS
 	layoutService.focusPart(partToFocus);
 }
 
-function isActiveElementInNotebookEditor(editorService: IEditorService): boolean {
-	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-	if (activeEditorPane?.isNotebookEditor) {
-		const control = editorService.activeEditorPane?.getControl() as { getDomNode(): HTMLElement; getOverflowContainerDomNode(): HTMLElement; };
-		const activeElement = document.activeElement;
-		return isAncestor(activeElement, control.getDomNode()) || isAncestor(activeElement, control.getOverflowContainerDomNode());
-	}
-
-	return false;
-}
-
 export class FocusNextPart extends Action {
 	static readonly ID = 'workbench.action.focusNextPart';
-	static readonly LABEL = nls.localize('focusNextPart', "Focus Next Part");
+	static readonly LABEL = localize('focusNextPart', "Focus Next Part");
 
 	constructor(
 		id: string,
@@ -249,14 +234,14 @@ export class FocusNextPart extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		focusNextOrPreviousPart(this.layoutService, this.editorService, true);
 	}
 }
 
 export class FocusPreviousPart extends Action {
 	static readonly ID = 'workbench.action.focusPreviousPart';
-	static readonly LABEL = nls.localize('focusPreviousPart', "Focus Previous Part");
+	static readonly LABEL = localize('focusPreviousPart', "Focus Previous Part");
 
 	constructor(
 		id: string,
@@ -267,7 +252,7 @@ export class FocusPreviousPart extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		focusNextOrPreviousPart(this.layoutService, this.editorService, false);
 	}
 }

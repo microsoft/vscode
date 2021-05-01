@@ -14,8 +14,9 @@ import { isMarkdownFile } from '../util/file';
 import { normalizeResource, WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MarkdownContentProvider } from './previewContentProvider';
+import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
 import { MarkdownEngine } from '../markdownEngine';
+import { urlToUri } from '../util/url';
 
 const localize = nls.loadMessageBundle();
 
@@ -90,7 +91,7 @@ class StartingScrollLine {
 	) { }
 }
 
-class StartingScrollFragment {
+export class StartingScrollFragment {
 	public readonly type = 'fragment';
 
 	constructor(
@@ -117,6 +118,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private isScrolling = false;
 	private _disposed: boolean = false;
 	private imageInfo: { readonly id: string, readonly width: number, readonly height: number; }[] = [];
+
+	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
 
 	constructor(
 		webview: vscode.WebviewPanel,
@@ -153,6 +156,16 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._register(vscode.workspace.onDidChangeTextDocument(event => {
 			if (this.isPreviewOf(event.document.uri)) {
 				this.refresh();
+			}
+		}));
+
+		const watcher = this._register(vscode.workspace.createFileSystemWatcher(resource.fsPath));
+		this._register(watcher.onDidChange(uri => {
+			if (this.isPreviewOf(uri)) {
+				// Only use the file system event when VS Code does not already know about the file
+				if (!vscode.workspace.textDocuments.some(doc => doc.uri.toString() !== uri.toString())) {
+					this.refresh();
+				}
 			}
 		}));
 
@@ -194,10 +207,13 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.updatePreview();
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		this._disposed = true;
 		clearTimeout(this.throttleTimer);
+		for (const entry of this._fileWatchersBySrc.values()) {
+			entry.dispose();
+		}
 	}
 
 	public get resource(): vscode.Uri {
@@ -214,6 +230,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		};
 	}
 
+	/**
+	 * The first call immediately refreshes the preview,
+	 * calls happening shortly thereafter are debounced.
+	*/
 	public refresh() {
 		// Schedule update if none is pending
 		if (!this.throttleTimer) {
@@ -350,7 +370,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._webviewPanel.webview.html = this._contentProvider.provideFileNotFoundContent(this._resource);
 	}
 
-	private setContent(html: string): void {
+	private setContent(content: MarkdownContentProviderOutput): void {
 		if (this._disposed) {
 			return;
 		}
@@ -361,7 +381,30 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._webviewPanel.iconPath = this.iconPath;
 		this._webviewPanel.webview.options = this.getWebviewOptions();
 
-		this._webviewPanel.webview.html = html;
+		this._webviewPanel.webview.html = content.html;
+
+		const srcs = new Set(content.containingImages.map(img => img.src));
+
+		// Delete stale file watchers.
+		for (const [src, watcher] of [...this._fileWatchersBySrc]) {
+			if (!srcs.has(src)) {
+				watcher.dispose();
+				this._fileWatchersBySrc.delete(src);
+			}
+		}
+
+		// Create new file watchers.
+		const root = vscode.Uri.joinPath(this._resource, '../');
+		for (const src of srcs) {
+			const uri = urlToUri(src, root);
+			if (uri && uri.scheme === 'file' && !this._fileWatchersBySrc.has(src)) {
+				const watcher = vscode.workspace.createFileSystemWatcher(uri.fsPath);
+				watcher.onDidChange(() => {
+					this.refresh();
+				});
+				this._fileWatchersBySrc.set(src, watcher);
+			}
+		}
 	}
 
 	private getWebviewOptions(): vscode.WebviewOptions {
@@ -391,11 +434,14 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private async onDidClickPreviewLink(href: string) {
 		let [hrefPath, fragment] = decodeURIComponent(href).split('#');
 
-		// We perviously already resolve absolute paths.
-		// Now make sure we handle relative file paths
 		if (hrefPath[0] !== '/') {
-			// Fix #93691, use this.resource.fsPath instead of this.resource.path
-			hrefPath = path.join(path.dirname(this.resource.fsPath), hrefPath);
+			// We perviously already resolve absolute paths.
+			// Now make sure we handle relative file paths
+			const dirnameUri = vscode.Uri.parse(path.dirname(this.resource.path));
+			hrefPath = vscode.Uri.joinPath(dirnameUri, hrefPath).path;
+		} else {
+			// Handle any normalized file paths
+			hrefPath = vscode.Uri.parse(hrefPath.replace('/file', '')).path;
 		}
 
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
@@ -491,7 +537,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 	private readonly _onDidChangeViewState = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState = this._onDidChangeViewState.event;
 
-	dispose() {
+	override dispose() {
 		this._onDispose.fire();
 		super.dispose();
 	}
@@ -636,7 +682,7 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 	private readonly _onDidChangeViewStateEmitter = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState = this._onDidChangeViewStateEmitter.event;
 
-	dispose() {
+	override dispose() {
 		this._preview.dispose();
 		this._webviewPanel.dispose();
 

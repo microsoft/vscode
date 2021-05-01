@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { LogLevel, ILoggerService, AbstractLogService, DEFAULT_LOG_LEVEL, ILogger } from 'vs/platform/log/common/log';
+import { LogLevel, ILoggerService, AbstractLogger, DEFAULT_LOG_LEVEL, ILogger } from 'vs/platform/log/common/log';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-class TestTelemetryLogger extends AbstractLogService implements ILogger {
-	declare readonly _serviceBrand: undefined;
+class TestTelemetryLogger extends AbstractLogger implements ILogger {
 
 	public logs: string[] = [];
 
@@ -54,7 +53,7 @@ class TestTelemetryLogger extends AbstractLogService implements ILogger {
 		}
 	}
 
-	dispose(): void { }
+	override dispose(): void { }
 	flush(): void { }
 }
 
@@ -67,7 +66,7 @@ class TestTelemetryLoggerService implements ILoggerService {
 		this.logger = new TestTelemetryLogger(logLevel);
 	}
 
-	getLogger(): ILogger {
+	createLogger(): ILogger {
 		return this.logger;
 	}
 }
@@ -78,14 +77,14 @@ suite('TelemetryLogAdapter', () => {
 		const testLoggerService = new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL);
 		const testObject = new TelemetryLogAppender(testLoggerService, new TestInstantiationService().stub(IEnvironmentService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.equal(testLoggerService.logger.logs.length, 2);
+		assert.strictEqual(testLoggerService.logger.logs.length, 2);
 	});
 
 	test('Log Telemetry if log level is trace', async () => {
 		const testLoggerService = new TestTelemetryLoggerService(LogLevel.Trace);
 		const testObject = new TelemetryLogAppender(testLoggerService, new TestInstantiationService().stub(IEnvironmentService, {}));
 		testObject.log('testEvent', { hello: 'world', isTrue: true, numberBetween1And3: 2 });
-		assert.equal(testLoggerService.logger.logs[2], 'telemetry/testEvent' + JSON.stringify([{
+		assert.strictEqual(testLoggerService.logger.logs[2], 'telemetry/testEvent' + JSON.stringify([{
 			properties: {
 				hello: 'world',
 			},
