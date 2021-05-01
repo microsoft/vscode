@@ -388,11 +388,11 @@ export class FormatString extends Marker {
 	}
 
 	private _toPascalCase(value: string): string {
-		const match = value.match(/[a-z]+/gi);
+		const match = value.match(/[a-z0-9]+/gi);
 		if (!match) {
 			return value;
 		}
-		return match.map(function (word) {
+		return match.map(word => {
 			return word.charAt(0).toUpperCase()
 				+ word.substr(1).toLowerCase();
 		})
