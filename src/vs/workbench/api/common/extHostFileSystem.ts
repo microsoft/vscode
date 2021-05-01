@@ -147,7 +147,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProvider.add(scheme);
 		this._registeredSchemes.add(scheme);
 		this._fsProvider.set(handle, provider);
-		this._enableProposedApi.set(handle, enableProposedApi || false);
+		this._enableProposedApi.set(handle, enableProposedApi ?? false);
 
 		let capabilities = files.FileSystemProviderCapabilities.FileReadWrite;
 		if (options.isCaseSensitive) {
@@ -217,7 +217,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$stat(handle: number, resource: UriComponents): Promise<files.IStat> {
-		return Promise.resolve(this._getFsProvider(handle).stat(URI.revive(resource))).then((stat) => ExtHostFileSystem._asIStat(stat, this._enableProposedApi.get(handle) || false));
+		return Promise.resolve(this._getFsProvider(handle).stat(URI.revive(resource))).then(stat => ExtHostFileSystem._asIStat(stat, this._enableProposedApi.get(handle) ?? false));
 	}
 
 	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]> {
