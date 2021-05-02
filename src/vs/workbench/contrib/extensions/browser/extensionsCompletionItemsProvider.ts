@@ -15,16 +15,14 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Range } from 'vs/editor/common/core/range';
 
 
-export class ExtensionSupportCompletionProvider extends Disposable implements IWorkbenchContribution {
+export class ExtensionsCompletionItemsProvider extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 	) {
 		super();
 
 		this._register(CompletionProviderRegistry.register({ language: 'jsonc', pattern: '**/settings.json' }, {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
-				const suggestions: CompletionItem[] = [];
-
 				const getWordRangeAtPosition = (model: ITextModel, position: Position): Range | null => {
 					const wordAtPosition = model.getWordAtPosition(position);
 					return wordAtPosition ? new Range(position.lineNumber, wordAtPosition.startColumn, position.lineNumber, wordAtPosition.endColumn) : null;
@@ -40,22 +38,29 @@ export class ExtensionSupportCompletionProvider extends Disposable implements IW
 						alreadyConfigured = Object.keys(parse(model.getValue())['extensions.supportUntrustedWorkspaces']);
 					} catch (e) {/* ignore error */ }
 
-					const installedExtensions = (await extensionManagementService.getInstalled()).filter(e => e.manifest.main);
-					const proposedExtensions = installedExtensions.filter(e => alreadyConfigured.indexOf(e.identifier.id) === -1);
-
-					if (proposedExtensions.length) {
-						suggestions.push(...proposedExtensions.map(e => {
-							const text = `"${e.identifier.id}": {\n\t"supported": true,\n\t"version": "${e.manifest.version}"\n},`;
-							return { label: e.identifier.id, kind: CompletionItemKind.Value, insertText: text, filterText: text, range };
-						}));
-					} else {
-						const text = '"vscode.csharp": {\n\t"supported": true,\n\t"version": "0.0.0"\n},';
-						suggestions.push({ label: localize('exampleExtension', "Example"), kind: CompletionItemKind.Value, insertText: text, filterText: text, range });
-					}
+					return { suggestions: await this.provideSupportUntrustedWorkspacesExtensionProposals(alreadyConfigured, range) };
 				}
 
-				return { suggestions };
+				return { suggestions: [] };
 			}
 		}));
+	}
+
+	private async provideSupportUntrustedWorkspacesExtensionProposals(alreadyConfigured: string[], range: Range): Promise<CompletionItem[]> {
+		const suggestions: CompletionItem[] = [];
+		const installedExtensions = (await this.extensionManagementService.getInstalled()).filter(e => e.manifest.main);
+		const proposedExtensions = installedExtensions.filter(e => alreadyConfigured.indexOf(e.identifier.id) === -1);
+
+		if (proposedExtensions.length) {
+			suggestions.push(...proposedExtensions.map(e => {
+				const text = `"${e.identifier.id}": {\n\t"supported": true,\n\t"version": "${e.manifest.version}"\n},`;
+				return { label: e.identifier.id, kind: CompletionItemKind.Value, insertText: text, filterText: text, range };
+			}));
+		} else {
+			const text = '"vscode.csharp": {\n\t"supported": true,\n\t"version": "0.0.0"\n},';
+			suggestions.push({ label: localize('exampleExtension', "Example"), kind: CompletionItemKind.Value, insertText: text, filterText: text, range });
+		}
+
+		return suggestions;
 	}
 }

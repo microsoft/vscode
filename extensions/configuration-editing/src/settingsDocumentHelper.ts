@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { getLocation, Location, parse } from 'jsonc-parser';
 import * as nls from 'vscode-nls';
-import { provideInstalledExtensionProposals, provideWorkspaceTrustExtensionProposals } from './extensionsProposals';
+import { provideInstalledExtensionProposals } from './extensionsProposals';
 
 const localize = nls.loadMessageBundle();
 
