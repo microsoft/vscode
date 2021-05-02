@@ -23,6 +23,7 @@ const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
 
 const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
+const isUsingWebviewTag = searchParams.has('isUsingWebviewTag');
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -188,34 +189,36 @@ function getVsCodeApiScript(allowMultipleAPIAcquire, useParentPostMessage, state
 			delete window.top;
 			delete window.frameElement;
 
-			// Try to block webviews from cancelling unloads.
-			// This blocking is not perfect but should block common patterns
-			(function() {
-				const createUnloadEventProxy = (e) => {
-					return new Proxy(e, {
-						set: (target, prop, receiver) => {
-							if (prop === 'returnValue') {
-								// Don't allow setting return value to block window unload
-								return;
+			if (!${isUsingWebviewTag}) {
+				// Try to block webviews from cancelling unloads.
+				// This blocking is not perfect but should block common patterns
+				(function() {
+					const createUnloadEventProxy = (e) => {
+						return new Proxy(e, {
+							set: (target, prop, receiver) => {
+								if (prop === 'returnValue') {
+									// Don't allow setting return value to block window unload
+									return;
+								}
+								target[prop] = value;
 							}
-							target[prop] = value;
+						});
+					};
+
+					Object.defineProperty(window, 'onbeforeunload', { value: null, writable: false });
+
+					const originalAddEventListener = window.addEventListener.bind(window);
+					window.addEventListener = (type, listener, ...args) => {
+						if (type === 'beforeunload') {
+							return originalAddEventListener(type, (e) => {
+								return createUnloadEventProxy(listener);
+							}, ...args);
+						} else {
+							return originalAddEventListener(type, listener, ...args);
 						}
-					});
-				};
-
-				Object.defineProperty(window, 'onbeforeunload', { value: null, writable: false });
-
-				const originalAddEventListener = window.addEventListener.bind(window);
-				window.addEventListener = (type, listener, ...args) => {
-					if (type === 'beforeunload') {
-						return originalAddEventListener(type, (e) => {
-							return createUnloadEventProxy(listener);
-						}, ...args);
-					} else {
-						return originalAddEventListener(type, listener, ...args);
 					}
-				}
-			})();
+				})();
+			}
 		`;
 }
 
