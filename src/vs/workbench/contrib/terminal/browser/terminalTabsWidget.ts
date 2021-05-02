@@ -34,6 +34,7 @@ const TAB_HEIGHT = 22;
 export const MIN_TABS_WIDGET_WIDTH = 46;
 export const DEFAULT_TABS_WIDGET_WIDTH = 80;
 export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
+export const THRESHOLD_ACTIONBAR_WIDTH = 79;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
@@ -225,6 +226,10 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		return this._container ? this._container.clientWidth < MIDPOINT_WIDGET_WIDTH : false;
 	}
 
+	shouldHideActionBar(): boolean {
+		return this._container ? this._container.clientWidth <= THRESHOLD_ACTIONBAR_WIDTH : false;
+	}
+
 	renderElement(node: ITreeNode<ITerminalInstance>, index: number, template: ITerminalTabEntryTemplate): void {
 		let instance = node.element;
 
@@ -276,9 +281,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			}
 		}
 
+		const hasActionbar = !this.shouldHideActionBar();
 		let label: string;
 		if (!hasText) {
-			template.actionBar.clear();
 			const primaryStatus = instance.statusList.primary;
 			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
 				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
@@ -294,6 +299,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			if (instance.icon) {
 				label += ` ${instance.title}`;
 			}
+		}
+		if (!hasActionbar) {
+			template.actionBar.clear();
 		}
 
 		if (!template.elementDispoables) {
