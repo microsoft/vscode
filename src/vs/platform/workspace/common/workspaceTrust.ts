@@ -29,7 +29,6 @@ export interface WorkspaceTrustRequestButton {
 export interface WorkspaceTrustRequestOptions {
 	readonly buttons?: WorkspaceTrustRequestButton[];
 	readonly message?: string;
-	readonly modal: boolean;
 }
 
 export type WorkspaceTrustChangeEvent = Event<boolean>;
@@ -57,8 +56,7 @@ export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequ
 export interface IWorkspaceTrustRequestService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions>;
-	readonly onDidCompleteWorkspaceTrustRequest: Event<boolean>;
+	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 
 	cancelRequest(): void;
 	completeRequest(trusted?: boolean): void;
