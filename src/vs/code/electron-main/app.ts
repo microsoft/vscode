@@ -87,8 +87,8 @@ import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/e
 import { once } from 'vs/base/common/functional';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/electron-main/externalTerminalService';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 
 /**
  * The main VS Code application. There will only ever be one instance,

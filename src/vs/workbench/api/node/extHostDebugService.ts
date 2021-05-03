@@ -23,9 +23,7 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
-import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/externalTerminal/node/terminals';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/externalTerminal/node/terminals';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -141,28 +139,13 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			return shellProcessId;
 
 		} else if (args.kind === 'external') {
-			return this._runInExternalTerminal(args, await this._configurationService.getConfigProvider());
+			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
 		return super.$runInTerminal(args, sessionId);
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
 		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._workspaceService);
-	}
-
-	private _runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
-		let externalTerminalService;
-		if (platform.isWindows) {
-			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else if (platform.isMacintosh) {
-			externalTerminalService = new MacExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else if (platform.isLinux) {
-			externalTerminalService = new LinuxExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else {
-			throw new Error('external terminals not supported on this platform');
-		}
-		const config = configProvider.getConfiguration('terminal');
-		return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 	}
 }
 
