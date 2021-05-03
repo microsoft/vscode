@@ -507,11 +507,6 @@ export class WorkspaceTrustTree extends WorkbenchObjectTree<WorkspaceTrustSettin
 				collector.addRule(`.workspace-trust-editor .workspace-trust-settings .workspace-trust-settings-tree-container .monaco-list-row.focused .settings-row-inner-container { background-color: ${focusedRowBackgroundColor}; }`);
 			}
 
-			const rowHoverBackgroundColor = theme.getColor(rowHoverBackground);
-			if (rowHoverBackgroundColor) {
-				collector.addRule(`.workspace-trust-editor .workspace-trust-settings .workspace-trust-settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover { background-color: ${rowHoverBackgroundColor}; }`);
-			}
-
 			const focusedRowBorderColor = theme.getColor(focusedRowBorder);
 			if (focusedRowBorderColor) {
 				collector.addRule(`.workspace-trust-editor .workspace-trust-settings .workspace-trust-settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents::before,
