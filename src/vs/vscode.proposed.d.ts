@@ -1764,10 +1764,24 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
-	// todo@API make class?
-	export interface NotebookKernelPreload {
-		provides?: string | string[];
-		uri: Uri;
+	export class NotebookKernelPreload {
+		/**
+		 * APIs that the preload provides to the renderer. These are matched
+		 * against the `dependencies` and `optionalDependencies` arrays in the
+		 * notebook renderer contribution point.
+		 */
+		readonly provides: string[];
+
+		/**
+		 * URI for the file to preload
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * @param uri URI for the file to preload
+		 * @param provides Value for the `provides` property
+		 */
+		constructor(uri: Uri, provides?: string | string[]);
 	}
 
 	export interface NotebookCellExecuteStartContext {

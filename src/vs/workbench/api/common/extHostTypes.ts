@@ -3168,6 +3168,17 @@ export enum NotebookControllerAffinity {
 	Preferred = 2
 }
 
+export class NotebookKernelPreload {
+	public readonly provides: string[];
+
+	constructor(
+		public readonly uri: vscode.Uri,
+		provides: string | string[] = []
+	) {
+		this.provides = typeof provides === 'string' ? [provides] : provides;
+	}
+}
+
 //#endregion
 
 //#region Timeline
