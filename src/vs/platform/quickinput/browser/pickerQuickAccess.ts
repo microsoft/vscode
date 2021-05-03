@@ -5,7 +5,7 @@
 
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickSeparator, IKeyMods, IQuickPickDidAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
@@ -42,7 +42,7 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	* @param keyMods the state of modifier keys when the item was accepted.
 	* @param event the underlying event that caused the accept to trigger.
 	*/
-	accept?(keyMods: IKeyMods, event: IQuickPickAcceptEvent): void;
+	accept?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
 
 	/**
 	 * A method that will be executed when a button of the pick item was

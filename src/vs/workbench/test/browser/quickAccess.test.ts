@@ -261,7 +261,7 @@ suite('QuickAccess', () => {
 	const slowProviderDescriptor = { ctor: SlowTestQuickPickProvider, prefix: 'slow', helpEntries: [] };
 	const fastAndSlowProviderDescriptor = { ctor: FastAndSlowTestQuickPickProvider, prefix: 'bothFastAndSlow', helpEntries: [] };
 
-	test('quick pick access', async () => {
+	test('quick pick access - show()', async () => {
 		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
 		const restore = (registry as QuickAccessRegistry).clear();
 
@@ -306,6 +306,23 @@ suite('QuickAccess', () => {
 		await timeout(2);
 		assert.strictEqual(slowProviderCanceled, true);
 		assert.strictEqual(fastAndSlowProviderCanceled, true);
+
+		disposables.dispose();
+
+		restore();
+	});
+
+	test('quick pick access - pick()', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+
+		const disposables = new DisposableStore();
+
+		disposables.add(registry.registerQuickAccessProvider(fastProviderDescriptor));
+
+		const result = accessor.quickInputService.quickAccess.pick('fast');
+		assert.strictEqual(fastProviderCalled, true);
+		assert.ok(result instanceof Promise);
 
 		disposables.dispose();
 
