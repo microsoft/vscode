@@ -266,6 +266,7 @@ export class TestServiceAccessor {
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
 		@IEditorService public editorService: TestEditorService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
+		@IEditorOverrideService public editorOverrideService: IEditorOverrideService,
 		@IModeService public modeService: IModeService,
 		@ITextModelService public textModelResolverService: ITextModelService,
 		@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService,
