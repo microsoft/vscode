@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_COMMAND_ID, TERMINAL_SETTING_ID, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -143,7 +143,7 @@ export function setupTerminalMenus(): void {
 						id: TERMINAL_COMMAND_ID.SHOW_TABS,
 						title: localize('workbench.action.terminal.showsTabs', "Show Tabs")
 					},
-					when: ContextKeyExpr.not('config.terminal.integrated.tabs.enabled'),
+					when: ContextKeyExpr.not(`config.${TERMINAL_SETTING_ID.TabsEnabled}`),
 					group: ContextMenuGroup.Config
 				}
 			},
@@ -218,7 +218,7 @@ export function setupTerminalMenus(): void {
 					order: 2,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
+						ContextKeyExpr.not(`config.${TERMINAL_SETTING_ID.TabsEnabled}`)
 					])
 				}
 			},
@@ -232,7 +232,7 @@ export function setupTerminalMenus(): void {
 					order: 0,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not('config.terminal.integrated.tabs.enabled')
+						ContextKeyExpr.not(`config.${TERMINAL_SETTING_ID.TabsEnabled}`)
 					]),
 				}
 			}
