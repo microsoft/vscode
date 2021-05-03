@@ -354,9 +354,7 @@ interface ITerminalTabEntryTemplate {
 
 
 class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
-	constructor(@ITerminalService private readonly _terminalService: ITerminalService) {
-
-	}
+	constructor(@ITerminalService private readonly _terminalService: ITerminalService) { }
 
 	getWidgetAriaLabel(): string {
 		return localize('terminal.tabs', "Terminal tabs");
