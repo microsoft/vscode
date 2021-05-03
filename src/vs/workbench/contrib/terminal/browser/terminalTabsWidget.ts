@@ -5,7 +5,7 @@
 
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -63,10 +63,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				identityProvider: {
 					getId: e => e?.instanceId
 				},
-				accessibilityProvider: {
-					getAriaLabel: e => e?.title,
-					getWidgetAriaLabel: () => localize('terminal.tabs', "Terminal tabs")
-				},
+				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
@@ -236,19 +233,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		const hasText = !this.shouldHideText();
 		template.element.classList.toggle('has-text', hasText);
 
-		let ariaLabel: string = '';
 		let prefix: string = '';
 		if (tab.terminalInstances.length > 1) {
 			const terminalIndex = tab.terminalInstances.indexOf(instance);
-			ariaLabel = localize({
-				key: 'splitTerminalAriaLabel',
-				comment: [
-					`The terminal's ID`,
-					`The terminal's title`,
-					`The terminal's split number`,
-					`The terminal group's total split number`
-				]
-			}, "Terminal {0} {1}, split {2} of {3}", instance.instanceId, instance.title, terminalIndex + 1, tab.terminalInstances.length);
 			if (terminalIndex === 0) {
 				prefix = `┌ `;
 			} else if (terminalIndex === tab!.terminalInstances.length - 1) {
@@ -256,14 +243,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			} else {
 				prefix = `├ `;
 			}
-		} else {
-			ariaLabel = localize({
-				key: 'terminalAriaLabel',
-				comment: [
-					`The terminal's ID`,
-					`The terminal's title`
-				]
-			}, "Terminal {0} {1}", instance.instanceId, instance.title);
 		}
 
 		let title = instance.title;
@@ -282,7 +261,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			const primaryStatus = instance.statusList.primary;
 			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
 				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
-				ariaLabel = '';
 			} else {
 				label = `${prefix}$(${instance.icon?.id})`;
 			}
@@ -306,9 +284,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 				instance.dispose();
 			}
 		}));
-
-		// Set aria lable to expose split information to screen reader
-		template.label.element.querySelector('.label-name')?.setAttribute('aria-label', ariaLabel);
 
 		template.label.setResource({
 			resource: instance.resource,
@@ -375,4 +350,39 @@ interface ITerminalTabEntryTemplate {
 		hoverActions?: IHoverAction[];
 	};
 	elementDispoables?: DisposableStore;
+}
+
+
+class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
+	constructor(@ITerminalService private readonly _terminalService: ITerminalService) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('terminal.tabs', "Terminal tabs");
+	}
+
+	getAriaLabel(instance: ITerminalInstance): string {
+		let ariaLabel: string = '';
+		const tab = this._terminalService.getTabForInstance(instance);
+		if (tab && tab.terminalInstances?.length > 1) {
+			const terminalIndex = tab.terminalInstances.indexOf(instance);
+			ariaLabel = localize({
+				key: 'splitTerminalAriaLabel',
+				comment: [
+					`The terminal's ID`,
+					`The terminal's title`,
+					`The terminal's split number`,
+					`The terminal group's total split number`
+				]
+			}, "Terminal {0} {1}, split {2} of {3}", instance.instanceId, instance.title, terminalIndex + 1, tab.terminalInstances.length);
+		} else {
+			ariaLabel = localize({
+				key: 'terminalAriaLabel',
+				comment: [
+					`The terminal's ID`,
+					`The terminal's title`
+				]
+			}, "Terminal {0} {1}", instance.instanceId, instance.title);
+		}
+		return ariaLabel;
+	}
 }
