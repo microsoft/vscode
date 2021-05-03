@@ -9,12 +9,11 @@ import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as env from 'vs/base/common/platform';
-import { IExternalTerminalConfiguration, IExternalTerminalSettings, DEFAULT_TERMINAL_OSX, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { IExternalTerminalConfiguration, IExternalTerminalSettings, DEFAULT_TERMINAL_OSX, ITerminalForPlatform, IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { FileAccess } from 'vs/base/common/network';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
-import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-main/externalTerminalMainService';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
