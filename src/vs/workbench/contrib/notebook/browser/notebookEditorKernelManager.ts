@@ -40,10 +40,6 @@ export class NotebookEditorKernelManager extends Disposable {
 			return;
 		}
 
-		if (!notebook.metadata.trusted) {
-			return;
-		}
-
 		let kernel = this.getSelectedOrSuggestedKernel(notebook);
 		if (!kernel) {
 			await this._commandService.executeCommand('notebook.selectKernel');

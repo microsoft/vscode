@@ -1042,21 +1042,14 @@ declare module 'vscode' {
 
 	export class NotebookDocumentMetadata {
 		/**
-		 * Whether the document is trusted, default to true
-		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
-		 */
-		readonly trusted: boolean;
-
-		/**
 		 * Additional attributes of the document metadata.
 		 */
 		readonly [key: string]: any;
 
 		/**
 		 * Create a new notebook document metadata
-		 * @param trusted Whether the document metadata is trusted.
 		 */
-		constructor(trusted?: boolean);
+		constructor();
 
 		/**
 		 * Derived a new document metadata from this metadata.
@@ -1065,7 +1058,7 @@ declare module 'vscode' {
 		 * @return A new NotebookDocumentMetadata that reflects the given change. Will return `this` NotebookDocumentMetadata if the change
 		 *  is not changing anything.
 		 */
-		with(change: { trusted?: boolean | null, [key: string]: any }): NotebookDocumentMetadata
+		with(change: { [key: string]: any }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
