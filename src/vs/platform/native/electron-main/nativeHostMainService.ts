@@ -599,9 +599,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		// Otherwise: normal quit
 		else {
-			setTimeout(() => {
-				this.lifecycleMainService.quit();
-			}, 10 /* delay to unwind callback stack (IPC) */);
+			this.lifecycleMainService.quit();
 		}
 	}
 
