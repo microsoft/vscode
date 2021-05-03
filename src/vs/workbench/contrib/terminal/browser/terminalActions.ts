@@ -1327,7 +1327,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
-				title: { value: localize('workbench.action.terminal.splitInstance', "Split Terminal"), original: 'Split Terminal' },
+				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -1349,9 +1349,10 @@ export function registerTerminalActions() {
 					accessor.get(ITerminalService).splitInstance(instance);
 				}
 			}
+			accessor.get(ITerminalService).focusTabs();
+			focusNext(accessor);
 		}
 	});
-
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1484,7 +1485,7 @@ export function registerTerminalActions() {
 			super({
 				id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
 				title: {
-					value: localize('workbench.action.terminal.killInstance', "Kill Terminal"), original: 'Kill Terminal'
+					value: localize('workbench.action.terminal.kill.short', "Kill Terminal"), original: 'Kill Terminal'
 				},
 				f1: false,
 				category,
@@ -1502,11 +1503,13 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			getSelectedInstances(accessor)?.forEach(instance => instance.dispose(true));
-			accessor.get(ITerminalService).focusTabs();
-			focusNext(accessor);
+			const terminalService = accessor.get(ITerminalService);
+			if (terminalService.terminalInstances.length > 0) {
+				terminalService.focusTabs();
+				focusNext(accessor);
+			}
 		}
 	});
-
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({

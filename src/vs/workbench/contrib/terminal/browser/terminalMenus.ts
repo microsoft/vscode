@@ -209,29 +209,6 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalTabInlineActions, item: {
-					command: {
-						id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
-						title: localize('workbench.action.terminal.splitInstance', "Split Terminal"),
-					},
-					group: ContextMenuGroup.Create
-				}
-			},
-			{
-				id: MenuId.TerminalTabInlineActions, item: {
-					command: {
-						id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
-						title: localize('workbench.action.terminal.killInstance', "Kill Terminal")
-					},
-					group: ContextMenuGroup.Kill
-				}
-			}
-		]
-	);
-
-	MenuRegistry.appendMenuItems(
-		[
-			{
 				id: MenuId.ViewTitle, item: {
 					group: 'navigation',
 					command: {

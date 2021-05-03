@@ -94,6 +94,9 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		return this.model.getHashValue();
 	}
 
+	private readonly _onDidHideInput = new Emitter<void>();
+	readonly onDidHideInput = this._onDidHideInput.event;
+
 	constructor(
 		viewType: string,
 		model: NotebookCellTextModel,
@@ -116,6 +119,12 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 		this._register(this.onDidChangeState(e => {
 			eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this)]);
+		}));
+
+		this._register(model.onDidChangeMetadata(e => {
+			if (this.metadata?.inputCollapsed) {
+				this._onDidHideInput.fire();
+			}
 		}));
 	}
 

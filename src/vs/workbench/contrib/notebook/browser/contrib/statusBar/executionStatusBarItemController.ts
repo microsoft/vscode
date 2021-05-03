@@ -83,9 +83,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 		super();
 
 		this._update();
-		this._register(
-			Event.filter(this._cell.model.onDidChangeMetadata, e => !!e.runStateChanged)
-				(() => this._update()));
+		this._register(this._cell.model.onDidChangeMetadata(() => this._update()));
 	}
 
 	private async _update() {

@@ -2449,7 +2449,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async trust(): Promise<boolean> {
 		return (await this.workspaceTrustRequestService.requestWorkspaceTrust(
 			{
-				modal: true,
 				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
 			})) === true;
 	}
@@ -3227,7 +3226,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
-		if (!(await this.trust())) {
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+			this._register(Event.once(this.workspaceTrustManagementService.onDidChangeTrust)(isTrusted => {
+				if (isTrusted) {
+					this.upgrade();
+				}
+			}));
 			return;
 		}
 

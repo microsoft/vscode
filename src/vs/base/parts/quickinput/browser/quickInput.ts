@@ -29,7 +29,6 @@ import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
 import { registerCodicon, Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { escape } from 'vs/base/common/strings';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { isString } from 'vs/base/common/types';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -359,7 +358,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		const validationMessage = this.validationMessage || this.noValidationMessage;
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
-			dom.reset(this.ui.message, ...renderLabelWithIcons(escape(validationMessage)));
+			dom.reset(this.ui.message, ...renderLabelWithIcons(validationMessage));
 		}
 		if (this._lastSeverity !== this.severity) {
 			this._lastSeverity = this.severity;

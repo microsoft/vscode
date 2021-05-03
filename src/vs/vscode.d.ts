@@ -7369,6 +7369,16 @@ declare module 'vscode' {
 		 * background with `retainContextWhenHidden`).
 		 *
 		 * @param message Body of the message. This must be a string or other json serializable object.
+		 *
+		 *   For older versions of vscode, if an `ArrayBuffer` is included in `message`,
+		 *   it will not be serialized properly and will not be received by the webview.
+		 *   Similarly any TypedArrays, such as a `Uint8Array`, will be very inefficiently
+		 *   serialized and will also not be recreated as a typed array inside the webview.
+		 *
+		 *   However if your extension targets vscode 1.57+ in the `engines` field of its
+		 *   `package.json`, any `ArrayBuffer` values that appear in `message` will be more
+		 *   efficiently transferred to the webview and will also be correctly recreated inside
+		 *   of the webview.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 

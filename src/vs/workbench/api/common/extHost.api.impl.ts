@@ -501,9 +501,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostLanguages.tokenAtPosition(doc, pos);
 			},
-			registerInlineHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+			registerInlayHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerInlineHintsProvider(extension, selector, provider);
+				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			}
 		};
 
@@ -1236,8 +1236,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
-			InlineHint: extHostTypes.InlineHint,
-			InlineHintKind: extHostTypes.InlineHintKind,
+			InlayHint: extHostTypes.InlayHint,
+			InlayHintKind: extHostTypes.InlayHintKind,
 			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
 			RemoteTrustOption: RemoteTrustOption,
 			ResolvedAuthority: extHostTypes.ResolvedAuthority,

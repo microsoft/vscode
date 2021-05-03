@@ -10,15 +10,17 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Codicon } from 'vs/base/common/codicons';
+import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -26,7 +28,6 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -40,7 +41,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 
 	constructor(
 		container: HTMLElement,
-		inlineMenu: IMenu,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -56,15 +56,15 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				getHeight: () => TAB_HEIGHT,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, inlineMenu, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER))],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelection())],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				identityProvider: {
-					getId: e => e.instanceId
+					getId: e => e?.instanceId
 				},
 				accessibilityProvider: {
-					getAriaLabel: e => e.title,
+					getAriaLabel: e => e?.title,
 					getWidgetAriaLabel: () => localize('terminal.tabs', "Terminal tabs")
 				},
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
@@ -169,15 +169,17 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 
 class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, ITerminalTabEntryTemplate> {
 	templateId = 'terminal.tabs';
+
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _inlineMenu: IMenu,
 		private readonly _labels: ResourceLabels,
+		private readonly _getSelection: () => (ITerminalInstance | null)[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IListService private readonly _listService: IListService
 	) {
 	}
 
@@ -334,17 +336,34 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
-		const actions = this._inlineMenu.getActions();
+		const actions = [
+			new Action(TERMINAL_COMMAND_ID.SPLIT_INSTANCE, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+				this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
+			}),
+			new Action(TERMINAL_COMMAND_ID.KILL_INSTANCE, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+				this._runForSelectionOrInstance(instance, e => e.dispose());
+			})
+		];
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();
-		for (const [, action] of actions) {
-			for (const a of action) {
-				a.item.icon = a.id === TERMINAL_COMMAND_ID.KILL_INSTANCE ? Codicon.trashcan : Codicon.splitHorizontal;
-				if ('item' in a) {
-					template.actionBar.push(a, { icon: true, label: false, keybinding: this._keybindingService.lookupKeybinding(a.id)?.getLabel() });
+		for (const action of actions) {
+			template.actionBar.push(action, { icon: true, label: false, keybinding: this._keybindingService.lookupKeybinding(action.id)?.getLabel() });
+		}
+	}
+
+	private _runForSelectionOrInstance(instance: ITerminalInstance, callback: (instance: ITerminalInstance) => void) {
+		const selection = this._getSelection();
+		if (selection.includes(instance)) {
+			for (const s of selection) {
+				if (s) {
+					callback(s);
 				}
 			}
+		} else {
+			callback(instance);
 		}
+		this._terminalService.focusTabs();
+		this._listService.lastFocusedList?.focusNext();
 	}
 }
 

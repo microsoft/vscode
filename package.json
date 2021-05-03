@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.56.0",
-  "distro": "e3c1847b155be096fe8721296ee6375b350c71a4",
+  "version": "1.57.0",
+  "distro": "3d76109d9437bda93a3f337625de2833149ca724",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -44,7 +44,6 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
-    "no-implicit-override-watch": "tsc --watch -p src/tsconfig.json --noEmit --noImplicitOverride",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node resources/web/code-web.js",
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",

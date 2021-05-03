@@ -44,6 +44,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const id = generateUuid();
 			const webview = accessor.get(IWebviewService).createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
 			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData });
+			// If we're loading untitled file data we should ensure it's dirty
+			if (untitledDocumentData) {
+				input._defaultDirtyState = true;
+			}
 			if (typeof group !== 'undefined') {
 				input.updateGroup(group);
 			}
@@ -139,7 +143,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		const orphaned = !!this._modelRef?.object.isOrphaned();
 
 		const readonly = this._modelRef
-			? !this._modelRef.object.isEditable() || this._modelRef.object.isOnReadonlyFileSystem()
+			? this._modelRef.object.isEditable() && this._modelRef.object.isOnReadonlyFileSystem()
 			: false;
 
 		return decorateFileEditorLabel(label, {

@@ -171,6 +171,12 @@ export type ContributionPointOptions = {
 	 * If your editor supports diffs
 	 */
 	canHandleDiff?: boolean | (() => boolean);
+
+	/**
+	 * Whether or not you can support opening the given resource.
+	 * If omitted we assume you can open everything
+	 */
+	canSupportResource?: (resource: URI) => boolean;
 };
 
 export type ContributedEditorInfo = {
@@ -254,7 +260,7 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 		return false;
 	}
 	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
-	const target = matchOnPath ? resource.path : basename(resource);
+	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
 	return glob.match(globPattern, target.toLowerCase());
 }
 //#endregion

@@ -24,6 +24,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private readonly _onDidRemoveOutputs = new Emitter<readonly ICellOutputViewModel[]>();
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
+	private readonly _onDidHideInput = new Emitter<void>();
+	readonly onDidHideInput = this._onDidHideInput.event;
+	private readonly _onDidHideOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	readonly onDidHideOutputs = this._onDidHideOutputs.event;
 	private _outputCollection: number[] = [];
 
 	private _outputsTop: PrefixSumComputer | null = null;
@@ -111,6 +115,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._onDidChangeOutputs.fire(splices);
 			this._onDidRemoveOutputs.fire(removedOutputs);
 			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+		}));
+
+		this._register(this.model.onDidChangeMetadata(e => {
+			if (this.metadata?.outputCollapsed) {
+				this._onDidHideOutputs.fire(this.outputsViewModels.slice(0));
+			}
+
+			if (this.metadata?.inputCollapsed) {
+				this._onDidHideInput.fire();
+			}
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);

@@ -264,6 +264,10 @@ class IPCReporter {
 }
 
 function runTests(opts) {
+	// this *must* come before loadTests, or it doesn't work.
+	if (opts.timeout !== undefined) {
+		mocha.timeout(opts.timeout);
+	}
 
 	return loadTests(opts).then(() => {
 

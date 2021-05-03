@@ -18,7 +18,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookDeltaCellStatusBarItems, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookDeltaCellStatusBarItems, CellFocusMode, CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
@@ -1063,12 +1063,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	 * Search in notebook text model
 	 * @param value
 	 */
-	find(value: string, options: INotebookSearchOptions): CellFindMatch[] {
-		const matches: CellFindMatch[] = [];
-		this._viewCells.forEach(cell => {
+	find(value: string, options: INotebookSearchOptions): CellFindMatchWithIndex[] {
+		const matches: CellFindMatchWithIndex[] = [];
+		this._viewCells.forEach((cell, index) => {
 			const cellMatches = cell.startFind(value, options);
 			if (cellMatches) {
-				matches.push(cellMatches);
+				matches.push({
+					cell: cellMatches.cell,
+					index: index,
+					matches: cellMatches.matches
+				});
 			}
 		});
 
