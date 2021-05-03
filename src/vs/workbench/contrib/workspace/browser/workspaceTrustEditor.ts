@@ -96,7 +96,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const scrollableContent = $('.workspace-trust-editor-body');
 		this.bodyScrollBar = this._register(new DomScrollableElement(scrollableContent, {
 			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Visible,
+			vertical: ScrollbarVisibility.Auto,
 		}));
 
 		append(this.rootElement, this.bodyScrollBar.getDomNode());
