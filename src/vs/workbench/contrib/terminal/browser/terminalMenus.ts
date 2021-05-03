@@ -16,13 +16,13 @@ const enum ContextMenuGroup {
 	Config = '5_config'
 }
 
-export const enum ContextMenuTabsGroup {
+export const enum TerminalTabContextMenuGroup {
 	Default = '1_create_default',
 	Profile = '2_create_profile',
 	Configure = '3_configure'
 }
 
-export const enum ContextMenuTerminalGroup {
+export const enum TerminalMenuBarGroup {
 	Create = '1_create',
 	Run = '2_run',
 	Manage = '3_manage',
@@ -34,7 +34,7 @@ export function setupTerminalMenus(): void {
 		[
 			{
 				id: MenuId.MenubarTerminalMenu, item: {
-					group: ContextMenuTerminalGroup.Create,
+					group: TerminalMenuBarGroup.Create,
 					command: {
 						id: TERMINAL_COMMAND_ID.NEW,
 						title: localize({ key: 'miNewTerminal', comment: ['&& denotes a mnemonic'] }, "&&New Terminal")
@@ -44,7 +44,7 @@ export function setupTerminalMenus(): void {
 			},
 			{
 				id: MenuId.MenubarTerminalMenu, item: {
-					group: ContextMenuTerminalGroup.Create,
+					group: TerminalMenuBarGroup.Create,
 					command: {
 						id: TERMINAL_COMMAND_ID.SPLIT,
 						title: localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"),
@@ -56,7 +56,7 @@ export function setupTerminalMenus(): void {
 			},
 			{
 				id: MenuId.MenubarTerminalMenu, item: {
-					group: ContextMenuTerminalGroup.Run,
+					group: TerminalMenuBarGroup.Run,
 					command: {
 						id: TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
 						title: localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
@@ -67,7 +67,7 @@ export function setupTerminalMenus(): void {
 			},
 			{
 				id: MenuId.MenubarTerminalMenu, item: {
-					group: ContextMenuTerminalGroup.Run,
+					group: TerminalMenuBarGroup.Run,
 					command: {
 						id: TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
 						title: localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
@@ -82,7 +82,7 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalContainerContext, item: {
+				id: MenuId.TerminalInstanceContext, item: {
 					group: ContextMenuGroup.Create,
 					command: {
 						id: TERMINAL_COMMAND_ID.SPLIT,
@@ -91,7 +91,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalContainerContext, item: {
+				id: MenuId.TerminalInstanceContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.NEW,
 						title: localize('workbench.action.terminal.new.short', "New Terminal")
@@ -100,7 +100,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalContainerContext, item: {
+				id: MenuId.TerminalInstanceContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.KILL,
 						title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
@@ -109,7 +109,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalContainerContext, item: {
+				id: MenuId.TerminalInstanceContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.COPY_SELECTION,
 						title: localize('workbench.action.terminal.copySelection.short', "Copy")
@@ -119,7 +119,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalContainerContext, item: {
+				id: MenuId.TerminalInstanceContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.PASTE,
 						title: localize('workbench.action.terminal.paste.short', "Paste")
@@ -129,7 +129,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalContainerContext, item: {
+				id: MenuId.TerminalInstanceContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.CLEAR,
 						title: localize('workbench.action.terminal.clear', "Clear")
@@ -138,7 +138,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalContainerContext, item: {
+				id: MenuId.TerminalInstanceContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.SHOW_TABS,
 						title: localize('workbench.action.terminal.showsTabs', "Show Tabs")
@@ -148,7 +148,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalContainerContext, item: {
+				id: MenuId.TerminalInstanceContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.SELECT_ALL,
 						title: localize('workbench.action.terminal.selectAll', "Select All"),
@@ -163,7 +163,7 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalTabsWidgetEmptyContext, item: {
+				id: MenuId.TerminalTabEmptyAreaContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
 						title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile")
@@ -172,7 +172,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalTabsWidgetEmptyContext, item: {
+				id: MenuId.TerminalTabEmptyAreaContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.NEW,
 						title: localize('workbench.action.terminal.new.short', "New Terminal")
@@ -186,21 +186,21 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalToolbarContext, item: {
+				id: MenuId.TerminalNewDropdownContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_PROFILE,
 						title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' }
 					},
-					group: ContextMenuTabsGroup.Configure
+					group: TerminalTabContextMenuGroup.Configure
 				}
 			},
 			{
-				id: MenuId.TerminalToolbarContext, item: {
+				id: MenuId.TerminalNewDropdownContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
 						title: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings")
 					},
-					group: ContextMenuTabsGroup.Configure
+					group: TerminalTabContextMenuGroup.Configure
 				}
 			}
 		]
@@ -242,7 +242,7 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalSingleTabContext, item: {
+				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.CHANGE_ICON,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
@@ -252,7 +252,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalSingleTabContext, item: {
+				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.RENAME,
 						title: localize('workbench.action.terminal.rename', "Rename...")
@@ -260,7 +260,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalSingleTabContext, item: {
+				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
 						title: localize('workbench.action.terminal.renameInstance', "Rename...")
@@ -269,7 +269,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalSingleTabContext, item: {
+				id: MenuId.TerminalInlineTabContext, item: {
 					group: ContextMenuGroup.Create,
 					command: {
 						id: TERMINAL_COMMAND_ID.SPLIT,
@@ -278,7 +278,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalSingleTabContext, item: {
+				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.KILL,
 						title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
@@ -292,7 +292,7 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
 		[
 			{
-				id: MenuId.TerminalTabsWidgetContext, item: {
+				id: MenuId.TerminalTabContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
 						title: localize('workbench.action.terminal.renameInstance', "Rename...")
@@ -301,7 +301,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalTabsWidgetContext, item: {
+				id: MenuId.TerminalTabContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
@@ -310,7 +310,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalTabsWidgetContext, item: {
+				id: MenuId.TerminalTabContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
 						title: localize('workbench.action.terminal.splitInstance', "Split Terminal"),
@@ -319,7 +319,7 @@ export function setupTerminalMenus(): void {
 				}
 			},
 			{
-				id: MenuId.TerminalTabsWidgetContext, item: {
+				id: MenuId.TerminalTabContext, item: {
 					command: {
 						id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
 						title: localize('workbench.action.terminal.killInstance', "Kill Terminal")
