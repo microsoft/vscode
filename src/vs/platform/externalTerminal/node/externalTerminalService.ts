@@ -27,10 +27,12 @@ class ExternalTerminalService implements IExternalTerminalMainService {
 		this._configurationService = configurationService;
 	}
 
-	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-		throw new Error('Method not implemented.');
+	async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
+		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
+		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
 	}
 
+	// used by linux / osx
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
 			const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
@@ -40,11 +42,7 @@ class ExternalTerminalService implements IExternalTerminalMainService {
 		}
 	}
 
-	async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
-		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
-		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
-	}
-
+	// used by windows
 	spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig?.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
@@ -80,6 +78,11 @@ class ExternalTerminalService implements IExternalTerminalMainService {
 			child.on('error', e);
 			child.on('exit', () => c());
 		});
+	}
+
+	// customized for each platform
+	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+		throw new Error('Method not implemented.');
 	}
 }
 
