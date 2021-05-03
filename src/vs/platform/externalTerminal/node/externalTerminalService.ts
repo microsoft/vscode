@@ -17,11 +17,8 @@ import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
-export class WindowsExternalTerminalService implements IExternalTerminalMainService {
+class ExternalTerminalService implements IExternalTerminalMainService {
 	public _serviceBrand: undefined;
-
-	private static readonly CMD = 'cmd.exe';
-
 	private readonly _configurationService?: IConfigurationService;
 
 	constructor(
@@ -30,55 +27,26 @@ export class WindowsExternalTerminalService implements IExternalTerminalMainServ
 		this._configurationService = configurationService;
 	}
 
-	public async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
-		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
-		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
+	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+		throw new Error('Method not implemented.');
 	}
 
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
 			const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
-			this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
+			if (cwd) {
+				this.spawnTerminal(cp, configuration, cwd);
+			}
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-		// TODO@meganrogge why is this undefined?
-		const exec = settings?.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
-
-		return new Promise<number | undefined>((resolve, reject) => {
-
-			const title = `"${dir} - ${TERMINAL_TITLE}"`;
-			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
-
-			const cmdArgs = [
-				'/c', 'start', title, '/wait', exec, '/c', command
-			];
-
-			// merge environment variables into a copy of the process.env
-			const env = Object.assign({}, process.env, envVars);
-
-			// delete environment variables that have a null value
-			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
-
-			const options: any = {
-				cwd: dir,
-				env: env,
-				windowsVerbatimArguments: true
-			};
-
-			const cmd = cp.spawn(WindowsExternalTerminalService.CMD, cmdArgs, options);
-			cmd.on('error', err => {
-				reject(improveError(err));
-			});
-
-			resolve(undefined);
-		});
+	async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
+		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
+		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
 	}
 
-	private spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
+	spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
-		// TODO@meganrogge why is this undefined?
 		const exec = terminalConfig?.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 
 		// Make the drive letter uppercase on Windows (see #9448)
@@ -113,8 +81,59 @@ export class WindowsExternalTerminalService implements IExternalTerminalMainServ
 			child.on('exit', () => c());
 		});
 	}
+}
 
+export class WindowsExternalTerminalService extends ExternalTerminalService {
+	private static readonly CMD = 'cmd.exe';
+	private _configService: IConfigurationService;
 	private static _DEFAULT_TERMINAL_WINDOWS: string;
+
+	constructor(
+		@optional(IConfigurationService) configurationService: IConfigurationService
+	) {
+		super(configurationService);
+		this._configService = configurationService;
+	}
+
+	public override openTerminal(cwd?: string): void {
+		if (this._configService) {
+			const configuration = this._configService.getValue<IExternalTerminalConfiguration>();
+			this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
+		}
+	}
+
+	public override runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
+
+		return new Promise<number | undefined>((resolve, reject) => {
+
+			const title = `"${dir} - ${TERMINAL_TITLE}"`;
+			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
+
+			const cmdArgs = [
+				'/c', 'start', title, '/wait', exec, '/c', command
+			];
+
+			// merge environment variables into a copy of the process.env
+			const env = Object.assign({}, process.env, envVars);
+
+			// delete environment variables that have a null value
+			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
+
+			const options: any = {
+				cwd: dir,
+				env: env,
+				windowsVerbatimArguments: true
+			};
+
+			const cmd = cp.spawn(WindowsExternalTerminalService.CMD, cmdArgs, options);
+			cmd.on('error', err => {
+				reject(improveError(err));
+			});
+
+			resolve(undefined);
+		});
+	}
 
 	public static getDefaultTerminalWindows(): string {
 		if (!WindowsExternalTerminalService._DEFAULT_TERMINAL_WINDOWS) {
@@ -125,27 +144,16 @@ export class WindowsExternalTerminalService implements IExternalTerminalMainServ
 	}
 }
 
-export class MacExternalTerminalService implements IExternalTerminalMainService {
-	public _serviceBrand: undefined;
-
+export class MacExternalTerminalService extends ExternalTerminalService {
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
-
-	private readonly _configurationService?: IConfigurationService;
 
 	constructor(
 		@optional(IConfigurationService) configurationService: IConfigurationService
 	) {
-		this._configurationService = configurationService;
+		super(configurationService);
 	}
 
-	public openTerminal(cwd?: string): void {
-		if (this._configurationService) {
-			const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
-			this.spawnTerminal(cp, configuration, cwd);
-		}
-	}
-
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public override runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const terminalApp = settings.osxExec || DEFAULT_TERMINAL_OSX;
 
@@ -209,14 +217,9 @@ export class MacExternalTerminalService implements IExternalTerminalMainService 
 		});
 	}
 
-	public async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
-		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
-		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
-	}
-
-	private spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
+	override spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
-		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
+		const terminalApp = terminalConfig?.osxExec || DEFAULT_TERMINAL_OSX;
 
 		return new Promise<void>((c, e) => {
 			const args = ['-a', terminalApp];
@@ -230,27 +233,17 @@ export class MacExternalTerminalService implements IExternalTerminalMainService 
 	}
 }
 
-export class LinuxExternalTerminalService implements IExternalTerminalMainService {
-	public _serviceBrand: undefined;
+export class LinuxExternalTerminalService extends ExternalTerminalService {
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
-
-	private readonly _configurationService?: IConfigurationService;
 
 	constructor(
 		@optional(IConfigurationService) configurationService: IConfigurationService
 	) {
-		this._configurationService = configurationService;
+		super(configurationService);
 	}
 
-	public openTerminal(cwd?: string): void {
-		if (this._configurationService) {
-			const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
-			this.spawnTerminal(cp, configuration, cwd);
-		}
-	}
-
-	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public override runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const execPromise = settings.linuxExec ? Promise.resolve(settings.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 
@@ -306,11 +299,6 @@ export class LinuxExternalTerminalService implements IExternalTerminalMainServic
 		});
 	}
 
-	public async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
-		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
-		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
-	}
-
 	public static async getDefaultTerminalLinuxReady(): Promise<string> {
 		if (env.isLinux) {
 			const isDebian = await pfs.exists('/etc/debian_version');
@@ -332,9 +320,9 @@ export class LinuxExternalTerminalService implements IExternalTerminalMainServic
 		}
 	}
 
-	private spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
+	override spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
-		const execPromise = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
+		const execPromise = terminalConfig?.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 
 		return new Promise<void>((c, e) => {
 			execPromise.then(exec => {
@@ -345,8 +333,6 @@ export class LinuxExternalTerminalService implements IExternalTerminalMainServic
 			});
 		});
 	}
-
-
 }
 
 /**

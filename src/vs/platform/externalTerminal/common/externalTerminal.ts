@@ -15,8 +15,8 @@ export interface IExternalTerminalSettings {
 }
 
 export interface ITerminalForPlatform {
-	linux: string,
 	windows: string,
+	linux: string,
 	osx: string
 }
 
