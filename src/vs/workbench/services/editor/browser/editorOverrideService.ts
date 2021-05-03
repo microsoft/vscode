@@ -401,7 +401,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			quickPickEntries.push(separator);
 			const configureDefaultEntry = {
 				id: EditorOverrideService.configureDefaultID,
-				label: localize(EditorOverrideService.configureDefaultID, "Configure default editor....")
+				label: localize('promptOpenWith.configureDefault', "Configure default editor....")
 			};
 			quickPickEntries.push(configureDefaultEntry);
 		}
