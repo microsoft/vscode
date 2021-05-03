@@ -192,7 +192,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.1",
     "tsec": "0.1.4",
-    "typescript": "^4.3.0-dev.20210426",
+    "typescript": "^4.3.0-dev.20210503",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
