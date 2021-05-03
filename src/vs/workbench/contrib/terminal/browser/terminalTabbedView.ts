@@ -25,7 +25,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
 
 const $ = dom.$;
@@ -77,7 +76,6 @@ export class TerminalTabbedView extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -267,13 +265,7 @@ export class TerminalTabbedView extends Disposable {
 		const hasText = this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH;
 		this._tabTreeContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		for (const instance of this._terminalService.terminalInstances) {
-			try {
-				this._tabsWidget.rerender(instance);
-			} catch (e) {
-				this._logService.warn('Exception when rerendering new tab widget', e);
-			}
-		}
+		this._tabsWidget.rerender();
 	}
 
 	private _addSashListener() {
