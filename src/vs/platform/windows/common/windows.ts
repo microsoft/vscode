@@ -233,6 +233,31 @@ export interface IOSConfiguration {
 	readonly hostname: string;
 }
 
+export interface IPartsSplash {
+	baseTheme: string;
+	colorInfo: {
+		background: string;
+		foreground: string | undefined;
+		editorBackground: string | undefined;
+		titleBarBackground: string | undefined;
+		activityBarBackground: string | undefined;
+		sideBarBackground: string | undefined;
+		statusBarBackground: string | undefined;
+		statusBarNoFolderBackground: string | undefined;
+		windowBorder: string | undefined;
+	}
+	layoutInfo: {
+		sideBarSide: string;
+		editorPartMinWidth: number;
+		titleBarHeight: number;
+		activityBarWidth: number;
+		sideBarWidth: number;
+		statusBarHeight: number;
+		windowBorder: boolean;
+		windowBorderRadius: string | undefined;
+	} | undefined
+}
+
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
@@ -245,7 +270,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	tmpDir: string;
 	userDataDir: string;
 
-	partsSplashPath: string;
+	partsSplash?: IPartsSplash;
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 

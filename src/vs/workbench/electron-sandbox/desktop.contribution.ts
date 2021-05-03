@@ -22,6 +22,9 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 // Actions
 (function registerActions(): void {
@@ -385,4 +388,11 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
+})();
+
+// Workbench Contributions
+(function registerWorkbenchContributions() {
+
+	// Splash
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PartsSplash, LifecyclePhase.Starting);
 })();

@@ -91,9 +91,6 @@ import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
 
 //#region --- workbench contributions
 
-// Rapid Render Splash
-import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
-
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 

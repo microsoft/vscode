@@ -23,7 +23,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IPartsSplash } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -53,7 +53,6 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	machineId: 'testMachineId',
 	logLevel: LogLevel.Error,
 	mainPid: 0,
-	partsSplashPath: '',
 	appRoot: '',
 	userEnv: {},
 	execPath: process.execPath,
@@ -197,6 +196,7 @@ export class TestNativeHostService implements INativeHostService {
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
+	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
