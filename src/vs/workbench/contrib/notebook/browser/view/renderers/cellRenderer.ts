@@ -117,6 +117,7 @@ abstract class AbstractCellRenderer {
 				return undefined;
 			}
 		});
+		disposables.add(toolbar);
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
