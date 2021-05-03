@@ -299,25 +299,32 @@ export class LinuxExternalTerminalService extends ExternalTerminalService {
 		});
 	}
 
+	private static _DEFAULT_TERMINAL_LINUX_READY: Promise<string>;
+
 	public static async getDefaultTerminalLinuxReady(): Promise<string> {
-		if (env.isLinux) {
-			const isDebian = await pfs.exists('/etc/debian_version');
-			if (isDebian) {
-				return 'x-terminal-emulator';
-			} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
-				return 'gnome-terminal';
-			} else if (process.env.DESKTOP_SESSION === 'kde-plasma') {
-				return 'konsole';
-			} else if (process.env.COLORTERM) {
-				return process.env.COLORTERM;
-			} else if (process.env.TERM) {
-				return process.env.TERM;
-			} else {
-				return 'xterm';
-			}
-		} else {
-			return 'xterm';
+		if (!LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY) {
+			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
+				if (env.isLinux) {
+					const isDebian = await pfs.exists('/etc/debian_version');
+					if (isDebian) {
+						r('x-terminal-emulator');
+					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
+						r('gnome-terminal');
+					} else if (process.env.DESKTOP_SESSION === 'kde-plasma') {
+						r('konsole');
+					} else if (process.env.COLORTERM) {
+						r(process.env.COLORTERM);
+					} else if (process.env.TERM) {
+						r(process.env.TERM);
+					} else {
+						r('xterm');
+					}
+				} else {
+					r('xterm');
+				}
+			});
 		}
+		return LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY;
 	}
 
 	override spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, cwd?: string): Promise<void> {
