@@ -36,14 +36,41 @@ class ExternalTerminalService implements IExternalTerminalMainService {
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
 			const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
-			if (cwd) {
-				this.spawnTerminal(cp, configuration, cwd);
-			}
+			this.spawnTerminal(cp, configuration, cwd);
 		}
 	}
 
-	// used by windows
-	spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
+	// customized for each platform
+	public spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command?: string, cwd?: string) {
+		throw new Error('Method not implemented');
+	}
+
+	// customized for each platform
+	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+		throw new Error('Method not implemented.');
+	}
+}
+
+export class WindowsExternalTerminalService extends ExternalTerminalService {
+	private static readonly CMD = 'cmd.exe';
+	private _configService: IConfigurationService;
+	private static _DEFAULT_TERMINAL_WINDOWS: string;
+
+	constructor(
+		@optional(IConfigurationService) configurationService: IConfigurationService
+	) {
+		super(configurationService);
+		this._configService = configurationService;
+	}
+
+	public override openTerminal(cwd?: string): void {
+		if (this._configService) {
+			const configuration = this._configService.getValue<IExternalTerminalConfiguration>();
+			this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
+		}
+	}
+
+	public override spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig?.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 
@@ -78,31 +105,6 @@ class ExternalTerminalService implements IExternalTerminalMainService {
 			child.on('error', e);
 			child.on('exit', () => c());
 		});
-	}
-
-	// customized for each platform
-	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-		throw new Error('Method not implemented.');
-	}
-}
-
-export class WindowsExternalTerminalService extends ExternalTerminalService {
-	private static readonly CMD = 'cmd.exe';
-	private _configService: IConfigurationService;
-	private static _DEFAULT_TERMINAL_WINDOWS: string;
-
-	constructor(
-		@optional(IConfigurationService) configurationService: IConfigurationService
-	) {
-		super(configurationService);
-		this._configService = configurationService;
-	}
-
-	public override openTerminal(cwd?: string): void {
-		if (this._configService) {
-			const configuration = this._configService.getValue<IExternalTerminalConfiguration>();
-			this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
-		}
 	}
 
 	public override runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
