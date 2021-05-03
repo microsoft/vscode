@@ -31,10 +31,6 @@ $ARCHIVE_NAME = "VSCode-win32-$Arch-$Version.zip"
 $SYSTEM_SETUP_NAME = "VSCodeSetup-$Arch-$Version.exe"
 $USER_SETUP_NAME = "VSCodeUserSetup-$Arch-$Version.exe"
 
-# exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-archive" archive $ARCHIVE_NAME $Zip }
-# exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup $SYSTEM_SETUP_NAME $SystemExe }
-# exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup $USER_SETUP_NAME $UserExe }
-
 # Set variables for upload
 Move-Item $Zip "$Repo\.build\win32-$Arch\archive\$ARCHIVE_NAME"
 Write-Host "##vso[task.setvariable variable=ARCHIVE_NAME]$ARCHIVE_NAME"
@@ -42,8 +38,3 @@ Move-Item $SystemExe "$Repo\.build\win32-$Arch\system-setup\$SYSTEM_SETUP_NAME"
 Write-Host "##vso[task.setvariable variable=SYSTEM_SETUP_NAME]$SYSTEM_SETUP_NAME"
 Move-Item $UserExe "$Repo\.build\win32-$Arch\user-setup\$USER_SETUP_NAME"
 Write-Host "##vso[task.setvariable variable=USER_SETUP_NAME]$USER_SETUP_NAME"
-
-# if ("$Arch" -ne "arm64") {
-# 	exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform" archive "vscode-server-win32-$Arch.zip" $ServerZip }
-# 	exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform-web" archive "vscode-server-win32-$Arch-web.zip" $ServerZipWeb }
-# }

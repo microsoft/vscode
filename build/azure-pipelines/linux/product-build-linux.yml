@@ -245,8 +245,8 @@ steps:
       AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       VSCODE_ARCH="$(VSCODE_ARCH)" \
-      ./build/azure-pipelines/linux/publish.sh
-    displayName: Publish
+      ./build/azure-pipelines/linux/prepare-publish.sh
+    displayName: Prepare for Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(DEB_PATH)

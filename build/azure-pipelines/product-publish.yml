@@ -15,8 +15,8 @@ steps:
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
+      cd build
       exec {
-        cd build
         yarn
       }
     displayName: Install dependencies
@@ -26,7 +26,6 @@ steps:
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = 'Stop'
 
       if (Test-Path "$(Pipeline.Workspace)/artifacts_processed/artifacts_processed.txt") {
         return
@@ -48,7 +47,7 @@ steps:
       $env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
       $env:AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)"
       $env:AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)"
-      build/azure-pipelines/release.ps1
+      build/azure-pipelines/product-publish.ps1
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Process artifacts
@@ -56,6 +55,32 @@ steps:
   - publish: $(Pipeline.Workspace)/artifacts_processed/artifacts_processed.txt
     artifact: artifacts_processed
     displayName: Publish what artifacts were published
+
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+
+      # Determine which stages we need to watch
+      $stages = @(
+        if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
+        if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
+        if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
+      )
+
+      # Get the timeline and see if it says the other stage completed
+      $timeline = Invoke-RestMethod "$($env:BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
+        Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
+      }  -MaximumRetryCount 5 -RetryIntervalSec 1
+
+      foreach ($stage in $stages) {
+        $didStageFail = $timeline.records | Where-Object {
+          $_.name -eq $stage -and $_.type -eq 'stage' -and $_.result -ne 'succeeded' -and $_.result -ne 'succeededWithIssues'
+        }
+
+        if($didStageFail) {
+          throw "'$stage' stage didn't succeed. This stage will now fail so that it is easier to retry failed jobs."
+        }
+      }
+    displayName: Determine if stage should succeed
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1

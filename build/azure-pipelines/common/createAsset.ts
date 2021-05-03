@@ -24,10 +24,10 @@ interface Asset {
 	supportsFastUpdate?: boolean;
 }
 
-// if (process.argv.length !== 6) {
-// 	console.error('Usage: node createAsset.js PLATFORM TYPE NAME FILE');
-// 	process.exit(-1);
-// }
+if (process.argv.length !== 8) {
+	console.error('Usage: node createAsset.js PRODUCT OS ARCH TYPE NAME FILE');
+	process.exit(-1);
+}
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
 function getPlatform(product: string, os: string, arch: string, type: string): string {
@@ -155,14 +155,10 @@ function getEnv(name: string): string {
 }
 
 async function main(): Promise<void> {
-	let platform: string, product: string, os: string, arch: string, type: string, fileName: string, filePath: string;
-	if (process.argv.length === 6) {
-		[, , platform, type, fileName, filePath] = process.argv;
-	} else {
-		[, , product, os, arch, type, fileName, filePath] = process.argv;
-		platform = getPlatform(product, os, arch, type);
-		type = getRealType(type);
-	}
+	const [, , product, os, arch, unprocessedType, fileName, filePath] = process.argv;
+	// getPlatform needs the unprocessedType
+	const platform = getPlatform(product, os, arch, unprocessedType);
+	const type = getRealType(unprocessedType);
 	const quality = getEnv('VSCODE_QUALITY');
 	const commit = getEnv('BUILD_SOURCEVERSION');
 
