@@ -40,6 +40,7 @@ import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/pla
 import { Schemas } from 'vs/base/common/network';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { splitName } from 'vs/base/common/labels';
 
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 
@@ -138,7 +139,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace())!;
 		const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
-			checkboxText = localize('checkboxString', "I trust the authors of all files in the parent folder");
+			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
+			const { name } = splitName(parentPath);
+			checkboxText = localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
 		}
 
 		// Show Workspace Trust Start Dialog
