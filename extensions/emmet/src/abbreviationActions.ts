@@ -665,6 +665,8 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
 	if (input.textToWrap) {
+		// escape ${ sections, fixes #122231
+		input.textToWrap = input.textToWrap.map(e => e.replace(/\$\{/g, '\\\$\{'));
 		if (input.filter && input.filter.includes('t')) {
 			input.textToWrap = input.textToWrap.map(line => {
 				return line.replace(trimRegex, '').trim();
