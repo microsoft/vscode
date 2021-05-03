@@ -37,9 +37,10 @@ import { Lazy } from 'vs/base/common/lazy';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { ContributedEditorPriority, IEditorAssociationsRegistry, IEditorOverrideService, IEditorType, IEditorTypesHandler } from 'vs/workbench/services/editor/common/editorOverrideService';
-import { EditorExtensions } from 'vs/workbench/common/editor';
+import { ContributedEditorPriority, DiffEditorInputFactoryFunction, EditorInputFactoryFunction, IEditorAssociationsRegistry, IEditorOverrideService, IEditorType, IEditorTypesHandler } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { EditorExtensions, IEditorInput } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -129,39 +130,52 @@ export class NotebookProviderInfoStore extends Disposable {
 	private _registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): void {
 		for (const selector of notebookProviderInfo.selectors) {
 			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
+			const notebookEditorInfo = {
+				id: notebookProviderInfo.id,
+				label: notebookProviderInfo.displayName,
+				detail: notebookProviderInfo.providerDisplayName,
+				describes: (currentEditor: IEditorInput) => currentEditor instanceof NotebookEditorInput && currentEditor.viewType === notebookProviderInfo.id,
+				priority: notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority,
+			};
+			const notebookEditorOptions = {
+				canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
+				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
+			};
+			const notebookEditorInputFactory: EditorInputFactoryFunction = (resource, options, group) => {
+				const data = CellUri.parse(resource);
+				let notebookUri: URI = resource;
+				let cellOptions: IResourceEditorInput | undefined;
+
+				if (data) {
+					notebookUri = data.notebook;
+					cellOptions = { resource: resource };
+				}
+
+				const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions });
+				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
+			};
+			const notebookEditorDiffFactory: DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options, group) => {
+				const modifiedInput = diffEditorInput.modifiedInput;
+				const originalInput = diffEditorInput.originalInput;
+				const notebookUri = modifiedInput.resource!;
+				const originalNotebookUri = originalInput.resource!;
+				return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), notebookProviderInfo.id) };
+			};
+			// Register the notebook editor
 			this._contributedEditorDisposables.add(this._editorOverrideService.registerContributionPoint(
 				globPattern,
-				{
-					id: notebookProviderInfo.id,
-					label: notebookProviderInfo.displayName,
-					detail: notebookProviderInfo.providerDisplayName,
-					describes: (currentEditor) => currentEditor instanceof NotebookEditorInput && currentEditor.viewType === notebookProviderInfo.id,
-					priority: notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority,
-				},
-				{
-					canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
-					canSupportResource: resource => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
-				},
-				(resource, options, group) => {
-					const data = CellUri.parse(resource);
-					let notebookUri: URI = resource;
-					let cellOptions: IResourceEditorInput | undefined;
-
-					if (data) {
-						notebookUri = data.notebook;
-						cellOptions = { resource: resource };
-					}
-
-					const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions });
-					return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
-				},
-				(diffEditorInput, group) => {
-					const modifiedInput = diffEditorInput.modifiedInput;
-					const originalInput = diffEditorInput.originalInput;
-					const notebookUri = modifiedInput.resource!;
-					const originalNotebookUri = originalInput.resource!;
-					return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), notebookProviderInfo.id) };
-				}
+				notebookEditorInfo,
+				notebookEditorOptions,
+				notebookEditorInputFactory,
+				notebookEditorDiffFactory
+			));
+			// Then register the schema handler as exclusive for that notebook
+			this._contributedEditorDisposables.add(this._editorOverrideService.registerContributionPoint(
+				`${Schemas.vscodeNotebookCell}:/**/${globPattern}`,
+				{ ...notebookEditorInfo, priority: ContributedEditorPriority.exclusive },
+				notebookEditorOptions,
+				notebookEditorInputFactory,
+				notebookEditorDiffFactory
 			));
 		}
 	}

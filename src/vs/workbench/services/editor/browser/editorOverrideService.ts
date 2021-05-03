@@ -226,8 +226,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want built-in+ if no user defined setting is found, else we won't override
 		const possibleContributionPoints = contributionPoints.filter(contribPoint => priorityToRank(contribPoint.editorInfo.priority) >= priorityToRank(ContributedEditorPriority.builtin) && contribPoint.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
-		// If the user has a setting we use that, else choose the highest priority editor that is built-in+
-		const selectedViewType = associationsFromSetting[0]?.viewType || possibleContributionPoints[0]?.editorInfo.id;
+		// If the contribution is exclusive we use that, else use the user setting, else use the built-in+ contribution
+		const selectedViewType = possibleContributionPoints[0]?.editorInfo.priority === ContributedEditorPriority.exclusive ?
+			possibleContributionPoints[0]?.editorInfo.id :
+			associationsFromSetting[0]?.viewType || possibleContributionPoints[0]?.editorInfo.id;
 
 		let conflictingDefault = false;
 		if (associationsFromSetting.length === 0 && possibleContributionPoints.length > 1) {
