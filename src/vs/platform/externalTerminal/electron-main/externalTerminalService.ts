@@ -9,7 +9,7 @@ import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as env from 'vs/base/common/platform';
-import { IExternalTerminalConfiguration, IExternalTerminalSettings, DEFAULT_TERMINAL_OSX, TerminalsForPlatforms } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { IExternalTerminalConfiguration, IExternalTerminalSettings, DEFAULT_TERMINAL_OSX, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { FileAccess } from 'vs/base/common/network';
@@ -31,7 +31,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalMainServ
 		this._configurationService = configurationService;
 	}
 
-	public async getDefaultTerminalForPlatforms(): Promise<TerminalsForPlatforms> {
+	public async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
 		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
 	}
@@ -210,7 +210,7 @@ export class MacExternalTerminalService implements IExternalTerminalMainService 
 		});
 	}
 
-	public async getDefaultTerminalForPlatforms(): Promise<TerminalsForPlatforms> {
+	public async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
 		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
 	}
@@ -307,7 +307,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalMainServic
 		});
 	}
 
-	public async getDefaultTerminalForPlatforms(): Promise<TerminalsForPlatforms> {
+	public async getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform> {
 		const linuxTerminal = await LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 		return { windows: WindowsExternalTerminalService.getDefaultTerminalWindows(), linux: linuxTerminal, osx: 'xterm' };
 	}

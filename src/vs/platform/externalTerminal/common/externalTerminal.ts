@@ -14,7 +14,7 @@ export interface IExternalTerminalSettings {
 	windowsExec?: string;
 }
 
-export interface TerminalsForPlatforms {
+export interface ITerminalForPlatform {
 	linux: string,
 	windows: string,
 	osx: string
@@ -24,7 +24,7 @@ export interface IExternalTerminalService {
 	readonly _serviceBrand: undefined;
 	openTerminal(path: string): void;
 	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined>;
-	getDefaultTerminalForPlatforms(): Promise<TerminalsForPlatforms>;
+	getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform>;
 }
 
 export interface IExternalTerminalConfiguration {
