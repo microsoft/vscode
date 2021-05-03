@@ -11,6 +11,7 @@ import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
+import { TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -247,18 +248,18 @@ export function escapeNonWindowsPath(path: string): string {
 }
 
 export type TerminalShellSetting = (
-	`terminal.integrated.automationShell.windows`
-	| `terminal.integrated.automationShell.osx`
-	| `terminal.integrated.automationShell.linux`
-	| `terminal.integrated.shell.windows`
-	| `terminal.integrated.shell.osx`
-	| `terminal.integrated.shell.linux`
+	TERMINAL_SETTING_ID.AutomationShellWindows
+	| TERMINAL_SETTING_ID.AutomationShellMacOs
+	| TERMINAL_SETTING_ID.AutomationShellLinux
+	| TERMINAL_SETTING_ID.ShellWindows
+	| TERMINAL_SETTING_ID.ShellMacOs
+	| TERMINAL_SETTING_ID.ShellLinux
 );
 
 export type TerminalShellArgsSetting = (
-	`terminal.integrated.shellArgs.windows`
-	| `terminal.integrated.shellArgs.osx`
-	| `terminal.integrated.shellArgs.linux`
+	TERMINAL_SETTING_ID.ShellArgsWindows
+	| TERMINAL_SETTING_ID.ShellArgsMacOs
+	| TERMINAL_SETTING_ID.ShellArgsLinux
 );
 
 export type VariableResolver = (str: string) => string;

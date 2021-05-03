@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TERMINAL_COMMAND_ID, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -98,7 +98,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 
 		this.onMouseClick(e => {
 			// If focus mode is single click focus the element unless a multi-select in happening
-			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>('terminal.integrated.tabs.focusMode');
+			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TERMINAL_SETTING_ID.TabsFocusMode);
 			if (focusMode === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);

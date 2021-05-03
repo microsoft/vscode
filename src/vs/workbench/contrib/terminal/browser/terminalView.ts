@@ -21,7 +21,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ITerminalProfile, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfile, TERMINAL_COMMAND_ID, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -109,12 +109,12 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement.appendChild(this._fontStyleElement);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
+			if (e.affectsConfiguration(TERMINAL_SETTING_ID.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
 				const configHelper = this._terminalService.configHelper;
 				if (!configHelper.configFontIsMonospace()) {
 					const choices: IPromptChoice[] = [{
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
-						run: () => this.configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
+						run: () => this.configurationService.updateValue(TERMINAL_SETTING_ID.FontFamily, 'monospace'),
 					}];
 					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts. Be sure to restart VS Code if this is a newly installed font."), choices);
 				}
