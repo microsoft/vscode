@@ -156,7 +156,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// and not the `vscode-file` URI because preload scripts are loaded
 		// via node.js from the main side and only allow `file:` protocol
 		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&isUsingWebviewTag=true&id=${this.id}&vscode-resource-origin=${encodeURIComponent(this.webviewResourceEndpoint)}`;
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&id=${this.id}&vscode-resource-origin=${encodeURIComponent(this.webviewResourceEndpoint)}`;
 	}
 
 	protected createElement(options: WebviewOptions) {
