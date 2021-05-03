@@ -8,7 +8,7 @@ import { splitName } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -206,7 +206,39 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	canSetWorkspaceTrust(): boolean {
-		return this.workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		// Empty workspace
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return false;
+		}
+
+		// Untrusted workspace
+		if (!this.isWorkpaceTrusted()) {
+			return true;
+		}
+
+		// Trusted workspace
+		// Can only be trusted explicitly in the single folder scenario
+		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
+		if (!(isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file)) {
+			return false;
+		}
+
+		// If the current folder isn't trusted directly, return false
+		const trustInfo = this.getFolderTrustInfo(workspaceIdentifier.uri);
+		if (!trustInfo.trusted || !isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
+			return false;
+		}
+
+		// Check if the parent is also trusted
+		if (this.canSetParentFolderTrust()) {
+			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
+			const parentIsTrusted = this.getFolderTrustInfo(URI.file(parentPath)).trusted;
+			if (parentIsTrusted) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	canSetParentFolderTrust(): boolean {
