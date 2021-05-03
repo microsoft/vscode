@@ -91,7 +91,6 @@ export class DialogMainService implements IDialogMainService {
 		// Ensure defaultPath
 		dialogOptions.defaultPath = options.defaultPath || this.stateService.getItem<string>(DialogMainService.workingDirPickerStorageKey);
 
-
 		// Ensure properties
 		if (typeof options.pickFiles === 'boolean' || typeof options.pickFolders === 'boolean') {
 			dialogOptions.properties = undefined; // let it override based on the booleans

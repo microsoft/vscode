@@ -53,5 +53,33 @@ flakySuite('StateService', () => {
 
 		service.setItem('some.null.key', null);
 		assert.strictEqual(service.getItem('some.null.key', 'some.default'), 'some.default');
+
+		service.setItems([
+			{ key: 'some.setItems.key1', data: 'some.value' },
+			{ key: 'some.setItems.key2', data: 0 },
+			{ key: 'some.setItems.key3', data: true },
+			{ key: 'some.setItems.key4', data: null },
+			{ key: 'some.setItems.key5', data: undefined }
+		]);
+
+		assert.strictEqual(service.getItem('some.setItems.key1'), 'some.value');
+		assert.strictEqual(service.getItem('some.setItems.key2'), 0);
+		assert.strictEqual(service.getItem('some.setItems.key3'), true);
+		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
+
+		service.setItems([
+			{ key: 'some.setItems.key1', data: undefined },
+			{ key: 'some.setItems.key2', data: undefined },
+			{ key: 'some.setItems.key3', data: undefined },
+			{ key: 'some.setItems.key4', data: null },
+			{ key: 'some.setItems.key5', data: undefined }
+		]);
+
+		assert.strictEqual(service.getItem('some.setItems.key1'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key2'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key3'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
 	});
 });
