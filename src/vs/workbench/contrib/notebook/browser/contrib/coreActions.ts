@@ -1493,19 +1493,6 @@ registerAction2(class extends ChangeNotebookCellMetadataAction {
 	}
 });
 
-// Revisit once we have a story for trusted workspace
-CommandsRegistry.registerCommand('notebook.trust', (accessor, args) => {
-	const uri = URI.revive(args as UriComponents);
-	const notebookService = accessor.get<INotebookService>(INotebookService);
-
-
-	const document = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
-
-	if (document) {
-		document.applyEdits([{ editType: CellEditType.DocumentMetadata, metadata: { ...document.metadata, ...{ trusted: true } } }], true, undefined, () => undefined, undefined, false);
-	}
-});
-
 CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, args): {
 	viewType: string;
 	displayName: string;
