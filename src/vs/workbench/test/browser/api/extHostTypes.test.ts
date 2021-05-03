@@ -649,29 +649,10 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
 	});
 
-	test('NotebookMetadata - defaults', function () {
-		const obj = new types.NotebookDocumentMetadata();
-		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
-	});
-
-	test('NotebookMetadata - with', function () {
-		const obj = new types.NotebookDocumentMetadata();
-		const newObj = obj.with({ trusted: false });
-		assert.ok(obj !== newObj);
-		const sameObj = newObj.with({ trusted: false });
-		assert.ok(newObj === sameObj);
-		assert.strictEqual(obj.trusted, true);
-		assert.strictEqual(newObj.trusted, false);
-	});
-
 	test('NotebookMetadata - with custom', function () {
 		const obj = new types.NotebookDocumentMetadata();
-		const newObj = obj.with({ trusted: false, mycustom: { display: 'hello' } });
+		const newObj = obj.with({ mycustom: { display: 'hello' } });
 		assert.ok(obj !== newObj);
-		const sameObj = newObj.with({ trusted: false });
-		assert.ok(newObj === sameObj);
-		assert.strictEqual(obj.trusted, true);
-		assert.strictEqual(newObj.trusted, false);
 		assert.deepStrictEqual(newObj.mycustom, { display: 'hello' });
 	});
 
