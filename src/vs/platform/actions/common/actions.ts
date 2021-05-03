@@ -326,7 +326,7 @@ export class ExecuteCommandAction extends Action {
 		super(id, label);
 	}
 
-	override run(...args: any[]): Promise<any> {
+	override run(...args: any[]): Promise<void> {
 		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
@@ -417,7 +417,7 @@ export class MenuItemAction implements IAction {
 		// to bridge into the rendering world.
 	}
 
-	run(...args: any[]): Promise<any> {
+	run(...args: any[]): Promise<void> {
 		let runArgs: any[] = [];
 
 		if (this._options?.arg) {
@@ -525,7 +525,7 @@ export interface IAction2Options extends ICommandAction {
 
 export abstract class Action2 {
 	constructor(readonly desc: Readonly<IAction2Options>) { }
-	abstract run(accessor: ServicesAccessor, ...args: any[]): any;
+	abstract run(accessor: ServicesAccessor, ...args: any[]): void;
 }
 
 export function registerAction2(ctor: { new(): Action2 }): IDisposable {

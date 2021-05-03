@@ -542,7 +542,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			return this.watchRecursive(resource, opts.excludes);
 		}
 
-		return this.watchNonRecursive(resource); // TODO@bpasero ideally the same watcher can be used in both cases
+		return this.watchNonRecursive(resource);
 	}
 
 	private watchRecursive(resource: URI, excludes: string[]): IDisposable {

@@ -77,7 +77,7 @@ type GettingStartedActionEvent = {
 
 export class GettingStartedPage extends EditorPane {
 
-	public static ID = 'gettingStartedPage';
+	public static readonly ID = 'gettingStartedPage';
 
 	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();

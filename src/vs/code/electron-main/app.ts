@@ -247,7 +247,7 @@ export class CodeApplication extends Disposable {
 		//#endregion
 
 		let macOpenFileURIs: IWindowOpenable[] = [];
-		let runningTimeout: NodeJS.Timeout | null = null;
+		let runningTimeout: NodeJS.Timeout | undefined = undefined;
 		app.on('open-file', (event, path) => {
 			this.logService.trace('app#open-file: ', path);
 			event.preventDefault();
@@ -256,9 +256,9 @@ export class CodeApplication extends Disposable {
 			macOpenFileURIs.push(this.getWindowOpenableFromPathSync(path));
 
 			// Clear previous handler if any
-			if (runningTimeout !== null) {
+			if (runningTimeout !== undefined) {
 				clearTimeout(runningTimeout);
-				runningTimeout = null;
+				runningTimeout = undefined;
 			}
 
 			// Handle paths delayed in case more are coming!
@@ -272,7 +272,7 @@ export class CodeApplication extends Disposable {
 				});
 
 				macOpenFileURIs = [];
-				runningTimeout = null;
+				runningTimeout = undefined;
 			}, 100);
 		});
 

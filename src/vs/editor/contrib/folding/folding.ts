@@ -51,7 +51,7 @@ interface FoldingStateMemento {
 
 export class FoldingController extends Disposable implements IEditorContribution {
 
-	public static ID = 'editor.contrib.folding';
+	public static readonly ID = 'editor.contrib.folding';
 
 	static readonly MAX_FOLDING_REGIONS = 5000;
 

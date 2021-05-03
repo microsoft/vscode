@@ -32,8 +32,8 @@ const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>(
 
 export class WelcomeView extends ViewPane {
 
-	static ID = 'workbench.debug.welcome';
-	static LABEL = localize('run', "Run");
+	static readonly ID = 'workbench.debug.welcome';
+	static readonly LABEL = localize('run', "Run");
 
 	private debugStartLanguageContext: IContextKey<string | undefined>;
 	private debuggerInterestedContext: IContextKey<boolean>;

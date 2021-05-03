@@ -133,13 +133,15 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		return this._wantsAltCommand && this._menuItemAction.alt || this._menuItemAction;
 	}
 
-	override onClick(event: MouseEvent): void {
+	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.actionRunner
-			.run(this._commandAction, this._context)
-			.catch(err => this._notificationService.error(err));
+		try {
+			await this.actionRunner.run(this._commandAction, this._context);
+		} catch (err) {
+			this._notificationService.error(err);
+		}
 	}
 
 	override render(container: HTMLElement): void {

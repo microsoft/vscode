@@ -1560,7 +1560,7 @@ export class TestWorkspacesService implements IWorkspacesService {
 	async clearRecentlyOpened(): Promise<void> { }
 	async getRecentlyOpened(): Promise<IRecentlyOpened> { return { files: [], workspaces: [] }; }
 	async getDirtyWorkspaces(): Promise<(URI | IWorkspaceIdentifier)[]> { return []; }
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> { throw new Error('Method not implemented.'); }
+	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> { throw new Error('Method not implemented.'); }
 	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
 }
 

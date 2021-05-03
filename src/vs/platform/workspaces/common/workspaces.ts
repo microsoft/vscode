@@ -39,7 +39,7 @@ export interface IWorkspacesService {
 	readonly _serviceBrand: undefined;
 
 	// Workspaces Management
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null>;
+	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
@@ -320,7 +320,7 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 
 	const relativeTo = extUri.dirname(workspaceConfigFile);
 	for (let configuredFolder of configuredFolders) {
-		let uri: URI | null = null;
+		let uri: URI | undefined = undefined;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {
 			if (configuredFolder.path) {
 				uri = extUri.resolvePath(relativeTo, configuredFolder.path);
@@ -328,16 +328,16 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
 			try {
 				uri = URI.parse(configuredFolder.uri);
-				// this makes sure all workspace folder are absolute
 				if (uri.path[0] !== '/') {
-					uri = uri.with({ path: '/' + uri.path });
+					uri = uri.with({ path: '/' + uri.path }); // this makes sure all workspace folder are absolute
 				}
 			} catch (e) {
-				console.warn(e);
-				// ignore
+				console.warn(e); // ignore
 			}
 		}
+
 		if (uri) {
+
 			// remove duplicates
 			let comparisonKey = extUri.getComparisonKey(uri);
 			if (!seen.has(comparisonKey)) {
@@ -369,11 +369,9 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 		const folderURI = isRawFileWorkspaceFolder(folder) ? extUri.resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
 		let absolute;
 		if (isFromUntitledWorkspace) {
-			// if it was an untitled workspace, try to make paths relative
-			absolute = false;
+			absolute = false; // if it was an untitled workspace, try to make paths relative
 		} else {
-			// for existing workspaces, preserve whether a path was absolute or relative
-			absolute = !isRawFileWorkspaceFolder(folder) || isAbsolute(folder.path);
+			absolute = !isRawFileWorkspaceFolder(folder) || isAbsolute(folder.path); // for existing workspaces, preserve whether a path was absolute or relative
 		}
 		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForPath, extUri));
 	}
