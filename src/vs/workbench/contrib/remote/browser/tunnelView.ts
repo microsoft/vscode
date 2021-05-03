@@ -965,10 +965,14 @@ namespace LabelTunnelAction {
 	export const LABEL = nls.localize('remote.tunnel.label', "Set Port Label");
 	export const COMMAND_ID_KEYWORD = 'label';
 
+	function isITunnelItem(item: any): item is ITunnelItem {
+		return item && item.tunnelType && item.remoteHost && item.source;
+	}
+
 	export function handler(): ICommandHandler {
 		return async (accessor, arg): Promise<{ port: number, label: string } | undefined> => {
-			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
-			if (context instanceof TunnelItem) {
+			const context = isITunnelItem(arg) ? arg : accessor.get(IContextKeyService).getContextKeyValue<ITunnelItem | undefined>(TunnelViewSelectionKeyName);
+			if (context) {
 				return new Promise(resolve => {
 					const remoteExplorerService = accessor.get(IRemoteExplorerService);
 					const startingValue = context.name ? context.name : `${context.remotePort}`;
