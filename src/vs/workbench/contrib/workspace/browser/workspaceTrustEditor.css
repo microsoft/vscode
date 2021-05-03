@@ -13,8 +13,6 @@
 .workspace-trust-editor {
 	max-width: 1000px;
 	padding-top: 11px;
-	padding-left: 15px;
-	padding-right: 15px;
 	margin: auto;
 	height: calc(100% - 11px);
 }
