@@ -114,7 +114,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			const foregroundColor = theme.getColor(foreground);
 			if (foregroundColor) {
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.3));
-				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 0px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
+				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 4px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
 			}
 		}));
 	}
