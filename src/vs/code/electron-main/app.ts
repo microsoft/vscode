@@ -81,7 +81,7 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
@@ -282,71 +282,29 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
-		let slowShellResolveWarningShown = false;
 		ipcMain.handle('vscode:fetchShellEnv', event => {
-			return new Promise(async resolve => {
 
-				// DO NOT remove: not only usual windows are fetching the
-				// shell environment but also shared process, issue reporter
-				// etc, so we need to reply via `webContents` always
-				const webContents = event.sender;
+			// Prefer to use the args and env from the target window
+			// when resolving the shell env. It is possible that
+			// a first window was opened from the UI but a second
+			// from the CLI and that has implications for whether to
+			// resolve the shell environment or not.
+			//
+			// Window can be undefined for e.g. the shared process
+			// that is not part of our windows registry!
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process
+			let args: NativeParsedArgs;
+			let env: IProcessEnvironment;
+			if (window?.config) {
+				args = window.config;
+				env = { ...process.env, ...window.config.userEnv };
+			} else {
+				args = this.environmentMainService.args;
+				env = process.env;
+			}
 
-				let replied = false;
-
-				function acceptShellEnv(env: IProcessEnvironment): void {
-					clearTimeout(shellEnvSlowWarningHandle);
-					clearTimeout(shellEnvTimeoutErrorHandle);
-
-					if (!replied) {
-						replied = true;
-
-						if (!webContents.isDestroyed()) {
-							resolve(env);
-						}
-					}
-				}
-
-				// Handle slow shell environment resolve calls:
-				// - a warning after 3s but continue to resolve (only once in active window)
-				// - an error after 10s and stop trying to resolve (in every window where this happens)
-				const cts = new CancellationTokenSource();
-
-				const shellEnvSlowWarningHandle = setTimeout(() => {
-					if (!slowShellResolveWarningShown) {
-						this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
-						slowShellResolveWarningShown = true;
-					}
-				}, 3000);
-
-				const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
-				const shellEnvTimeoutErrorHandle = setTimeout(() => {
-					cts.dispose(true);
-					window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
-					acceptShellEnv({});
-				}, 10000);
-
-				// Prefer to use the args and env from the target window
-				// when resolving the shell env. It is possible that
-				// a first window was opened from the UI but a second
-				// from the CLI and that has implications for whether to
-				// resolve the shell environment or not.
-				//
-				// Window can be undefined for e.g. the shared process
-				// that is not part of our windows registry!
-				let args: NativeParsedArgs;
-				let env: IProcessEnvironment;
-				if (window?.config) {
-					args = window.config;
-					env = { ...process.env, ...window.config.userEnv };
-				} else {
-					args = this.environmentMainService.args;
-					env = process.env;
-				}
-
-				// Resolve shell env
-				const shellEnv = await resolveShellEnv(this.logService, args, env);
-				acceptShellEnv(shellEnv);
-			});
+			// Resolve shell env
+			return resolveShellEnv(this.logService, args, env);
 		});
 
 		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
@@ -1012,7 +970,16 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Start to fetch shell environment (if needed) after window has opened
-		resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
+		// Since this operation can take a long time, we want to warm it up while
+		// the window is opening.
+		// We also print a warning if the resolution takes longer than 10s.
+		(async () => {
+			const slowResolveShellEnvWarning = this._register(new RunOnceScheduler(() => this.logService.warn('Resolving your shell environment is taking more than 10s. Please review your shell configuration. Learn more at https://go.microsoft.com/fwlink/?linkid=2149667.'), 10000));
+			slowResolveShellEnvWarning.schedule();
+
+			await resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
+			slowResolveShellEnvWarning.dispose();
+		})();
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
