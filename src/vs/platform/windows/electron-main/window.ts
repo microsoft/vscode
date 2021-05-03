@@ -565,7 +565,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		switch (type) {
 			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (detail: ${typeof details === 'string' ? details : details?.reason})`);
+				this.logService.error(`CodeWindow: renderer process crashed (detail: ${typeof details === 'string' ? details : details?.reason}, code: ${typeof details === 'string' ? '<unknown>' : details?.exitCode ?? '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');

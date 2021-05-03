@@ -960,7 +960,7 @@ export class CodeApplication extends Disposable {
 			if (typeof details === 'string') {
 				message = details;
 			} else {
-				message = `SharedProcess: crashed (detail: ${details.reason})`;
+				message = `SharedProcess: crashed (detail: ${details.reason}, code: ${details.exitCode})`;
 			}
 			onUnexpectedError(new Error(message));
 

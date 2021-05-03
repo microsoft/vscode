@@ -376,8 +376,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}
 
-	async moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<boolean> {
-		return shell.moveItemToTrash(fullPath);
+	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
+		return shell.trashItem(fullPath);
 	}
 
 	async isAdmin(): Promise<boolean> {
