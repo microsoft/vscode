@@ -35,7 +35,7 @@ export const MIN_TABS_WIDGET_WIDTH = 46;
 export const DEFAULT_TABS_WIDGET_WIDTH = 80;
 export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
 
-export class TerminalTabsWidget extends WorkbenchList<ITerminalInstance> {
+export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 
