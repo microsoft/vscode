@@ -6,6 +6,8 @@
 .monaco-icon-label.file-icon.workspacetrusteditor-name-file-icon.ext-file-icon.tab-label::before {
 	font-family: 'codicon';
 	content: '\eb53';
+	background-image: none;
+	font-size: 150%;
 }
 
 .workspace-trust-editor {
