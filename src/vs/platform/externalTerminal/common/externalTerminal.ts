@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
-export const IExternalTerminalService = createDecorator<IExternalTerminalService>('nativeTerminalService');
+export const IExternalTerminalService = createDecorator<IExternalTerminalService>('externalTerminalMain');
 
 export interface IExternalTerminalSettings {
 	linuxExec?: string;
@@ -14,10 +14,17 @@ export interface IExternalTerminalSettings {
 	windowsExec?: string;
 }
 
+export interface TerminalsForPlatforms {
+	linux: string,
+	windows: string,
+	osx: string
+}
+
 export interface IExternalTerminalService {
 	readonly _serviceBrand: undefined;
 	openTerminal(path: string): void;
 	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined>;
+	getDefaultTerminalForPlatforms(): Promise<TerminalsForPlatforms>;
 }
 
 export interface IExternalTerminalConfiguration {
@@ -26,3 +33,5 @@ export interface IExternalTerminalConfiguration {
 		external: IExternalTerminalSettings;
 	};
 }
+
+export const DEFAULT_TERMINAL_OSX = 'Terminal.app';

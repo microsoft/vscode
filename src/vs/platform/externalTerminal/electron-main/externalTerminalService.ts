@@ -9,15 +9,16 @@ import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as env from 'vs/base/common/platform';
-import { IExternalTerminalService, IExternalTerminalConfiguration, IExternalTerminalSettings, DEFAULT_TERMINAL_OSX, TerminalsForPlatforms } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { IExternalTerminalConfiguration, IExternalTerminalSettings, DEFAULT_TERMINAL_OSX, TerminalsForPlatforms } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { FileAccess } from 'vs/base/common/network';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-main/externalTerminalMainService';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
-export class WindowsExternalTerminalService implements IExternalTerminalService {
+export class WindowsExternalTerminalService implements IExternalTerminalMainService {
 	public _serviceBrand: undefined;
 
 	private static readonly CMD = 'cmd.exe';
@@ -43,8 +44,8 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-
-		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
+		// TODO@meganrogge why is this undefined?
+		const exec = settings?.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 
 		return new Promise<number | undefined>((resolve, reject) => {
 
@@ -78,7 +79,8 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 
 	private spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
 		const terminalConfig = configuration.terminal.external;
-		const exec = terminalConfig.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
+		// TODO@meganrogge why is this undefined?
+		const exec = terminalConfig?.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 
 		// Make the drive letter uppercase on Windows (see #9448)
 		if (cwd && cwd[1] === ':') {
@@ -124,7 +126,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 	}
 }
 
-export class MacExternalTerminalService implements IExternalTerminalService {
+export class MacExternalTerminalService implements IExternalTerminalMainService {
 	public _serviceBrand: undefined;
 
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
@@ -229,7 +231,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 	}
 }
 
-export class LinuxExternalTerminalService implements IExternalTerminalService {
+export class LinuxExternalTerminalService implements IExternalTerminalMainService {
 	public _serviceBrand: undefined;
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");

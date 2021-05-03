@@ -87,6 +87,8 @@ import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/e
 import { once } from 'vs/base/common/functional';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-main/externalTerminalMainService';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/electron-main/externalTerminalService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -551,6 +553,15 @@ export class CodeApplication extends Disposable {
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 
+		// External terminal
+		if (isWindows) {
+			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
+		} else if (isMacintosh) {
+			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService));
+		} else if (isLinux) {
+			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
+		}
+
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
@@ -636,6 +647,10 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
 		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
+
+		// External Terminal
+		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));
+		mainProcessElectronServer.registerChannel('externalTerminalMain', externalTerminalChannel);
 
 		// Log Level (main & shared process)
 		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
