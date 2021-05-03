@@ -366,7 +366,7 @@ export function registerTerminalActions() {
 									ContextKeyExpr.has('isTerminalTabsNarrow')
 								)
 							),
-							ContextKeyExpr.equals(`config.${TERMINAL_SETTING_ID.ShowActiveTerminal}`, 'always')
+							ContextKeyExpr.equals(`config.${TERMINAL_SETTING_ID.TabsShowActiveTerminal}`, 'always')
 						)
 					]),
 				}
