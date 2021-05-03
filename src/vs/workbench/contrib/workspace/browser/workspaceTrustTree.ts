@@ -25,7 +25,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NonCollapsibleObjectTreeModel } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { AbstractListSettingWidget, focusedRowBackground, focusedRowBorder, ISettingListChangeEvent, rowHoverBackground, settingsHeaderForeground, settingsSelectBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { AbstractListSettingWidget, focusedRowBackground, focusedRowBorder, ISettingListChangeEvent, settingsHeaderForeground, settingsSelectBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { attachButtonStyler, attachInputBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAction } from 'vs/base/common/actions';
