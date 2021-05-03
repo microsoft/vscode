@@ -650,7 +650,7 @@ export class CodeApplication extends Disposable {
 
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));
-		mainProcessElectronServer.registerChannel('externalTerminalMain', externalTerminalChannel);
+		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
 
 		// Log Level (main & shared process)
 		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));

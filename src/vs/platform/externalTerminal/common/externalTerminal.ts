@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
-export const IExternalTerminalService = createDecorator<IExternalTerminalService>('externalTerminalMain');
+export const IExternalTerminalService = createDecorator<IExternalTerminalService>('externalTerminal');
 
 export interface IExternalTerminalSettings {
 	linuxExec?: string;

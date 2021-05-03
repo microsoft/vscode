@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 
-export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminalMain');
+export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminal');
 
 export interface IExternalTerminalMainService extends IExternalTerminalService {
 	readonly _serviceBrand: undefined;
