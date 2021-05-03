@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import Severity from 'vs/base/common/severity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -20,7 +21,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
@@ -617,7 +618,7 @@ export class MoveFocusedViewAction extends Action {
 		@IViewsService private viewsService: IViewsService,
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@INotificationService private notificationService: INotificationService,
+		@IDialogService private dialogService: IDialogService,
 		@IActivityBarService private activityBarService: IActivityBarService,
 		@IPanelService private panelService: IPanelService
 	) {
@@ -628,13 +629,13 @@ export class MoveFocusedViewAction extends Action {
 		const focusedViewId = viewId || FocusedViewContext.getValue(this.contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
-			this.notificationService.error(localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
+			this.dialogService.show(Severity.Error, localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."), [localize('ok', 'OK')]);
 			return;
 		}
 
 		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(focusedViewId);
 		if (!viewDescriptor || !viewDescriptor.canMoveView) {
-			this.notificationService.error(localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
+			this.dialogService.show(Severity.Error, localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."), [localize('ok', 'OK')]);
 			return;
 		}
 
@@ -738,7 +739,7 @@ export class ResetFocusedViewLocationAction extends Action {
 		label: string,
 		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@INotificationService private notificationService: INotificationService,
+		@IDialogService private dialogService: IDialogService,
 		@IViewsService private viewsService: IViewsService
 	) {
 		super(id, label);
@@ -753,7 +754,7 @@ export class ResetFocusedViewLocationAction extends Action {
 		}
 
 		if (!viewDescriptor) {
-			this.notificationService.error(localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
+			this.dialogService.show(Severity.Error, localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."), [localize('ok', 'OK')]);
 			return;
 		}
 

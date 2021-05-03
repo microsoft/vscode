@@ -11,13 +11,13 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, SyncActionDescriptor, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { EmptyWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import Severity from 'vs/base/common/severity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -107,8 +107,8 @@ export class CloseWorkspaceAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService private readonly hostService: IHostService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super(id, label);
@@ -116,7 +116,7 @@ export class CloseWorkspaceAction extends Action {
 
 	override async run(): Promise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.notificationService.info(localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."));
+			this.dialogService.show(Severity.Error, localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."), [localize('ok', 'OK')]);
 			return;
 		}
 

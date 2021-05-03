@@ -604,7 +604,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
 		@IHostService private readonly hostService: IHostService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(id, label);
@@ -616,7 +616,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 			} else {
-				this.notificationService.info(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
+				this.dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."), [nls.localize('ok', 'OK')]);
 			}
 		}
 	}
