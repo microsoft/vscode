@@ -64,13 +64,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 					getId: e => e?.instanceId
 				},
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
-				// styleController: id => {
-				// 	console.log('style controller for', id);
-				// 	return new DefaultStyleController(DOM.createStyleSheet(container), id);
-				// },
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				// selectionNavigation: true,
 				additionalScrollHeight: TAB_HEIGHT
 			},
 			contextKeyService,
