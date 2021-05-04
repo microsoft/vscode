@@ -236,8 +236,8 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$getDefaultSystemShell', [osOverride]);
 	}
 
-	public getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._channel.call('$getShellEnvironment');
+	public getEnvironment(): Promise<IProcessEnvironment> {
+		return this._channel.call('$getEnvironment');
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {

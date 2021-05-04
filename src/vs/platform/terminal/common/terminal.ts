@@ -96,7 +96,7 @@ export interface IOffProcessTerminalService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getShellEnvironment(): Promise<IProcessEnvironment>;
+	getEnvironment(): Promise<IProcessEnvironment>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
@@ -161,7 +161,7 @@ export interface IPtyService {
 	orphanQuestionReply(id: number): Promise<void>;
 
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getShellEnvironment(): Promise<IProcessEnvironment>;
+	getEnvironment(): Promise<IProcessEnvironment>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;

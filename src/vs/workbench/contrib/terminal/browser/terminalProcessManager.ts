@@ -203,7 +203,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// Create variable resolver
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 			const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-			const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getShellEnvironment(this.remoteAuthority), this._configurationResolverService);
+			const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
 
 			// resolvedUserHome is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
@@ -356,7 +356,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const envFromConfigValue = this._terminalProfileResolverService.getSafeConfigValue('env', OS) as ITerminalEnvironment | undefined;
 		this._configHelper.showRecommendations(shellLaunchConfig);
-		const baseEnv = await this._terminalProfileResolverService.getShellEnvironment(this.remoteAuthority);
+		const baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
 		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {

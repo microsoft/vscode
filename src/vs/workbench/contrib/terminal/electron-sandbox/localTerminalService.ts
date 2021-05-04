@@ -130,8 +130,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.getDefaultSystemShell(osOverride);
 	}
 
-	public async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._localPtyService.getShellEnvironment();
+	public async getEnvironment(): Promise<IProcessEnvironment> {
+		return this._localPtyService.getEnvironment();
 	}
 
 	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {

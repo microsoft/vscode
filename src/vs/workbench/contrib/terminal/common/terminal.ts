@@ -99,7 +99,7 @@ export interface ITerminalProfileResolverService {
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
-	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
+	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 
 	// TODO: Remove when workspace trust is enabled
 	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined;

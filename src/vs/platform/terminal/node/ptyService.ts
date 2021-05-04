@@ -166,7 +166,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return getSystemShell(osOverride, process.env);
 	}
 
-	async getShellEnvironment(): Promise<IProcessEnvironment> {
+	async getEnvironment(): Promise<IProcessEnvironment> {
 		return { ...process.env };
 	}
 

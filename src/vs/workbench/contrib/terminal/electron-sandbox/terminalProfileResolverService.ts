@@ -32,11 +32,11 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 					const service = remoteAuthority ? remoteTerminalService : localTerminalService;
 					return service.getDefaultSystemShell(platform);
 				},
-				getShellEnvironment: (remoteAuthority) => {
+				getEnvironment: (remoteAuthority) => {
 					if (remoteAuthority) {
-						return remoteTerminalService.getShellEnvironment();
+						return remoteTerminalService.getEnvironment();
 					} else {
-						return localTerminalService.getShellEnvironment();
+						return localTerminalService.getEnvironment();
 					}
 				}
 			},

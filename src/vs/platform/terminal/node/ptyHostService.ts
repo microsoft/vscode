@@ -199,8 +199,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._proxy.getShellEnvironment();
+	getEnvironment(): Promise<IProcessEnvironment> {
+		return this._proxy.getEnvironment();
 	}
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {

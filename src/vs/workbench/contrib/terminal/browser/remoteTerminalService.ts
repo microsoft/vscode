@@ -193,8 +193,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
 	}
 
-	public async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._remoteTerminalChannel?.getShellEnvironment() || {};
+	public async getEnvironment(): Promise<IProcessEnvironment> {
+		return this._remoteTerminalChannel?.getEnvironment() || {};
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
