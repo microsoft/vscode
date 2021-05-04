@@ -842,19 +842,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal initial text https://github.com/microsoft/vscode/issues/120368
-
-	export interface TerminalOptions {
-		/**
-		 * A message to write to the terminal on first launch, note that this is not sent to the
-		 * process but, rather written directly to the terminal. This supports escape sequences such
-		 * a setting text style.
-		 */
-		readonly message?: string;
-	}
-
-	//#endregion
-
 	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
 
 	export interface TerminalOptions {
