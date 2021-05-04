@@ -573,8 +573,15 @@ suite('QueryBuilder', () => {
 		});
 
 		function testIncludes(includePattern: string, expectedResult: ISearchPathsInfo): void {
+			let actual: ISearchPathsInfo;
+			try {
+				actual = queryBuilder.parseSearchPaths(includePattern);
+			} catch (_) {
+				actual = { searchPaths: [] };
+			}
+
 			assertEqualSearchPathResults(
-				queryBuilder.parseSearchPaths(includePattern),
+				actual,
 				expectedResult,
 				includePattern);
 		}
@@ -793,6 +800,42 @@ suite('QueryBuilder', () => {
 							searchPath: ROOT_1_URI,
 							pattern: patternsToIExpression('foo', 'foo/**')
 						}]
+					}
+				]
+			];
+			cases.forEach(testIncludesDataItem);
+		});
+
+		test('folder with slash in the name', () => {
+			const ROOT_2 = '/project/root2';
+			const ROOT_2_URI = getUri(ROOT_2);
+			const ROOT_1_FOLDERNAME = 'folder/one';
+			const ROOT_2_FOLDERNAME = 'folder/two';
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: ROOT_2_URI.fsPath, name: ROOT_2_FOLDERNAME }], WS_CONFIG_PATH, extUriBiasedIgnorePathCase);
+			mockWorkspace.configuration = uri.file(fixPath('config'));
+
+			const cases: [string, ISearchPathsInfo][] = [
+				[
+					'./folder/one',
+					{
+						searchPaths: [{
+							searchPath: ROOT_1_URI
+						}]
+					}
+				],
+				[
+					'./folder/two/foo/',
+					{
+						searchPaths: [{
+							searchPath: ROOT_2_URI,
+							pattern: patternsToIExpression('foo', 'foo/**')
+						}]
+					}
+				],
+				[
+					'./folder',
+					{
+						searchPaths: []
 					}
 				]
 			];
