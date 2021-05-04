@@ -260,6 +260,9 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		if (this._pty.onDidOverrideDimensions) {
 			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
 		}
+		if (this._pty.onDidChangeName) {
+			this._pty.onDidChangeName(title => this._onProcessTitleChanged.fire(title));
+		}
 
 		this._pty.open(initialDimensions ? initialDimensions : undefined);
 
