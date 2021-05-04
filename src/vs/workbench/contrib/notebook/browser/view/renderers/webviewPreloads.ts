@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -28,8 +28,6 @@ declare class ResizeObserver {
 
 declare const __outputNodePadding__: number;
 declare const __outputNodeLeftPadding__: number;
-declare const __previewNodePadding__: number;
-declare const __leftMargin__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -38,7 +36,7 @@ interface EmitterLike<T> {
 	event: Event<T>;
 }
 
-function webviewPreloads() {
+async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -134,61 +132,87 @@ function webviewPreloads() {
 		};
 	};
 
-	const outputObservers = new Map<string, ResizeObserver>();
+	const dimensionUpdater = new class {
+		private readonly pending = new Map<string, DimensionUpdate>();
 
-	const resizeObserve = (container: Element, id: string, output: boolean) => {
-		const resizeObserver = new ResizeObserver(entries => {
-			for (const entry of entries) {
-				if (!document.body.contains(entry.target)) {
-					return;
-				}
+		update(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
+			if (!this.pending.size) {
+				setTimeout(() => {
+					this.updateImmediately();
+				}, 0);
+			}
+			this.pending.set(id, {
+				id,
+				height,
+				...options,
+			});
+		}
 
-				if (entry.target.id === id && entry.contentRect) {
-					if (output) {
-						if (entry.contentRect.height !== 0) {
-							entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-							postNotebookMessage<IDimensionMessage>('dimension', {
-								id: id,
-								data: {
-									height: entry.contentRect.height + __outputNodePadding__ * 2
-								},
+		updateImmediately() {
+			if (!this.pending.size) {
+				return;
+			}
+
+			postNotebookMessage<IDimensionMessage>('dimension', {
+				updates: Array.from(this.pending.values())
+			});
+			this.pending.clear();
+		}
+	};
+
+	const resizeObserver = new class {
+
+		private readonly _observer: ResizeObserver;
+
+		private readonly _observedElements = new WeakMap<Element, { id: string, output: boolean }>();
+
+		constructor() {
+			this._observer = new ResizeObserver(entries => {
+				for (const entry of entries) {
+					if (!document.body.contains(entry.target)) {
+						continue;
+					}
+
+					const observedElementInfo = this._observedElements.get(entry.target);
+					if (!observedElementInfo) {
+						continue;
+					}
+
+					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
+						if (observedElementInfo.output) {
+							let height = 0;
+							if (entry.contentRect.height !== 0) {
+								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
+								height = entry.contentRect.height + __outputNodePadding__ * 2;
+							} else {
+								entry.target.style.padding = `0px`;
+							}
+							dimensionUpdater.update(observedElementInfo.id, height, {
 								isOutput: true
 							});
 						} else {
-							entry.target.style.padding = `0px`;
-							postNotebookMessage<IDimensionMessage>('dimension', {
-								id: id,
-								data: {
-									height: entry.contentRect.height
-								},
-								isOutput: true
+							dimensionUpdater.update(observedElementInfo.id, entry.target.clientHeight, {
+								isOutput: false
 							});
 						}
-					} else {
-						postNotebookMessage<IDimensionMessage>('dimension', {
-							id: id,
-							data: {
-								// entry.contentRect does not include padding
-								height: entry.contentRect.height + __previewNodePadding__ * 2
-							},
-							isOutput: false
-						});
 					}
 				}
-			}
-		});
-
-		resizeObserver.observe(container);
-		if (outputObservers.has(id)) {
-			outputObservers.get(id)?.disconnect();
+			});
 		}
 
-		outputObservers.set(id, resizeObserver);
+		public observe(container: Element, id: string, output: boolean) {
+			if (this._observedElements.has(container)) {
+				return;
+			}
+
+			this._observedElements.set(container, { id, output });
+			this._observer.observe(container);
+		}
 	};
 
 	function scrollWillGoToParent(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
-			if (!(node instanceof Element) || node.id === 'container') {
+			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('output_container')) {
 				return false;
 			}
 
@@ -236,11 +260,6 @@ function webviewPreloads() {
 				id: outputId,
 				focusNext
 			});
-
-			setTimeout(() => { // Wait a tick to prevent the focus indicator blinking before webview blurs
-				// Move focus off the focus sink - single use
-				focusFirstFocusableInCell(cellId);
-			}, 50);
 		});
 
 		return element;
@@ -390,18 +409,12 @@ function webviewPreloads() {
 		metadata: unknown;
 	}
 
-	interface ICreateMarkdownInfo {
-		readonly content: string;
-		readonly element: HTMLElement;
-	}
-
 	interface IDestroyCellInfo {
 		outputId: string;
 	}
 
 	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
 	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
-	const onDidCreateMarkdown = createEmitter<[string | undefined /* namespace */, ICreateMarkdownInfo]>();
 	const onDidReceiveMessage = createEmitter<[string, unknown]>();
 
 	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
@@ -428,7 +441,6 @@ function webviewPreloads() {
 			onDidReceiveMessage: mapEmitter(onDidReceiveMessage, ([ns, data]) => ns === namespace ? data : dontEmit),
 			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
 			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
-			onDidCreateMarkdown: mapEmitter(onDidCreateMarkdown, ([ns, data]) => data),
 		};
 	};
 
@@ -489,6 +501,7 @@ function webviewPreloads() {
 					}
 				}
 
+				dimensionUpdater.updateImmediately();
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
@@ -497,52 +510,61 @@ function webviewPreloads() {
 			case 'showMarkdownPreview':
 				{
 					const data = event.data;
-					const previewNode = document.getElementById(`${data.id}_container`);
-					if (previewNode) {
-						previewNode.style.top = `${data.top}px`;
-					}
+
 					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
 						cellContainer.style.visibility = 'visible';
+						cellContainer.style.top = `${data.top}px`;
 					}
 
 					updateMarkdownPreview(data.id, data.content);
 				}
 				break;
-			case 'hideMarkdownPreview':
+			case 'hideMarkdownPreviews':
 				{
-					const data = event.data;
-					const cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'hidden';
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						if (cellContainer) {
+							cellContainer.style.visibility = 'hidden';
+						}
 					}
 				}
 				break;
-			case 'unhideMarkdownPreview':
+			case 'unhideMarkdownPreviews':
 				{
-					const data = event.data;
-					const cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'visible';
-					}
-					updateMarkdownPreview(event.data.id, undefined);
-				}
-				break;
-			case 'removeMarkdownPreview':
-				{
-					const data = event.data;
-					let cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.parentElement?.removeChild(cellContainer);
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						if (cellContainer) {
+							cellContainer.style.visibility = 'visible';
+						}
+						updateMarkdownPreview(id, undefined);
 					}
 				}
 				break;
-			case 'updateMarkdownPreviewSelectionState':
+			case 'deleteMarkdownPreview':
 				{
-					const data = event.data;
-					const previewNode = document.getElementById(`${data.id}_preview`);
-					if (previewNode) {
-						previewNode.classList.toggle('selected', data.isSelected);
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						cellContainer?.remove();
+					}
+				}
+				break;
+			case 'updateSelectedMarkdownPreviews':
+				{
+					const selectedCellIds = new Set<string>(event.data.selectedCellIds);
+
+					for (const oldSelected of document.querySelectorAll('.preview.selected')) {
+						const id = oldSelected.id;
+						if (!selectedCellIds.has(id)) {
+							oldSelected.classList.remove('selected');
+						}
+					}
+
+					for (const newSelected of selectedCellIds) {
+						const previewContainer = document.getElementById(newSelected);
+						if (previewContainer) {
+							previewContainer.classList.add('selected');
+						}
 					}
 				}
 				break;
@@ -564,6 +586,8 @@ function webviewPreloads() {
 						const newElement = document.createElement('div');
 
 						newElement.id = data.cellId;
+						newElement.classList.add('cell_container');
+
 						container.appendChild(newElement);
 						cellOutputContainer = newElement;
 
@@ -571,10 +595,20 @@ function webviewPreloads() {
 						container.appendChild(lowerWrapperElement);
 					}
 
+					cellOutputContainer.style.position = 'absolute';
+					cellOutputContainer.style.top = data.cellTop + 'px';
+
+					const outputContainer = document.createElement('div');
+					outputContainer.classList.add('output_container');
+					outputContainer.style.position = 'absolute';
+					outputContainer.style.overflow = 'hidden';
+					outputContainer.style.maxHeight = '0px';
+					outputContainer.style.top = `${data.outputOffset}px`;
+
 					const outputNode = document.createElement('div');
 					outputNode.classList.add('output');
 					outputNode.style.position = 'absolute';
-					outputNode.style.top = data.top + 'px';
+					outputNode.style.top = `0px`;
 					outputNode.style.left = data.left + 'px';
 					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
 					// outputNode.style.minHeight = '32px';
@@ -587,7 +621,8 @@ function webviewPreloads() {
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 						outputNode.innerHTML = trustedHtml as string;
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 						domEval(outputNode);
 					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
 						outputNode.innerText = `Error loading preloads:`;
@@ -600,7 +635,8 @@ function webviewPreloads() {
 							}
 						}
 						outputNode.appendChild(errList);
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 					} else {
 						const { metadata, mimeType, value } = content;
 						onDidCreateOutput.fire([data.apiNamespace, {
@@ -624,39 +660,32 @@ function webviewPreloads() {
 								};
 							},
 						} as ICreateCellInfo]);
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 					}
 
-					resizeObserve(outputNode, outputId, true);
+					resizeObserver.observe(outputNode, outputId, true);
 
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						postNotebookMessage<IDimensionMessage>('dimension', {
-							id: outputId,
+						dimensionUpdater.update(outputId, clientHeight + __outputNodePadding__ * 2, {
 							isOutput: true,
 							init: true,
-							data: {
-								height: clientHeight + __outputNodePadding__ * 2
-							}
 						});
 
 						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 					} else {
-						postNotebookMessage<IDimensionMessage>('dimension', {
-							id: outputId,
+						dimensionUpdater.update(outputId, outputNode.clientHeight, {
 							isOutput: true,
 							init: true,
-							data: {
-								height: outputNode.clientHeight
-							}
 						});
 					}
 
 					// don't hide until after this step so that the height is right
-					cellOutputContainer.style.display = data.initiallyHidden ? 'none' : 'block';
+					cellOutputContainer.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 				});
 				break;
 			case 'view-scroll':
@@ -664,34 +693,23 @@ function webviewPreloads() {
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
-					for (let i = 0; i < event.data.widgets.length; i++) {
-						const widget = document.getElementById(event.data.widgets[i].id)!;
+					for (const request of event.data.widgets) {
+						const widget = document.getElementById(request.outputId);
 						if (widget) {
-							widget.style.top = event.data.widgets[i].top + 'px';
-							if (event.data.forceDisplay) {
-								widget.parentElement!.style.display = 'block';
+							widget.parentElement!.parentElement!.style.top = `${request.cellTop}px`;
+							widget.parentElement!.style.top = `${request.outputOffset}px`;
+							if (request.forceDisplay) {
+								widget.parentElement!.parentElement!.style.visibility = 'visible';
 							}
 						}
 					}
-					break;
-				}
-			case 'view-scroll-markdown':
-				{
-					// const date = new Date();
-					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: view-scroll-markdown', event.data.cells);
-					event.data.cells.map(cell => {
-						const widget = document.getElementById(`${cell.id}_preview`)!;
 
-						if (widget) {
-							widget.style.top = `${cell.top}px`;
+					for (const cell of event.data.markdownPreviews) {
+						const container = document.getElementById(cell.id);
+						if (container) {
+							container.style.top = `${cell.top}px`;
 						}
-
-						const markdownPreview = document.getElementById(`${cell.id}`);
-
-						if (markdownPreview) {
-							markdownPreview.style.display = 'block';
-						}
-					});
+					}
 
 					break;
 				}
@@ -700,10 +718,6 @@ function webviewPreloads() {
 				onWillDestroyOutput.fire([undefined, undefined]);
 				document.getElementById('container')!.innerText = '';
 
-				outputObservers.forEach(ob => {
-					ob.disconnect();
-				});
-				outputObservers.clear();
 				focusTrackers.forEach(ft => {
 					ft.dispose();
 				});
@@ -719,29 +733,35 @@ function webviewPreloads() {
 				break;
 			case 'hideOutput':
 				enqueueOutputAction(event.data, ({ outputId }) => {
-					const container = document.getElementById(outputId)?.parentElement;
+					const container = document.getElementById(outputId)?.parentElement?.parentElement;
 					if (container) {
-						container.style.display = 'none';
+						container.style.visibility = 'hidden';
 					}
 				});
 				break;
 			case 'showOutput':
-				enqueueOutputAction(event.data, ({ outputId, top }) => {
+				enqueueOutputAction(event.data, ({ outputId, cellTop: top, }) => {
 					const output = document.getElementById(outputId);
 					if (output) {
-						output.parentElement!.style.display = 'block';
-						output.style.top = top + 'px';
+						output.parentElement!.parentElement!.style.visibility = 'visible';
+						output.parentElement!.parentElement!.style.top = top + 'px';
 
-						postNotebookMessage<IDimensionMessage>('dimension', {
-							id: outputId,
+						dimensionUpdater.update(outputId, output.clientHeight, {
 							isOutput: true,
-							data: {
-								height: output.clientHeight
-							}
 						});
 					}
 				});
 				break;
+			case 'ack-dimension':
+				{
+					const { outputId, height } = event.data;
+					const output = document.getElementById(outputId);
+					if (output) {
+						output.parentElement!.style.maxHeight = `${height}px`;
+						output.parentElement!.style.height = `${height}px`;
+					}
+					break;
+				}
 			case 'preload':
 				const resources = event.data.resources;
 				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
@@ -767,13 +787,8 @@ function webviewPreloads() {
 			case 'decorations':
 				{
 					const outputContainer = document.getElementById(event.data.cellId);
-					event.data.addedClassNames.forEach(n => {
-						outputContainer?.classList.add(n);
-					});
-
-					event.data.removedClassNames.forEach(n => {
-						outputContainer?.classList.remove(n);
-					});
+					outputContainer?.classList.add(...event.data.addedClassNames);
+					outputContainer?.classList.remove(...event.data.removedClassNames);
 				}
 
 				break;
@@ -783,6 +798,10 @@ function webviewPreloads() {
 		}
 	});
 
+	const markdownRenderer: {
+		renderMarkup: (context: { element: HTMLElement, content: string }) => void,
+	} = await markdownRendererModule.activate(markdownDeps);
+
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
@@ -791,21 +810,18 @@ function webviewPreloads() {
 	function createMarkdownPreview(cellId: string, content: string, top: number) {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
+		cellContainer.id = cellId;
+		cellContainer.classList.add('preview');
 
-		cellContainer.id = `${cellId}`;
+		cellContainer.style.position = 'absolute';
+		cellContainer.style.top = top + 'px';
 		container.appendChild(cellContainer);
 
-		const previewContainerNode = document.createElement('div');
-		previewContainerNode.style.position = 'absolute';
-		previewContainerNode.style.top = top + 'px';
-		previewContainerNode.id = `${cellId}_preview`;
-		previewContainerNode.classList.add('preview');
-
-		previewContainerNode.addEventListener('dblclick', () => {
+		cellContainer.addEventListener('dblclick', () => {
 			postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
 		});
 
-		previewContainerNode.addEventListener('click', e => {
+		cellContainer.addEventListener('click', e => {
 			postNotebookMessage<IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
 				cellId,
 				altKey: e.altKey,
@@ -815,31 +831,37 @@ function webviewPreloads() {
 			});
 		});
 
-		previewContainerNode.addEventListener('mouseenter', () => {
+		cellContainer.addEventListener('contextmenu', e => {
+			postNotebookMessage<IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
+				cellId,
+				clientX: e.clientX,
+				clientY: e.clientY,
+			});
+		});
+
+		cellContainer.addEventListener('mouseenter', () => {
 			postNotebookMessage<IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
 		});
 
-		previewContainerNode.addEventListener('mouseleave', () => {
+		cellContainer.addEventListener('mouseleave', () => {
 			postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
 		});
 
-		previewContainerNode.setAttribute('draggable', 'true');
+		cellContainer.setAttribute('draggable', 'true');
 
-		previewContainerNode.addEventListener('dragstart', e => {
+		cellContainer.addEventListener('dragstart', e => {
 			markdownPreviewDragManager.startDrag(e, cellId);
 		});
 
-		previewContainerNode.addEventListener('drag', e => {
+		cellContainer.addEventListener('drag', e => {
 			markdownPreviewDragManager.updateDrag(e, cellId);
 		});
 
-		previewContainerNode.addEventListener('dragend', e => {
+		cellContainer.addEventListener('dragend', e => {
 			markdownPreviewDragManager.endDrag(e, cellId);
 		});
 
-		cellContainer.appendChild(previewContainerNode);
-
-		const previewRoot = previewContainerNode.attachShadow({ mode: 'open' });
+		const previewRoot = cellContainer.attachShadow({ mode: 'open' });
 
 		// Add default webview style
 		const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
@@ -855,7 +877,7 @@ function webviewPreloads() {
 
 		updateMarkdownPreview(cellId, content);
 
-		resizeObserve(previewContainerNode, `${cellId}_preview`, false);
+		resizeObserver.observe(cellContainer, cellId, false);
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -869,35 +891,48 @@ function webviewPreloads() {
 		});
 	}
 
+	let hasPostedRenderedMathTelemetry = false;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/g;
+
 	function updateMarkdownPreview(cellId: string, content: string | undefined) {
-		const previewContainerNode = document.getElementById(`${cellId}_preview`);
+		const previewContainerNode = document.getElementById(cellId);
 		if (!previewContainerNode) {
 			return;
 		}
 
 		const previewRoot = previewContainerNode.shadowRoot;
-
 		const previewNode = previewRoot?.getElementById('preview') as HTMLElement;
 
 		// TODO: handle namespace
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');
-				previewContainerNode.innerText = '';
+				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+				markdownRenderer.renderMarkup({
 					element: previewNode,
 					content: content
-				}]);
+				});
+
+				if (!hasPostedRenderedMathTelemetry) {
+					const hasRenderedMath = previewNode.querySelector('.katex');
+					if (hasRenderedMath) {
+						hasPostedRenderedMathTelemetry = true;
+						postNotebookMessage<ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+					}
+				}
+
+				const matches = previewNode.innerText.match(unsupportedKatexTermsRegex);
+				if (matches) {
+					postNotebookMessage<ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+						latexDirective: matches[0],
+					});
+				}
 			}
 		}
 
-		postNotebookMessage<IDimensionMessage>('dimension', {
-			id: `${cellId}_preview`,
-			data: {
-				height: previewContainerNode.clientHeight,
-			},
+		dimensionUpdater.update(cellId, previewContainerNode.clientHeight, {
 			isOutput: false
 		});
 	}
@@ -977,15 +1012,20 @@ function webviewPreloads() {
 	}();
 }
 
-export function preloadsScriptStr(values: {
+export function preloadsScriptStr(styleValues: {
 	outputNodePadding: number;
 	outputNodeLeftPadding: number;
-	previewNodePadding: number;
-	leftMargin: number;
+}, markdownRenderer: {
+	entrypoint: string,
+	dependencies: Array<{ entrypoint: string }>,
 }) {
-	return `(${webviewPreloads})()`
-		.replace(/__outputNodePadding__/g, `${values.outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`)
-		.replace(/__previewNodePadding__/g, `${values.previewNodePadding}`)
-		.replace(/__leftMargin__/g, `${values.leftMargin}`);
+	const markdownCtx = {
+		dependencies: markdownRenderer.dependencies,
+	};
+
+	return `
+	import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
+	(${webviewPreloads})(markdownRendererModule, JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}")))`
+		.replace(/__outputNodePadding__/g, `${styleValues.outputNodePadding}`)
+		.replace(/__outputNodeLeftPadding__/g, `${styleValues.outputNodeLeftPadding}`);
 }

@@ -13,7 +13,8 @@ suite('Sandbox', () => {
 		assert.ok(typeof webFrame.setZoomLevel === 'function');
 		assert.ok(typeof process.platform === 'string');
 
-		const config = await context.configuration;
+		const config = await context.resolveConfiguration();
 		assert.ok(config);
+		assert.ok(context.configuration());
 	});
 });

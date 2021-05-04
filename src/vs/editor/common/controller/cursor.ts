@@ -156,7 +156,7 @@ export class Cursor extends Disposable {
 		this._prevEditOperationType = EditOperationType.Other;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._cursors.dispose();
 		this._autoClosedActions = dispose(this._autoClosedActions);
 		super.dispose();

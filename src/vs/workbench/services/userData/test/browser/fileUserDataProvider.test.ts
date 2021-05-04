@@ -25,7 +25,7 @@ class TestWorkbenchEnvironmentService extends BrowserWorkbenchEnvironmentService
 	constructor(private readonly appSettingsHome: URI) {
 		super(Object.create(null), TestProductService);
 	}
-	get userRoamingDataHome() { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome() { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 }
 
 suite('FileUserDataProvider', () => {

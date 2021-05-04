@@ -23,8 +23,8 @@ suite('Notebook Outline', function () {
 	instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
 	instantiationService.set(IMarkerService, new MarkerService());
 	instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
-		onDidFileIconThemeChange = Event.None;
-		getFileIconTheme(): IFileIconTheme {
+		override onDidFileIconThemeChange = Event.None;
+		override getFileIconTheme(): IFileIconTheme {
 			return { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: false };
 		}
 	});

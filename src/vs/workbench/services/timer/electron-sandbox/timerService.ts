@@ -17,6 +17,7 @@ import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class TimerService extends AbstractTimerService {
 
@@ -32,8 +33,9 @@ export class TimerService extends AbstractTimerService {
 		@IEditorService editorService: IEditorService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService);
+		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService, layoutService);
 		this.setPerformanceMarks('main', _environmentService.configuration.perfMarks);
 	}
 

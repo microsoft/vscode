@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -22,7 +22,7 @@ suite('NotebookSelection', () => {
 
 suite('NotebookCellList focus/selection', () => {
 	const instantiationService = setupInstantiationService();
-	const textModelService = instantiationService.get(ITextModelService);
+	const modeService = instantiationService.get(IModeService);
 
 	test('notebook cell list setFocus', async function () {
 		await withTestNotebook(
@@ -212,8 +212,8 @@ suite('NotebookCellList focus/selection', () => {
 				// mimic undo
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], textModelService),
-						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], textModelService)
+						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], modeService),
+						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], modeService)
 					]
 				}], true, undefined, () => undefined, undefined, false);
 				viewModel.updateFoldingRanges(foldingModel.regions);

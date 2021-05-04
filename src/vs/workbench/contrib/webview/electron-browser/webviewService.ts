@@ -12,7 +12,6 @@ import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-san
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService extends WebviewService {
-	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -21,7 +20,7 @@ export class ElectronWebviewService extends WebviewService {
 		super(instantiationService);
 	}
 
-	createWebviewElement(
+	override createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
@@ -33,7 +32,7 @@ export class ElectronWebviewService extends WebviewService {
 		return webview;
 	}
 
-	createWebviewOverlay(
+	override createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,

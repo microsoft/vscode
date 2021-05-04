@@ -7,8 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { inputPlaceholderForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ChangeModeAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -16,9 +15,8 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 const $ = dom.$;
 
 const untitledHintSetting = 'workbench.editor.untitled.hint';
@@ -28,16 +26,15 @@ export class UntitledHintContribution implements IEditorContribution {
 
 	private toDispose: IDisposable[];
 	private untitledHintContentWidget: UntitledHintContentWidget | undefined;
-	private button: FloatingClickWidget | undefined;
-	private experimentTreatment: 'text' | 'button' | 'hidden' | undefined;
+	private experimentTreatment: 'text' | 'hidden' | undefined;
+
 
 	constructor(
 		private editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService,
 		@ITASExperimentService private readonly experimentService: ITASExperimentService
+
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
@@ -47,7 +44,7 @@ export class UntitledHintContribution implements IEditorContribution {
 				this.update();
 			}
 		}));
-		this.experimentService.getTreatment<'text' | 'button'>('untitledhint').then(treatment => {
+		this.experimentService.getTreatment<'text' | 'hidden'>('untitledhint').then(treatment => {
 			this.experimentTreatment = treatment;
 			this.update();
 		});
@@ -55,25 +52,13 @@ export class UntitledHintContribution implements IEditorContribution {
 
 	private update(): void {
 		this.untitledHintContentWidget?.dispose();
-		this.button?.dispose();
-		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden' | 'default'>(untitledHintSetting);
-		const untitledHintMode = configValue === 'default' ? (this.experimentTreatment || 'hidden') : configValue;
+		const configValue = this.configurationService.getValue<'text' | 'hidden' | 'default'>(untitledHintSetting);
+		const untitledHintMode = configValue === 'default' ? (this.experimentTreatment || 'text') : configValue;
+
 		const model = this.editor.getModel();
 
-		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {
-			if (untitledHintMode === 'text') {
-				this.untitledHintContentWidget = new UntitledHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
-			}
-			if (untitledHintMode === 'button') {
-				this.button = new FloatingClickWidget(this.editor, localize('selectALanguage', "Select a Language"), ChangeModeAction.ID, this.keybindingService, this.themeService);
-				this.toDispose.push(this.button.onClick(async () => {
-					// Need to focus editor before so current editor becomes active and the command is properly executed
-					this.editor.focus();
-					await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'button' });
-					this.editor.focus();
-				}));
-				this.button.render();
-			}
+		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID && untitledHintMode === 'text') {
+			this.untitledHintContentWidget = new UntitledHintContentWidget(this.editor, this.commandService, this.configurationService);
 		}
 	}
 
@@ -94,10 +79,14 @@ class UntitledHintContentWidget implements IContentWidget {
 		private readonly editor: ICodeEditor,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
-		private readonly keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 		this.toDispose.push(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
+				this.editor.applyFontInfo(this.domNode);
+			}
+		}));
 		this.onDidChangeModelContent();
 	}
 
@@ -120,10 +109,7 @@ class UntitledHintContentWidget implements IContentWidget {
 			this.domNode.style.width = 'max-content';
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
-			const keybinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
-			const keybindingLabel = keybinding?.getLabel();
-			const keybindingWithBrackets = keybindingLabel ? `(${keybindingLabel})` : '';
-			language.innerText = localize('selectAlanguage', "Select a language {0}", keybindingWithBrackets);
+			language.innerText = localize('selectAlanguage', "Select a language");
 			this.domNode.appendChild(language);
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
@@ -156,9 +142,9 @@ class UntitledHintContentWidget implements IContentWidget {
 				this.editor.focus();
 			}));
 
-			this.domNode.style.fontFamily = DEFAULT_FONT_FAMILY;
 			this.domNode.style.fontStyle = 'italic';
 			this.domNode.style.paddingLeft = '4px';
+			this.editor.applyFontInfo(this.domNode);
 		}
 
 		return this.domNode;

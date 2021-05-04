@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -48,7 +48,8 @@ import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -57,6 +58,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { whenEditorClosed } from 'vs/workbench/browser/editor';
 
 export class NativeWindow extends Disposable {
 
@@ -105,7 +108,8 @@ export class NativeWindow extends Disposable {
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -181,28 +185,6 @@ export class NativeWindow extends Disposable {
 
 		// Message support
 		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
-
-		// Shell Environment Issue Notifications
-		const choices: IPromptChoice[] = [{
-			label: localize('learnMore', "Learn More"),
-			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
-		}];
-
-		ipcRenderer.on('vscode:showShellEnvSlowWarning', () => this.notificationService.prompt(
-			Severity.Warning,
-			localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
-			choices,
-			{
-				sticky: true,
-				neverShowAgain: { id: 'ignoreShellEnvSlowWarning', scope: NeverShowAgainScope.GLOBAL }
-			}
-		));
-
-		ipcRenderer.on('vscode:showShellEnvTimeoutError', () => this.notificationService.prompt(
-			Severity.Error,
-			localize('shellEnvTimeoutError', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
-			choices
-		));
 
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => {
@@ -467,7 +449,7 @@ export class NativeWindow extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
 
 		// Integrity warning
-		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
+		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
 
 		// Root warning
 		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
@@ -664,8 +646,8 @@ export class NativeWindow extends Disposable {
 
 	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
 
-		// Wait for the resources to be closed in the editor...
-		await this.editorService.whenClosed(resourcesToWaitFor.map(resource => ({ resource })), { waitForSaved: true });
+		// Wait for the resources to be closed in the text editor...
+		await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
 
 		// ...before deleting the wait marker file
 		await this.fileService.del(waitMarkerFile);

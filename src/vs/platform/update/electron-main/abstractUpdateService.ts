@@ -97,7 +97,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
 
 			// Check for updates only once after 30 seconds
-			setTimeout(() => this.checkForUpdates(null), 30 * 1000);
+			setTimeout(() => this.checkForUpdates(false), 30 * 1000);
 		} else {
 			// Start checking for updates after 30 seconds
 			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
@@ -110,21 +110,21 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
-			.then(() => this.checkForUpdates(null))
+			.then(() => this.checkForUpdates(false))
 			.then(() => {
 				// Check again after 1 hour
 				return this.scheduleCheckForUpdates(60 * 60 * 1000);
 			});
 	}
 
-	async checkForUpdates(context: any): Promise<void> {
+	async checkForUpdates(explicit: boolean): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
-		this.doCheckForUpdates(context);
+		this.doCheckForUpdates(explicit);
 	}
 
 	async downloadUpdate(): Promise<void> {

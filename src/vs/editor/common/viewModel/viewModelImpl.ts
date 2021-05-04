@@ -142,7 +142,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCountNow();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		// First remove listeners, as disposing the lines might end up sending
 		// model decoration changed events ... and we no longer care about them ...
 		super.dispose();
@@ -816,7 +816,23 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
 		const colorMap = this._getColorMap();
-		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
+		const hasBadChars = (/[:;\\\/<>]/.test(fontInfo.fontFamily));
+		const useDefaultFontFamily = (hasBadChars || fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily);
+		let fontFamily: string;
+		if (useDefaultFontFamily) {
+			fontFamily = EDITOR_FONT_DEFAULTS.fontFamily;
+		} else {
+			fontFamily = fontInfo.fontFamily;
+			fontFamily = fontFamily.replace(/"/g, '\'');
+			const hasQuotesOrIsList = /[,']/.test(fontFamily);
+			if (!hasQuotesOrIsList) {
+				const needsQuotes = /[+ ]/.test(fontFamily);
+				if (needsQuotes) {
+					fontFamily = `'${fontFamily}'`;
+				}
+			}
+			fontFamily = `${fontFamily}, ${EDITOR_FONT_DEFAULTS.fontFamily}`;
+		}
 
 		return {
 			mode: languageId.language,

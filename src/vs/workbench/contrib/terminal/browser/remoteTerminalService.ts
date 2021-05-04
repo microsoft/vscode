@@ -6,6 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -15,12 +16,12 @@ import { INotificationHandle, INotificationService, IPromptChoice, Severity } fr
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemoteTerminalService extends Disposable implements IRemoteTerminalService {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, RemotePty> = new Map();
 	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
@@ -49,7 +50,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel = channel;
 
 			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			channel.onProcessBinary(e => this._ptys.get(e.id)?.processBinary(e.event));
 			channel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
@@ -65,8 +65,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 
+			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 			channel.onExecuteCommand(async e => {
 				const reqId = e.reqId;
+				const commandId = e.commandId;
+				if (!allowedCommands.includes(commandId)) {
+					channel!.sendCommandResult(reqId, true, 'Invalid remote cli command: ' + commandId);
+					return;
+				}
 				const commandArgs = e.commandArgs.map(arg => revive(arg));
 				try {
 					const result = await this._commandService.executeCommand(e.commandId, ...commandArgs);
@@ -120,7 +126,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	public async createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -139,21 +145,20 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env
 		};
-		const isWorkspaceShellAllowed = configHelper.checkIsProcessLaunchSafe(remoteEnv.os);
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
+			configuration,
 			activeWorkspaceRootUri,
 			shouldPersist,
 			cols,
 			rows,
-			isWorkspaceShellAllowed,
 		);
 		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 		this._ptys.set(result.persistentTerminalId, pty);
 		return pty;
 	}
 
-	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -169,8 +174,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	public async listProcesses(reduceGraceTime: boolean = false): Promise<IRemoteTerminalAttachTarget[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses(reduceGraceTime) : [];
+	async listProcesses(): Promise<IRemoteTerminalAttachTarget[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
 		return terms.map(termDto => {
 			return <IRemoteTerminalAttachTarget>{
 				id: termDto.id,
@@ -178,12 +183,29 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				title: termDto.title,
 				cwd: termDto.cwd,
 				workspaceId: termDto.workspaceId,
-				workspaceName: termDto.workspaceName
+				workspaceName: termDto.workspaceName,
+				icon: termDto.icon
 			};
 		});
 	}
 
-	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
+	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
+	}
+
+	async getEnvironment(): Promise<IProcessEnvironment> {
+		return this._remoteTerminalChannel?.getEnvironment() || {};
+	}
+
+	async getWslPath(original: string): Promise<string> {
+		const env = await this._remoteAgentService.getEnvironment();
+		if (env?.os !== OperatingSystem.Windows) {
+			return original;
+		}
+		return this._remoteTerminalChannel?.getWslPath(original) || original;
+	}
+
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call setActiveInstanceId when there is no remote`);
 		}
@@ -191,8 +213,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
 	}
 
-	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		await this._remoteTerminalChannel?.listProcesses(true);
+	async reduceConnectionGraceTime(): Promise<void> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error('Cannot reduce grace time when there is no remote');
+		}
+		return this._remoteTerminalChannel.reduceConnectionGraceTime();
+	}
+
+	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
 		}

@@ -5,13 +5,13 @@
 
 import { localize } from 'vs/nls';
 import { arch, release, type } from 'os';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ICommonIssueService, IssueReporterData, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import product from 'vs/platform/product/common/product';
+import { ICommonIssueService, IssueReporterWindowConfiguration, IssueReporterData, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IDiagnosticsService, PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh, IProcessEnvironment, browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
@@ -22,7 +22,6 @@ import { FileAccess } from 'vs/base/common/network';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 
@@ -41,7 +40,6 @@ export class IssueMainService implements ICommonIssueService {
 	private processExplorerParentWindow: BrowserWindow | null = null;
 
 	constructor(
-		private machineId: string,
 		private userEnv: IProcessEnvironment,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
@@ -49,7 +47,6 @@ export class IssueMainService implements ICommonIssueService {
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
 		this.registerListeners();
@@ -189,39 +186,25 @@ export class IssueMainService implements ICommonIssueService {
 			if (this.issueReporterParentWindow) {
 				const issueReporterDisposables = new DisposableStore();
 
-				const configuration = {
+				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IssueReporterWindowConfiguration>());
+				const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
+
+				this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
+
+				// Store into config object URL
+				issueReporterWindowConfigUrl.update({
 					appRoot: this.environmentMainService.appRoot,
-					windowId: 0, // filled in later
-					machineId: this.machineId,
+					windowId: this.issueReporterWindow.id,
 					userEnv: this.userEnv,
 					data,
-					features: {},
-					disableExtensions: this.environmentMainService.disableExtensions,
+					disableExtensions: !!this.environmentMainService.disableExtensions,
 					os: {
 						type: type(),
 						arch: arch(),
 						release: release(),
 					},
-					product: {
-						nameShort: this.productService.nameShort,
-						version: !!this.productService.darwinUniversalAssetId ? `${this.productService.version} (Universal)` : this.productService.version,
-						commit: this.productService.commit,
-						date: this.productService.date,
-						reportIssueUrl: this.productService.reportIssueUrl,
-						reportMarketplaceIssueUrl: this.productService.reportMarketplaceIssueUrl
-					}
-				};
-
-				interface IIssueReporterWindowConfig extends ISandboxConfiguration, Extract<typeof configuration, any> { }
-
-				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IIssueReporterWindowConfig>());
-				const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
-
-				this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
-				configuration.windowId = this.issueReporterWindow.id;
-
-				// Store into config object URL
-				issueReporterWindowConfigUrl.update(configuration);
+					product
+				});
 
 				this.issueReporterWindow.loadURL(
 					FileAccess.asBrowserUri('vs/code/electron-sandbox/issue/issueReporter.html', require, true).toString(true)
@@ -253,24 +236,19 @@ export class IssueMainService implements ICommonIssueService {
 			if (this.processExplorerParentWindow) {
 				const processExplorerDisposables = new DisposableStore();
 
-				const configuration = {
-					appRoot: this.environmentMainService.appRoot,
-					windowId: 0, // filled in later
-					userEnv: this.userEnv,
-					machineId: this.machineId,
-					data
-				};
-
-				interface IProcessExplorerWindowConfig extends ISandboxConfiguration, Extract<typeof configuration, any> { }
-
-				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<IProcessExplorerWindowConfig>());
+				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
 				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
-				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
-				configuration.windowId = this.processExplorerWindow.id;
+				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, data.styles.backgroundColor, localize('processExplorer', "Process Explorer"), data.zoomLevel);
 
 				// Store into config object URL
-				processExplorerWindowConfigUrl.update(configuration);
+				processExplorerWindowConfigUrl.update({
+					appRoot: this.environmentMainService.appRoot,
+					windowId: this.processExplorerWindow.id,
+					userEnv: this.userEnv,
+					data,
+					product
+				});
 
 				this.processExplorerWindow.loadURL(
 					FileAccess.asBrowserUri('vs/code/electron-sandbox/processExplorer/processExplorer.html', require, true).toString(true)
@@ -310,8 +288,8 @@ export class IssueMainService implements ICommonIssueService {
 			backgroundColor: backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
-				v8CacheOptions: 'bypassHeatCheck',
+				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, '--context-isolation' /* TODO@bpasero: Use process.contextIsolateed when 13-x-y is adopted (https://github.com/electron/electron/pull/28030) */],
+				v8CacheOptions: browserCodeLoadingCacheStrategy,
 				enableWebSQL: false,
 				enableRemoteModule: false,
 				spellcheck: false,

@@ -42,7 +42,7 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 		await this.modified.load({ forceReadFromFile: true });
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 	}
 }
@@ -74,30 +74,30 @@ export class NotebookDiffEditorInput extends EditorInput {
 		this._defaultDirtyState = !!options.startDirty;
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return NotebookDiffEditorInput.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return this.textDiffName;
 	}
 
-	isDirty() {
+	override isDirty() {
 		if (!this._modifiedTextModel) {
 			return this._defaultDirtyState;
 		}
 		return this._modifiedTextModel.object.isDirty();
 	}
 
-	isUntitled(): boolean {
+	override isUntitled(): boolean {
 		return this._modifiedTextModel?.object.resource.scheme === Schemas.untitled;
 	}
 
-	isReadonly() {
+	override isReadonly() {
 		return false;
 	}
 
-	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._modifiedTextModel) {
 
 			if (this.isUntitled()) {
@@ -112,7 +112,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 		return undefined;
 	}
 
-	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._modifiedTextModel || !this.viewType) {
 			return undefined;
 		}
@@ -156,7 +156,7 @@ ${patterns}
 	}
 
 	// called when users rename a notebook document
-	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._modifiedTextModel) {
 			const contributedNotebookProviders = this._notebookService.getContributedNotebookProviders(target);
 
@@ -171,7 +171,7 @@ ${patterns}
 		return undefined;
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		if (this._modifiedTextModel && this._modifiedTextModel.object.isDirty()) {
 			await this._modifiedTextModel.object.revert(options);
 		}
@@ -179,7 +179,7 @@ ${patterns}
 		return;
 	}
 
-	async resolve(): Promise<INotebookDiffEditorModel | null> {
+	override async resolve(): Promise<INotebookDiffEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
@@ -199,7 +199,7 @@ ${patterns}
 		return new NotebookDiffEditorModel(this._originalTextModel.object, this._modifiedTextModel.object);
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		if (this === otherInput) {
 			return true;
 		}
@@ -210,7 +210,7 @@ ${patterns}
 		return false;
 	}
 
-	dispose() {
+	override dispose() {
 		this._modifiedTextModel?.dispose();
 		this._modifiedTextModel = null;
 		this._originalTextModel?.dispose();

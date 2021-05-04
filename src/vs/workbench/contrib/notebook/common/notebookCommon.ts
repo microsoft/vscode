@@ -18,9 +18,12 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export enum CellKind {
 	Markdown = 1,
@@ -57,19 +60,12 @@ export enum NotebookRunState {
 }
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
-	editable: true,
-	cellEditable: true,
-	cellHasExecutionOrder: true,
 	custom: {},
-	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
-	editable: boolean;
-	cellEditable: boolean;
-	cellHasExecutionOrder: boolean;
 	custom?: { [key: string]: unknown };
-	trusted: boolean;
+	[key: string]: unknown;
 }
 
 export enum NotebookCellExecutionState {
@@ -85,29 +81,50 @@ export interface INotebookCellPreviousExecutionResult {
 }
 
 export interface NotebookCellMetadata {
-	editable?: boolean;
-	breakpointMargin?: boolean;
-	hasExecutionOrder?: boolean;
 	executionOrder?: number;
-	statusMessage?: string;
 	lastRunSuccess?: boolean;
 	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
-	lastRunDuration?: number;
+	runStartTimeAdjustment?: number;
+	runEndTime?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
-	custom?: { [key: string]: unknown };
+
+	/**
+	 * custom metadata
+	 */
+	[key: string]: unknown;
 }
 
-export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
-	transientMetadata: TransientMetadata;
+	transientCellMetadata: TransientCellMetadata;
+	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
 export interface INotebookMimeTypeSelector {
 	mimeTypes?: string[];
+}
+
+/**
+ * Passed to INotebookRendererInfo.matches when the notebook is initially
+ * loaded before the kernel is known.
+ */
+export const AnyRendererApi = Symbol('AnyRendererApi');
+
+/** Note: enum values are used for sorting */
+export const enum NotebookRendererMatch {
+	/** Renderer has a hard dependency on an available kernel */
+	WithHardKernelDependency = 0,
+	/** Renderer works better with an available kernel */
+	WithOptionalKernelDependency = 1,
+	/** Renderer is kernel-agnostic */
+	Pure = 2,
+	/** Renderer is for a different mimeType or has a hard dependency which is unsatisfied */
+	Never = 3,
 }
 
 export interface INotebookRendererInfo {
@@ -118,14 +135,18 @@ export interface INotebookRendererInfo {
 	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
 
-	matches(mimeType: string): boolean;
+	matchesWithoutKernel(mimeType: string): NotebookRendererMatch;
+	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
-export interface INotebookMarkdownRendererInfo {
+export interface INotebookMarkupRendererInfo {
+	readonly id: string;
 	readonly entrypoint: URI;
 	readonly extensionLocation: URI;
 	readonly extensionId: ExtensionIdentifier;
 	readonly extensionIsBuiltin: boolean;
+	readonly dependsOn: string | undefined;
+	readonly mimeTypes: readonly string[] | undefined;
 }
 
 export interface NotebookCellOutputMetadata {
@@ -330,12 +351,9 @@ export const enum CellEditType {
 	Metadata = 3,
 	CellLanguage = 4,
 	DocumentMetadata = 5,
-	OutputsSplice = 6,
-	Move = 7,
-	Unknown = 8,
-	CellContent = 9,
-	OutputItems = 10,
-	PartialMetadata = 11
+	Move = 6,
+	OutputItems = 7,
+	PartialMetadata = 8
 }
 
 export interface ICellDto2 {
@@ -626,7 +644,6 @@ export interface ICellEditorViewState {
 }
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
-export const NOTEBOOK_EDITOR_CURSOR_BEGIN_END = new RawContextKey<boolean>('notebookEditorCursorAtEditorBeginEnd', false);
 
 
 export interface INotebookLoadOptions {
@@ -648,6 +665,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: NotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
+	isReadonly(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;
@@ -667,25 +685,10 @@ export interface INotebookTextModelBackup {
 	cells: ICellDto2[]
 }
 
-export interface NotebookDocumentBackupData {
+export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
 	readonly backupId?: string;
 	readonly mtime?: number;
-}
-
-/**
- * [start, end]
- */
-export interface ICellRange {
-	/**
-	 * zero based index
-	 */
-	start: number;
-
-	/**
-	 * zero based index
-	 */
-	end: number;
 }
 
 export enum NotebookEditorPriority {
@@ -749,31 +752,40 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	return false;
 }
 
-export interface INotebookKernel {
-	id?: string;
-	friendlyId: string;
-	label: string;
-	extension: ExtensionIdentifier;
-	extensionLocation: URI;
-	providerHandle?: number;
-	description?: string;
-	detail?: string;
-	isPreferred?: boolean;
-	preloads?: URI[];
-	supportedLanguages?: string[]
-	implementsInterrupt?: boolean;
-
-	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
-	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
-	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
+export interface INotebookKernelChangeEvent {
+	label?: true;
+	description?: true;
+	detail?: true;
+	supportedLanguages?: true;
+	hasExecutionOrder?: true;
 }
 
-export interface INotebookKernelProvider {
-	providerExtensionId: string;
-	providerDescription?: string;
-	selector: INotebookDocumentFilter;
-	onDidChangeKernels: Event<URI | undefined>;
-	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
+export interface INotebookKernel {
+
+	readonly id: string;
+	readonly viewType: string;
+	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
+	readonly extension: ExtensionIdentifier;
+
+	readonly localResourceRoot: URI;
+	readonly preloadUris: URI[];
+	readonly preloadProvides: string[];
+
+	label: string;
+	description?: string;
+	detail?: string;
+	supportedLanguages: string[]
+	implementsInterrupt?: boolean;
+	implementsExecutionOrder?: boolean;
+
+	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+}
+
+export interface INotebookCellStatusBarItemProvider {
+	selector: NotebookSelector;
+	onDidChangeStatusBarItems?: Event<void>;
+	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
 export class CellSequence implements ISequence {
@@ -796,16 +808,22 @@ export interface INotebookDiffResult {
 	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }
 
-export interface INotebookCellStatusBarEntry {
-	readonly cellResource: URI;
+export interface INotebookCellStatusBarItem {
 	readonly alignment: CellStatusbarAlignment;
 	readonly priority?: number;
 	readonly text: string;
-	readonly tooltip: string | undefined;
-	readonly command: string | Command | undefined;
+	readonly color?: string | ThemeColor;
+	readonly backgroundColor?: string | ThemeColor;
+	readonly tooltip?: string;
+	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
-	readonly visible: boolean;
 	readonly opacity?: string;
+	readonly onlyShowWhenActive?: boolean;
+}
+
+export interface INotebookCellStatusBarItemList {
+	items: INotebookCellStatusBarItem[];
+	dispose?(): void;
 }
 
 export const DisplayOrderKey = 'notebook.displayOrder';
@@ -815,8 +833,8 @@ export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 
 export const enum CellStatusbarAlignment {
-	LEFT,
-	RIGHT
+	Left = 1,
+	Right = 2
 }
 
 export interface INotebookDecorationRenderOptions {
@@ -825,66 +843,4 @@ export interface INotebookDecorationRenderOptions {
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
-
-export function cellIndexesToRanges(indexes: number[]) {
-	indexes.sort((a, b) => a - b);
-	const first = indexes.shift();
-
-	if (first === undefined) {
-		return [];
-	}
-
-	return indexes.reduce(function (ranges, num) {
-		if (num <= ranges[0][1]) {
-			ranges[0][1] = num + 1;
-		} else {
-			ranges.unshift([num, num + 1]);
-		}
-		return ranges;
-	}, [[first, first + 1]]).reverse().map(val => ({ start: val[0], end: val[1] }));
-}
-
-export function cellRangesToIndexes(ranges: ICellRange[]) {
-	const indexes = ranges.reduce((a, b) => {
-		for (let i = b.start; i < b.end; i++) {
-			a.push(i);
-		}
-
-		return a;
-	}, [] as number[]);
-
-	return indexes;
-}
-
-/**
- * todo@rebornix notebookBrowser.reduceCellRanges
- * @returns
- */
-export function reduceRanges(ranges: ICellRange[]) {
-	const sorted = ranges.sort((a, b) => a.start - b.start);
-	const first = sorted[0];
-
-	if (!first) {
-		return [];
-	}
-
-	return sorted.reduce((prev: ICellRange[], curr) => {
-		const last = prev[prev.length - 1];
-		if (last.end >= curr.start) {
-			last.end = Math.max(last.end, curr.end);
-		} else {
-			prev.push(curr);
-		}
-		return prev;
-	}, [first] as ICellRange[]);
-}
-
-/**
- * todo@rebornix test and sort
- * @param range
- * @param other
- * @returns
- */
-export function cellRangeContains(range: ICellRange, other: ICellRange): boolean {
-	return other.start >= range.start && other.end <= range.end;
-}
+export const NOTEBOOK_WORKING_COPY_TYPE_PREFIX = 'notebook/';

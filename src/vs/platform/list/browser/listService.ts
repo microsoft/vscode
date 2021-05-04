@@ -298,7 +298,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.disposables.add(this.navigator);
 	}
 
-	updateOptions(options: IWorkbenchListOptionsUpdate): void {
+	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -315,7 +315,7 @@ export class WorkbenchList<T> extends List<T> {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._styler?.dispose();
 		super.dispose();
 	}
@@ -410,7 +410,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.disposables.add(this.navigator);
 	}
 
-	updateOptions(options: IWorkbenchListOptionsUpdate): void {
+	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -427,7 +427,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._styler?.dispose();
 		this.disposables.dispose();
 		super.dispose();
@@ -547,7 +547,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.disposables.add(this.navigator);
 	}
 
-	updateOptions(options: IWorkbenchTableOptionsUpdate): void {
+	override updateOptions(options: IWorkbenchTableOptionsUpdate): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -564,7 +564,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._styler?.dispose();
 		this.disposables.dispose();
 		super.dispose();
@@ -669,6 +669,15 @@ abstract class ResourceNavigator<T> extends Disposable {
 			return;
 		}
 
+		// copied from AbstractTree
+		const target = browserEvent.target as HTMLElement;
+		const onTwistie = target.classList.contains('monaco-tl-twistie')
+			|| (target.classList.contains('monaco-icon-label') && target.classList.contains('folder-icon') && browserEvent.offsetX < 16);
+
+		if (onTwistie) {
+			return;
+		}
+
 		const preserveFocus = false;
 		const pinned = true;
 		const sideBySide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
@@ -698,11 +707,14 @@ abstract class ResourceNavigator<T> extends Disposable {
 
 class ListResourceNavigator<T> extends ResourceNavigator<T> {
 
+	protected override readonly widget: List<T> | PagedList<T>;
+
 	constructor(
-		protected readonly widget: List<T> | PagedList<T>,
+		widget: List<T> | PagedList<T>,
 		options: IResourceNavigatorOptions
 	) {
 		super(widget, options);
+		this.widget = widget;
 	}
 
 	getSelectedElement(): T | undefined {
@@ -712,8 +724,10 @@ class ListResourceNavigator<T> extends ResourceNavigator<T> {
 
 class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
 
+	protected override readonly widget!: Table<TRow>;
+
 	constructor(
-		protected readonly widget: Table<TRow>,
+		widget: Table<TRow>,
 		options: IResourceNavigatorOptions
 	) {
 		super(widget, options);
@@ -726,8 +740,10 @@ class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
 
 class TreeResourceNavigator<T, TFilterData> extends ResourceNavigator<T> {
 
+	protected override readonly widget!: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>;
+
 	constructor(
-		protected readonly widget: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>,
+		widget: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>,
 		options: IResourceNavigatorOptions
 	) {
 		super(widget, options);
@@ -829,7 +845,7 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		this.disposables.add(this.internals);
 	}
 
-	updateOptions(options: IWorkbenchCompressibleObjectTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchCompressibleObjectTreeOptionsUpdate = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -875,7 +891,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		this.disposables.add(this.internals);
 	}
 
-	updateOptions(options: IWorkbenchDataTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchDataTreeOptionsUpdate = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -921,7 +937,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		this.disposables.add(this.internals);
 	}
 
-	updateOptions(options: IWorkbenchAsyncDataTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchAsyncDataTreeOptionsUpdate = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {

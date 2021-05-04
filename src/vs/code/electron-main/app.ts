@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { release } from 'os';
+import { release, hostname } from 'os';
 import { statSync } from 'fs';
 import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
@@ -71,7 +71,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -81,18 +81,21 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
  */
 export class CodeApplication extends Disposable {
+
 	private windowsMainService: IWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 
@@ -186,7 +189,7 @@ export class CodeApplication extends Disposable {
 
 					const uri = URI.parse(source);
 					if (uri.scheme === Schemas.vscodeWebview) {
-						return uri.path === '/index.html' || uri.path === '/electron-browser/index.html';
+						return uri.path === '/index.html' || uri.path === '/electron-browser-index.html';
 					}
 
 					const srcUri = uri.fsPath.toLowerCase();
@@ -225,17 +228,18 @@ export class CodeApplication extends Disposable {
 				this.nativeHostMainService?.openExternal(undefined, url);
 			});
 
-			const webviewFrameUrl = 'about:blank?webviewFrame';
+			const isUrlFromWebview = (requestingUrl: string) =>
+				requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
 
 			session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
-				if (details.requestingUrl === webviewFrameUrl) {
+				if (isUrlFromWebview(details.requestingUrl)) {
 					return callback(permission === 'clipboard-read');
 				}
 				return callback(false);
 			});
 
 			session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
-				if (details.requestingUrl === webviewFrameUrl) {
+				if (isUrlFromWebview(details.requestingUrl)) {
 					return permission === 'clipboard-read';
 				}
 				return false;
@@ -245,7 +249,7 @@ export class CodeApplication extends Disposable {
 		//#endregion
 
 		let macOpenFileURIs: IWindowOpenable[] = [];
-		let runningTimeout: NodeJS.Timeout | null = null;
+		let runningTimeout: NodeJS.Timeout | undefined = undefined;
 		app.on('open-file', (event, path) => {
 			this.logService.trace('app#open-file: ', path);
 			event.preventDefault();
@@ -254,9 +258,9 @@ export class CodeApplication extends Disposable {
 			macOpenFileURIs.push(this.getWindowOpenableFromPathSync(path));
 
 			// Clear previous handler if any
-			if (runningTimeout !== null) {
+			if (runningTimeout !== undefined) {
 				clearTimeout(runningTimeout);
-				runningTimeout = null;
+				runningTimeout = undefined;
 			}
 
 			// Handle paths delayed in case more are coming!
@@ -270,7 +274,7 @@ export class CodeApplication extends Disposable {
 				});
 
 				macOpenFileURIs = [];
-				runningTimeout = null;
+				runningTimeout = undefined;
 			}, 100);
 		});
 
@@ -280,47 +284,7 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
-		let slowShellResolveWarningShown = false;
-		ipcMain.on('vscode:fetchShellEnv', async event => {
-
-			// DO NOT remove: not only usual windows are fetching the
-			// shell environment but also shared process, issue reporter
-			// etc, so we need to reply via `webContents` always
-			const webContents = event.sender;
-
-			let replied = false;
-
-			function acceptShellEnv(env: IProcessEnvironment): void {
-				clearTimeout(shellEnvSlowWarningHandle);
-				clearTimeout(shellEnvTimeoutErrorHandle);
-
-				if (!replied) {
-					replied = true;
-
-					if (!webContents.isDestroyed()) {
-						webContents.send('vscode:acceptShellEnv', env);
-					}
-				}
-			}
-
-			// Handle slow shell environment resolve calls:
-			// - a warning after 3s but continue to resolve (only once in active window)
-			// - an error after 10s and stop trying to resolve (in every window where this happens)
-			const cts = new CancellationTokenSource();
-
-			const shellEnvSlowWarningHandle = setTimeout(() => {
-				if (!slowShellResolveWarningShown) {
-					this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
-					slowShellResolveWarningShown = true;
-				}
-			}, 3000);
-
-			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
-			const shellEnvTimeoutErrorHandle = setTimeout(() => {
-				cts.dispose(true);
-				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
-				acceptShellEnv({});
-			}, 10000);
+		ipcMain.handle('vscode:fetchShellEnv', event => {
 
 			// Prefer to use the args and env from the target window
 			// when resolving the shell env. It is possible that
@@ -330,6 +294,7 @@ export class CodeApplication extends Disposable {
 			//
 			// Window can be undefined for e.g. the shared process
 			// that is not part of our windows registry!
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process
 			let args: NativeParsedArgs;
 			let env: IProcessEnvironment;
 			if (window?.config) {
@@ -341,11 +306,10 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Resolve shell env
-			const shellEnv = await resolveShellEnv(this.logService, args, env);
-			acceptShellEnv(shellEnv);
+			return resolveShellEnv(this.logService, args, env);
 		});
 
-		ipcMain.handle('vscode:writeNlsFile', async (event, path: unknown, data: unknown) => {
+		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
 			const uri = this.validateNlsPath([path]);
 			if (!uri || typeof data !== 'string') {
 				throw new Error('Invalid operation (vscode:writeNlsFile)');
@@ -414,6 +378,18 @@ export class CodeApplication extends Disposable {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
+
+		// TODO@bpasero TODO@deepak1556 workaround for #120655
+		try {
+			const cachedDataPath = URI.file(this.environmentMainService.chromeCachedDataDir);
+			this.logService.trace(`Deleting Chrome cached data path: ${cachedDataPath.fsPath}`);
+
+			await this.fileService.del(cachedDataPath, { recursive: true });
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
+		}
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -549,7 +525,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
-		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
+		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
@@ -577,6 +553,15 @@ export class CodeApplication extends Disposable {
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 
+		// External terminal
+		if (isWindows) {
+			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
+		} else if (isMacintosh) {
+			services.set(IExternalTerminalMainService, new SyncDescriptor(MacExternalTerminalService));
+		} else if (isLinux) {
+			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
+		}
+
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
@@ -588,7 +573,7 @@ export class CodeApplication extends Disposable {
 		if (!this.environmentMainService.isExtensionDevelopment && !this.environmentMainService.args['disable-telemetry'] && !!this.productService.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(this.fileService, release(), process.arch, this.productService.commit, this.productService.version, machineId, this.productService.msftInternalDomains, this.environmentMainService.installSourcePath);
+			const commonProperties = resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, this.productService.msftInternalDomains, this.environmentMainService.installSourcePath);
 			const piiPaths = [this.environmentMainService.appRoot, this.environmentMainService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -662,6 +647,10 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
 		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
+
+		// External Terminal
+		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));
+		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
 
 		// Log Level (main & shared process)
 		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
@@ -900,6 +889,8 @@ export class CodeApplication extends Disposable {
 
 				if (hasWorkspaceFileExtension(path)) {
 					return { workspaceUri: remoteUri };
+				} else if (/:[\d]+$/.test(path)) { // path with :line:column syntax
+					return { fileUri: remoteUri };
 				} else {
 					return { folderUri: remoteUri };
 				}
@@ -932,6 +923,8 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Observe shared process for errors
+		let willShutdown = false;
+		once(this.lifecycleMainService.onWillShutdown)(() => willShutdown = true);
 		const telemetryService = accessor.get(ITelemetryService);
 		this._register(sharedProcess.onDidError(({ type, details }) => {
 
@@ -940,7 +933,7 @@ export class CodeApplication extends Disposable {
 			if (typeof details === 'string') {
 				message = details;
 			} else {
-				message = `SharedProcess: crashed (detail: ${details.reason})`;
+				message = `SharedProcess: crashed (detail: ${details.reason}, code: ${details.exitCode})`;
 			}
 			onUnexpectedError(new Error(message));
 
@@ -949,16 +942,19 @@ export class CodeApplication extends Disposable {
 				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				visible: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				shuttingdown: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;
 				reason: string | undefined;
 				visible: boolean;
+				shuttingdown: boolean;
 			};
 			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', {
 				type,
 				reason: typeof details !== 'string' ? details?.reason : undefined,
-				visible: sharedProcess.isVisible()
+				visible: sharedProcess.isVisible(),
+				shuttingdown: willShutdown
 			});
 		}));
 
@@ -989,7 +985,16 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Start to fetch shell environment (if needed) after window has opened
-		resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
+		// Since this operation can take a long time, we want to warm it up while
+		// the window is opening.
+		// We also print a warning if the resolution takes longer than 10s.
+		(async () => {
+			const slowResolveShellEnvWarning = this._register(new RunOnceScheduler(() => this.logService.warn('Resolving your shell environment is taking more than 10s. Please review your shell configuration. Learn more at https://go.microsoft.com/fwlink/?linkid=2149667.'), 10000));
+			slowResolveShellEnvWarning.schedule();
+
+			await resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
+			slowResolveShellEnvWarning.dispose();
+		})();
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which

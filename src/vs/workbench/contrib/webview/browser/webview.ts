@@ -75,10 +75,12 @@ export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	readonly serviceWorkerFetchIgnoreSubdomain?: boolean;
 	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
 }
 
 export interface WebviewContentOptions {
+	readonly useRootAuthority?: boolean;
 	readonly allowMultipleAPIAcquire?: boolean;
 	readonly allowScripts?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
@@ -172,8 +174,6 @@ export interface WebviewOverlay extends Webview {
 
 	claim(owner: any, scopedContextKeyService: IContextKeyService | undefined): void;
 	release(owner: any): void;
-
-	getInnerWebview(): Webview | undefined;
 
 	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }

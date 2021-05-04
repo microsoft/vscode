@@ -637,7 +637,7 @@ export interface IEditorOptions {
 	/**
 	 * Control the behavior and rendering of the inline hints.
 	 */
-	inlineHints?: IEditorInlineHintsOptions;
+	inlayHints?: IEditorInlayHintsOptions;
 }
 
 /**
@@ -906,7 +906,7 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): boolean {
+	public override validate(input: any): boolean {
 		return boolean(input, this.defaultValue);
 	}
 }
@@ -941,7 +941,7 @@ class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, nu
 		this.maximum = maximum;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return EditorIntOption.clampedInt(input, this.defaultValue, this.minimum, this.maximum);
 	}
 }
@@ -980,7 +980,7 @@ class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, 
 		this.validationFn = validationFn;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return this.validationFn(EditorFloatOption.float(input, this.defaultValue));
 	}
 }
@@ -1002,7 +1002,7 @@ class EditorStringOption<K1 extends EditorOption> extends SimpleEditorOption<K1,
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): string {
+	public override validate(input: any): string {
 		return EditorStringOption.string(input, this.defaultValue);
 	}
 }
@@ -1034,7 +1034,7 @@ class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends 
 		this._allowedValues = allowedValues;
 	}
 
-	public validate(input: any): V {
+	public override validate(input: any): V {
 		return stringSet<V>(input, this.defaultValue, this._allowedValues);
 	}
 }
@@ -1112,7 +1112,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 		return this.defaultValue;
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
 		if (value === AccessibilitySupport.Unknown) {
 			// The editor reads the `accessibilitySupport` from the environment
 			return env.accessibilitySupport;
@@ -1331,7 +1331,7 @@ class EditorEmptySelectionClipboard extends EditorBooleanOption<EditorOption.emp
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
 		return value && env.emptySelectionClipboard;
 	}
 }
@@ -1533,14 +1533,14 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		);
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		let r = EditorFloatOption.float(input, this.defaultValue);
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
 		return EditorFloatOption.clamp(r, 6, 100);
 	}
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.
 		// So take the result from env.fontInfo
 		return env.fontInfo.fontSize;
@@ -1643,6 +1643,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
 			]
 		};
+		const alternativeCommandOptions = ['', 'editor.action.referenceSearch.trigger', 'editor.action.goToReferences', 'editor.action.peekImplementation', 'editor.action.goToImplementation', 'editor.action.peekTypeDefinition', 'editor.action.goToTypeDefinition', 'editor.action.peekDeclaration', 'editor.action.revealDeclaration', 'editor.action.peekDefinition', 'editor.action.revealDefinitionAside', 'editor.action.revealDefinition'];
 		super(
 			EditorOption.gotoLocation, 'gotoLocation', defaults,
 			{
@@ -1672,26 +1673,31 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 				'editor.gotoLocation.alternativeDefinitionCommand': {
 					type: 'string',
 					default: defaults.alternativeDefinitionCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Definition' is the current location.")
 				},
 				'editor.gotoLocation.alternativeTypeDefinitionCommand': {
 					type: 'string',
 					default: defaults.alternativeTypeDefinitionCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeTypeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Type Definition' is the current location.")
 				},
 				'editor.gotoLocation.alternativeDeclarationCommand': {
 					type: 'string',
 					default: defaults.alternativeDeclarationCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeDeclarationCommand', "Alternative command id that is being executed when the result of 'Go to Declaration' is the current location.")
 				},
 				'editor.gotoLocation.alternativeImplementationCommand': {
 					type: 'string',
 					default: defaults.alternativeImplementationCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeImplementationCommand', "Alternative command id that is being executed when the result of 'Go to Implementation' is the current location.")
 				},
 				'editor.gotoLocation.alternativeReferenceCommand': {
 					type: 'string',
 					default: defaults.alternativeReferenceCommand,
+					enum: alternativeCommandOptions,
 					description: nls.localize('alternativeReferenceCommand', "Alternative command id that is being executed when the result of 'Go to Reference' is the current location.")
 				},
 			}
@@ -2390,12 +2396,12 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLig
 
 //#endregion
 
-//#region inlineHints
+//#region inlayHints
 
 /**
- * Configuration options for editor inlineHints
+ * Configuration options for editor inlayHints
  */
-export interface IEditorInlineHintsOptions {
+export interface IEditorInlayHintsOptions {
 	/**
 	 * Enable the inline hints.
 	 * Defaults to true.
@@ -2415,39 +2421,39 @@ export interface IEditorInlineHintsOptions {
 	fontFamily?: string;
 }
 
-export type EditorInlineHintsOptions = Readonly<Required<IEditorInlineHintsOptions>>;
+export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions>>;
 
-class EditorInlineHints extends BaseEditorOption<EditorOption.inlineHints, EditorInlineHintsOptions> {
+class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlineHintsOptions = { enabled: true, fontSize: 0, fontFamily: EDITOR_FONT_DEFAULTS.fontFamily };
+		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: EDITOR_FONT_DEFAULTS.fontFamily };
 		super(
-			EditorOption.inlineHints, 'inlineHints', defaults,
+			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
-				'editor.inlineHints.enabled': {
+				'editor.inlayHints.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('inlineHints.enable', "Enables the inline hints in the editor.")
+					description: nls.localize('inlayHints.enable', "Enables the inlay hints in the editor.")
 				},
-				'editor.inlineHints.fontSize': {
+				'editor.inlayHints.fontSize': {
 					type: 'number',
 					default: defaults.fontSize,
-					description: nls.localize('inlineHints.fontSize', "Controls font size of inline hints in the editor. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+					description: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. When set to `0`, the 90% of `#editor.fontSize#` is used.")
 				},
-				'editor.inlineHints.fontFamily': {
+				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
-					description: nls.localize('inlineHints.fontFamily', "Controls font family of inline hints in the editor.")
+					description: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor.")
 				},
 			}
 		);
 	}
 
-	public validate(_input: any): EditorInlineHintsOptions {
+	public validate(_input: any): EditorInlayHintsOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
-		const input = _input as IEditorInlineHintsOptions;
+		const input = _input as IEditorInlayHintsOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
@@ -2470,7 +2476,7 @@ class EditorLineHeight extends EditorIntOption<EditorOption.lineHeight> {
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The lineHeight is computed from the fontSize if it is 0.
 		// Moreover, the final lineHeight respects the editor zoom level.
 		// So take the result from env.fontInfo
@@ -2766,7 +2772,7 @@ export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSug
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
 
-	public readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
+	public override readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
 
 	constructor() {
 		const defaults: ValidQuickSuggestionsOptions = {
@@ -3850,7 +3856,7 @@ export const enum EditorOption {
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
-	inlineHints,
+	inlayHints,
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
 	pixelRatio,
@@ -3895,8 +3901,7 @@ export const EditorOptions = {
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
 	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
 		{
-			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 2000. Warning: this has a performance implication for numbers larger than the default."),
-			deprecationMessage: nls.localize('accessibilityPageSize.deprecated', "This setting is deprecated, editor will automatically choose the accessibility page size when we detect a screen reader. 2000 lines will be the new default.")
+			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default.")
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
@@ -4373,7 +4378,7 @@ export const EditorOptions = {
 		EditorOption.showDeprecated, 'showDeprecated', true,
 		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
 	)),
-	inlineHints: register(new EditorInlineHints()),
+	inlayHints: register(new EditorInlayHints()),
 	snippetSuggestions: register(new EditorStringEnumOption(
 		EditorOption.snippetSuggestions, 'snippetSuggestions',
 		'inline' as 'top' | 'bottom' | 'inline' | 'none',

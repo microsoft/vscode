@@ -107,7 +107,7 @@ export class MainThreadNotebooksAndEditors {
 		extHostContext.set(MainContext.MainThreadNotebookDocuments, this._mainThreadNotebooks);
 		extHostContext.set(MainContext.MainThreadNotebookEditors, this._mainThreadEditors);
 
-		this._notebookService.onDidAddNotebookDocument(() => this._updateState(), this, this._disposables);
+		this._notebookService.onDidCreateNotebookDocument(() => this._updateState(), this, this._disposables);
 		this._notebookService.onDidRemoveNotebookDocument(() => this._updateState(), this, this._disposables);
 		this._editorService.onDidActiveEditorChange(() => this._updateState(), this, this._disposables);
 		this._editorService.onDidVisibleEditorsChange(() => this._updateState(), this, this._disposables);

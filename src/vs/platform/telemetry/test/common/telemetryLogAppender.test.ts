@@ -53,7 +53,7 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	dispose(): void { }
+	override dispose(): void { }
 	flush(): void { }
 }
 

@@ -13,9 +13,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IAvailableProfilesRequest as IAvailableProfilesRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest as IAvailableProfilesRequest, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -69,13 +70,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.add(_terminalService.onInstanceRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
 		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
-		this._toDispose.add(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
 		this._toDispose.add(_terminalService.onRequestAvailableProfiles(e => this._onRequestAvailableProfiles(e)));
-
-		// ITerminalInstanceService listeners
-		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
-			this._toDispose.add(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e)));
-		}
 
 		// Set initial ext host state
 		this._terminalService.terminalInstances.forEach(t => {
@@ -123,12 +118,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			executable: launchConfig.shellPath,
 			args: launchConfig.shellArgs,
 			cwd: typeof launchConfig.cwd === 'string' ? launchConfig.cwd : URI.revive(launchConfig.cwd),
+			icon: launchConfig.icon,
+			initialText: launchConfig.initialText,
 			waitOnExit: launchConfig.waitOnExit,
 			ignoreConfigurationCwd: true,
 			env: launchConfig.env,
 			strictEnv: launchConfig.strictEnv,
 			hideFromUser: launchConfig.hideFromUser,
-			isExtensionCustomPtyTerminal: launchConfig.isExtensionCustomPtyTerminal,
+			customPtyImplementation: launchConfig.isExtensionCustomPtyTerminal
+				? (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService)
+				: undefined,
 			extHostTerminalId: extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal
@@ -202,10 +201,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTitleChanged(terminalId: number, name: string): void {
 		this._proxy.$acceptTerminalTitleChange(terminalId, name);
-	}
-
-	private _onWorkspacePermissionsChanged(isAllowed: boolean): void {
-		this._proxy.$acceptWorkspacePermissionsChanged(isAllowed);
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
@@ -328,13 +323,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private async _onRequestAvailableProfiles(req: IAvailableProfilesRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
 			req.callback(await this._proxy.$getAvailableProfiles(req.configuredProfilesOnly));
-		}
-	}
-
-	private async _onRequestDefaultShellAndArgs(req: IDefaultShellAndArgsRequest): Promise<void> {
-		if (this._isPrimaryExtHost()) {
-			const res = await this._proxy.$getDefaultShellAndArgs(req.useAutomationShell);
-			req.callback(res.shell, res.args);
 		}
 	}
 

@@ -128,7 +128,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 		this._contributedExternalUriOpenersStore.delete(id);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._registeredOpeners.clear();
 	}

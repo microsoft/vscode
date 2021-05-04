@@ -24,17 +24,17 @@ suite('BulkEditPreview', function () {
 	setup(function () {
 
 		const fileService: IFileService = new class extends mock<IFileService>() {
-			onDidFilesChange = Event.None;
-			async exists() {
+			override onDidFilesChange = Event.None;
+			override async exists() {
 				return true;
 			}
 		};
 
 		const modelService: IModelService = new class extends mock<IModelService>() {
-			getModel() {
+			override getModel() {
 				return null;
 			}
-			getModels() {
+			override getModels() {
 				return [];
 			}
 		};

@@ -104,7 +104,7 @@ export class BreakpointsView extends ViewPane {
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -174,7 +174,7 @@ export class BreakpointsView extends ViewPane {
 		}));
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		if (this.list) {
 			this.list.domFocus();
@@ -191,7 +191,7 @@ export class BreakpointsView extends ViewPane {
 		return this._inputBoxData;
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		if (this.ignoreLayout) {
 			return;
 		}
@@ -473,7 +473,8 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 	renderElement(exceptionBreakpoint: IExceptionBreakpoint, index: number, data: IExceptionBreakpointTemplateData): void {
 		data.context = exceptionBreakpoint;
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
-		data.breakpoint.title = exceptionBreakpoint.description || data.name.textContent;
+		data.breakpoint.title = exceptionBreakpoint.verified ? (exceptionBreakpoint.description || data.name.textContent) : exceptionBreakpoint.message || localize('unverifiedExceptionBreakpoint', "Unverified Exception Breakpoint");
+		data.breakpoint.classList.toggle('disabled', !exceptionBreakpoint.verified);
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 		data.condition.textContent = exceptionBreakpoint.condition || '';
 		data.condition.title = localize('expressionCondition', "Expression condition: {0}", exceptionBreakpoint.condition);

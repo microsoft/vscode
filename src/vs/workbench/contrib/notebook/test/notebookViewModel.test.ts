@@ -5,49 +5,59 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, NotebookCellMetadata, diff, ICellRange, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook, NotebookEditorTestModel, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CellKind, diff, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookViewModel', () => {
 	const instantiationService = setupInstantiationService();
 	const textModelService = instantiationService.get(ITextModelService);
 	const bulkEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.get(IUndoRedoService);
+	const modelService = instantiationService.get(IModelService);
+	const modeService = instantiationService.get(IModeService);
+
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IThemeService, new TestThemeService());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
-		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
+		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService, textModelService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 
 	test('insert/delete', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				assert.strictEqual(viewModel.viewCells[0].metadata?.editable, true);
-				assert.strictEqual(viewModel.viewCells[1].metadata?.editable, false);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
-				assert.strictEqual(viewModel.viewCells.length, 3);
+				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell), 1);
 
 				viewModel.deleteCell(1, true);
-				assert.strictEqual(viewModel.viewCells.length, 2);
+				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
 				assert.strictEqual(viewModel.getCellIndex(cell), -1);
 			}
@@ -57,28 +67,28 @@ suite('NotebookViewModel', () => {
 	test('move cells down', async function () {
 		await withTestNotebook(
 			[
-				['//a', 'javascript', CellKind.Code, [], { editable: true }],
-				['//b', 'javascript', CellKind.Code, [], { editable: true }],
-				['//c', 'javascript', CellKind.Code, [], { editable: true }],
+				['//a', 'javascript', CellKind.Code, [], {}],
+				['//b', 'javascript', CellKind.Code, [], {}],
+				['//c', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.moveCellToIdx(0, 1, 0, true);
 				// no-op
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//a');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//b');
 
 				viewModel.moveCellToIdx(0, 1, 1, true);
 				// b, a, c
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//b');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//a');
-				assert.strictEqual(viewModel.viewCells[2].getText(), '//c');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//c');
 
 				viewModel.moveCellToIdx(0, 1, 2, true);
 				// a, c, b
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//a');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//c');
-				assert.strictEqual(viewModel.viewCells[2].getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//c');
+				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//b');
 			}
 		);
 	});
@@ -86,22 +96,22 @@ suite('NotebookViewModel', () => {
 	test('move cells up', async function () {
 		await withTestNotebook(
 			[
-				['//a', 'javascript', CellKind.Code, [], { editable: true }],
-				['//b', 'javascript', CellKind.Code, [], { editable: true }],
-				['//c', 'javascript', CellKind.Code, [], { editable: true }],
+				['//a', 'javascript', CellKind.Code, [], {}],
+				['//b', 'javascript', CellKind.Code, [], {}],
+				['//c', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.moveCellToIdx(1, 1, 0, true);
 				// b, a, c
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//b');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//a');
 
 				viewModel.moveCellToIdx(2, 1, 0, true);
 				// c, b, a
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//c');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//b');
-				assert.strictEqual(viewModel.viewCells[2].getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//c');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//a');
 			}
 		);
 	});
@@ -109,13 +119,13 @@ suite('NotebookViewModel', () => {
 	test('index', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				const firstViewCell = viewModel.viewCells[0];
-				const lastViewCell = viewModel.viewCells[viewModel.viewCells.length - 1];
+				const firstViewCell = viewModel.cellAt(0)!;
+				const lastViewCell = viewModel.cellAt(viewModel.length - 1)!;
 
 				const insertIndex = viewModel.getCellIndex(firstViewCell) + 1;
 				const cell = viewModel.createCell(insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
@@ -126,86 +136,9 @@ suite('NotebookViewModel', () => {
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
 				const cell2 = viewModel.createCell(secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
 
-				assert.strictEqual(viewModel.viewCells.length, 3);
+				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell2), 2);
-			}
-		);
-	});
-
-	test('metadata', async function () {
-		await withTestNotebook(
-			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
-			],
-			(editor) => {
-				const viewModel = editor.viewModel;
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
-
-				const defaults = { hasExecutionOrder: true };
-
-				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-					...defaults
-				});
-
-				assert.deepStrictEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-					...defaults
-				});
-
-				assert.deepStrictEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-					...defaults
-				});
-
-				assert.deepStrictEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-					...defaults
-				});
-
-				assert.deepStrictEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-					...defaults
-				});
-
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
-
-				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-					...defaults
-				});
-
-				assert.deepStrictEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-					...defaults
-				});
-
-				assert.deepStrictEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: true,
-					...defaults
-				});
-
-				assert.deepStrictEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-					...defaults
-				});
-
-				assert.deepStrictEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-					...defaults
-				});
-
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
-
-				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-					...defaults
-				});
 			}
 		);
 	});
@@ -241,10 +174,10 @@ suite('NotebookViewModel Decorations', () => {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -297,12 +230,12 @@ suite('NotebookViewModel Decorations', () => {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 6;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 7;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+				['var e = 6;', 'javascript', CellKind.Code, [], {}],
+				['var e = 7;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -431,6 +364,62 @@ suite('NotebookViewModel API', () => {
 			(editor) => {
 				const viewModel = editor.viewModel;
 				assert.strictEqual(viewModel.nearestCodeCellIndex(2), 1);
+			}
+		);
+	});
+
+	test('getCells', async () => {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}]
+			],
+			(editor) => {
+				const viewModel = editor.viewModel;
+				assert.strictEqual(viewModel.getCells().length, 3);
+				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 1 }).map(cell => cell.getText()), ['# header a']);
+				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 2 }).map(cell => cell.getText()), ['# header a', 'var b = 1;']);
+				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 3 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 4 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCells({ start: 1, end: 4 }).map(cell => cell.getText()), ['var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCells({ start: 2, end: 4 }).map(cell => cell.getText()), ['# header b']);
+				assert.deepStrictEqual(viewModel.getCells({ start: 3, end: 4 }).map(cell => cell.getText()), []);
+
+				// no one should use an invalid range but `getCells` should be able to handle that.
+				assert.deepStrictEqual(viewModel.getCells({ start: -1, end: 1 }).map(cell => cell.getText()), ['# header a']);
+				assert.deepStrictEqual(viewModel.getCells({ start: 3, end: 0 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+			}
+		);
+	});
+
+	test('split cell', async function () {
+		await withTestNotebook(
+			[
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor) => {
+				const viewModel = editor.viewModel;
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }]), [
+					'var',
+					' b = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }, { lineNumber: 1, column: 6 }]), [
+					'var',
+					' b',
+					' = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 1 }]), [
+					'',
+					'var b = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 11 }]), [
+					'var b = 1;',
+					'',
+				]);
 			}
 		);
 	});

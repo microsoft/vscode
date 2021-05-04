@@ -23,6 +23,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+import { timeout } from 'vs/base/common/async';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: NativeExtHostSearch;
@@ -83,7 +84,7 @@ suite('ExtHostSearch', () => {
 			const cancellation = new CancellationTokenSource();
 			const p = extHostSearch.$provideFileSearchResults(mockMainThreadSearch.lastHandle, 0, query, cancellation.token);
 			if (cancel) {
-				await new Promise(resolve => process.nextTick(resolve));
+				await timeout(0);
 				cancellation.cancel();
 			}
 
@@ -102,15 +103,11 @@ suite('ExtHostSearch', () => {
 		};
 	}
 
-	async function runTextSearch(query: ITextQuery, cancel = false): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
+	async function runTextSearch(query: ITextQuery): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const cancellation = new CancellationTokenSource();
 			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, query, cancellation.token);
-			if (cancel) {
-				await new Promise(resolve => process.nextTick(resolve));
-				cancellation.cancel();
-			}
 
 			stats = await p;
 		} catch (err) {
@@ -151,7 +148,7 @@ suite('ExtHostSearch', () => {
 				this._pfs = mockPFS as any;
 			}
 
-			protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
+			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
 				return new NativeTextSearchManager(query, provider, this._pfs);
 			}
 		};
@@ -223,12 +220,19 @@ suite('ExtHostSearch', () => {
 			let cancelRequested = false;
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+
 					return new Promise((resolve, reject) => {
-						token.onCancellationRequested(() => {
+						function onCancel() {
 							cancelRequested = true;
 
 							resolve([joinPath(options.folder, 'file1.ts')]); // or reject or nothing?
-						});
+						}
+
+						if (token.isCancellationRequested) {
+							onCancel();
+						} else {
+							token.onCancellationRequested(() => onCancel());
+						}
 					});
 				}
 			});

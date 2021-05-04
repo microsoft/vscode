@@ -19,7 +19,7 @@ import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupVi
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
+import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorDropTarget, IEditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { Color } from 'vs/base/common/color';
@@ -30,6 +30,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { Promises } from 'vs/base/common/async';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -205,13 +206,18 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return (this.gridWidget && this.gridWidget.orientation === Orientation.VERTICAL) ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
+	private whenReadyResolve: (() => void) | undefined;
+	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+
 	private whenRestoredResolve: (() => void) | undefined;
-	private readonly _whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
-	get whenRestored(): Promise<void> {
-		return this._whenRestored;
+	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private restored = false;
+
+	isRestored(): boolean {
+		return this.restored;
 	}
 
-	get willRestoreEditors(): boolean {
+	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 
@@ -512,13 +518,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this._partOptions.splitSizing === 'split' ? Sizing.Split : Sizing.Distribute;
 	}
 
-	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroup | null): IEditorGroupView {
+	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null): IEditorGroupView {
 
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
 			groupView = EditorGroupView.createCopy(from, this, this.count, this.instantiationService);
-		} else if (isSerializedEditorGroup(from)) {
+		} else if (isSerializedEditorGroupModel(from)) {
 			groupView = EditorGroupView.createFromSerialized(from, this, this.count, this.instantiationService);
 		} else {
 			groupView = EditorGroupView.createNew(this, this.count, this.instantiationService);
@@ -801,14 +807,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	readonly snap = true;
 
-	get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
+	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	private get gridSeparatorBorder(): Color {
 		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		const container = assertIsDefined(this.container);
 		container.style.backgroundColor = this.getColor(editorBackground) || '';
 
@@ -817,7 +823,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget.styles(separatorBorderStyle);
 	}
 
-	createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
+	override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
 
 		// Container
 		this.element = parent;
@@ -834,8 +840,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
 
+		// Signal ready
+		this.whenReadyResolve?.();
+
 		// Signal restored
-		this.whenRestoredResolve?.();
+		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
+			this.restored = true;
+			this.whenRestoredResolve?.();
+		});
 
 		return this.container;
 	}
@@ -999,7 +1011,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Create new
 		const groupViews: IEditorGroupView[] = [];
 		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
-			fromJSON: (serializedEditorGroup: ISerializedEditorGroup | null) => {
+			fromJSON: (serializedEditorGroup: ISerializedEditorGroupModel | null) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {
 					groupView = reuseGroupViews.shift()!;
@@ -1068,7 +1080,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
@@ -1087,7 +1099,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this._onDidLayout.fire(dimension);
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Persist grid UI state
 		if (this.gridWidget) {
@@ -1123,7 +1135,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		};
 	}
 
-	dispose(): void {
+	override dispose(): void {
 
 		// Forward to all groups
 		this.groupViews.forEach(group => group.dispose());

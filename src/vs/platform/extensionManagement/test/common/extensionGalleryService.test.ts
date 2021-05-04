@@ -19,8 +19,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { mock } from 'vs/base/test/common/mock';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
-	constructor(readonly serviceMachineIdResource: URI) {
+	override readonly serviceMachineIdResource: URI;
+	constructor(serviceMachineIdResource: URI) {
 		super();
+		this.serviceMachineIdResource = serviceMachineIdResource;
 	}
 }
 

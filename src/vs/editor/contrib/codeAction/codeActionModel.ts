@@ -207,7 +207,7 @@ export class CodeActionModel extends Disposable {
 		this._update();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		if (this.#isDisposed) {
 			return;
 		}

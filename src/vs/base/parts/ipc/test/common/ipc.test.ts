@@ -66,7 +66,7 @@ class TestIPCClient extends IPCClient<string> {
 		super(protocol, id);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._onDidDisconnect.fire();
 		super.dispose();
 	}

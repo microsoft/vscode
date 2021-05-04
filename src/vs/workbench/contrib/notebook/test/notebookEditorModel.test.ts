@@ -15,26 +15,27 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 suite('NotebookEditorModel', function () {
 
 	const instaService = new InstantiationService();
 	const notebokService = new class extends mock<INotebookService>() { };
-	const backupService = new class extends mock<IBackupFileService>() { };
+	const backupService = new class extends mock<IWorkingCopyBackupService>() { };
 	const notificationService = new class extends mock<INotificationService>() { };
 	const untitledTextEditorService = new class extends mock<IUntitledTextEditorService>() { };
 	const fileService = new class extends mock<IFileService>() {
-		onDidFilesChange = Event.None;
+		override onDidFilesChange = Event.None;
 	};
 	const labelService = new class extends mock<ILabelService>() {
-		getUriBasenameLabel(uri: URI) { return uri.toString(); }
+		override getUriBasenameLabel(uri: URI) { return uri.toString(); }
 	};
 
-	const notebookDataProvider = new class extends mock<IMainNotebookController>() { };
+	const notebookDataProvider = new class extends mock<INotebookContentProvider>() { };
 
 	test('working copy uri', function () {
 
@@ -43,7 +44,7 @@ suite('NotebookEditorModel', function () {
 
 		const copies: IWorkingCopy[] = [];
 		const workingCopyService = new class extends mock<IWorkingCopyService>() {
-			registerWorkingCopy(copy: IWorkingCopy) {
+			override registerWorkingCopy(copy: IWorkingCopy) {
 				copies.push(copy);
 				return Disposable.None;
 			}

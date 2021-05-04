@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { statSync } from 'fs';
+import { release, hostname } from 'os';
+import product from 'vs/platform/product/common/product';
+import { mark, getMarks } from 'vs/base/common/performance';
 import { basename, normalize, join, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
@@ -13,7 +16,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow } from 'vs/platform/windows/electron-main/window';
-import { BrowserWindow, MessageBoxOptions, WebContents } from 'electron';
+import { app, BrowserWindow, MessageBoxOptions, nativeTheme, WebContents } from 'electron';
 import { ILifecycleMainService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -338,7 +341,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// process can continue. We do this by deleting the waitMarkerFilePath.
 		const waitMarkerFileURI = openConfig.waitMarkerFileURI;
 		if (openConfig.context === OpenContext.CLI && waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
-			usedWindows[0].whenClosedOrLoaded.then(() => this.fileService.del(waitMarkerFileURI), () => undefined);
+			(async () => {
+				await usedWindows[0].whenClosedOrLoaded;
+
+				try {
+					await this.fileService.del(waitMarkerFileURI);
+				} catch (error) {
+					// ignore - could have been deleted from the window already
+				}
+			})();
 		}
 
 		return usedWindows;
@@ -398,7 +409,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			let windowToUseForFiles: ICodeWindow | undefined = undefined;
 			if (fileToCheck?.fileUri && !openFilesInNewWindow) {
 				if (openConfig.context === OpenContext.DESKTOP || openConfig.context === OpenContext.CLI || openConfig.context === OpenContext.DOCK) {
-					windowToUseForFiles = findWindowOnFile(windows, fileToCheck.fileUri, workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath) : null);
+					windowToUseForFiles = findWindowOnFile(windows, fileToCheck.fileUri, workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath) : undefined);
 				}
 
 				if (!windowToUseForFiles) {
@@ -741,7 +752,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// folder or file paths
 		const cliPaths = cli._;
 		for (const cliPath of cliPaths) {
-			const path = cli.remote ? this.doResolvePathRemote(cliPath, cli.remote) : this.doResolveFilePath(cliPath, pathResolveOptions);
+			const path = pathResolveOptions.remoteAuthority ? this.doResolvePathRemote(cliPath, pathResolveOptions) : this.doResolveFilePath(cliPath, pathResolveOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			}
@@ -900,11 +911,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let columnNumber: number | undefined;
 
 		if (options.gotoLineMode) {
-			const parsedPath = parseLineAndColumnAware(path);
-			lineNumber = parsedPath.line;
-			columnNumber = parsedPath.column;
-
-			path = parsedPath.path;
+			({ path, line: lineNumber, column: columnNumber } = parseLineAndColumnAware(path));
 		}
 
 		// Ensure the path is normalized and absolute
@@ -947,8 +954,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return undefined;
 	}
 
-	private doResolvePathRemote(path: string, remoteAuthority: string, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
+	private doResolvePathRemote(path: string, options: IPathResolveOptions): IPathToOpen | undefined {
 		const first = path.charCodeAt(0);
+		const remoteAuthority = options.remoteAuthority;
+
+		// Extract line/col information from path
+		let lineNumber: number | undefined;
+		let columnNumber: number | undefined;
+
+		if (options.gotoLineMode) {
+			({ path, line: lineNumber, column: columnNumber } = parseLineAndColumnAware(path));
+		}
 
 		// make absolute
 		if (first !== CharCode.Slash) {
@@ -963,21 +979,21 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// guess the file type:
 		// - if it ends with a slash it's a folder
-		// - if it has a file extension, it's a file or a workspace
+		// - if in goto line mode or if it has a file extension, it's a file or a workspace
 		// - by defaults it's a folder
 		if (path.charCodeAt(path.length - 1) !== CharCode.Slash) {
 
 			// file name ends with .code-workspace
 			if (hasWorkspaceFileExtension(path)) {
-				if (forceOpenWorkspaceAsFile) {
-					return { fileUri: uri, remoteAuthority };
+				if (options.forceOpenWorkspaceAsFile) {
+					return { fileUri: uri, lineNumber, columnNumber, remoteAuthority: options.remoteAuthority };
 				}
 				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
 			}
 
 			// file name starts with a dot or has an file extension
-			else if (posix.basename(path).indexOf('.') !== -1) {
-				return { fileUri: uri, remoteAuthority };
+			else if (options.gotoLineMode || posix.basename(path).indexOf('.') !== -1) {
+				return { fileUri: uri, lineNumber, columnNumber, remoteAuthority };
 			}
 		}
 
@@ -1134,33 +1150,60 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-		// Build `INativeWindowConfiguration` from config and options
-		const configuration = { ...options.cli } as INativeWindowConfiguration;
-		configuration.appRoot = this.environmentMainService.appRoot;
-		configuration.machineId = this.machineId;
-		configuration.nodeCachedDataDir = this.environmentMainService.nodeCachedDataDir;
-		configuration.mainPid = process.pid;
-		configuration.execPath = process.execPath;
-		configuration.userEnv = { ...this.initialUserEnv, ...options.userEnv };
-		configuration.isInitialStartup = options.initialStartup;
-		configuration.workspace = options.workspace;
-		configuration.remoteAuthority = options.remoteAuthority;
+		// Build up the window configuration from provided options, config and environment
+		const configuration: INativeWindowConfiguration = {
 
-		const filesToOpen = options.filesToOpen;
-		if (filesToOpen) {
-			configuration.filesToOpenOrCreate = filesToOpen.filesToOpenOrCreate;
-			configuration.filesToDiff = filesToOpen.filesToDiff;
-			configuration.filesToWait = filesToOpen.filesToWait;
-		}
+			// Inherit CLI arguments from environment and/or
+			// the specific properties from this launch if provided
+			...this.environmentMainService.args,
+			...options.cli,
 
-		// if we know the backup folder upfront (for empty windows to restore), we can set it
-		// directly here which helps for restoring UI state associated with that window.
-		// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
-		// loading the window.
-		if (options.emptyWindowBackupInfo) {
-			configuration.backupPath = join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder);
-		}
+			machineId: this.machineId,
+
+			windowId: -1,	// Will be filled in by the window once loaded later
+
+			mainPid: process.pid,
+
+			appRoot: this.environmentMainService.appRoot,
+			execPath: process.execPath,
+			nodeCachedDataDir: this.environmentMainService.nodeCachedDataDir,
+			partsSplashPath: join(this.environmentMainService.userDataPath, 'rapid_render.json'),
+			// If we know the backup folder upfront (for empty windows to restore), we can set it
+			// directly here which helps for restoring UI state associated with that window.
+			// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
+			// loading the window.
+			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
+
+			homeDir: this.environmentMainService.userHome.fsPath,
+			tmpDir: this.environmentMainService.tmpDir.fsPath,
+			userDataDir: this.environmentMainService.userDataPath,
+
+			remoteAuthority: options.remoteAuthority,
+			workspace: options.workspace,
+			userEnv: { ...this.initialUserEnv, ...options.userEnv },
+
+			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,
+			filesToDiff: options.filesToOpen?.filesToDiff,
+			filesToWait: options.filesToOpen?.filesToWait,
+
+			logLevel: this.logService.getLevel(),
+			logsPath: this.environmentMainService.logsPath,
+
+			product,
+			isInitialStartup: options.initialStartup,
+			perfMarks: getMarks(),
+			os: { release: release(), hostname: hostname() },
+			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
+
+			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
+			accessibilitySupport: app.accessibilitySupportEnabled,
+			colorScheme: {
+				dark: nativeTheme.shouldUseDarkColors,
+				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
+			}
+		};
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
@@ -1175,11 +1218,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const state = this.windowsStateHandler.getNewWindowState(configuration);
 
 			// Create the window
+			mark('code/willCreateCodeWindow');
 			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath
 			});
+			mark('code/didCreateCodeWindow');
 
 			// Add as window tab if configured (macOS only)
 			if (options.forceNewTabbedWindow) {
@@ -1226,6 +1271,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 			}
 		}
+
+		// Update window identifier and session now
+		// that we have the window object in hand.
+		configuration.windowId = window.id;
 
 		// If the window was already loaded, make sure to unload it
 		// first and only load the new configuration if that was

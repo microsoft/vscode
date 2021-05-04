@@ -388,12 +388,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			publisherDisplayName: extension.publisherDisplayName,
 		};
 
-		let zipPath;
+		let zipPath: string | undefined;
 		try {
 			this.logService.trace('Started downloading extension:', extension.identifier.id);
-			const zip = await this.extensionsDownloader.downloadExtension(extension, operation);
+			zipPath = (await this.extensionsDownloader.downloadExtension(extension, operation)).fsPath;
 			this.logService.info('Downloaded extension:', extension.identifier.id, zipPath);
-			zipPath = zip.fsPath;
 		} catch (error) {
 			throw new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_DOWNLOADING);
 		}

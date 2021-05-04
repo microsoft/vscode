@@ -6,15 +6,16 @@
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/path';
-import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, NotebookEditorPriority, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 
-export type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
+type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
 export interface NotebookEditorDescriptor {
 	readonly id: string;
 	readonly displayName: string;
 	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
-	readonly priority: NotebookEditorPriority;
+	readonly priority: ContributedEditorPriority;
 	readonly providerExtensionId?: string;
 	readonly providerDescription?: string;
 	readonly providerDisplayName: string;
@@ -28,7 +29,7 @@ export class NotebookProviderInfo {
 	readonly id: string;
 	readonly displayName: string;
 
-	readonly priority: NotebookEditorPriority;
+	readonly priority: ContributedEditorPriority;
 	// it's optional as the memento might not have it
 	readonly providerExtensionId?: string;
 	readonly providerDescription?: string;
@@ -60,7 +61,8 @@ export class NotebookProviderInfo {
 		this.dynamicContribution = descriptor.dynamicContribution;
 		this.exclusive = descriptor.exclusive;
 		this._options = {
-			transientMetadata: {},
+			transientCellMetadata: {},
+			transientDocumentMetadata: {},
 			transientOutputs: false
 		};
 	}

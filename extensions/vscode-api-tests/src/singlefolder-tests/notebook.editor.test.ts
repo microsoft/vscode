@@ -9,22 +9,15 @@ import * as utils from '../utils';
 
 suite('Notebook Editor', function () {
 
-	const contentProvider = new class implements vscode.NotebookContentProvider {
-		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
+	const contentSerializer = new class implements vscode.NotebookSerializer {
+		deserializeNotebook() {
 			return new vscode.NotebookData(
-				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, uri.toString(), 'javascript')],
+				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '// code cell', 'javascript')],
 				new vscode.NotebookDocumentMetadata()
 			);
-
 		}
-		async saveNotebook(_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) {
-			//
-		}
-		async saveNotebookAs(_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) {
-			//
-		}
-		async backupNotebook(_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) {
-			return { id: '', delete() { } };
+		serializeNotebook() {
+			return new Uint8Array();
 		}
 	};
 
@@ -43,7 +36,7 @@ suite('Notebook Editor', function () {
 	});
 
 	suiteSetup(function () {
-		disposables.push(vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', contentProvider));
+		disposables.push(vscode.notebook.registerNotebookSerializer('notebook.nbdtest', contentSerializer));
 	});
 
 

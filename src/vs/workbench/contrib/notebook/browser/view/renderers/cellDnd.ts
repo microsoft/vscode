@@ -12,7 +12,8 @@ import * as platform from 'vs/base/common/platform';
 import { BOTTOM_CELL_TOOLBAR_GAP } from 'vs/workbench/contrib/notebook/browser/constants';
 import { BaseCellRenderTemplate, expandCellRangesWithHiddenCells, ICellViewModel, INotebookCellList, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, cellRangesToIndexes, ICellRange, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 const $ = DOM.$;
 

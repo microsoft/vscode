@@ -36,7 +36,7 @@ export class FileEditorInputSerializer implements IEditorInputSerializer {
 	}
 
 	serialize(editorInput: EditorInput): string {
-		const fileEditorInput = <FileEditorInput>editorInput;
+		const fileEditorInput = editorInput as FileEditorInput;
 		const resource = fileEditorInput.resource;
 		const preferredResource = fileEditorInput.preferredResource;
 		const serializedFileEditorInput: ISerializedFileEditorInput = {
@@ -52,7 +52,7 @@ export class FileEditorInputSerializer implements IEditorInputSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
-		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
+		return instantiationService.invokeFunction(accessor => {
 			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
 			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
 			const preferredResource = URI.revive(serializedFileEditorInput.preferredResourceJSON);

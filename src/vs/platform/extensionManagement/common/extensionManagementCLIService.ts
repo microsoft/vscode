@@ -133,7 +133,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		if (vsixs.length) {
 			await Promise.all(vsixs.map(async vsix => {
 				try {
-					const manifest = await this.installVSIX(vsix, force, output);
+					const manifest = await this.installVSIX(vsix, { isBuiltin: false, isMachineScoped }, force, output);
 					if (manifest) {
 						installedExtensionsManifests.push(manifest);
 					}
@@ -173,7 +173,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		}
 	}
 
-	private async installVSIX(vsix: URI, force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
+	private async installVSIX(vsix: URI, installOptions: InstallOptions, force: boolean, output: CLIOutput): Promise<IExtensionManifest | null> {
 
 		const manifest = await this.extensionManagementService.getManifest(vsix);
 		if (!manifest) {
@@ -183,7 +183,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		const valid = await this.validateVSIX(manifest, force, output);
 		if (valid) {
 			try {
-				await this.extensionManagementService.install(vsix);
+				await this.extensionManagementService.install(vsix, installOptions);
 				output.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(vsix)));
 				return manifest;
 			} catch (error) {

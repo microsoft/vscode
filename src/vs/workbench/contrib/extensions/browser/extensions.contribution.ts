@@ -26,7 +26,7 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
@@ -60,6 +60,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { Schemas } from 'vs/base/common/network';
 import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
+import { ExtensionEnablementByWorkspaceTrustRequirement } from 'vs/workbench/contrib/extensions/browser/extensionEnablementByWorkspaceTrustRequirement';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -69,6 +70,9 @@ import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/d
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { Promises } from 'vs/base/common/async';
+import { EditorExtensions } from 'vs/workbench/common/editor';
+import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { ExtensionsCompletionItemsProvider } from 'vs/workbench/contrib/extensions/browser/extensionsCompletionItemsProvider';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -173,6 +177,45 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsWebWorker', "Enable web worker extension host."),
 				default: false
+			},
+			'extensions.supportVirtualWorkspaces': {
+				type: 'object',
+				markdownDescription: localize('extensions.supportVirtualWorkspaces', "Override the virtual workspaces support of an extension."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						type: 'boolean',
+						default: false
+					}
+				},
+				default: {
+					'pub.name': false
+				}
+			},
+			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
+				type: 'object',
+				scope: ConfigurationScope.APPLICATION,
+				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "Override the untrusted workpace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						type: 'object',
+						properties: {
+							'supported': {
+								type: ['boolean', 'string'],
+								enum: [true, false, 'limited'],
+								enumDescriptions: [
+									localize('extensions.supportUntrustedWorkspaces.true', "Extension will always be enabled."),
+									localize('extensions.supportUntrustedWorkspaces.false', "Extension will only be enabled only when the workspace is trusted."),
+									localize('extensions.supportUntrustedWorkspaces.limited', "Extension will always be enabled, and the extension will hide functionality requiring trust."),
+								],
+								description: localize('extensions.supportUntrustedWorkspaces.supported', "Defines the untrusted workspace support setting for the extension."),
+							},
+							'version': {
+								type: 'string',
+								description: localize('extensions.supportUntrustedWorkspaces.version', "Defines the version of the extension for which the override should be applied. If not specified, the override will be applied independent of the extension version."),
+							}
+						}
+					}
+				}
 			}
 		}
 	});
@@ -554,7 +597,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: { value: localize('disableAutoUpdate', "Disable Auto Updating Extensions"), original: 'Disable Auto Updating Extensions' },
+			title: { value: localize('disableAutoUpdate', "Disable Auto Update for all extensions"), original: 'Disable Auto Update for all extensions' },
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
@@ -562,7 +605,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: { value: localize('enableAutoUpdate', "Enable Auto Updating All Extensions"), original: 'Enable Auto Updating All Extensions' },
+			title: { value: localize('enableAutoUpdate', "Enable Auto Update for all extensions"), original: 'Enable Auto Update for all extensions' },
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
@@ -831,6 +874,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@builtin '))
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.listTrustRequiredExtensions',
+			title: { value: localize('showTrustRequiredExtensions', "Show Extensions Requiring Trust"), original: 'Show Extensions Requiring Trust' },
+			category: ExtensionsLocalizedLabel,
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@trustRequired'))
 		});
 
 		this.registerExtensionAction({
@@ -1276,6 +1326,8 @@ workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementByWorkspaceTrustRequirement, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 
 // Running Extensions
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);

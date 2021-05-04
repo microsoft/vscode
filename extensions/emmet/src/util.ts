@@ -583,7 +583,7 @@ export function getEmmetConfiguration(syntax: string) {
 		) {
 			syntaxProfiles[syntax] = {
 				...syntaxProfiles[syntax],
-				selfClosingStyle: 'xml'
+				selfClosingStyle: syntax === 'jsx' ? 'xhtml' : 'xml'
 			};
 		}
 	}
@@ -657,10 +657,8 @@ export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNo
 	const currentHtmlNode = <HtmlFlatNode>currentNode;
 	if (currentHtmlNode && currentHtmlNode.open && currentHtmlNode.close) {
 		const offset = document.offsetAt(position);
-		if (currentHtmlNode.open.end <= offset && offset <= currentHtmlNode.close.start) {
-			if (currentHtmlNode.name === 'style'
-				&& currentHtmlNode.open.end < offset
-				&& currentHtmlNode.close.start > offset) {
+		if (currentHtmlNode.open.end < offset && offset <= currentHtmlNode.close.start) {
+			if (currentHtmlNode.name === 'style') {
 				const buffer = ' '.repeat(currentHtmlNode.open.end) + document.getText().substring(currentHtmlNode.open.end, currentHtmlNode.close.start);
 				return parseStylesheet(buffer);
 			}

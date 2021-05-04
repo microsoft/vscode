@@ -25,7 +25,7 @@ class NotebookUndoRedoContribution extends Disposable {
 					if (cellResources?.length) {
 						editor?.viewModel?.viewCells.forEach(cell => {
 							if (cell.cellKind === CellKind.Markdown && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
-								cell.editState = CellEditState.Editing;
+								cell.updateEditState(CellEditState.Editing, 'undo');
 							}
 						});
 
@@ -44,7 +44,7 @@ class NotebookUndoRedoContribution extends Disposable {
 					if (cellResources?.length) {
 						editor?.viewModel?.viewCells.forEach(cell => {
 							if (cell.cellKind === CellKind.Markdown && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
-								cell.editState = CellEditState.Editing;
+								cell.updateEditState(CellEditState.Editing, 'redo');
 							}
 						});
 

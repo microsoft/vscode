@@ -22,39 +22,54 @@
 	}
 }(this, function () {
 	const bootstrapLib = bootstrap();
-	const preloadGlobals = globals();
+	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
-	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
-
-	// Start to resolve process.env before anything gets load
-	// so that we can run loading and resolving in parallel
-	const whenEnvResolved = safeProcess.resolveEnv();
+	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	/**
+	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
 	 * @param {string[]} modulePaths
-	 * @param {(result: unknown, configuration: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
+	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
-	 * 	configureDeveloperKeybindings?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
-	 * 	canModifyDOM?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
+	 *  configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 		forceDisableShowDevtoolsOnError?: boolean,
+	 * 		forceEnableDeveloperKeybindings?: boolean,
+	 * 		disallowReloadKeybinding?: boolean,
+	 * 		removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 	},
+	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
 	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *  beforeRequire?: () => void
 	 * }} [options]
 	 */
 	async function load(modulePaths, resultCallback, options) {
 
-		// Error handler
+		// Error handler (TODO@sandbox non-sandboxed only)
+		let showDevtoolsOnError = !!safeProcess.env['VSCODE_DEV'];
 		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
-			onUnexpectedError(error, enableDeveloperKeybindings);
+			onUnexpectedError(error, showDevtoolsOnError);
 		});
 
 		// Await window configuration from preload
 		performance.mark('code/willWaitForWindowConfig');
-		/** @type {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} */
-		const configuration = await preloadGlobals.context.configuration;
+		/** @type {ISandboxConfiguration} */
+		const configuration = await preloadGlobals.context.resolveConfiguration();
 		performance.mark('code/didWaitForWindowConfig');
 
-		// Developer keybindings
-		const { forceEnableDeveloperKeybindings, disallowReloadKeybinding, removeDeveloperKeybindingsAfterLoad } = typeof options?.configureDeveloperKeybindings === 'function' ? options.configureDeveloperKeybindings(configuration) : { forceEnableDeveloperKeybindings: false, disallowReloadKeybinding: false, removeDeveloperKeybindingsAfterLoad: false };
+		// Developer settings
+		const {
+			forceDisableShowDevtoolsOnError,
+			forceEnableDeveloperKeybindings,
+			disallowReloadKeybinding,
+			removeDeveloperKeybindingsAfterLoad
+		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
+			forceDisableShowDevtoolsOnError: false,
+			forceEnableDeveloperKeybindings: false,
+			disallowReloadKeybinding: false,
+			removeDeveloperKeybindingsAfterLoad: false
+		};
+		showDevtoolsOnError = safeProcess.env['VSCODE_DEV'] && !forceDisableShowDevtoolsOnError;
 		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || forceEnableDeveloperKeybindings;
 		let developerDeveloperKeybindingsDisposable;
 		if (enableDeveloperKeybindings) {
@@ -164,13 +179,6 @@
 		require(modulePaths, async result => {
 			try {
 
-				// Wait for process environment being fully resolved
-				performance.mark('code/willWaitForShellEnv');
-				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-					await whenEnvResolved;
-				}
-				performance.mark('code/didWaitForShellEnv');
-
 				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);
 				if (callbackResult instanceof Promise) {
@@ -234,10 +242,10 @@
 
 	/**
 	 * @param {string | Error} error
-	 * @param {boolean} [enableDeveloperTools]
+	 * @param {boolean} [showDevtoolsOnError]
 	 */
-	function onUnexpectedError(error, enableDeveloperTools) {
-		if (enableDeveloperTools) {
+	function onUnexpectedError(error, showDevtoolsOnError) {
+		if (showDevtoolsOnError) {
 			const ipcRenderer = preloadGlobals.ipcRenderer;
 			ipcRenderer.send('vscode:openDevTools');
 		}
@@ -260,7 +268,7 @@
 	/**
 	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
 	 */
-	function globals() {
+	function sandboxGlobals() {
 		// @ts-ignore (defined in globals.js)
 		return window.vscode;
 	}

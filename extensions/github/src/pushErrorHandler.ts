@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, env, ProgressLocation, UIKind, Uri, window } from 'vscode';
+import { commands, env, ProgressLocation, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
 import { getOctokit } from './auth';
 import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git';
@@ -17,33 +17,6 @@ export function isInCodespaces(): boolean {
 }
 
 async function handlePushError(repository: Repository, remote: Remote, refspec: string, owner: string, repo: string): Promise<void> {
-	const inCodespaces = isInCodespaces();
-	let codespace: string | undefined;
-	if (inCodespaces) {
-		if (env.uiKind === UIKind.Web) {
-			// TODO@eamodio Find a better way to get the codespace id
-			// HACK to get the codespace id
-			try {
-				const codespaceUrl = (await env.asExternalUri(Uri.parse(`${env.uriScheme}://codespace/`))).authority;
-				if (codespaceUrl.endsWith('.github.dev')) {
-					codespace = codespaceUrl.slice(0, -11);
-				} else {
-					[codespace] = codespaceUrl.split('.');
-				}
-			} catch { }
-		} else {
-			// Call into the codespaces extension to get the codespace id
-			const info = await commands.executeCommand<{ name: string } | undefined>('github.codespaces.getCurrentCodespace');
-			codespace = info?.name;
-		}
-
-		if (!codespace) {
-			const ok = localize('ok', "OK");
-			await window.showErrorMessage(localize('fork unable', "You don't have permissions to push to '{0}/{1}' on GitHub.", owner, repo), ok);
-			return;
-		}
-	}
-
 	const yes = localize('create a fork', "Create Fork");
 	const no = localize('no', "No");
 
@@ -66,15 +39,17 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 		// Issue: what if the repo already exists?
 		let ghRepository: CreateForkResponseData;
 		try {
-			if (inCodespaces) {
-				const userResp = await octokit.users.getAuthenticated();
-				const user = userResp.data.login;
+			if (isInCodespaces()) {
+				// Call into the codespaces extension to fork the repository
+				const resp = await commands.executeCommand<{ repository: CreateForkResponseData, ref: string }>('github.codespaces.forkRepository');
+				if (!resp) {
+					throw new Error('Unable to fork respository');
+				}
 
-				const resp = await octokit.request<{ repository: CreateForkResponseData, ref: string }>({ method: 'POST', url: `/vscs_internal/user/${user}/codespaces/${codespace}/fork_repo` });
-				ghRepository = resp.data.repository;
+				ghRepository = resp.repository;
 
-				if (resp.data.ref) {
-					let ref = resp.data.ref;
+				if (resp.ref) {
+					let ref = resp.ref;
 					if (ref.startsWith('refs/heads/')) {
 						ref = ref.substr(11);
 					}
@@ -89,7 +64,6 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 			console.error(ex);
 			throw ex;
 		}
-
 
 		progress.report({ message: localize('forking_pushing', "Pushing changes..."), increment: 33 });
 
@@ -166,9 +140,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 			return false;
 		}
 
-		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)(?:\.git)?/i.exec(remoteUrl)
-			|| /^git@github\.com:([^/]+)\/([^/]+)(?:\.git)?/i.exec(remoteUrl);
-
+		const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([^/]+)\/([^/.]+)(?:\.git)?$/i.exec(remoteUrl);
 		if (!match) {
 			return false;
 		}

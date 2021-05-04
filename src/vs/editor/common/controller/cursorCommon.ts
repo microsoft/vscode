@@ -562,14 +562,14 @@ export class CursorColumns {
 	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevRenderTabStop(column: number, tabSize: number): number {
-		return column - 1 - (column - 1) % tabSize;
+		return Math.max(0, column - 1 - (column - 1) % tabSize);
 	}
 
 	/**
 	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevIndentTabStop(column: number, indentSize: number): number {
-		return column - 1 - (column - 1) % indentSize;
+		return Math.max(0, column - 1 - (column - 1) % indentSize);
 	}
 }
 

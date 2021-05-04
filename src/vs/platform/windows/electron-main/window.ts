@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { release } from 'os';
 import { join } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { getMarks, mark } from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, RenderProcessGoneDetails } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, RenderProcessGoneDetails, WebFrameMain } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -184,7 +183,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
+					additionalArguments: this.environmentMainService.sandbox ?
+						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`, '--context-isolation' /* TODO@bpasero: Use process.contextIsolateed when 13-x-y is adopted (https://github.com/electron/electron/pull/28030) */] :
+						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
 					enableWebSQL: false,
 					enableRemoteModule: false,
@@ -196,19 +197,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 						// Sandbox
 						{
-							sandbox: true,
-							contextIsolation: true
+							sandbox: true
 						} :
 
 						// No Sandbox
 						{
-							nodeIntegration: true
+							nodeIntegration: true,
+							contextIsolation: false
 						}
 				}
 			};
 
 			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window#ctor: using vscode-file protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
+				this.logService.info(`window#ctor: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
+			} else {
+				this.logService.trace(`window#ctor: vscode-file:// protocol is explicitly disabled`);
 			}
 
 			// Apply icon to window
@@ -246,8 +249,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
-			// Create the browser window.
+			// Create the browser window
+			mark('code/willCreateCodeBrowserWindow');
 			this._win = new BrowserWindow(options);
+			mark('code/didCreateCodeBrowserWindow');
+
 			this._id = this._win.id;
 
 			// Open devtools if instructed from command line args
@@ -279,6 +285,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			if (isFullscreenOrMaximized) {
+				mark('code/willMaximizeCodeWindow');
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
@@ -288,6 +295,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				if (!this._win.isVisible()) {
 					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 				}
+				mark('code/didMaximizeCodeWindow');
 			}
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
@@ -416,6 +424,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
 		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.onWindowError(WindowError.LOAD, errorDescription));
 
+		// Prevent windows/iframes from blocking the unload
+		// through DOM events. We have our own logic for
+		// unloading a window that should not be confused
+		// with the DOM way.
+		// (https://github.com/microsoft/vscode/issues/122736)
+		this._win.webContents.on('will-prevent-unload', event => {
+			event.preventDefault();
+		});
+
 		// Window close
 		this._win.on('closed', () => {
 			this._onDidClose.fire();
@@ -424,13 +441,25 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Block all SVG requests from unsupported origins
-		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeWebviewResource, 'devtools']);
+		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']); // TODO@mjbvz: handle webview origin
+
+		// But allow them if the are made from inside an webview
+		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
+			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
+				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
+					return true;
+				}
+			}
+			return false;
+		};
+
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
 			if (uri.path.endsWith('.svg')) {
-				const safeScheme = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
-				if (!safeScheme) {
-					return callback({ cancel: true });
+				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
+				if (!isSafeResourceUrl) {
+					const isSafeContext = isSafeFrame(details.frame);
+					return callback({ cancel: !isSafeContext });
 				}
 			}
 
@@ -456,7 +485,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
 				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
-					return callback({ cancel: true });
+					const isSafeContext = isSafeFrame(details.frame);
+					return callback({ cancel: !isSafeContext });
 				}
 			}
 
@@ -544,7 +574,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		switch (type) {
 			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (detail: ${typeof details === 'string' ? details : details?.reason})`);
+				this.logService.error(`CodeWindow: renderer process crashed (detail: ${typeof details === 'string' ? details : details?.reason}, code: ${typeof details === 'string' ? '<unknown>' : details?.exitCode ?? '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
@@ -638,8 +668,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private destroyWindow(): void {
-		this._onDidDestroy.fire(); // 'close' event will not be fired on destroy(), so signal crash via explicit event
-		this._win.destroy(); 	// make sure to destroy the window as it has crashed
+		this._onDidDestroy.fire(); 	// 'close' event will not be fired on destroy(), so signal crash via explicit event
+		this._win.destroy(); 		// make sure to destroy the window as it has crashed
 	}
 
 	private onDidDeleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void {
@@ -689,40 +719,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	load(configuration: INativeWindowConfiguration, options: ILoadOptions = Object.create(null)): void {
 
-		// If this window was loaded before from the command line
-		// (as indicated by VSCODE_CLI environment), make sure to
-		// preserve that user environment in subsequent loads,
-		// unless the new configuration context was also a CLI
-		// (for https://github.com/microsoft/vscode/issues/108571)
-		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
-		if (currentUserEnv && isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(configuration.userEnv)) {
-			configuration.userEnv = { ...currentUserEnv, ...configuration.userEnv }; // still allow to override certain environment as passed in
-		}
-
-		// If named pipe was instantiated for the crashpad_handler process, reuse the same
-		// pipe for new app instances connecting to the original app instance.
-		// Ref: https://github.com/microsoft/vscode/issues/115874
-		if (process.env['CHROME_CRASHPAD_PIPE_NAME']) {
-			Object.assign(configuration.userEnv, {
-				CHROME_CRASHPAD_PIPE_NAME: process.env['CHROME_CRASHPAD_PIPE_NAME']
-			});
-		}
-
-		// If this is the first time the window is loaded, we associate the paths
-		// directly with the window because we assume the loading will just work
-		if (this.readyState === ReadyState.NONE) {
-			this.currentConfig = configuration;
-		}
-
-		// Otherwise, the window is currently showing a folder and if there is an
-		// unload handler preventing the load, we cannot just associate the paths
-		// because the loading might be vetoed. Instead we associate it later when
-		// the window load event has fired.
-		else {
-			this.pendingLoadConfig = configuration;
-			this.readyState = ReadyState.NAVIGATING;
-		}
-
 		// Clear Document Edited if needed
 		if (this.isDocumentEdited()) {
 			if (!options.isReload || !this.backupMainService.isHotExitEnabled()) {
@@ -739,11 +735,26 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._win.setTitle(this.productService.nameLong);
 		}
 
-		// Update config object URL
-		this.updateConfigObjectUrl(configuration, options);
+		// Update configuration values based on our window context
+		// and set it into the config object URL for usage.
+		this.updateConfiguration(configuration, options);
+
+		// If this is the first time the window is loaded, we associate the paths
+		// directly with the window because we assume the loading will just work
+		if (this.readyState === ReadyState.NONE) {
+			this.currentConfig = configuration;
+		}
+
+		// Otherwise, the window is currently showing a folder and if there is an
+		// unload handler preventing the load, we cannot just associate the paths
+		// because the loading might be vetoed. Instead we associate it later when
+		// the window load event has fired.
+		else {
+			this.pendingLoadConfig = configuration;
+			this.readyState = ReadyState.NAVIGATING;
+		}
 
 		// Load URL
-		mark('code/willOpenNewWindow');
 		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
 			'vs/code/electron-sandbox/workbench/workbench.html' :
 			'vs/code/electron-browser/workbench/workbench.html', require
@@ -763,6 +774,45 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Event
 		this._onWillLoad.fire({ workspace: configuration.workspace });
+	}
+
+	private updateConfiguration(configuration: INativeWindowConfiguration, options: ILoadOptions): void {
+
+		// If this window was loaded before from the command line
+		// (as indicated by VSCODE_CLI environment), make sure to
+		// preserve that user environment in subsequent loads,
+		// unless the new configuration context was also a CLI
+		// (for https://github.com/microsoft/vscode/issues/108571)
+		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
+		if (currentUserEnv && isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(configuration.userEnv)) {
+			configuration.userEnv = { ...currentUserEnv, ...configuration.userEnv }; // still allow to override certain environment as passed in
+		}
+
+		// If named pipe was instantiated for the crashpad_handler process, reuse the same
+		// pipe for new app instances connecting to the original app instance.
+		// Ref: https://github.com/microsoft/vscode/issues/115874
+		if (process.env['CHROME_CRASHPAD_PIPE_NAME']) {
+			Object.assign(configuration.userEnv, {
+				CHROME_CRASHPAD_PIPE_NAME: process.env['CHROME_CRASHPAD_PIPE_NAME']
+			});
+		}
+
+		// Add disable-extensions to the config, but do not preserve it on currentConfig or
+		// pendingLoadConfig so that it is applied only on this load
+		if (options.disableExtensions !== undefined) {
+			configuration['disable-extensions'] = options.disableExtensions;
+		}
+
+		// Update window related properties
+		configuration.fullscreen = this.isFullScreen;
+		configuration.maximized = this._win.isMaximized();
+
+		// Update with latest perf marks
+		mark('code/willOpenNewWindow');
+		configuration.perfMarks = getMarks();
+
+		// Update in config object URL for usage in renderer
+		this.configObjectUrl.update(configuration);
 	}
 
 	async reload(cli?: NativeParsedArgs): Promise<void> {
@@ -820,59 +870,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Workspace is valid
 		return configuration.workspace;
-	}
-
-	private updateConfigObjectUrl(baseConfig: INativeWindowConfiguration, options: ILoadOptions): void {
-
-		// Copy the base config to be able to make changes
-		const configuration: INativeWindowConfiguration = { ...this.environmentMainService.args, ...baseConfig };
-
-		// Add disable-extensions to the config, but do not preserve it on currentConfig or
-		// pendingLoadConfig so that it is applied only on this load
-		if (options.disableExtensions !== undefined) {
-			configuration['disable-extensions'] = options.disableExtensions;
-		}
-
-		// Set window ID
-		configuration.windowId = this._win.id;
-		configuration.sessionId = `window:${this._win.id}`;
-		configuration.logLevel = this.logService.getLevel();
-		configuration.logsPath = this.environmentMainService.logsPath;
-
-		// Set zoomlevel
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		const zoomLevel = windowConfig?.zoomLevel;
-		if (typeof zoomLevel === 'number') {
-			configuration.zoomLevel = zoomLevel;
-		}
-
-		// Set fullscreen state
-		configuration.fullscreen = this.isFullScreen;
-
-		// Set Accessibility Config
-		configuration.colorScheme = {
-			dark: nativeTheme.shouldUseDarkColors,
-			highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
-		};
-		configuration.autoDetectHighContrast = windowConfig?.autoDetectHighContrast ?? true;
-		configuration.accessibilitySupport = app.accessibilitySupportEnabled;
-
-		// Title style related
-		configuration.maximized = this._win.isMaximized();
-
-		// Dump Perf Counters
-		configuration.perfMarks = getMarks();
-
-		// Parts splash
-		configuration.partsSplashPath = join(this.environmentMainService.userDataPath, 'rapid_render.json');
-
-		// OS Info
-		configuration.os = {
-			release: release()
-		};
-
-		// Store into config object URL
-		this.configObjectUrl.update(configuration);
 	}
 
 	serializeWindowState(): IWindowState {
@@ -947,6 +944,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
+		mark('code/willRestoreCodeWindowState');
+
 		let hasMultipleDisplays = false;
 		if (state) {
 			try {
@@ -958,6 +957,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
+
+		mark('code/didRestoreCodeWindowState');
 
 		return [state || defaultWindowState(), hasMultipleDisplays];
 	}
@@ -1360,7 +1361,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return segments;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.showTimeoutHandle) {

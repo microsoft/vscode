@@ -17,12 +17,11 @@ import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/co
 import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtensionActivationError, checkProposedApiEnabled, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
+import { MissingExtensionDependency, checkProposedApiEnabled, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
@@ -161,8 +160,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._initData.resolvedExtensions,
 			this._initData.hostExtensions,
 			{
-				onExtensionActivationError: (extensionId: ExtensionIdentifier, error: ExtensionActivationError): void => {
-					this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, error);
+				onExtensionActivationError: (extensionId: ExtensionIdentifier, error: Error, missingExtensionDependency: MissingExtensionDependency | null): void => {
+					this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, errors.transformErrorForSerialization(error), missingExtensionDependency);
 				},
 
 				actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
@@ -561,17 +560,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private async _doHandleExtensionTests(): Promise<number> {
 		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
-		if (!extensionDevelopmentLocationURI || !extensionTestsLocationURI || extensionTestsLocationURI.scheme !== Schemas.file) {
+		if (!extensionDevelopmentLocationURI || !extensionTestsLocationURI) {
 			throw new Error(nls.localize('extensionTestError1', "Cannot load test runner."));
 		}
-
-		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
 		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
 
 		if (!testRunner || typeof testRunner.run !== 'function') {
-			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath));
+			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
 		}
 
 		// Execute the runner if it follows the old `run` spec
@@ -583,6 +580,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					resolve((typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
 				}
 			};
+
+			const extensionTestsPath = originalFSPath(extensionTestsLocationURI); // for the old test runner API
 
 			const runResult = testRunner.run(extensionTestsPath, oldTestRunnerCallback);
 
@@ -655,10 +654,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		try {
+			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
 			performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
 			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
-			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
 
 			// Split merged API result into separate authority/options
 			const authority: ResolvedAuthority = {
@@ -668,7 +667,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				connectionToken: result.connectionToken
 			};
 			const options: ResolvedOptions = {
-				extensionHostEnv: result.extensionHostEnv
+				extensionHostEnv: result.extensionHostEnv,
+				trust: result.trust
 			};
 
 			return {

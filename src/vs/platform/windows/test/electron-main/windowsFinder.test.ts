@@ -28,7 +28,7 @@ suite('WindowsFinder', () => {
 	};
 
 	const testWorkspaceFolders = toWorkspaceFolders([{ path: join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
-	const localWorkspaceResolver = (workspace: any) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : null; };
+	const localWorkspaceResolver = (workspace: any) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
 
 	function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?: URI, openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {

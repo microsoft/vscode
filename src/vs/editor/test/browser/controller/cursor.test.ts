@@ -2608,6 +2608,40 @@ suite('Editor Controller - Regression tests', () => {
 
 		model.dispose();
 	});
+
+	test('issue #122914: Left delete behavior in some languages is changed (useTabStops: false)', () => {
+		let model = createTextModel(
+			[
+				'สวัสดี'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
+			editor.setSelections([
+				new Selection(1, 7, 1, 7)
+			]);
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัสด');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวัส');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สวั');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'สว');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ส');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '');
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
@@ -4298,6 +4332,29 @@ suite('Editor Controller - Indentation Rules', () => {
 			viewModel.type('\n', 'keyboard');
 			assert.strictEqual(model.getValue(), '    let a,\n\t b,\n\t c;');
 		});
+	});
+
+	test('issue #122714: tabSize=1 prevent typing a string matching decreaseIndentPattern in an empty file', () => {
+		let latexMode = new IndentRulesMode({
+			increaseIndentPattern: new RegExp('\\\\begin{(?!document)([^}]*)}(?!.*\\\\end{\\1})'),
+			decreaseIndentPattern: new RegExp('^\\s*\\\\end{(?!document)')
+		});
+		let model = createTextModel(
+			'\\end',
+			{ tabSize: 1 },
+			latexMode.getLanguageIdentifier()
+		);
+
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
+			moveTo(editor, viewModel, 1, 5, false);
+			assertCursor(viewModel, new Selection(1, 5, 1, 5));
+
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '\\end{}');
+		});
+
+		latexMode.dispose();
+		model.dispose();
 	});
 });
 

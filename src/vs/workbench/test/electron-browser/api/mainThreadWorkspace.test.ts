@@ -34,7 +34,7 @@ suite('MainThreadWorkspace', () => {
 				assert.deepEqual(query.includePattern, { 'foo': true });
 				assert.strictEqual(query.maxResults, 10);
 
-				return Promise.resolve({ results: [] });
+				return Promise.resolve({ results: [], messages: [] });
 			}
 		});
 
@@ -56,7 +56,7 @@ suite('MainThreadWorkspace', () => {
 				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
 				assert.deepStrictEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
 
-				return Promise.resolve({ results: [] });
+				return Promise.resolve({ results: [], messages: [] });
 			}
 		});
 
@@ -77,7 +77,7 @@ suite('MainThreadWorkspace', () => {
 				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
 				assert.deepStrictEqual(query.excludePattern, undefined);
 
-				return Promise.resolve({ results: [] });
+				return Promise.resolve({ results: [], messages: [] });
 			}
 		});
 
@@ -91,7 +91,7 @@ suite('MainThreadWorkspace', () => {
 				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
 				assert.deepEqual(query.excludePattern, { 'exclude/**': true });
 
-				return Promise.resolve({ results: [] });
+				return Promise.resolve({ results: [], messages: [] });
 			}
 		});
 

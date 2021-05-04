@@ -16,8 +16,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
-	protected startAutoSync(): boolean { return false; }
-	protected getSyncTriggerDelayTime(): number { return 50; }
+	protected override startAutoSync(): boolean { return false; }
+	protected override getSyncTriggerDelayTime(): number { return 50; }
 
 	sync(): Promise<void> {
 		return this.triggerSync(['sync'], false, false);

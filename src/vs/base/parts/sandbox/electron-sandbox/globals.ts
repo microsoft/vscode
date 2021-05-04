@@ -75,8 +75,8 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
 
 	/**
-	 * A custom method we add to `process`: Resolve the true process environment to use and
-	 * apply it to `process.env`.
+	 * Returns a process environment that includes all shell environment variables even if
+	 * the application was not started from a shell / terminal / console.
 	 *
 	 * There are different layers of environment that will apply:
 	 * - `process.env`: this is the actual environment of the process before this method
@@ -87,17 +87,8 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 *                  from a terminal and changed certain variables
 	 *
 	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
-	 *
-	 * It is critical that every process awaits this method early on startup to get the right
-	 * set of environment in `process.env`.
 	 */
-	resolveEnv(): Promise<void>;
-
-	/**
-	 * Returns a process environment that includes any shell environment even if the application
-	 * was not started from a shell / terminal / console.
-	 */
-	getShellEnv(): Promise<IProcessEnvironment>;
+	shellEnv(): Promise<IProcessEnvironment>;
 }
 
 export interface IpcMessagePort {
@@ -119,9 +110,15 @@ export interface ISandboxContext {
 
 	/**
 	 * A configuration object made accessible from the main side
-	 * to configure the sandbox browser window.
+	 * to configure the sandbox browser window. Will be `undefined`
+	 * for as long as `resolveConfiguration` is not awaited.
 	 */
-	configuration: Promise<ISandboxConfiguration>;
+	configuration(): ISandboxConfiguration | undefined;
+
+	/**
+	 * Allows to await the resolution of the configuration object.
+	 */
+	resolveConfiguration(): Promise<ISandboxConfiguration>;
 }
 
 export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;

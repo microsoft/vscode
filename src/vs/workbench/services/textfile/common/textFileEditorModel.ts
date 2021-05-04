@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
-import { IWorkingCopyService, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 
-interface IBackupMetaData {
+interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
 	ctime: number;
 	size: number;
@@ -66,6 +66,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#endregion
 
+	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
+
 	readonly capabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.labelService.getUriLabel(this.resource));
@@ -92,12 +94,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		public readonly resource: URI,
 		private preferredEncoding: string | undefined,	// encoding as chosen by the user
 		private preferredMode: string | undefined,		// mode as chosen by the user
-		@INotificationService private readonly notificationService: INotificationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
@@ -179,7 +180,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}
 
-	setMode(mode: string): void {
+	override setMode(mode: string): void {
 		super.setMode(mode);
 
 		this.preferredMode = mode;
@@ -201,7 +202,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			};
 		}
 
-		return { meta, content: withNullAsUndefined(this.createSnapshot()) };
+		// Fill in content the same way we would do when
+		// saving the file via the text file service
+		// encoding support (hardcode UTF-8)
+		const content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+
+		return { meta, content };
 	}
 
 	//#endregion
@@ -248,7 +254,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Resolve
 
-	async resolve(options?: ITextFileResolveOptions): Promise<void> {
+	override async resolve(options?: ITextFileResolveOptions): Promise<void> {
 		this.logService.trace('[text file model] resolve() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
@@ -337,7 +343,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private async resolveFromBackup(options?: ITextFileResolveOptions): Promise<boolean> {
 
 		// Resolve backup if any
-		const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
+		const backup = await this.workingCopyBackupService.resolve<IBackupMetaData>(this);
 
 		// Resolve preferred encoding if we need it
 		let encoding = UTF8;
@@ -355,7 +361,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Try to resolve from backup if we have any
 		if (backup) {
-			this.doResolveFromBackup(backup, encoding, options);
+			await this.doResolveFromBackup(backup, encoding, options);
 
 			return true;
 		}
@@ -364,7 +370,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return false;
 	}
 
-	private doResolveFromBackup(backup: IResolvedBackup<IBackupMetaData>, encoding: string, options?: ITextFileResolveOptions): void {
+	private async doResolveFromBackup(backup: IResolvedWorkingCopyBackup<IBackupMetaData>, encoding: string, options?: ITextFileResolveOptions): Promise<void> {
 		this.logService.trace('[text file model] doResolveFromBackup()', this.resource.toString(true));
 
 		// Resolve with backup
@@ -375,12 +381,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			value: backup.value,
+			value: await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, backup.value, { encoding: UTF8 })),
 			encoding
 		}, true /* dirty (resolved from backup) */, options);
 
 		// Restore orphaned flag based on state
-		if (backup.meta && backup.meta.orphaned) {
+		if (backup.meta?.orphaned) {
 			this.setOrphaned(true);
 		}
 	}
@@ -910,9 +916,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.saveSequentializer.pending ?? Promise.resolve();
 	}
 
-	getMode(this: IResolvedTextFileEditorModel): string;
-	getMode(): string | undefined;
-	getMode(): string | undefined {
+	override getMode(this: IResolvedTextFileEditorModel): string;
+	override getMode(): string | undefined;
+	override getMode(): string | undefined {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getModeId();
 		}
@@ -926,7 +932,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.preferredEncoding || this.contentEncoding;
 	}
 
-	setEncoding(encoding: string, mode: EncodingMode): void {
+	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
 		if (!this.isNewEncoding(encoding)) {
 			return; // return early if the encoding is already the same
 		}
@@ -942,21 +948,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				this.save();
+				await this.save();
 			}
 		}
 
 		// Decode: Resolve with encoding
 		else {
 			if (this.isDirty()) {
-				this.notificationService.info(localize('saveFileFirst', "The file is dirty. Please save it first before reopening it with another encoding."));
-
-				return;
+				await this.save();
 			}
 
 			this.updatePreferredEncoding(encoding);
 
-			this.resolve({
+			await this.resolve({
 				forceReadFromFile: true	// because encoding has changed
 			});
 		}
@@ -987,15 +991,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#endregion
 
-	isResolved(): this is IResolvedTextFileEditorModel {
+	override isResolved(): this is IResolvedTextFileEditorModel {
 		return !!this.textEditorModel;
 	}
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
 
 		this.inConflictMode = false;

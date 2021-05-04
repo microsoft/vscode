@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProductConfiguration } from 'vs/base/common/product';
 
 
 // #######################################################################
@@ -18,10 +19,34 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
  * renderer to function.
  */
 export interface ISandboxConfiguration {
+
+	/**
+	 * Identifier of the sandboxed renderer.
+	 */
+	windowId: number;
+
+	/**
+	 * Absolute installation path.
+	 */
 	appRoot: string;
+
+	/**
+	 * Per window process environment.
+	 */
 	userEnv: IProcessEnvironment;
 
+	/**
+	 * Product configuration.
+	 */
+	product: IProductConfiguration;
+
+	/**
+	 * Configured zoom level.
+	 */
 	zoomLevel?: number;
 
+	/**
+	 * @deprecated to be removed soon
+	 */
 	nodeCachedDataDir?: string;
 }

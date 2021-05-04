@@ -15,7 +15,7 @@ export interface INotebookEditorModelResolverService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidSaveNotebook: Event<URI>;
-	readonly onDidChangeDirty: Event<{ resource: URI, isDirty: boolean }>;
+	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;
 
 	isDirty(resource: URI): boolean;
 

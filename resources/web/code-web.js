@@ -261,6 +261,9 @@ const requestHandler = (req, res) => {
 		} else if (pathname === '/fetch-callback') {
 			// callback fetch support
 			return handleFetchCallback(req, res, parsedUrl);
+		} else if (pathname === '/builtin') {
+			// builtin extnesions JSON
+			return handleBuiltInExtensions(req, res, parsedUrl);
 		}
 
 		return serveError(req, res, 404, 'Not found.');
@@ -301,6 +304,17 @@ function addCORSReplyHeader(req) {
 		return false;
 	}
 	return (ALLOWED_CORS_ORIGINS.indexOf(req.headers['origin']) >= 0);
+}
+
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ * @param {import('url').UrlWithParsedQuery} parsedUrl
+ */
+async function handleBuiltInExtensions(req, res, parsedUrl) {
+	const { extensions } = await builtInExtensionsPromise;
+	res.writeHead(200, { 'Content-Type': 'application/json' });
+	return res.end(JSON.stringify(extensions));
 }
 
 /**

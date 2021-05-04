@@ -188,7 +188,7 @@ class SelectionTrait<T> extends Trait<T> {
 		super('selected');
 	}
 
-	renderIndex(index: number, container: HTMLElement): void {
+	override renderIndex(index: number, container: HTMLElement): void {
 		super.renderIndex(index, container);
 
 		if (this.setAriaSelected) {
@@ -1635,13 +1635,13 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop);
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
-			const wrapperBottom = scrollTop + this.view.renderHeight;
+			const scrollBottom = scrollTop + this.view.renderHeight;
 
-			if (elementTop < scrollTop && viewItemBottom >= wrapperBottom) {
+			if (elementTop < scrollTop && viewItemBottom >= scrollBottom) {
 				// The element is already overflowing the viewport, no-op
-			} else if (elementTop < scrollTop) {
+			} else if (elementTop < scrollTop || (viewItemBottom >= scrollBottom && elementHeight >= this.view.renderHeight)) {
 				this.view.setScrollTop(elementTop);
-			} else if (viewItemBottom >= wrapperBottom) {
+			} else if (viewItemBottom >= scrollBottom) {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
 		}

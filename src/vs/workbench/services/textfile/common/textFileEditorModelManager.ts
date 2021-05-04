@@ -95,7 +95,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(() => this.dispose());
+		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
@@ -479,7 +479,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return true;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.clear();

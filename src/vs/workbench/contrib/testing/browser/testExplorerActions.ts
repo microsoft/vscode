@@ -27,16 +27,19 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResult, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { getPathForTestInResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getAllTestsInHierarchy, getTestByPath, ITestService, waitForAllRoots } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -71,7 +74,7 @@ export class HideOrShowTestAction extends Action {
 	/**
 	 * @override
 	 */
-	public run() {
+	public override run() {
 		this.testService.setTestExcluded(this.testId);
 		return Promise.resolve();
 	}
@@ -94,7 +97,7 @@ export class DebugAction extends Action {
 	/**
 	 * @override
 	 */
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [...this.tests],
 			debug: true,
@@ -119,7 +122,7 @@ export class RunAction extends Action {
 	/**
 	 * @override
 	 */
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [...this.tests],
 			debug: false,
@@ -165,7 +168,7 @@ abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> 
 			}
 		} else {
 			for (const treeElement of selected) {
-				if (treeElement?.test && this.filter(treeElement.test)) {
+				if (treeElement instanceof TestItemTreeElement && this.filter(treeElement.test)) {
 					tests.push({ testId: treeElement.test.item.extId, src: treeElement.test.src });
 				}
 			}
@@ -434,6 +437,30 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 	}
 }
 
+export class ShowMostRecentOutputAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.showMostRecentOutput',
+			title: localize('testing.showMostRecentOutput', "Show Output"),
+			f1: true,
+			category,
+			icon: Codicon.terminal,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.Collapse,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor) {
+		const result = accessor.get(ITestResultService).results[0];
+		accessor.get(ITestingOutputTerminalService).open(result);
+	}
+}
+
+
 export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 	constructor() {
 		super({
@@ -519,7 +546,7 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
+	public override async run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
 		if (test) {
 			await this.runForTest(accessor, test, preserveFocus);
 		} else {
@@ -532,7 +559,7 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView) {
 		const selected = view.viewModel.tree.getFocus().find(isDefined);
-		if (selected?.test) {
+		if (selected instanceof TestItemTreeElement) {
 			this.runForTest(accessor, selected.test.item, false);
 		}
 	}
@@ -564,7 +591,9 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		const pane = await editorService.openEditor({
 			resource: test.uri,
 			options: {
-				selection: test.range && { startColumn: test.range.startColumn, startLineNumber: test.range.startLineNumber },
+				selection: test.range
+					? { startColumn: test.range.startColumn, startLineNumber: test.range.startLineNumber }
+					: undefined,
 				preserveFocus,
 			},
 		});
@@ -824,21 +853,6 @@ abstract class RunOrDebugExtsById extends Action2 {
 	protected abstract filter(node: InternalTestItem): boolean;
 
 	protected abstract runTest(service: ITestService, node: InternalTestItem[]): Promise<ITestResult>;
-
-	protected getPathForTest(test: TestResultItem, results: ITestResult) {
-		const path = [test];
-		while (true) {
-			const parentId = path[0].parent;
-			const parent = parentId && results.getStateById(parentId);
-			if (!parent) {
-				break;
-			}
-
-			path.unshift(parent);
-		}
-
-		return path.map(t => t.item.extId);
-	}
 }
 
 abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
@@ -852,8 +866,8 @@ abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
 		for (let i = results.length - 1; i >= 0; i--) {
 			const resultSet = results[i];
 			for (const test of resultSet.tests) {
-				const path = this.getPathForTest(test, resultSet).join(sep);
-				if (isFailedState(test.state.state)) {
+				const path = getPathForTestInResult(test, resultSet).join(sep);
+				if (isFailedState(test.ownComputedState)) {
 					paths.add(path);
 				} else {
 					paths.delete(path);
@@ -877,7 +891,7 @@ abstract class RunOrDebugLastRun extends RunOrDebugExtsById {
 
 		for (const test of lastResult.tests) {
 			if (test.direct) {
-				yield this.getPathForTest(test, lastResult);
+				yield getPathForTestInResult(test, lastResult);
 			}
 		}
 	}

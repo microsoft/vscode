@@ -9,8 +9,8 @@ import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { workbenchInstantiationService, TestServiceAccessor, TestEditorService, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EncodingMode, IEditorInputFactoryRegistry, Verbosity, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
-import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorInputFactoryRegistry, Verbosity, EditorExtensions } from 'vs/workbench/common/editor';
+import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
@@ -34,7 +34,7 @@ suite('Files - FileEditorInput', () => {
 		instantiationService = workbenchInstantiationService({
 			editorService: () => {
 				return new class extends TestEditorService {
-					createEditorInput(input: IResourceEditorInput) {
+					override createEditorInput(input: IResourceEditorInput) {
 						return createFileInput(input.resource);
 					}
 				};
@@ -170,7 +170,7 @@ suite('Files - FileEditorInput', () => {
 	test('getEncoding/setEncoding', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		input.setEncoding('utf16', EncodingMode.Encode);
+		await input.setEncoding('utf16', EncodingMode.Encode);
 		assert.strictEqual(input.getEncoding(), 'utf16');
 
 		const resolved = await input.resolve() as TextFileEditorModel;
@@ -268,7 +268,7 @@ suite('Files - FileEditorInput', () => {
 
 		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('workbench.editors.files.fileEditorInput', FileEditorInputSerializer);
 
-		const editorSerializer = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputSerializer(input.getTypeId());
+		const editorSerializer = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputSerializer(input.typeId);
 		if (!editorSerializer) {
 			assert.fail('File Editor Input Serializer missing');
 		}

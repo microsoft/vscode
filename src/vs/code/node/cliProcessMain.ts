@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { release } from 'os';
+import { release, hostname } from 'os';
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
 import { isAbsolute, join } from 'vs/base/common/path';
@@ -135,8 +135,6 @@ class CliMain extends Disposable {
 		const stateService = new StateService(environmentService, logService);
 		services.set(IStateService, stateService);
 
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
-
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
@@ -150,15 +148,17 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		const appenders: AppInsightsAppender[] = [];
-		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && productService.enableTelemetry) {
+		if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !environmentService.disableTelemetry && productService.enableTelemetry) {
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
 				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}
 
+			const { appRoot, extensionsPath, installSourcePath } = environmentService;
+
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(fileService, release(), process.arch, productService.commit, productService.version, stateService.getItem('telemetry.machineId'), productService.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, stateService.getItem('telemetry.machineId'), productService.msftInternalDomains, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 

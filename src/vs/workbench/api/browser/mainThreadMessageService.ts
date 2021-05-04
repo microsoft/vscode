@@ -121,7 +121,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			cancelId = buttons.length - 1;
 		}
 
-		const { choice } = await this._dialogService.show(severity, message, buttons, { cancelId, useCustom });
+		const { choice } = await this._dialogService.show(severity, message, buttons, { cancelId, custom: useCustom });
 		return choice === commands.length ? undefined : commands[choice].handle;
 	}
 }

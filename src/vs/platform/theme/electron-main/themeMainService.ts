@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { ipcMain, nativeTheme } from 'electron';
+import { BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import { IStateService } from 'vs/platform/state/node/state';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -23,6 +23,11 @@ export interface IThemeMainService {
 	getBackgroundColor(): string;
 }
 
+interface ThemeData {
+	baseTheme: string;
+	background: string;
+}
+
 export class ThemeMainService implements IThemeMainService {
 
 	declare readonly _serviceBrand: undefined;
@@ -31,14 +36,24 @@ export class ThemeMainService implements IThemeMainService {
 		ipcMain.on('vscode:changeColorTheme', (e: Event, windowId: number, broadcast: string) => {
 			// Theme changes
 			if (typeof broadcast === 'string') {
-				this.storeBackgroundColor(JSON.parse(broadcast));
+				const themeData = JSON.parse(broadcast) as ThemeData;
+				this.storeBackgroundColor(themeData);
+				this.updateBackgroundColor(windowId, themeData);
 			}
 		});
 	}
 
-	private storeBackgroundColor(data: { baseTheme: string, background: string }): void {
+	private storeBackgroundColor(data: ThemeData): void {
 		this.stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
 		this.stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
+	}
+
+	private updateBackgroundColor(windowId: number, data: ThemeData): void {
+		BrowserWindow.getAllWindows().forEach(window => {
+			if (window.id === windowId) {
+				window.setBackgroundColor(data.background);
+			}
+		});
 	}
 
 	getBackgroundColor(): string {

@@ -9,8 +9,9 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common/progress';
-import { TestResult } from 'vs/workbench/api/common/extHostTypes';
-import { ITestResultService, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
 export interface ITestingProgressUiService {
 	readonly _serviceBrand: undefined;
@@ -89,11 +90,11 @@ const collectTestStateCounts = (isRunning: boolean, ...counts: ReadonlyArray<Tes
 	let queued = 0;
 
 	for (const count of counts) {
-		failed += count[TestResult.Errored] + count[TestResult.Failed];
-		passed += count[TestResult.Passed];
-		skipped += count[TestResult.Skipped];
-		running += count[TestResult.Running];
-		queued += count[TestResult.Queued];
+		failed += count[TestResultState.Errored] + count[TestResultState.Failed];
+		passed += count[TestResultState.Passed];
+		skipped += count[TestResultState.Skipped];
+		running += count[TestResultState.Running];
+		queued += count[TestResultState.Queued];
 	}
 
 	return {

@@ -18,10 +18,10 @@ suite('TextResourceConfigurationService - Update', () => {
 	let configurationValue: IConfigurationValue<any> = {};
 	let updateArgs: any[];
 	let configurationService = new class extends TestConfigurationService {
-		inspect() {
+		override inspect() {
 			return configurationValue;
 		}
-		updateValue() {
+		override updateValue() {
 			updateArgs = [...arguments];
 			return Promise.resolve();
 		}

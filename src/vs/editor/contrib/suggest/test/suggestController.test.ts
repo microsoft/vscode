@@ -45,19 +45,19 @@ suite('SuggestController', function () {
 			[IStorageService, new InMemoryStorageService()],
 			[IKeybindingService, new MockKeybindingService()],
 			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-				computeWordRanges() {
+				override computeWordRanges() {
 					return Promise.resolve({});
 				}
 			}],
 			[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
-				memorize(): void { }
-				select(): number { return 0; }
+				override memorize(): void { }
+				override select(): number { return 0; }
 			}],
 			[IMenuService, new class extends mock<IMenuService>() {
-				createMenu() {
+				override createMenu() {
 					return new class extends mock<IMenu>() {
-						onDidChange = Event.None;
-						dispose() { }
+						override onDidChange = Event.None;
+						override dispose() { }
 					};
 				}
 			}]

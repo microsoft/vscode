@@ -110,17 +110,10 @@ import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-// Notebook
-import 'vs/workbench/contrib/notebook/electron-browser/notebook.contribution';
 
 // Extensions Management
 import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
 
-// Terminal
-import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
-
-// External Terminal
-import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -137,10 +130,6 @@ import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution
 
 // CLI
 import 'vs/workbench/contrib/cli/node/cli.contribution';
-
-// Tasks
-import 'vs/workbench/contrib/tasks/electron-browser/taskService';
-
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
