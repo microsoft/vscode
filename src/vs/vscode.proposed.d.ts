@@ -862,7 +862,7 @@ declare module 'vscode' {
 		 * ```
 		 */
 		onDidChangeName?: Event<string>;
-  }
+	}
 
 	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
 
