@@ -312,7 +312,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IStorageService storageService: IStorageService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
-		@INotebookKernelService notebookKernelService: INotebookKernelService,
+		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -1692,21 +1692,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	//#region Kernel/Execution
 
-	private async _loadKernelPreloads() {
-		const kernel = this.activeKernel;
-		if (!kernel) {
+	private async _loadKernelPreloads(): Promise<void> {
+		if (!this.hasModel()) {
 			return;
 		}
-		const preloadUris = kernel.preloadUris;
-		if (!preloadUris.length) {
+		const { selected } = this.notebookKernelService.getMatchingKernel(this.viewModel.notebookDocument);
+		if (!selected || !selected.preloadUris.length) {
 			return;
 		}
-
 		if (!this._webview?.isResolved()) {
 			await this._resolveWebview();
 		}
-
-		this._webview?.updateKernelPreloads([kernel.localResourceRoot], kernel.preloadUris);
+		this._webview?.updateKernelPreloads([selected.localResourceRoot], selected.preloadUris);
 	}
 
 	get activeKernel() {
@@ -2247,13 +2244,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
 
-	postMessage(forRendererId: string | undefined, message: any) {
+	postMessage(message: any) {
 		if (this._webview?.isResolved()) {
-			if (forRendererId === undefined) {
-				this._webview.webview.postMessage(message);
-			} else {
-				this._webview.postRendererMessage(forRendererId, message);
-			}
+			this._webview.postKernelMessage(message);
 		}
 	}
 
