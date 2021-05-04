@@ -146,7 +146,8 @@ function consoleLogFn(msg) {
 }
 
 async function runTestsInBrowser(testModules, browserType) {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug) });
+	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--disable-setuid-sandbox'] : undefined; // disable setuid sandbox to run chrome on certain Linux distros
+	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), args });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
