@@ -90,8 +90,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 
+		// on left click, if focus mode = single click, focus the element
+		// unless multi-selection is in progress 
 		this.onMouseClick(e => {
-			// If focus mode is single click focus the element unless a multi-select in happening
 			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
 			if (focusMode === 'singleClick') {
 				if (this.getSelection().length <= 1) {
