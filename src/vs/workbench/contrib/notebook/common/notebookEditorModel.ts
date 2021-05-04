@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { EditorModel, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -29,6 +29,7 @@ import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileWorkingCopyManager, IFileWorkingCopySaveAsOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { filter } from 'vs/base/common/objects';
 
 //#region --- complex content provider
 
@@ -529,17 +530,22 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
 
 		const data: NotebookDataDto = {
-			metadata: this._notebookModel.metadata,
+			metadata: filter(this._notebookModel.metadata, key => !this._notebookSerializer.options.transientDocumentMetadata[key]),
 			cells: [],
 		};
 
 		for (const cell of this._notebookModel.cells) {
-			data.cells.push({
+			const cellData: ICellDto2 = {
 				cellKind: cell.cellKind,
 				language: cell.language,
 				source: cell.getValue(),
-				outputs: cell.outputs
-			});
+				outputs: []
+			};
+
+			cellData.outputs = !this._notebookSerializer.options.transientOutputs ? cell.outputs : [];
+			cellData.metadata = filter(cell.metadata, key => !this._notebookSerializer.options.transientCellMetadata[key]);
+
+			data.cells.push(cellData);
 		}
 
 		const bytes = await this._notebookSerializer.notebookToData(data);
