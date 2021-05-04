@@ -27,6 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -108,7 +109,10 @@ export class SearchEditor extends BaseTextEditor {
 		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
 		this.container = DOM.$('.search-editor');
 
-		const scopedContextKeyService = assertIsDefined(this.scopedContextKeyService);
+
+		const scopedContextKeyService = contextKeyService.createScoped(this.container);
+		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
+
 		this.inSearchEditorContextKey = InSearchEditor.bindTo(scopedContextKeyService);
 		this.inSearchEditorContextKey.set(true);
 		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(scopedContextKeyService);
