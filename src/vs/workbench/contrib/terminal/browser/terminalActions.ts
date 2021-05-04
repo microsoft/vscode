@@ -1721,7 +1721,8 @@ interface IRemoteTerminalPick extends IQuickPickItem {
 
 function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] | undefined {
 	const listService = accessor.get(IListService);
-	if (!listService.lastFocusedList?.getSelection()?.length) {
+	const terminalService = accessor.get(ITerminalService);
+	if (!listService.lastFocusedList?.getSelection()) {
 		return undefined;
 	}
 	const selections = listService.lastFocusedList.getSelection();
@@ -1731,17 +1732,13 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 	if (focused.length === 1 && !selections.includes(focused[0])) {
 		// focused length is always a max of 1
 		// if the focused one is not in the selected list, return that item
-		if ('instanceId' in focused[0]) {
-			instances.push(focused[0] as ITerminalInstance);
-			return instances;
-		}
+		instances.push(terminalService.getInstanceFromIndex(focused[0]) as ITerminalInstance);
+		return instances;
 	}
 
 	// multi-select
-	for (const instance of selections) {
-		if ('instanceId' in instance) {
-			instances.push(instance as ITerminalInstance);
-		}
+	for (const selection of selections) {
+		instances.push(terminalService.getInstanceFromIndex(selection[0]) as ITerminalInstance);
 	}
 	return instances;
 }
