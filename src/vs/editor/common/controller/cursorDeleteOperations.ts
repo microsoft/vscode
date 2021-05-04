@@ -142,47 +142,6 @@ export class DeleteOperations {
 	}
 
 	public static deleteLeft(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], autoClosedCharacters: Range[]): [boolean, Array<ICommand | null>] {
-
-		function getDeleteRange(selection: Selection, model: ICursorSimpleModel): Range {
-			if (!selection.isEmpty()) {
-				return selection;
-			}
-
-			const position = selection.getPosition();
-
-			// Unintend when using tab stops and cursor is within indentation
-			if (config.useTabStops && position.column > 1) {
-				const lineContent = model.getLineContent(position.lineNumber);
-
-				const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
-				const lastIndentationColumn = (
-					firstNonWhitespaceIndex === -1
-						? /* entire string is whitespace */ lineContent.length + 1
-						: firstNonWhitespaceIndex + 1
-				);
-
-				if (position.column <= lastIndentationColumn) {
-					const fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-					const toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
-					const toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
-					return new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
-				}
-			}
-
-			return Range.fromPositions(decreasePositionInModelBy1Column(position, model) || position, position);
-		}
-
-		function decreasePositionInModelBy1Column(position: Position, model: ICursorSimpleModel): Position | undefined {
-			if (position.column > 1) {
-				return position.delta(0, -1);
-			} else if (position.lineNumber > 1) {
-				const newLine = position.lineNumber - 1;
-				return new Position(newLine, model.getLineMaxColumn(newLine));
-			} else {
-				return undefined;
-			}
-		}
-
 		if (this.isAutoClosingPairDelete(config.autoClosingDelete, config.autoClosingBrackets, config.autoClosingQuotes, config.autoClosingPairs.autoClosingPairsOpenByEnd, model, selections, autoClosedCharacters)) {
 			return this._runAutoClosingPairDelete(config, model, selections);
 		}
@@ -190,7 +149,7 @@ export class DeleteOperations {
 		const commands: Array<ICommand | null> = [];
 		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingLeft);
 		for (let i = 0, len = selections.length; i < len; i++) {
-			let deleteRange = getDeleteRange(selections[i], model);
+			let deleteRange = DeleteOperations.getDeleteRange(selections[i], model, config);
 
 			// Ignore empty delete ranges, as they have no effect
 			// They happen if the cursor is at the beginning of the file.
@@ -207,6 +166,46 @@ export class DeleteOperations {
 		}
 		return [shouldPushStackElementBefore, commands];
 
+	}
+
+	private static getDeleteRange(selection: Selection, model: ICursorSimpleModel, config: CursorConfiguration,): Range {
+		if (!selection.isEmpty()) {
+			return selection;
+		}
+
+		const position = selection.getPosition();
+
+		// Unintend when using tab stops and cursor is within indentation
+		if (config.useTabStops && position.column > 1) {
+			const lineContent = model.getLineContent(position.lineNumber);
+
+			const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
+			const lastIndentationColumn = (
+				firstNonWhitespaceIndex === -1
+					? /* entire string is whitespace */ lineContent.length + 1
+					: firstNonWhitespaceIndex + 1
+			);
+
+			if (position.column <= lastIndentationColumn) {
+				const fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
+				const toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
+				const toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
+				return new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
+			}
+		}
+
+		return Range.fromPositions(DeleteOperations.decreasePositionInModelBy1Column(position, model) || position, position);
+	}
+
+	private static decreasePositionInModelBy1Column(position: Position, model: ICursorSimpleModel): Position | undefined {
+		if (position.column > 1) {
+			return position.delta(0, -1);
+		} else if (position.lineNumber > 1) {
+			const newLine = position.lineNumber - 1;
+			return new Position(newLine, model.getLineMaxColumn(newLine));
+		} else {
+			return undefined;
+		}
 	}
 
 	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): EditOperationResult {
