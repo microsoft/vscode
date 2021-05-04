@@ -38,7 +38,6 @@ import { equals } from 'vs/base/common/objects';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
@@ -666,7 +665,7 @@ export class TerminalService implements ITerminalService {
 			if (!instance.shellLaunchConfig.executable) {
 				return;
 			}
-			const preparedPath = await this.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
+			const preparedPath = await this.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 
 			instance.sendText(preparedPath, false);
 			instance.focus();
