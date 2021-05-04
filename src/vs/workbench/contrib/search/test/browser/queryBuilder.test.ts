@@ -554,7 +554,7 @@ suite('QueryBuilder', () => {
 	suite('parseSearchPaths', () => {
 		test('simple includes', () => {
 			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {
-				assert.deepEqual(
+				assert.deepStrictEqual(
 					queryBuilder.parseSearchPaths(includePattern),
 					{
 						pattern: patternsToIExpression(...expectedPatterns)
@@ -573,8 +573,15 @@ suite('QueryBuilder', () => {
 		});
 
 		function testIncludes(includePattern: string, expectedResult: ISearchPathsInfo): void {
+			let actual: ISearchPathsInfo;
+			try {
+				actual = queryBuilder.parseSearchPaths(includePattern);
+			} catch (_) {
+				actual = { searchPaths: [] };
+			}
+
 			assertEqualSearchPathResults(
-				queryBuilder.parseSearchPaths(includePattern),
+				actual,
 				expectedResult,
 				includePattern);
 		}
@@ -799,6 +806,42 @@ suite('QueryBuilder', () => {
 			cases.forEach(testIncludesDataItem);
 		});
 
+		test('folder with slash in the name', () => {
+			const ROOT_2 = '/project/root2';
+			const ROOT_2_URI = getUri(ROOT_2);
+			const ROOT_1_FOLDERNAME = 'folder/one';
+			const ROOT_2_FOLDERNAME = 'folder/two';
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: ROOT_2_URI.fsPath, name: ROOT_2_FOLDERNAME }], WS_CONFIG_PATH, extUriBiasedIgnorePathCase);
+			mockWorkspace.configuration = uri.file(fixPath('config'));
+
+			const cases: [string, ISearchPathsInfo][] = [
+				[
+					'./folder/one',
+					{
+						searchPaths: [{
+							searchPath: ROOT_1_URI
+						}]
+					}
+				],
+				[
+					'./folder/two/foo/',
+					{
+						searchPaths: [{
+							searchPath: ROOT_2_URI,
+							pattern: patternsToIExpression('foo', 'foo/**')
+						}]
+					}
+				],
+				[
+					'./folder',
+					{
+						searchPaths: []
+					}
+				]
+			];
+			cases.forEach(testIncludesDataItem);
+		});
+
 		test('relative includes w/multiple ambiguous root folders', () => {
 			const ROOT_2 = '/project/rootB';
 			const ROOT_3 = '/otherproject/rootB';
@@ -978,8 +1021,8 @@ suite('QueryBuilder', () => {
 				},
 			);
 
-			assert.equal(query.folderQueries.length, 1);
-			assert.equal(query.cacheKey, cacheKey);
+			assert.strictEqual(query.folderQueries.length, 1);
+			assert.strictEqual(query.cacheKey, cacheKey);
 			assert(query.sortByScore);
 		});
 	});
@@ -1011,13 +1054,13 @@ export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: IT
 
 	// Avoid comparing URI objects, not a good idea
 	if (expected.folderQueries) {
-		assert.deepEqual(actual.folderQueries.map(folderQueryToCompareObject), expected.folderQueries.map(folderQueryToCompareObject));
+		assert.deepStrictEqual(actual.folderQueries.map(folderQueryToCompareObject), expected.folderQueries.map(folderQueryToCompareObject));
 		actual.folderQueries = [];
 		expected.folderQueries = [];
 	}
 
 	if (expected.extraFileResources) {
-		assert.deepEqual(actual.extraFileResources!.map(extraFile => extraFile.fsPath), expected.extraFileResources.map(extraFile => extraFile.fsPath));
+		assert.deepStrictEqual(actual.extraFileResources!.map(extraFile => extraFile.fsPath), expected.extraFileResources.map(extraFile => extraFile.fsPath));
 		delete expected.extraFileResources;
 		delete actual.extraFileResources;
 	}
@@ -1032,21 +1075,21 @@ export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: IT
 
 export function assertEqualSearchPathResults(actual: ISearchPathsInfo, expected: ISearchPathsInfo, message?: string): void {
 	cleanUndefinedQueryValues(actual);
-	assert.deepEqual(actual.pattern, expected.pattern, message);
+	assert.deepStrictEqual(actual.pattern, expected.pattern, message);
 
-	assert.equal(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
+	assert.strictEqual(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
 	if (actual.searchPaths) {
 		actual.searchPaths.forEach((searchPath, i) => {
 			const expectedSearchPath = expected.searchPaths![i];
-			assert.deepEqual(searchPath.pattern, expectedSearchPath.pattern);
-			assert.equal(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
+			assert.deepStrictEqual(searchPath.pattern, expectedSearchPath.pattern);
+			assert.strictEqual(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
 		});
 	}
 }
 
 /**
  * Recursively delete all undefined property values from the search query, to make it easier to
- * assert.deepEqual with some expected object.
+ * assert.deepStrictEqual with some expected object.
  */
 export function cleanUndefinedQueryValues(q: any): void {
 	for (const key in q) {

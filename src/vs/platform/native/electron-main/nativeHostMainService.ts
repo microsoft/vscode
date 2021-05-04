@@ -24,7 +24,7 @@ import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 
 import { virtualMachineHint } from 'vs/base/node/id';
 import { ILogService } from 'vs/platform/log/common/log';
 import { dirname, join } from 'vs/base/common/path';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
@@ -49,7 +49,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -161,7 +162,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				addMode: options.addMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
-				waitMarkerFileURI: options.waitMarkerFileURI
+				waitMarkerFileURI: options.waitMarkerFileURI,
+				remoteAuthority: options.remoteAuthority || undefined
 			});
 		}
 	}
@@ -309,7 +311,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
 			urisToOpen: openable,
-			forceNewWindow: options.forceNewWindow
+			forceNewWindow: options.forceNewWindow,
+			/* remoteAuthority will be determined based on openable */
 		});
 	}
 
@@ -373,8 +376,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}
 
-	async moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<boolean> {
-		return shell.moveItemToTrash(fullPath);
+	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
+		return shell.trashItem(fullPath);
 	}
 
 	async isAdmin(): Promise<boolean> {
@@ -388,23 +391,23 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return isAdmin;
 	}
 
-	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { overwriteReadonly?: boolean }): Promise<void> {
+	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { unlock?: boolean }): Promise<void> {
 		const sudoPrompt = await import('sudo-prompt');
 
 		return new Promise<void>((resolve, reject) => {
 			const sudoCommand: string[] = [`"${this.cliPath}"`];
-			if (options?.overwriteReadonly) {
+			if (options?.unlock) {
 				sudoCommand.push('--file-chmod');
 			}
 
 			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
 
 			const promptOptions = {
-				name: product.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${product.nameShort}.icns`) : undefined
+				name: this.productService.nameLong.replace('-', ''),
+				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
 			};
 
-			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
+			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
 				if (stdout) {
 					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
 				}
@@ -428,7 +431,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Windows
 		if (isWindows) {
 			if (this.environmentMainService.isBuilt) {
-				return join(dirname(process.execPath), 'bin', `${product.applicationName}.cmd`);
+				return join(dirname(process.execPath), 'bin', `${this.productService.applicationName}.cmd`);
 			}
 
 			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.bat');
@@ -437,7 +440,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Linux
 		if (isLinux) {
 			if (this.environmentMainService.isBuilt) {
-				return join(dirname(process.execPath), 'bin', `${product.applicationName}`);
+				return join(dirname(process.execPath), 'bin', `${this.productService.applicationName}`);
 			}
 
 			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.sh');
@@ -521,7 +524,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true });
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true, remoteAuthority: this.environmentMainService.args.remote || undefined });
 	}
 
 	async showPreviousWindowTab(): Promise<void> {
@@ -596,9 +599,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		// Otherwise: normal quit
 		else {
-			setTimeout(() => {
-				this.lifecycleMainService.quit();
-			}, 10 /* delay to unwind callback stack (IPC) */);
+			this.lifecycleMainService.quit();
 		}
 	}
 

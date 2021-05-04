@@ -8,13 +8,10 @@ import * as objects from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IDebugAdapter, IDebugger, IDebugSession, IDebugHelperService, IAdapterManager, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
@@ -22,6 +19,9 @@ import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
+import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
+import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class Debugger implements IDebugger {
 
@@ -36,8 +36,7 @@ export class Debugger implements IDebugger {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDebugHelperService private readonly debugHelperService: IDebugHelperService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
@@ -181,24 +180,18 @@ export class Debugger implements IDebugger {
 		return this.mainExtensionDescription || this.mergedExtensionDescriptions[0];
 	}
 
-	@memoize
-	getCustomTelemetryService(): Promise<TelemetryService | undefined> {
-
+	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined {
 		const aiKey = this.debuggerContribution.aiKey;
-
 		if (!aiKey) {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
-		return this.telemetryService.getTelemetryInfo().then(info => {
-			const telemetryInfo: { [key: string]: string } = Object.create(null);
-			telemetryInfo['common.vscodemachineid'] = info.machineId;
-			telemetryInfo['common.vscodesessionid'] = info.sessionId;
-			return telemetryInfo;
-		}).then(data => {
-			const args = [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), aiKey];
-			return this.debugHelperService.createTelemetryService(this.configurationService, args);
-		});
+		const sendErrorTelemtry = cleanRemoteAuthority(this.environmentService.remoteAuthority) !== 'other';
+		return {
+			id: `${this.getMainExtensionDescriptor().publisher}.${this.type}`,
+			aiKey,
+			sendErrorTelemetry: sendErrorTelemtry
+		};
 	}
 
 	getSchemaAttributes(): IJSONSchema[] | null {

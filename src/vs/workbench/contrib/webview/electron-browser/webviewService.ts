@@ -12,7 +12,6 @@ import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-san
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService extends WebviewService {
-	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -21,19 +20,19 @@ export class ElectronWebviewService extends WebviewService {
 		super(instantiationService);
 	}
 
-	createWebviewElement(
+	override createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewElement {
-		const useIframes = this._configService.getValue<string>('webview.experimental.useIframes');
+		const useIframes = this._configService.getValue<string>('webview.experimental.useIframes') ?? !options.enableFindWidget;
 		const webview = this._instantiationService.createInstance(useIframes ? ElectronIframeWebview : ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		this.addWebviewListeners(webview);
 		return webview;
 	}
 
-	createWebviewOverlay(
+	override createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,

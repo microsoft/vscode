@@ -45,8 +45,10 @@ suite('git smoke test', function () {
 		cp.execSync('git init', { cwd });
 		cp.execSync('git config user.name testuser', { cwd });
 		cp.execSync('git config user.email monacotools@microsoft.com', { cwd });
+		cp.execSync('git config commit.gpgsign false', { cwd });
 		cp.execSync('git add .', { cwd });
 		cp.execSync('git commit -m "initial commit"', { cwd });
+		cp.execSync('git branch -m main', { cwd });
 
 		// make sure git is activated
 		const ext = extensions.getExtension<GitExtension>('vscode.git');
@@ -124,7 +126,7 @@ suite('git smoke test', function () {
 		assert.equal(repository.state.workingTreeChanges.length, 0);
 		assert.equal(repository.state.indexChanges.length, 0);
 	});
-		
+
 	test('rename/delete conflict', async function () {
 		cp.execSync('git branch test', { cwd });
 		cp.execSync('git checkout test', { cwd });
@@ -133,16 +135,16 @@ suite('git smoke test', function () {
 		cp.execSync('git add .', { cwd });
 
 		await repository.commit('commit on test');
-		cp.execSync('git checkout master', { cwd });
+		cp.execSync('git checkout main', { cwd });
 
 		fs.renameSync(file('app.js'), file('rename.js'));
 		cp.execSync('git add .', { cwd });
-		await repository.commit('commit on master');
+		await repository.commit('commit on main');
 
 		try {
 			cp.execSync('git merge test', { cwd });
 		} catch (e) { }
-		
+
 		setTimeout(() => {
 			commands.executeCommand('workbench.scm.focus');
 		}, 2e3);

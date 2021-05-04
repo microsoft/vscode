@@ -134,7 +134,7 @@ export class StartExtensionHostProfileAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		this._extensionHostProfileService.startProfiling();
 		return Promise.resolve();
 	}
@@ -151,7 +151,7 @@ export class StopExtensionHostProfileAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		this._extensionHostProfileService.stopProfiling();
 		return Promise.resolve();
 	}
@@ -175,7 +175,7 @@ export class SaveExtensionHostProfileAction extends Action {
 		});
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		return Promise.resolve(this._asyncRun());
 	}
 

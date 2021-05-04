@@ -440,6 +440,7 @@ export class SuggestWidget implements IDisposable {
 				this._contentWidget.hide();
 				this._ctxSuggestWidgetVisible.reset();
 				this._ctxSuggestWidgetMultipleSuggestions.reset();
+				this._showTimeout.cancel();
 				this.element.domNode.classList.remove('visible');
 				this._list.splice(0, this._list.length);
 				this._focusedItem = undefined;
@@ -708,6 +709,7 @@ export class SuggestWidget implements IDisposable {
 		this._loadingTimeout?.dispose();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
+		this.element.clearSashHoverState();
 
 		// ensure that a reasonable widget height is persisted so that
 		// accidential "resize-to-single-items" cases aren't happening

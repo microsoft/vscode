@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, ISaveOptions, IRevertOptions, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
+import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, IRevertOptions, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -77,7 +77,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 	}
 
 	private _name: string | undefined = undefined;
-	getName(): string {
+	override getName(): string {
 		if (typeof this._name !== 'string') {
 			this._name = this.labelService.getUriBasenameLabel(this._preferredResource);
 		}
@@ -85,7 +85,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return this._name;
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+	override getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				return this.shortDescription;
@@ -151,7 +151,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return this._longTitle;
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	override getTitle(verbosity: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				return this.shortTitle;
@@ -163,14 +163,14 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		}
 	}
 
-	isUntitled(): boolean {
-		//  anyFile: is never untitled as it can be saved
-		// untitled: is untitled by definition
-		// anyOther: is untitled because it cannot be saved, as such we expect a "Save As" dialog
+	override isUntitled(): boolean {
+		//  any file: is never untitled as it can be saved
+		//  untitled: is untitled by definition
+		// any other: is untitled because it cannot be saved, as such we expect a "Save As" dialog
 		return !this.fileService.canHandleResource(this.resource);
 	}
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		if (this.isUntitled()) {
 			return false; // untitled is never readonly
 		}
@@ -178,7 +178,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	isSaving(): boolean {
+	override isSaving(): boolean {
 		if (this.isUntitled()) {
 			return false; // untitled is never saving automatically
 		}
@@ -190,7 +190,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return false;
 	}
 
-	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	override save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 
 		// If this is neither an `untitled` resource, nor a resource
 		// we can handle with the file service, we can only "Save As..."
@@ -202,11 +202,11 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return this.doSave(options, false);
 	}
 
-	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	override saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 		return this.doSave(options, true);
 	}
 
-	private async doSave(options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
+	private async doSave(options: ITextFileSaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
 
 		// Save / Save As
 		let target: URI | undefined;
@@ -233,7 +233,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return this;
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		await this.textFileService.revert(this.resource, options);
 	}
 }

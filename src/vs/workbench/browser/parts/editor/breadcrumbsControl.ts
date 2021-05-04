@@ -54,7 +54,7 @@ class OutlineItem extends BreadcrumbsItem {
 		super();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -114,7 +114,7 @@ class FileItem extends BreadcrumbsItem {
 		super();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -147,6 +147,7 @@ export interface IBreadcrumbsControlOptions {
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
 	breadcrumbsBackground: ColorIdentifier | ColorFunction;
+	showPlaceholder: boolean;
 }
 
 export class BreadcrumbsControl {
@@ -288,8 +289,21 @@ export class BreadcrumbsControl {
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
 			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._instantiationService) : new OutlineItem(model, element, options));
-			this._widget.setItems(items);
-			this._widget.reveal(items[items.length - 1]);
+			if (items.length === 0) {
+				this._widget.setEnabled(false);
+				this._widget.setItems([new class extends BreadcrumbsItem {
+					render(container: HTMLElement): void {
+						container.innerText = localize('empty', "no elements");
+					}
+					equals(other: BreadcrumbsItem): boolean {
+						return other === this;
+					}
+				}]);
+			} else {
+				this._widget.setEnabled(true);
+				this._widget.setItems(items);
+				this._widget.reveal(items[items.length - 1]);
+			}
 		};
 		const listener = model.onDidUpdate(updateBreadcrumbs);
 		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);

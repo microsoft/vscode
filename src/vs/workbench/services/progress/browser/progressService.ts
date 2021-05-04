@@ -128,21 +128,22 @@ export class ProgressService extends Disposable implements IProgressService {
 			let progressCommand = (<IProgressWindowOptions>options).command;
 			let text: string;
 			let title: string;
+			const source = options.source && typeof options.source !== 'string' ? options.source.label : options.source;
 
 			if (progressTitle && progressMessage) {
 				// <title>: <message>
 				text = localize('progress.text2', "{0}: {1}", progressTitle, progressMessage);
-				title = options.source ? localize('progress.title3', "[{0}] {1}: {2}", options.source, progressTitle, progressMessage) : text;
+				title = source ? localize('progress.title3', "[{0}] {1}: {2}", source, progressTitle, progressMessage) : text;
 
 			} else if (progressTitle) {
 				// <title>
 				text = progressTitle;
-				title = options.source ? localize('progress.title2', "[{0}]: {1}", options.source, progressTitle) : text;
+				title = source ? localize('progress.title2', "[{0}]: {1}", source, progressTitle) : text;
 
 			} else if (progressMessage) {
 				// <message>
 				text = progressMessage;
-				title = options.source ? localize('progress.title2', "[{0}]: {1}", options.source, progressMessage) : text;
+				title = source ? localize('progress.title2', "[{0}]: {1}", source, progressMessage) : text;
 
 			} else {
 				// no title, no message -> no progress. try with next on stack
@@ -179,8 +180,8 @@ export class ProgressService extends Disposable implements IProgressService {
 			private readonly _onDidReport = this._register(new Emitter<IProgressStep>());
 			readonly onDidReport = this._onDidReport.event;
 
-			private readonly _onDispose = this._register(new Emitter<void>());
-			readonly onDispose = this._onDispose.event;
+			private readonly _onWillDispose = this._register(new Emitter<void>());
+			readonly onWillDispose = this._onWillDispose.event;
 
 			private _step: IProgressStep | undefined = undefined;
 			get step() { return this._step; }
@@ -212,9 +213,9 @@ export class ProgressService extends Disposable implements IProgressService {
 				this.dispose();
 			}
 
-			dispose(): void {
+			override dispose(): void {
 				this._done = true;
-				this._onDispose.fire();
+				this._onWillDispose.fire();
 
 				super.dispose();
 			}
@@ -251,7 +252,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				promise.finally(() => onDidReportListener.dispose());
 
 				// When the progress model gets disposed, we are done as well
-				Event.once(progressStateModel.onDispose)(() => promiseResolve());
+				Event.once(progressStateModel.onWillDispose)(() => promiseResolve());
 
 				return promise;
 			});
@@ -273,7 +274,7 @@ export class ProgressService extends Disposable implements IProgressService {
 							super(`progress.button.${button}`, button, undefined, true);
 						}
 
-						async run(): Promise<void> {
+						override async run(): Promise<void> {
 							progressStateModel.cancel(index);
 						}
 					};
@@ -289,7 +290,7 @@ export class ProgressService extends Disposable implements IProgressService {
 						super('progress.cancel', localize('cancel', "Cancel"), undefined, true);
 					}
 
-					async run(): Promise<void> {
+					override async run(): Promise<void> {
 						progressStateModel.cancel();
 					}
 				};
@@ -380,7 +381,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		// Show initially
 		updateNotification(progressStateModel.step);
 		const listener = progressStateModel.onDidReport(step => updateNotification(step));
-		Event.once(progressStateModel.onDispose)(() => listener.dispose());
+		Event.once(progressStateModel.onWillDispose)(() => listener.dispose());
 
 		// Clean up eventually
 		(async () => {
