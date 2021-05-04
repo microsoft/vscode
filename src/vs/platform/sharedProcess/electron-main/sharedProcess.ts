@@ -18,7 +18,6 @@ import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/i
 import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
 import { WindowError } from 'vs/platform/windows/electron-main/windows';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
@@ -138,9 +137,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 				// Always wait for first window asking for connection
 				await this.firstWindowConnectionBarrier.wait();
-
-				// Resolve shell environment
-				this.userEnv = { ...this.userEnv, ...(await resolveShellEnv(this.logService, this.environmentMainService.args, process.env)) };
 
 				// Create window for shared process
 				this.createWindow();
