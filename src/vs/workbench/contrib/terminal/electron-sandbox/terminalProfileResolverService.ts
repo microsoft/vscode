@@ -34,9 +34,10 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 				},
 				getShellEnvironment: (remoteAuthority) => {
 					if (remoteAuthority) {
-						remoteTerminalService.getShellEnvironment();
+						return remoteTerminalService.getShellEnvironment();
+					} else {
+						return localTerminalService.getShellEnvironment();
 					}
-					return shellEnvironmentService.getShellEnv();
 				}
 			},
 			configurationService,

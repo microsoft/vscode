@@ -526,11 +526,6 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.InheritEnv]: {
-			markdownDescription: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code. This is not supported on Windows."),
-			type: 'boolean',
-			default: true
-		},
 		[TERMINAL_SETTING_ID.EnvMacOs]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),

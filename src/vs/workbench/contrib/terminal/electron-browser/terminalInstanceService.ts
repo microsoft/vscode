@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -19,12 +16,6 @@ let WebglAddon: typeof XTermWebglAddon;
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	public _serviceBrand: undefined;
-
-	constructor(
-		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
-	) {
-		super();
-	}
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
@@ -52,9 +43,5 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
 		}
 		return WebglAddon;
-	}
-
-	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
-		return getMainProcessParentEnv(await this._shellEnvironmentService.getShellEnv());
 	}
 }
