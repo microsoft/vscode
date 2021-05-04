@@ -1155,14 +1155,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = await this.resolveOptions(resolver, task.command.options);
-
-		let waitOnExit: boolean | string = false;
 		const presentationOptions = task.command.presentation;
+
+		let waitOnExit: boolean | string = presentationOptions?.close ? !presentationOptions.close : false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
 
-		if (presentationOptions.reveal !== RevealKind.Never || !task.configurationProperties.isBackground) {
+		if ((presentationOptions.close === undefined) && ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground)) {
 			if (presentationOptions.panel === PanelKind.New) {
 				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
 			} else if (presentationOptions.showReuseMessage) {
