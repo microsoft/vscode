@@ -124,11 +124,11 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 	}
 
-	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
+	setWidgetManager(widgetManager: TerminalWidgetManager): void {
 		this._widgetManager = widgetManager;
 	}
 
-	public set processCwd(processCwd: string) {
+	set processCwd(processCwd: string) {
 		this._processCwd = processCwd;
 	}
 
@@ -140,7 +140,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 	}
 
-	public registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
+	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
 		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
 		// Re-register the standard link providers so they are a lower priority that the new one
@@ -356,7 +356,7 @@ export class TerminalLinkManager extends DisposableStore {
 	 *
 	 * @param link Url link which may contain line and column number.
 	 */
-	public extractLineColumnInfo(link: string): LineColumnInfo {
+	extractLineColumnInfo(link: string): LineColumnInfo {
 		const matches: string[] | null = this._localLinkRegex.exec(link);
 		const lineColumnInfo: LineColumnInfo = {
 			lineNumber: 1,
@@ -390,7 +390,7 @@ export class TerminalLinkManager extends DisposableStore {
 	 *
 	 * @param link url link which may contain line and column number.
 	 */
-	public extractLinkUrl(link: string): string | null {
+	extractLinkUrl(link: string): string | null {
 		const matches: string[] | null = this._localLinkRegex.exec(link);
 		if (!matches) {
 			return null;

@@ -29,17 +29,17 @@ const MAXIMUM_FONT_SIZE = 25;
  * specific test cases can be written.
  */
 export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
-	public panelContainer: HTMLElement | undefined;
+	panelContainer: HTMLElement | undefined;
 
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
 	protected _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
-	public config!: ITerminalConfiguration;
+	config!: ITerminalConfiguration;
 
 	private readonly _onConfigChanged = new Emitter<void>();
-	public get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
+	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
 
-	public constructor(
+	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -71,7 +71,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		this._onConfigChanged.fire();
 	}
 
-	public configFontIsMonospace(): boolean {
+	configFontIsMonospace(): boolean {
 		const fontSize = 15;
 		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		const iRect = this._getBoundingRectFor('i', fontFamily, fontSize);
@@ -154,7 +154,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(xtermCore?: XTermCore, excludeDimensions?: boolean): ITerminalFont {
+	getFont(xtermCore?: XTermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
@@ -219,7 +219,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	private _recommendationsShown = false;
 
-	public async showRecommendations(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
+	async showRecommendations(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
 		if (this._recommendationsShown) {
 			return;
 		}

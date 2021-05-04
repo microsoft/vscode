@@ -44,7 +44,7 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _tabsViewWrapper: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
-	public get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
+	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -95,7 +95,7 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this._terminalService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 	}
 
-	public override renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._parentDomElement = container;
@@ -171,7 +171,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 	}
 
-	public override getActionViewItem(action: Action): IActionViewItem | undefined {
+	override getActionViewItem(action: Action): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.SwitchTerminal: {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
@@ -237,7 +237,7 @@ export class TerminalViewPane extends ViewPane {
 		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
 	}
 
-	public override focus() {
+	override focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
 			// be focused. So wait for connection to finish, then focus.

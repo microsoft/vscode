@@ -18,8 +18,8 @@ export function registerRemoteContributions() {
 }
 
 export class CreateNewLocalTerminalAction extends Action {
-	public static readonly ID = TerminalCommandId.NewLocal;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.newLocal', "Create New Integrated Terminal (Local)");
+	static readonly ID = TerminalCommandId.NewLocal;
+	static readonly LABEL = nls.localize('workbench.action.terminal.newLocal', "Create New Integrated Terminal (Local)");
 
 	constructor(
 		id: string, label: string,
@@ -29,7 +29,7 @@ export class CreateNewLocalTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public override run(): Promise<any> {
+	override run(): Promise<any> {
 		const instance = this._terminalService.createTerminal({ cwd: this._nativeEnvironmentService.userHome });
 		if (!instance) {
 			return Promise.resolve(undefined);

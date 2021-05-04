@@ -28,7 +28,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findWidgetFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED.bindTo(this._contextKeyService);
 	}
 
-	public find(previous: boolean) {
+	find(previous: boolean) {
 		const instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
 			if (previous) {
@@ -39,7 +39,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 	}
 
-	public override hide() {
+	override hide() {
 		super.hide();
 		const instance = this._terminalService.getActiveInstance();
 		if (instance) {
@@ -80,7 +80,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused.reset();
 	}
 
-	public findFirst() {
+	findFirst() {
 		const instance = this._terminalService.getActiveInstance();
 		if (instance) {
 			if (instance.hasSelection()) {

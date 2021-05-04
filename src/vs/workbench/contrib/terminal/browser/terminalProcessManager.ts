@@ -52,14 +52,14 @@ enum ProcessType {
  * - Shell Process: The pseudoterminal child process (ie. the shell)
  */
 export class TerminalProcessManager extends Disposable implements ITerminalProcessManager {
-	public processState: ProcessState = ProcessState.Uninitialized;
-	public ptyProcessReady: Promise<void>;
-	public shellProcessId: number | undefined;
-	public remoteAuthority: string | undefined;
-	public os: OperatingSystem | undefined;
-	public userHome: string | undefined;
-	public isDisconnected: boolean = false;
-	public environmentVariableInfo: IEnvironmentVariableInfo | undefined;
+	processState: ProcessState = ProcessState.Uninitialized;
+	ptyProcessReady: Promise<void>;
+	shellProcessId: number | undefined;
+	remoteAuthority: string | undefined;
+	os: OperatingSystem | undefined;
+	userHome: string | undefined;
+	isDisconnected: boolean = false;
+	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
@@ -81,32 +81,32 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _isScreenReaderModeEnabled: boolean = false;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
-	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
+	get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
 	private readonly _onPtyReconnect = this._register(new Emitter<void>());
-	public get onPtyReconnect(): Event<void> { return this._onPtyReconnect.event; }
+	get onPtyReconnect(): Event<void> { return this._onPtyReconnect.event; }
 
 	private readonly _onProcessReady = this._register(new Emitter<void>());
-	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
+	get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
-	public get onBeforeProcessData(): Event<IBeforeProcessDataEvent> { return this._onBeforeProcessData.event; }
+	get onBeforeProcessData(): Event<IBeforeProcessDataEvent> { return this._onBeforeProcessData.event; }
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
-	public get onProcessData(): Event<IProcessDataEvent> { return this._onProcessData.event; }
+	get onProcessData(): Event<IProcessDataEvent> { return this._onProcessData.event; }
 	private readonly _onProcessTitle = this._register(new Emitter<string>());
-	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
+	get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	public get onProcessShellTypeChanged(): Event<TerminalShellType> { return this._onProcessShellTypeChanged.event; }
+	get onProcessShellTypeChanged(): Event<TerminalShellType> { return this._onProcessShellTypeChanged.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	public get onProcessExit(): Event<number | undefined> { return this._onProcessExit.event; }
+	get onProcessExit(): Event<number | undefined> { return this._onProcessExit.event; }
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
+	get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessOverrideShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
+	get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
-	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
+	get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
-	public get persistentProcessId(): number | undefined { return this._process?.id; }
-	public get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
-	public get hasWrittenData(): boolean { return this._hasWrittenData; }
+	get persistentProcessId(): number | undefined { return this._process?.id; }
+	get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
+	get hasWrittenData(): boolean { return this._hasWrittenData; }
 
 	private readonly _localTerminalService?: ILocalTerminalService;
 
@@ -146,7 +146,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 	}
 
-	public override dispose(immediate: boolean = false): void {
+	override dispose(immediate: boolean = false): void {
 		this._isDisposed = true;
 		if (this._process) {
 			// If the process was still connected this dispose came from
@@ -169,13 +169,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 	}
 
-	public detachFromProcess(): void {
+	detachFromProcess(): void {
 		if (this._process?.detach) {
 			this._process.detach();
 		}
 	}
 
-	public async createProcess(
+	async createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
@@ -333,7 +333,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return undefined;
 	}
 
-	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
+	async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
 
@@ -456,10 +456,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}));
 	}
 
-	public setDimensions(cols: number, rows: number): Promise<void>;
-	public setDimensions(cols: number, rows: number, sync: false): Promise<void>;
-	public setDimensions(cols: number, rows: number, sync: true): void;
-	public setDimensions(cols: number, rows: number, sync?: boolean): Promise<void> | void {
+	setDimensions(cols: number, rows: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: true): void;
+	setDimensions(cols: number, rows: number, sync?: boolean): Promise<void> | void {
 		if (sync) {
 			this._resize(cols, rows);
 			return;
@@ -485,7 +485,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dimensions.rows = rows;
 	}
 
-	public async write(data: string): Promise<void> {
+	async write(data: string): Promise<void> {
 		await this.ptyProcessReady;
 		this._dataFilter.disableSeamlessRelaunch();
 		this._hasWrittenData = true;
@@ -500,25 +500,25 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 	}
 
-	public async processBinary(data: string): Promise<void> {
+	async processBinary(data: string): Promise<void> {
 		await this.ptyProcessReady;
 		this._dataFilter.disableSeamlessRelaunch();
 		this._hasWrittenData = true;
 		this._process?.processBinary(data);
 	}
 
-	public getInitialCwd(): Promise<string> {
+	getInitialCwd(): Promise<string> {
 		return Promise.resolve(this._initialCwd ? this._initialCwd : '');
 	}
 
-	public getCwd(): Promise<string> {
+	getCwd(): Promise<string> {
 		if (!this._process) {
 			return Promise.resolve('');
 		}
 		return this._process.getCwd();
 	}
 
-	public async getLatency(): Promise<number> {
+	async getLatency(): Promise<number> {
 		await this.ptyProcessReady;
 		if (!this._process) {
 			return Promise.resolve(0);
@@ -531,7 +531,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return Promise.resolve(this._latency);
 	}
 
-	public acknowledgeDataEvent(charCount: number): void {
+	acknowledgeDataEvent(charCount: number): void {
 		this._ackDataBufferer.ack(charCount);
 	}
 
@@ -609,7 +609,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	private _swapTimeout?: number;
 
 	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
-	public get onProcessData(): Event<string | IProcessDataEvent> { return this._onProcessData.event; }
+	get onProcessData(): Event<string | IProcessDataEvent> { return this._onProcessData.event; }
 
 	constructor(
 		@ILogService private readonly _logService: ILogService

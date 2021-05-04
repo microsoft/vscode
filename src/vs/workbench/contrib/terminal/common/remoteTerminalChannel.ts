@@ -72,46 +72,46 @@ export interface ICreateTerminalProcessResult {
 
 export class RemoteTerminalChannelClient {
 
-	public get onPtyHostExit(): Event<void> {
+	get onPtyHostExit(): Event<void> {
 		return this._channel.listen<void>('$onPtyHostExitEvent');
 	}
-	public get onPtyHostStart(): Event<void> {
+	get onPtyHostStart(): Event<void> {
 		return this._channel.listen<void>('$onPtyHostStartEvent');
 	}
-	public get onPtyHostUnresponsive(): Event<void> {
+	get onPtyHostUnresponsive(): Event<void> {
 		return this._channel.listen<void>('$onPtyHostUnresponsiveEvent');
 	}
-	public get onPtyHostResponsive(): Event<void> {
+	get onPtyHostResponsive(): Event<void> {
 		return this._channel.listen<void>('$onPtyHostResponsiveEvent');
 	}
-	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
+	get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
 		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
 	}
-	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
+	get onProcessExit(): Event<{ id: number, event: number | undefined }> {
 		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
 	}
-	public get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string } }> {
+	get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string } }> {
 		return this._channel.listen<{ id: number, event: { pid: number, cwd: string } }>('$onProcessReadyEvent');
 	}
-	public get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
+	get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
 		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
 	}
-	public get onProcessTitleChanged(): Event<{ id: number, event: string }> {
+	get onProcessTitleChanged(): Event<{ id: number, event: string }> {
 		return this._channel.listen<{ id: number, event: string }>('$onProcessTitleChangedEvent');
 	}
-	public get onProcessShellTypeChanged(): Event<{ id: number, event: TerminalShellType | undefined }> {
+	get onProcessShellTypeChanged(): Event<{ id: number, event: TerminalShellType | undefined }> {
 		return this._channel.listen<{ id: number, event: TerminalShellType | undefined }>('$onProcessShellTypeChangedEvent');
 	}
-	public get onProcessOverrideDimensions(): Event<{ id: number, event: ITerminalDimensionsOverride | undefined }> {
+	get onProcessOverrideDimensions(): Event<{ id: number, event: ITerminalDimensionsOverride | undefined }> {
 		return this._channel.listen<{ id: number, event: ITerminalDimensionsOverride | undefined }>('$onProcessOverrideDimensionsEvent');
 	}
-	public get onProcessResolvedShellLaunchConfig(): Event<{ id: number, event: IShellLaunchConfig }> {
+	get onProcessResolvedShellLaunchConfig(): Event<{ id: number, event: IShellLaunchConfig }> {
 		return this._channel.listen<{ id: number, event: IShellLaunchConfig }>('$onProcessResolvedShellLaunchConfigEvent');
 	}
-	public get onProcessOrphanQuestion(): Event<{ id: number }> {
+	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
-	public get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
+	get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
 		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
 	}
 
@@ -132,7 +132,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$restartPtyHost', []);
 	}
 
-	public async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number): Promise<ICreateTerminalProcessResult> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
 
@@ -192,59 +192,59 @@ export class RemoteTerminalChannelClient {
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
 	}
 
-	public attachToProcess(id: number): Promise<void> {
+	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
 	}
-	public listProcesses(): Promise<IProcessDetails[]> {
+	listProcesses(): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses');
 	}
-	public reduceConnectionGraceTime(): Promise<void> {
+	reduceConnectionGraceTime(): Promise<void> {
 		return this._channel.call('$reduceConnectionGraceTime');
 	}
-	public processBinary(id: number, data: string): Promise<void> {
+	processBinary(id: number, data: string): Promise<void> {
 		return this._channel.call('$processBinary', [id, data]);
 	}
-	public start(id: number): Promise<ITerminalLaunchError | void> {
+	start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
 	}
-	public input(id: number, data: string): Promise<void> {
+	input(id: number, data: string): Promise<void> {
 		return this._channel.call('$input', [id, data]);
 	}
-	public acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
+	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._channel.call('$acknowledgeDataEvent', [id, charCount]);
 	}
-	public shutdown(id: number, immediate: boolean): Promise<void> {
+	shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._channel.call('$shutdown', [id, immediate]);
 	}
-	public resize(id: number, cols: number, rows: number): Promise<void> {
+	resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._channel.call('$resize', [id, cols, rows]);
 	}
-	public getInitialCwd(id: number): Promise<string> {
+	getInitialCwd(id: number): Promise<string> {
 		return this._channel.call('$getInitialCwd', [id]);
 	}
-	public getCwd(id: number): Promise<string> {
+	getCwd(id: number): Promise<string> {
 		return this._channel.call('$getCwd', [id]);
 	}
-	public orphanQuestionReply(id: number): Promise<void> {
+	orphanQuestionReply(id: number): Promise<void> {
 		return this._channel.call('$orphanQuestionReply', [id]);
 	}
-	public sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
+	sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
 		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
 	}
 
-	public getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._channel.call('$getDefaultSystemShell', [osOverride]);
 	}
 
-	public getEnvironment(): Promise<IProcessEnvironment> {
+	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._channel.call('$getEnvironment');
 	}
 
-	public getWslPath(original: string): Promise<string> {
+	getWslPath(original: string): Promise<string> {
 		return this._channel.call('$getWslPath', [original]);
 	}
 
-	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
@@ -253,7 +253,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call<void>('$setTerminalLayoutInfo', args);
 	}
 
-	public getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: IGetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
