@@ -652,7 +652,7 @@ export class TerminalService implements ITerminalService {
 			const resources = dragEvent.dataTransfer.getData(DataTransfers.RESOURCES);
 			if (resources) {
 				path = URI.parse(JSON.parse(resources)[0]).fsPath;
-			} else if (dragEvent.dataTransfer.files.length > 0 && dragEvent.dataTransfer.files[0].path /* Electron only */) {
+			} else if (dragEvent.dataTransfer.files?.[0].path /* Electron only */) {
 				// Check if the file was dragged from the filesystem
 				path = URI.file(dragEvent.dataTransfer.files[0].path).fsPath;
 			}
