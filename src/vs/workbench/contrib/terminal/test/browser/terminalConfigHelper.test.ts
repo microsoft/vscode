@@ -167,7 +167,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
+		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), true, 'monospace is monospaced');
 	});
@@ -179,7 +179,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				fontFamily: 'sans-serif'
 			}
 		});
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
+		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'sans-serif is not monospaced');
 	});
@@ -191,7 +191,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				fontFamily: 'serif'
 			}
 		});
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
+		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'serif is not monospaced');
 	});
@@ -207,7 +207,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
+		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), true, 'monospace is monospaced');
 	});
@@ -223,7 +223,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
+		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'sans-serif is not monospaced');
 	});
@@ -239,7 +239,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 			}
 		});
 
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
+		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'serif is not monospaced');
 	});

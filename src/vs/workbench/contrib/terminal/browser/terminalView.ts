@@ -159,6 +159,7 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement.append(this._tabsViewWrapper);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 

@@ -236,7 +236,7 @@ export class TerminalService implements ITerminalService {
 		this._telemetryService.publicLog('terminalReconnection', data);
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
-		this.attachProcessLayoutListeners(true);
+		this._attachProcessLayoutListeners(true);
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
@@ -250,7 +250,7 @@ export class TerminalService implements ITerminalService {
 		}
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
-		this.attachProcessLayoutListeners(false);
+		this._attachProcessLayoutListeners(false);
 	}
 
 	private _recreateTerminalTabs(layoutInfo?: ITerminalsLayoutInfo): number {
@@ -292,7 +292,7 @@ export class TerminalService implements ITerminalService {
 		return reconnectCounter;
 	}
 
-	private attachProcessLayoutListeners(isRemote: boolean): void {
+	private _attachProcessLayoutListeners(isRemote: boolean): void {
 		this.onActiveTabChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 		this.onActiveInstanceChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 		this.onInstancesChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());

@@ -367,7 +367,7 @@ export function createTerminalEnvironment(
 	baseEnv: IProcessEnvironment
 ): IProcessEnvironment {
 	// Create a terminal environment based on settings, launch config and permissions
-	let env: IProcessEnvironment = {};
+	const env: IProcessEnvironment = {};
 	if (shellLaunchConfig.strictEnv) {
 		// strictEnv is true, only use the requested env (ignoring null entries)
 		mergeNonNullKeys(env, shellLaunchConfig.env);

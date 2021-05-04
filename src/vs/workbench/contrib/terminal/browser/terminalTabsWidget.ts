@@ -223,7 +223,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	}
 
 	renderElement(node: ITreeNode<ITerminalInstance>, index: number, template: ITerminalTabEntryTemplate): void {
-		let instance = node.element;
+		const instance = node.element;
 
 		const tab = this._terminalService.getTabForInstance(instance);
 		if (!tab) {

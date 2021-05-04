@@ -211,7 +211,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _handleOnDidSashChange(): void {
-		let widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
+		const widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
 		if (!this._width || widgetWidth <= 0) {
 			return;
 		}

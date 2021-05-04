@@ -85,8 +85,6 @@ interface IGridDimensions {
 }
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
-	private static readonly EOL_REGEX = /\r?\n/g;
-
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
 	private static _instanceIdCounter = 1;
@@ -135,7 +133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _timeoutDimension: dom.Dimension | undefined;
 
-	private hasHadInput: boolean;
+	private _hasHadInput: boolean;
 
 	public readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	public disableLayout: boolean;
@@ -248,7 +246,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isDisposed = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
 
-		this.hasHadInput = false;
+		this._hasHadInput = false;
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
 		});
@@ -491,8 +489,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermCore = (xterm as any)._core as XTermCore;
 		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
-		this._terminalInstanceService.getXtermSearchConstructor().then(Addon => {
-			this._xtermSearch = new Addon();
+		this._terminalInstanceService.getXtermSearchConstructor().then(addonCtor => {
+			this._xtermSearch = new addonCtor();
 			xterm.loadAddon(this._xtermSearch);
 		});
 		if (this._shellLaunchConfig.initialText) {
@@ -586,7 +584,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 	}
 
-	public async _attachToElement(container: HTMLElement): Promise<void> {
+	private async _attachToElement(container: HTMLElement): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
 
 		if (this._wrapperElement) {
@@ -645,7 +643,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				!event.ctrlKey &&
 				!event.shiftKey &&
 				!event.altKey) {
-				this.hasHadInput = true;
+				this._hasHadInput = true;
 			}
 
 			// for keyboard events that resolve to commands described
@@ -653,7 +651,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (resolveResult && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.GLOBAL, true) &&
-					this.hasHadInput &&
+					this._hasHadInput &&
 					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
 					this._notificationService.prompt(
 						Severity.Info,
@@ -942,7 +940,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public async sendText(text: string, addNewLine: boolean): Promise<void> {
 		// Normalize line endings to 'enter' press.
-		text = text.replace(TerminalInstance.EOL_REGEX, '\r');
+		text = text.replace(/\r?\n/g, '\r');
 		if (addNewLine && text.substr(text.length - 1) !== '\r') {
 			text += '\r';
 		}
