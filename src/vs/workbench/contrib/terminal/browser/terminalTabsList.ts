@@ -100,7 +100,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 
-		// Set the selection to whatever is right clicked if it is not inside the selection
+		// on right click, set the focus to that element
+		// unless multi-selection is in progress
 		this.onContextMenu(e => {
 			if (!e.element) {
 				this.setSelection([]);
