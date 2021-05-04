@@ -122,7 +122,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
 	}
 
-	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
+	public async getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		return {
 			shell: this.getDefaultShell(useAutomationShell, configProvider),
