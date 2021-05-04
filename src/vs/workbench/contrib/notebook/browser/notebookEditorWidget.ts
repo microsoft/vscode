@@ -1712,13 +1712,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 		const { selected } = this.notebookKernelService.getMatchingKernel(this.viewModel.notebookDocument);
-		if (!selected || !selected.preloadUris.length) {
-			return;
-		}
 		if (!this._webview?.isResolved()) {
 			await this._resolveWebview();
 		}
-		this._webview?.updateKernelPreloads([selected.localResourceRoot], selected.preloadUris);
+		this._webview?.updateKernelPreloads(selected);
 	}
 
 	get activeKernel() {
@@ -2133,7 +2130,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
-		await this._webview.showMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop, cell.contentHash);
+		await this._webview.showMarkdownPreview({
+			cellHandle: cell.handle,
+			cellId: cell.id,
+			content: cell.getText(),
+			offset: cellTop,
+		});
 	}
 
 	async unhideMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {
