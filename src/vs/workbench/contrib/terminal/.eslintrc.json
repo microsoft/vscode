@@ -1,6 +1,5 @@
 {
 	"rules": {
-		"prefer-const": "warn",
 		"@typescript-eslint/naming-convention": [
 			"warn",
 			// variableLike
