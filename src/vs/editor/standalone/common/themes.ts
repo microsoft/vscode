@@ -145,8 +145,7 @@ export const vs_dark: IStandaloneThemeData = {
 		[editorInactiveSelection]: '#3A3D41',
 		[editorIndentGuides]: '#404040',
 		[editorActiveIndentGuides]: '#707070',
-		[editorSelectionHighlight]: '#ADD6FF26',
-		[listFocusHighlightForeground]: '#ff0000'
+		[editorSelectionHighlight]: '#ADD6FF26'
 	}
 };
 /* -------------------------------- End vs-dark theme -------------------------------- */
