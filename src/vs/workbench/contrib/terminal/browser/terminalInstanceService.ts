@@ -17,30 +17,30 @@ let Unicode11Addon: typeof XTermUnicode11Addon;
 let WebglAddon: typeof XTermWebglAddon;
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
 
-	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
+	async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
 			Terminal = (await import('xterm')).Terminal;
 		}
 		return Terminal;
 	}
 
-	public async getXtermSearchConstructor(): Promise<typeof XTermSearchAddon> {
+	async getXtermSearchConstructor(): Promise<typeof XTermSearchAddon> {
 		if (!SearchAddon) {
 			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
 		}
 		return SearchAddon;
 	}
 
-	public async getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon> {
+	async getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon> {
 		if (!Unicode11Addon) {
 			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
 		}
 		return Unicode11Addon;
 	}
 
-	public async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
+	async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
 		if (!WebglAddon) {
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
 		}

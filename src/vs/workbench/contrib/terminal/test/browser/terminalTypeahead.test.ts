@@ -388,35 +388,35 @@ suite('Workbench - Terminal Typeahead', () => {
 });
 
 class TestTypeAheadAddon extends TypeAheadAddon {
-	public unlockMakingPredictions() {
+	unlockMakingPredictions() {
 		this._lastRow = { y: 1, startingX: 100, endingX: 100, charState: CharPredictState.Validated };
 	}
 
-	public lockMakingPredictions() {
+	lockMakingPredictions() {
 		this._lastRow = undefined;
 	}
 
-	public unlockNavigating() {
+	unlockNavigating() {
 		this._lastRow = { y: 1, startingX: 1, endingX: 1, charState: CharPredictState.Validated };
 	}
 
-	public reevaluateNow() {
+	reevaluateNow() {
 		this._reevaluatePredictorStateNow(this.stats!, this._timeline!);
 	}
 
-	public get isShowing() {
+	get isShowing() {
 		return !!this._timeline?.isShowingPredictions;
 	}
 
-	public undoAllPredictions() {
+	undoAllPredictions() {
 		this._timeline?.undoAllPredictions();
 	}
 
-	public physicalCursor(buffer: IBuffer) {
+	physicalCursor(buffer: IBuffer) {
 		return this._timeline?.physicalCursor(buffer);
 	}
 
-	public tentativeCursor(buffer: IBuffer) {
+	tentativeCursor(buffer: IBuffer) {
 		return this._timeline?.tentativeCursor(buffer);
 	}
 }

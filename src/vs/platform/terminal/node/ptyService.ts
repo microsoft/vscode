@@ -297,9 +297,9 @@ export class PersistentTerminalProcess extends Disposable {
 	constructor(
 		private _persistentProcessId: number,
 		private readonly _terminalProcess: TerminalProcess,
-		public readonly workspaceId: string,
-		public readonly workspaceName: string,
-		public readonly shouldPersistTerminal: boolean,
+		readonly workspaceId: string,
+		readonly workspaceName: string,
+		readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
 		private readonly _logService: ILogService,
 		private readonly _icon?: string

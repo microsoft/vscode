@@ -473,7 +473,7 @@ export class TerminalTabbedView extends Disposable {
 		];
 	}
 
-	public focusTabs(): void {
+	focusTabs(): void {
 		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabsWidget.getSelection();
 		this._tabsWidget.domFocus();
@@ -482,7 +482,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	public focusFindWidget() {
+	focusFindWidget() {
 		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
@@ -492,13 +492,13 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	public hideFindWidget() {
+	hideFindWidget() {
 		this._findWidgetVisible.reset();
 		this.focus();
 		this._findWidget!.hide();
 	}
 
-	public showFindWidget() {
+	showFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget!.show(activeInstance.selection);
@@ -507,10 +507,10 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	public getFindWidget(): TerminalFindWidget {
+	getFindWidget(): TerminalFindWidget {
 		return this._findWidget!;
 	}
-	public focus() {
+	focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
 			// be focused. So wait for connection to finish, then focus.
