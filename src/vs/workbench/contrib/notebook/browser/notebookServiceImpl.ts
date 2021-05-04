@@ -148,7 +148,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 				if (data) {
 					notebookUri = data.notebook;
-					cellOptions = { resource: resource };
+					cellOptions = { resource: resource, options: options };
 				}
 
 				const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions });

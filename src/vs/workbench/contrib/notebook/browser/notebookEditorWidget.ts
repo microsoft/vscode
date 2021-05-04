@@ -925,7 +925,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const cell = this.viewModel.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
 				this.focusElement(cell);
-				await this.revealInCenterIfOutsideViewportAsync(cell);
+				const selection = cellOptions.options?.selection;
+				if (selection) {
+					await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
+				} else {
+					await this.revealInCenterIfOutsideViewportAsync(cell);
+				}
+
 				const editor = this._renderedEditors.get(cell)!;
 				if (editor) {
 					if (cellOptions.options?.selection) {
