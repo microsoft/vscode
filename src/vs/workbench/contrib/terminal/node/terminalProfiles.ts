@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalProfile, ITerminalProfileObject, ProfileSource, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -29,8 +29,8 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, safeCon
 			configuredProfilesOnly,
 			fsProvider,
 			logService,
-			safeConfigProvider(TERMINAL_SETTING_ID.UseWslProfiles) || true,
-			safeConfigProvider(TERMINAL_SETTING_ID.ProfilesWindows),
+			safeConfigProvider(TerminalSettingId.UseWslProfiles) || true,
+			safeConfigProvider(TerminalSettingId.ProfilesWindows),
 			variableResolver,
 			workspaceFolder
 		);
@@ -39,7 +39,7 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, safeCon
 		fsProvider,
 		logService,
 		configuredProfilesOnly,
-		safeConfigProvider(isMacintosh ? TERMINAL_SETTING_ID.ProfilesMacOs : TERMINAL_SETTING_ID.ProfilesLinux),
+		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
 		testPaths,
 		variableResolver,
 		workspaceFolder

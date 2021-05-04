@@ -343,21 +343,21 @@ export interface ITerminalProcessManager extends IDisposable {
 
 export const enum ProcessState {
 	// The process has not been initialized yet.
-	UNINITIALIZED,
+	Uninitialized,
 	// The process is currently launching, the process is marked as launching
 	// for a short duration after being created and is helpful to indicate
 	// whether the process died as a result of bad shell and args.
-	LAUNCHING,
+	Launching,
 	// The process is running normally.
-	RUNNING,
+	Running,
 	// The process was killed during launch, likely as a result of bad shell and
 	// args.
-	KILLED_DURING_LAUNCH,
+	KilledDuringLaunch,
 	// The process was killed by the user (the event originated from VS Code).
-	KILLED_BY_USER,
+	KilledByUser,
 	// The process was killed by itself, for example the shell crashed or `exit`
 	// was run.
-	KILLED_BY_PROCESS
+	KilledByProcess
 }
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
@@ -406,7 +406,7 @@ export enum TitleEventSource {
 
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
-export const enum TERMINAL_SETTING_ID {
+export const enum TerminalSettingId {
 	ShellLinux = 'terminal.integrated.shell.linux',
 	ShellMacOs = 'terminal.integrated.shell.osx',
 	ShellWindows = 'terminal.integrated.shell.windows',
@@ -477,7 +477,7 @@ export const enum TERMINAL_SETTING_ID {
 	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration'
 }
 
-export const enum TERMINAL_COMMAND_ID {
+export const enum TerminalCommandId {
 	FindNext = 'workbench.action.terminal.findNext',
 	FindPrevious = 'workbench.action.terminal.findPrevious',
 	Toggle = 'workbench.action.terminal.toggleTerminal',
@@ -555,57 +555,57 @@ export const enum TERMINAL_COMMAND_ID {
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
-	TERMINAL_COMMAND_ID.ClearSelection,
-	TERMINAL_COMMAND_ID.Clear,
-	TERMINAL_COMMAND_ID.CopySelection,
-	TERMINAL_COMMAND_ID.DeleteToLineStart,
-	TERMINAL_COMMAND_ID.DeleteWordLeft,
-	TERMINAL_COMMAND_ID.DeleteWordRight,
-	TERMINAL_COMMAND_ID.FindFocus,
-	TERMINAL_COMMAND_ID.FindHide,
-	TERMINAL_COMMAND_ID.FindNext,
-	TERMINAL_COMMAND_ID.FindPrevious,
-	TERMINAL_COMMAND_ID.ToggleFindRegex,
-	TERMINAL_COMMAND_ID.ToggleFindWholeWord,
-	TERMINAL_COMMAND_ID.ToggleFindCaseSensitive,
-	TERMINAL_COMMAND_ID.FocusNextPane,
-	TERMINAL_COMMAND_ID.FocusNext,
-	TERMINAL_COMMAND_ID.FocusPreviousPane,
-	TERMINAL_COMMAND_ID.FocusPrevious,
-	TERMINAL_COMMAND_ID.Focus,
-	TERMINAL_COMMAND_ID.Kill,
-	TERMINAL_COMMAND_ID.MoveToLineEnd,
-	TERMINAL_COMMAND_ID.MoveToLineStart,
-	TERMINAL_COMMAND_ID.NewInActiveWorkspace,
-	TERMINAL_COMMAND_ID.New,
-	TERMINAL_COMMAND_ID.Paste,
-	TERMINAL_COMMAND_ID.PasteSelection,
-	TERMINAL_COMMAND_ID.ResizePaneDown,
-	TERMINAL_COMMAND_ID.ResizePaneLeft,
-	TERMINAL_COMMAND_ID.ResizePaneRight,
-	TERMINAL_COMMAND_ID.ResizePaneUp,
-	TERMINAL_COMMAND_ID.RunActiveFile,
-	TERMINAL_COMMAND_ID.RunSelectedText,
-	TERMINAL_COMMAND_ID.ScrollDownLine,
-	TERMINAL_COMMAND_ID.ScrollDownPage,
-	TERMINAL_COMMAND_ID.ScrollToBottom,
-	TERMINAL_COMMAND_ID.ScrollToNextCommand,
-	TERMINAL_COMMAND_ID.ScrollToPreviousCommand,
-	TERMINAL_COMMAND_ID.ScrollToTop,
-	TERMINAL_COMMAND_ID.ScrollUpLine,
-	TERMINAL_COMMAND_ID.ScrollUpPage,
-	TERMINAL_COMMAND_ID.SendSequence,
-	TERMINAL_COMMAND_ID.SelectAll,
-	TERMINAL_COMMAND_ID.SelectToNextCommand,
-	TERMINAL_COMMAND_ID.SelectToNextLine,
-	TERMINAL_COMMAND_ID.SelectToPreviousCommand,
-	TERMINAL_COMMAND_ID.SelectToPreviousLine,
-	TERMINAL_COMMAND_ID.SplitInActiveWorkspace,
-	TERMINAL_COMMAND_ID.Split,
-	TERMINAL_COMMAND_ID.Toggle,
-	TERMINAL_COMMAND_ID.NavigationModeExit,
-	TERMINAL_COMMAND_ID.NavigationModeFocusNext,
-	TERMINAL_COMMAND_ID.NavigationModeFocusPrevious,
+	TerminalCommandId.ClearSelection,
+	TerminalCommandId.Clear,
+	TerminalCommandId.CopySelection,
+	TerminalCommandId.DeleteToLineStart,
+	TerminalCommandId.DeleteWordLeft,
+	TerminalCommandId.DeleteWordRight,
+	TerminalCommandId.FindFocus,
+	TerminalCommandId.FindHide,
+	TerminalCommandId.FindNext,
+	TerminalCommandId.FindPrevious,
+	TerminalCommandId.ToggleFindRegex,
+	TerminalCommandId.ToggleFindWholeWord,
+	TerminalCommandId.ToggleFindCaseSensitive,
+	TerminalCommandId.FocusNextPane,
+	TerminalCommandId.FocusNext,
+	TerminalCommandId.FocusPreviousPane,
+	TerminalCommandId.FocusPrevious,
+	TerminalCommandId.Focus,
+	TerminalCommandId.Kill,
+	TerminalCommandId.MoveToLineEnd,
+	TerminalCommandId.MoveToLineStart,
+	TerminalCommandId.NewInActiveWorkspace,
+	TerminalCommandId.New,
+	TerminalCommandId.Paste,
+	TerminalCommandId.PasteSelection,
+	TerminalCommandId.ResizePaneDown,
+	TerminalCommandId.ResizePaneLeft,
+	TerminalCommandId.ResizePaneRight,
+	TerminalCommandId.ResizePaneUp,
+	TerminalCommandId.RunActiveFile,
+	TerminalCommandId.RunSelectedText,
+	TerminalCommandId.ScrollDownLine,
+	TerminalCommandId.ScrollDownPage,
+	TerminalCommandId.ScrollToBottom,
+	TerminalCommandId.ScrollToNextCommand,
+	TerminalCommandId.ScrollToPreviousCommand,
+	TerminalCommandId.ScrollToTop,
+	TerminalCommandId.ScrollUpLine,
+	TerminalCommandId.ScrollUpPage,
+	TerminalCommandId.SendSequence,
+	TerminalCommandId.SelectAll,
+	TerminalCommandId.SelectToNextCommand,
+	TerminalCommandId.SelectToNextLine,
+	TerminalCommandId.SelectToPreviousCommand,
+	TerminalCommandId.SelectToPreviousLine,
+	TerminalCommandId.SplitInActiveWorkspace,
+	TerminalCommandId.Split,
+	TerminalCommandId.Toggle,
+	TerminalCommandId.NavigationModeExit,
+	TerminalCommandId.NavigationModeFocusNext,
+	TerminalCommandId.NavigationModeFocusPrevious,
 	'editor.action.toggleTabFocusMode',
 	'workbench.action.quickOpen',
 	'workbench.action.quickOpenPreviousEditor',

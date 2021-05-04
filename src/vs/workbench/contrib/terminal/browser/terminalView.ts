@@ -21,7 +21,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ITerminalProfile, TERMINAL_COMMAND_ID, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfile, TerminalCommandId, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -109,12 +109,12 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement.appendChild(this._fontStyleElement);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TERMINAL_SETTING_ID.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
+			if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
 				const configHelper = this._terminalService.configHelper;
 				if (!configHelper.configFontIsMonospace()) {
 					const choices: IPromptChoice[] = [{
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
-						run: () => this.configurationService.updateValue(TERMINAL_SETTING_ID.FontFamily, 'monospace'),
+						run: () => this.configurationService.updateValue(TerminalSettingId.FontFamily, 'monospace'),
 					}];
 					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts. Be sure to restart VS Code if this is a newly installed font."), choices);
 				}
@@ -173,15 +173,15 @@ export class TerminalViewPane extends ViewPane {
 
 	public override getActionViewItem(action: Action): IActionViewItem | undefined {
 		switch (action.id) {
-			case TERMINAL_COMMAND_ID.SwitchTerminal: {
+			case TerminalCommandId.SwitchTerminal: {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 			}
-			case TERMINAL_COMMAND_ID.Focus: {
+			case TerminalCommandId.Focus: {
 				const actions: IAction[] = [];
 				createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
 				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 			}
-			case TERMINAL_COMMAND_ID.CreateWithProfileButton: {
+			case TerminalCommandId.CreateWithProfileButton: {
 				if (this._tabButtons) {
 					this._tabButtons.dispose();
 				}
@@ -210,8 +210,8 @@ export class TerminalViewPane extends ViewPane {
 		const submenuActions: IAction[] = [];
 
 		for (const p of profiles) {
-			dropdownActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NewWithProfile, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
-			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.Split, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
 		for (const contributed of this._terminalContributionService.terminalTypes) {
@@ -232,7 +232,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}
 
-		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.New, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.New, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
 		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
 		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
 	}

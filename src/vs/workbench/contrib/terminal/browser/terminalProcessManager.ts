@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalConfiguration, TERMINAL_CONFIG_SECTION, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalConfiguration, TERMINAL_CONFIG_SECTION, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -52,7 +52,7 @@ enum ProcessType {
  * - Shell Process: The pseudoterminal child process (ie. the shell)
  */
 export class TerminalProcessManager extends Disposable implements ITerminalProcessManager {
-	public processState: ProcessState = ProcessState.UNINITIALIZED;
+	public processState: ProcessState = ProcessState.Uninitialized;
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number | undefined;
 	public remoteAuthority: string | undefined;
@@ -152,7 +152,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
 			// killed by the user.
-			this.processState = ProcessState.KILLED_BY_USER;
+			this.processState = ProcessState.KilledByUser;
 			this._process.shutdown(immediate);
 			this._process = null;
 		}
@@ -238,19 +238,19 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					});
 					const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 					const configuration: ICompleteTerminalConfiguration = {
-						'terminal.integrated.automationShell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.AutomationShellWindows) as string,
-						'terminal.integrated.automationShell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.AutomationShellMacOs) as string,
-						'terminal.integrated.automationShell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.AutomationShellLinux) as string,
-						'terminal.integrated.shell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.ShellWindows) as string,
-						'terminal.integrated.shell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.ShellMacOs) as string,
-						'terminal.integrated.shell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.ShellLinux) as string,
-						'terminal.integrated.shellArgs.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.ShellArgsWindows) as string | string[],
-						'terminal.integrated.shellArgs.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.ShellArgsMacOs) as string | string[],
-						'terminal.integrated.shellArgs.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.ShellArgsLinux) as string | string[],
-						'terminal.integrated.env.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.EnvWindows) as ITerminalEnvironment,
-						'terminal.integrated.env.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.EnvMacOs) as ITerminalEnvironment,
-						'terminal.integrated.env.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.EnvLinux) as ITerminalEnvironment,
-						'terminal.integrated.cwd': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.Cwd) as string,
+						'terminal.integrated.automationShell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.AutomationShellWindows) as string,
+						'terminal.integrated.automationShell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.AutomationShellMacOs) as string,
+						'terminal.integrated.automationShell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.AutomationShellLinux) as string,
+						'terminal.integrated.shell.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellWindows) as string,
+						'terminal.integrated.shell.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellMacOs) as string,
+						'terminal.integrated.shell.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellLinux) as string,
+						'terminal.integrated.shellArgs.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellArgsWindows) as string | string[],
+						'terminal.integrated.shellArgs.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellArgsMacOs) as string | string[],
+						'terminal.integrated.shellArgs.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.ShellArgsLinux) as string | string[],
+						'terminal.integrated.env.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.EnvWindows) as ITerminalEnvironment,
+						'terminal.integrated.env.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.EnvMacOs) as ITerminalEnvironment,
+						'terminal.integrated.env.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.EnvLinux) as ITerminalEnvironment,
+						'terminal.integrated.cwd': this._terminalProfileResolverService.getSafeConfigValueFullKey(TerminalSettingId.Cwd) as string,
 						'terminal.integrated.detectLocale': terminalConfig.detectLocale
 					};
 					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
@@ -288,7 +288,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		this._process = newProcess;
 
-		this.processState = ProcessState.LAUNCHING;
+		this.processState = ProcessState.Launching;
 
 		this._dataFilter.newProcess(this._process, reset);
 
@@ -319,8 +319,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		setTimeout(() => {
-			if (this.processState === ProcessState.LAUNCHING) {
-				this.processState = ProcessState.RUNNING;
+			if (this.processState === ProcessState.Launching) {
+				this.processState = ProcessState.Running;
 			}
 		}, LAUNCHING_DURATION);
 
@@ -541,14 +541,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// If the process is marked as launching then mark the process as killed
 		// during launch. This typically means that there is a problem with the
 		// shell and args.
-		if (this.processState === ProcessState.LAUNCHING) {
-			this.processState = ProcessState.KILLED_DURING_LAUNCH;
+		if (this.processState === ProcessState.Launching) {
+			this.processState = ProcessState.KilledDuringLaunch;
 		}
 
 		// If TerminalInstance did not know about the process exit then it was
 		// triggered by the process, not on VS Code's side.
-		if (this.processState === ProcessState.RUNNING) {
-			this.processState = ProcessState.KILLED_BY_PROCESS;
+		if (this.processState === ProcessState.Running) {
+			this.processState = ProcessState.KilledByProcess;
 		}
 
 		this._onProcessExit.fire(exitCode);

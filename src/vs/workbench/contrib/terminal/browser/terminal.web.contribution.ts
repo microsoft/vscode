@@ -5,7 +5,7 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalProfileResolverService, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { BrowserTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
 
@@ -14,7 +14,7 @@ registerSingleton(ITerminalProfileResolverService, BrowserTerminalProfileResolve
 // Register standard external terminal keybinding as integrated terminal when in web as the
 // external terminal is not available
 KeybindingsRegistry.registerKeybindingRule({
-	id: TERMINAL_COMMAND_ID.New,
+	id: TerminalCommandId.New,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C

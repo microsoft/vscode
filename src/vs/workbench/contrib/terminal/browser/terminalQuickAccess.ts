@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
@@ -52,7 +52,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 						trigger: buttonIndex => {
 							switch (buttonIndex) {
 								case 0:
-									this._commandService.executeCommand(TERMINAL_COMMAND_ID.Rename, terminal);
+									this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
 									return TriggerAction.NO_ACTION;
 								case 1:
 									terminal.dispose(true);
@@ -78,13 +78,13 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		terminalPicks.push({
 			label: `$(plus) ${createTerminalLabel}`,
 			ariaLabel: createTerminalLabel,
-			accept: () => this._commandService.executeCommand(TERMINAL_COMMAND_ID.New)
+			accept: () => this._commandService.executeCommand(TerminalCommandId.New)
 		});
 		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile");
 		terminalPicks.push({
 			label: `$(plus) ${createWithProfileLabel}`,
 			ariaLabel: createWithProfileLabel,
-			accept: () => this._commandService.executeCommand(TERMINAL_COMMAND_ID.NewWithProfile)
+			accept: () => this._commandService.executeCommand(TerminalCommandId.NewWithProfile)
 		});
 
 		return terminalPicks;

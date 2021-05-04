@@ -25,7 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -173,13 +173,13 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TERMINAL_SETTING_ID.ProfilesWindows) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.ProfilesMacOs) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.ProfilesLinux) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.DefaultProfileWindows) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.DefaultProfileMacOs) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.DefaultProfileLinux) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.UseWslProfiles)) {
+			if (e.affectsConfiguration(TerminalSettingId.ProfilesWindows) ||
+				e.affectsConfiguration(TerminalSettingId.ProfilesMacOs) ||
+				e.affectsConfiguration(TerminalSettingId.ProfilesLinux) ||
+				e.affectsConfiguration(TerminalSettingId.DefaultProfileWindows) ||
+				e.affectsConfiguration(TerminalSettingId.DefaultProfileMacOs) ||
+				e.affectsConfiguration(TerminalSettingId.DefaultProfileLinux) ||
+				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this._refreshAvailableProfiles();
 			}
 		});
@@ -705,7 +705,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public showTabs() {
-		this._configurationService.updateValue(TERMINAL_SETTING_ID.TabsEnabled, true);
+		this._configurationService.updateValue(TerminalSettingId.TabsEnabled, true);
 	}
 
 	private _getIndexFromId(terminalId: number): number {
