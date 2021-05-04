@@ -84,7 +84,7 @@ suite('vscode API - debug', function () {
 		await configurationDonePromise;
 
 		await firstVariablesRetrieved;
-		assert.notEqual(debug.activeDebugSession, undefined);
+		assert.notStrictEqual(debug.activeDebugSession, undefined);
 		assert.strictEqual(stoppedEvents, 1);
 
 		const secondVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
@@ -92,7 +92,7 @@ suite('vscode API - debug', function () {
 		await secondVariablesRetrieved;
 		assert.strictEqual(stoppedEvents, 2);
 		const editor = window.activeTextEditor;
-		assert.notEqual(editor, undefined);
+		assert.notStrictEqual(editor, undefined);
 		assert.strictEqual(basename(editor!.document.fileName), 'debug.js');
 
 		const thirdVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
