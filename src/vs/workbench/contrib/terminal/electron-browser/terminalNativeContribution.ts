@@ -9,7 +9,6 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
 
 export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
@@ -24,12 +23,5 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		super();
 
 		this._terminalService.setLinuxDistro(linuxDistro);
-		this._terminalService.setNativeWindowsDelegate({
-			getWindowsBuildNumber: this._getWindowsBuildNumber.bind(this)
-		});
-	}
-
-	private _getWindowsBuildNumber(): number {
-		return getWindowsBuildNumber();
 	}
 }

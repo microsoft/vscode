@@ -231,16 +231,6 @@ export interface IRemoteTerminalAttachTarget {
 	icon: string | undefined;
 }
 
-/**
- * Provides access to native Windows calls that can be injected into non-native layers.
- */
-export interface ITerminalNativeWindowsDelegate {
-	/**
-	 * Gets the Windows build number, eg. this would be `19041` for Windows 10 version 2004
-	 */
-	getWindowsBuildNumber(): number;
-}
-
 export interface ICommandTracker {
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
