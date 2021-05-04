@@ -32,8 +32,7 @@ const height = 800;
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 
 async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
-	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), args });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });

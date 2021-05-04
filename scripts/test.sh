@@ -6,8 +6,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	ROOT=$(dirname $(dirname $(realpath "$0")))
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	# Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox.
-	LINUX_EXTRA_ARGS="--no-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
+	LINUX_EXTRA_ARGS="--disable-dev-shm-usage --use-gl=swiftshader"
 fi
 
 cd $ROOT
