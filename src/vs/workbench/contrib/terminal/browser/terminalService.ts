@@ -25,8 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -42,6 +41,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -75,7 +75,6 @@ export class TerminalService implements ITerminalService {
 
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
-	private _nativeWindowsDelegate: ITerminalNativeWindowsDelegate | undefined;
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
@@ -300,14 +299,6 @@ export class TerminalService implements ITerminalService {
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
 		this.onInstanceProcessIdReady(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-	}
-
-	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {
-		this._nativeWindowsDelegate = delegate;
-	}
-
-	public setLinuxDistro(linuxDistro: LinuxDistro): void {
-		this._configHelper.setLinuxDistro(linuxDistro);
 	}
 
 	private _handleInstanceContextKeys(): void {
@@ -744,7 +735,7 @@ export class TerminalService implements ITerminalService {
 		return !res.confirmed;
 	}
 
-	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string, shellType: TerminalShellType): Promise<string> {
+	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> {
 		return new Promise<string>(c => {
 			if (!executable) {
 				c(originalPath);
@@ -776,28 +767,22 @@ export class TerminalService implements ITerminalService {
 				if (shellType !== undefined) {
 					if (shellType === WindowsShellType.GitBash) {
 						c(originalPath.replace(/\\/g, '/'));
-						return;
 					}
 					else if (shellType === WindowsShellType.Wsl) {
-						if (this._nativeWindowsDelegate && this._nativeWindowsDelegate.getWindowsBuildNumber() >= 17063) {
-							c(this._nativeWindowsDelegate.getWslPath(originalPath));
-						} else {
-							c(originalPath.replace(/\\/g, '/'));
-						}
-						return;
+						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+						c(offProcService?.getWslPath(originalPath) || originalPath);
 					}
 
-					if (hasSpace) {
+					else if (hasSpace) {
 						c('"' + originalPath + '"');
 					} else {
 						c(originalPath);
 					}
 				} else {
 					const lowerExecutable = executable.toLowerCase();
-					if (this._nativeWindowsDelegate && this._nativeWindowsDelegate.getWindowsBuildNumber() >= 17063 &&
-						(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
-						c(this._nativeWindowsDelegate.getWslPath(originalPath));
-						return;
+					if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
+						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+						c(offProcService?.getWslPath(originalPath) || originalPath);
 					} else if (hasSpace) {
 						c('"' + originalPath + '"');
 					} else {

@@ -37,7 +37,6 @@ export interface ICompleteTerminalConfiguration {
 	'terminal.integrated.env.windows': ITerminalEnvironment;
 	'terminal.integrated.env.osx': ITerminalEnvironment;
 	'terminal.integrated.env.linux': ITerminalEnvironment;
-	'terminal.integrated.inheritEnv': boolean;
 	'terminal.integrated.cwd': string;
 	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
 }
@@ -237,8 +236,12 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$getDefaultSystemShell', [osOverride]);
 	}
 
-	public getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._channel.call('$getShellEnvironment');
+	public getEnvironment(): Promise<IProcessEnvironment> {
+		return this._channel.call('$getEnvironment');
+	}
+
+	public getWslPath(original: string): Promise<string> {
+		return this._channel.call('$getWslPath', [original]);
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {

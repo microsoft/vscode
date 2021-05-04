@@ -15,7 +15,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -120,7 +120,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IPathService private readonly _pathService: IPathService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
@@ -204,7 +203,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// Create variable resolver
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 			const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-			const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getShellEnvironment(this.remoteAuthority), this._configurationResolverService);
+			const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
 
 			// resolvedUserHome is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
@@ -251,7 +250,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						'terminal.integrated.env.windows': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.EnvWindows) as ITerminalEnvironment,
 						'terminal.integrated.env.osx': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.EnvMacOs) as ITerminalEnvironment,
 						'terminal.integrated.env.linux': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.EnvLinux) as ITerminalEnvironment,
-						'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
 						'terminal.integrated.cwd': this._terminalProfileResolverService.getSafeConfigValueFullKey(TERMINAL_SETTING_ID.Cwd) as string,
 						'terminal.integrated.detectLocale': terminalConfig.detectLocale
 					};
@@ -358,9 +356,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const envFromConfigValue = this._terminalProfileResolverService.getSafeConfigValue('env', OS) as ITerminalEnvironment | undefined;
 		this._configHelper.showRecommendations(shellLaunchConfig);
-		const baseEnv = await (this._configHelper.config.inheritEnv
-			? this._terminalProfileResolverService.getShellEnvironment(this.remoteAuthority)
-			: this._terminalInstanceService.getMainProcessParentEnv());
+		const baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
 		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
@@ -410,7 +406,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
-
 		return await localTerminalService.createProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
 	}
 

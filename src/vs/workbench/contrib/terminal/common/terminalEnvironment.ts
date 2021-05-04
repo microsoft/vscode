@@ -237,16 +237,6 @@ function _sanitizeCwd(cwd: string): string {
 	return cwd;
 }
 
-export function escapeNonWindowsPath(path: string): string {
-	let newPath = path;
-	if (newPath.indexOf('\\') !== 0) {
-		newPath = newPath.replace(/\\/g, '\\\\');
-	}
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
-	newPath = newPath.replace(bannedChars, '');
-	return `'${newPath}'`;
-}
-
 export type TerminalShellSetting = (
 	TERMINAL_SETTING_ID.AutomationShellWindows
 	| TERMINAL_SETTING_ID.AutomationShellMacOs

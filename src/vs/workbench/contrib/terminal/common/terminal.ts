@@ -99,7 +99,7 @@ export interface ITerminalProfileResolverService {
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
-	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
+	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 
 	// TODO: Remove when workspace trust is enabled
 	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined;
@@ -171,7 +171,6 @@ export interface ITerminalConfiguration {
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;
-	inheritEnv: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
@@ -230,21 +229,6 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceName: string;
 	isOrphan: boolean;
 	icon: string | undefined;
-}
-
-/**
- * Provides access to native Windows calls that can be injected into non-native layers.
- */
-export interface ITerminalNativeWindowsDelegate {
-	/**
-	 * Gets the Windows build number, eg. this would be `19041` for Windows 10 version 2004
-	 */
-	getWindowsBuildNumber(): number;
-	/**
-	 * Converts a regular Windows path into the WSL path equivalent, eg. `C:\` -> `/mnt/c`
-	 * @param path The Windows path.
-	 */
-	getWslPath(path: string): Promise<string>;
 }
 
 export interface ICommandTracker {
@@ -411,12 +395,6 @@ export interface IDefaultShellAndArgsRequest {
 	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
-export enum LinuxDistro {
-	Fedora,
-	Ubuntu,
-	Unknown
-}
-
 export enum TitleEventSource {
 	/** From the API or the rename command that overrides any other type */
 	Api,
@@ -479,7 +457,6 @@ export const enum TERMINAL_SETTING_ID {
 	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
 	AllowChords = 'terminal.integrated.allowChords',
 	AllowMnemonics = 'terminal.integrated.allowMnemonics',
-	InheritEnv = 'terminal.integrated.inheritEnv',
 	EnvMacOs = 'terminal.integrated.env.osx',
 	EnvLinux = 'terminal.integrated.env.linux',
 	EnvWindows = 'terminal.integrated.env.windows',

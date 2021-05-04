@@ -183,6 +183,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
+	public get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	public get icon(): Codicon | undefined { return this._getIcon(); }
 
 	private readonly _onExit = new Emitter<number | undefined>();

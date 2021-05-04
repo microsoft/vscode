@@ -1592,7 +1592,7 @@ export class TestTerminalProfileResolverService implements ITerminalProfileResol
 	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { return { path: '/default', profileName: 'Default' }; }
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { return '/default'; }
 	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { return []; }
-	async getShellEnvironment(): Promise<IProcessEnvironment> { return process.env; }
+	async getEnvironment(): Promise<IProcessEnvironment> { return process.env; }
 	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { return undefined; }
 	getSafeConfigValueFullKey(key: string): unknown | undefined { return undefined; }
 }
@@ -1611,7 +1611,8 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
-	getShellEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
+	getEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
+	getWslPath(original: string): Promise<string> { throw new Error('Method not implemented.'); }
 	async setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById) { throw new Error('Method not implemented.'); }
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
 	async reduceConnectionGraceTime(): Promise<void> { throw new Error('Method not implemented.'); }
