@@ -90,17 +90,21 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 
+		// on left click, if focus mode = single click, focus the element
+		// unless multi-selection is in progress
 		this.onMouseClick(e => {
-			// If focus mode is single click focus the element unless a multi-select in happening
 			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
-			if (focusMode === 'singleClick') {
+			if (e.browserEvent.altKey && e.element) {
+				this._terminalService.splitInstance(e.element);
+			} else if (focusMode === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
 				}
 			}
 		});
 
-		// Set the selection to whatever is right clicked if it is not inside the selection
+		// on right click, set the focus to that element
+		// unless multi-selection is in progress
 		this.onContextMenu(e => {
 			if (!e.element) {
 				this.setSelection([]);
@@ -108,7 +112,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 			const selection = this.getSelectedElements();
 			if (!selection || !selection.find(s => e.element === s)) {
-				this.setSelection(e.index !== undefined ? [e.index] : []);
+				this.setFocus(e.index !== undefined ? [e.index] : []);
 			}
 		});
 
