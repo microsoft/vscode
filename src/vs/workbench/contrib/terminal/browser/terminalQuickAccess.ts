@@ -28,11 +28,11 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		const terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		const terminalGroups = this.terminalService.terminalGroups;
-		for (let tabIndex = 0; tabIndex < terminalGroups.length; tabIndex++) {
-			const terminalGroup = terminalGroups[tabIndex];
+		for (let groupIndex = 0; groupIndex < terminalGroups.length; groupIndex++) {
+			const terminalGroup = terminalGroups[groupIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				const label = `$(${terminal.icon?.id}) ${tabIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
+				const label = `$(${terminal.icon?.id}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
 
 				const highlights = matchesFuzzy(filter, label, true);
 				if (highlights) {

@@ -136,14 +136,14 @@ export class TerminalViewPane extends ViewPane {
 				}
 
 				if (hadTerminals) {
-					this._terminalService.getActiveTab()?.setVisible(visible);
+					this._terminalService.getActiveGroup()?.setVisible(visible);
 				} else {
 					// TODO@Tyriar - this call seems unnecessary
 					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
 				this._terminalService.showPanel(true);
 			} else {
-				this._terminalService.getActiveTab()?.setVisible(false);
+				this._terminalService.getActiveGroup()?.setVisible(false);
 			}
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);

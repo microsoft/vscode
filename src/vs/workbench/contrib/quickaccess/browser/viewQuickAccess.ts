@@ -147,9 +147,9 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		}
 
 		// Terminals
-		this.terminalService.terminalGroups.forEach((tab, tabIndex) => {
-			tab.terminalInstances.forEach((terminal, terminalIndex) => {
-				const label = localize('terminalTitle', "{0}: {1}", `${tabIndex + 1}.${terminalIndex + 1}`, terminal.title);
+		this.terminalService.terminalGroups.forEach((group, groupIndex) => {
+			group.terminalInstances.forEach((terminal, terminalIndex) => {
+				const label = localize('terminalTitle', "{0}: {1}", `${groupIndex + 1}.${terminalIndex + 1}`, terminal.title);
 				viewEntries.push({
 					label,
 					containerLabel: localize('terminals', "Terminal"),
