@@ -36,11 +36,9 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 		super();
 	}
 
-	public openTerminal(cwd?: string): void {
-		if (this._configurationService) {
-			const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
-			this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
-		}
+	public openTerminal(cwd?: string): Promise<void> {
+		const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
+		return this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
 	}
 
 	public spawnTerminal(spawner: typeof cp, configuration: IExternalTerminalConfiguration, command: string, cwd?: string): Promise<void> {
@@ -131,11 +129,9 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 		super();
 	}
 
-	public openTerminal(cwd?: string): void {
-		if (this._configurationService) {
-			const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
-			this.spawnTerminal(cp, configuration, cwd);
-		}
+	public openTerminal(cwd?: string): Promise<void> {
+		const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
+		return this.spawnTerminal(cp, configuration, cwd);
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
@@ -228,12 +224,9 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 		super();
 	}
 
-	// used by linux / osx
-	public openTerminal(cwd?: string): void {
-		if (this._configurationService) {
-			const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
-			this.spawnTerminal(cp, configuration, cwd);
-		}
+	public openTerminal(cwd?: string): Promise<void> {
+		const configuration = this._configurationService.getValue<IExternalTerminalConfiguration>();
+		return this.spawnTerminal(cp, configuration, cwd);
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
