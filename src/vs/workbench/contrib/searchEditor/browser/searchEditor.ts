@@ -83,7 +83,7 @@ export class SearchEditor extends BaseTextEditor {
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
 	private messageDisposables: DisposableStore;
-	private container: HTMLElement;
+	private readonly container = DOM.$('.search-editor');
 	private searchModel: SearchModel;
 	private ongoingOperations: number = 0;
 
@@ -106,18 +106,21 @@ export class SearchEditor extends BaseTextEditor {
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
-		this.container = DOM.$('.search-editor');
 
-		const scopedContextKeyService = assertIsDefined(this.scopedContextKeyService);
-		this.inSearchEditorContextKey = InSearchEditor.bindTo(scopedContextKeyService);
+		this.inSearchEditorContextKey = InSearchEditor.bindTo(this.scopedContextKeyService);
 		this.inSearchEditorContextKey.set(true);
-		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(scopedContextKeyService);
+		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(this.scopedContextKeyService);
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
 		this._register(this.messageDisposables = new DisposableStore());
 
 		this.searchHistoryDelayer = new Delayer<void>(2000);
 
 		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
+	}
+
+	private _scopedContextKeyService = this.contextKeyService.createScoped(this.container);
+	override get scopedContextKeyService(): IContextKeyService {
+		return this._scopedContextKeyService;
 	}
 
 	override createEditor(parent: HTMLElement) {
