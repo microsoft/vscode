@@ -475,8 +475,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set value(value: string) {
 		if (this._value !== value) {
 			this._value = value || '';
-			this.onDidChangeValueEmitter.fire(this._value);
 			this.update();
+			this.onDidChangeValueEmitter.fire(this._value);
 		}
 	}
 
