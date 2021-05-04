@@ -200,7 +200,7 @@ export class TerminalLinkManager extends DisposableStore {
 		if (uri.scheme === Schemas.file) {
 			// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
 			const fsPath = uri.fsPath;
-			this._handleLocalLink(((this.osPath.sep === posix.sep) && isWindows) ? fsPath.replace(/\\/g, posix.sep) : fsPath);
+			this._handleLocalLink(((this._osPath.sep === posix.sep) && isWindows) ? fsPath.replace(/\\/g, posix.sep) : fsPath);
 			return;
 		}
 
@@ -263,7 +263,7 @@ export class TerminalLinkManager extends DisposableStore {
 		return markdown.appendMarkdown(`[${label}](${uri}) (${clickLabel})`);
 	}
 
-	private get osPath(): IPath {
+	private get _osPath(): IPath {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
 		}
@@ -282,7 +282,7 @@ export class TerminalLinkManager extends DisposableStore {
 			if (!this._processManager.userHome) {
 				return null;
 			}
-			link = this.osPath.join(this._processManager.userHome, link.substring(1));
+			link = this._osPath.join(this._processManager.userHome, link.substring(1));
 		} else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
 			// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
 			if (this._processManager.os === OperatingSystem.Windows) {
@@ -291,7 +291,7 @@ export class TerminalLinkManager extends DisposableStore {
 						// Abort if no workspace is open
 						return null;
 					}
-					link = this.osPath.join(this._processCwd, link);
+					link = this._osPath.join(this._processCwd, link);
 				} else {
 					// Remove \\?\ from paths so that they share the same underlying
 					// uri and don't open multiple tabs for the same file
@@ -302,10 +302,10 @@ export class TerminalLinkManager extends DisposableStore {
 					// Abort if no workspace is open
 					return null;
 				}
-				link = this.osPath.join(this._processCwd, link);
+				link = this._osPath.join(this._processCwd, link);
 			}
 		}
-		link = this.osPath.normalize(link);
+		link = this._osPath.normalize(link);
 
 		return link;
 	}

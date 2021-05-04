@@ -6,7 +6,7 @@
 import { ConfigurationScope, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
@@ -53,12 +53,12 @@ export const terminalConfiguration: IConfigurationNode = {
 	title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 	type: 'object',
 	properties: {
-		[TERMINAL_SETTING_ID.SendKeybindingsToShell]: {
+		[TerminalSettingId.SendKeybindingsToShell]: {
 			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding `#terminal.integrated.commandsToSkipShell#`, which can be used alternatively for fine tuning."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.AutomationShellLinux]: {
+		[TerminalSettingId.AutomationShellLinux]: {
 			restricted: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',
@@ -67,7 +67,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: ['string', 'null'],
 			default: null
 		},
-		[TERMINAL_SETTING_ID.AutomationShellMacOs]: {
+		[TerminalSettingId.AutomationShellMacOs]: {
 			restricted: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.osx',
@@ -76,7 +76,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: ['string', 'null'],
 			default: null
 		},
-		[TERMINAL_SETTING_ID.AutomationShellWindows]: {
+		[TerminalSettingId.AutomationShellWindows]: {
 			restricted: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.windows',
@@ -85,28 +85,28 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: ['string', 'null'],
 			default: null
 		},
-		[TERMINAL_SETTING_ID.ShellLinux]: {
+		[TerminalSettingId.ShellLinux]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: ['string', 'null'],
 			default: null,
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
 		},
-		[TERMINAL_SETTING_ID.ShellMacOs]: {
+		[TerminalSettingId.ShellMacOs]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: ['string', 'null'],
 			default: null,
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
 		},
-		[TERMINAL_SETTING_ID.ShellWindows]: {
+		[TerminalSettingId.ShellWindows]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: ['string', 'null'],
 			default: null,
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
 		},
-		[TERMINAL_SETTING_ID.ShellArgsLinux]: {
+		[TerminalSettingId.ShellArgsLinux]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
@@ -116,7 +116,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: [],
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
 		},
-		[TERMINAL_SETTING_ID.ShellArgsMacOs]: {
+		[TerminalSettingId.ShellArgsMacOs]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
@@ -129,7 +129,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: ['-l'],
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
 		},
-		[TERMINAL_SETTING_ID.ShellArgsWindows]: {
+		[TerminalSettingId.ShellArgsWindows]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			'anyOf': [
@@ -148,7 +148,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: [],
 			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
 		},
-		[TERMINAL_SETTING_ID.ProfilesWindows]: {
+		[TerminalSettingId.ProfilesWindows]: {
 			restricted: true,
 			markdownDescription: localize(
 				{
@@ -208,7 +208,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				]
 			}
 		},
-		[TERMINAL_SETTING_ID.ProfilesMacOs]: {
+		[TerminalSettingId.ProfilesMacOs]: {
 			restricted: true,
 			markdownDescription: localize(
 				{
@@ -245,7 +245,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				]
 			}
 		},
-		[TERMINAL_SETTING_ID.ProfilesLinux]: {
+		[TerminalSettingId.ProfilesLinux]: {
 			restricted: true,
 			markdownDescription: localize(
 				{
@@ -281,35 +281,35 @@ export const terminalConfiguration: IConfigurationNode = {
 				]
 			}
 		},
-		[TERMINAL_SETTING_ID.DefaultProfileLinux]: {
+		[TerminalSettingId.DefaultProfileLinux]: {
 			description: localize('terminal.integrated.defaultProfile.linux', 'The default profile used on Linux. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
 		},
-		[TERMINAL_SETTING_ID.DefaultProfileMacOs]: {
+		[TerminalSettingId.DefaultProfileMacOs]: {
 			description: localize('terminal.integrated.defaultProfile.osx', 'The default profile used on macOS. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
 		},
-		[TERMINAL_SETTING_ID.DefaultProfileWindows]: {
+		[TerminalSettingId.DefaultProfileWindows]: {
 			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.windows` and `terminal.integrated.shellArgs.windows`.'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
 		},
-		[TERMINAL_SETTING_ID.UseWslProfiles]: {
+		[TerminalSettingId.UseWslProfiles]: {
 			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.TabsEnabled]: {
+		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
 			type: 'boolean',
 			default: true,
 		},
-		[TERMINAL_SETTING_ID.TabsHideCondition]: {
+		[TerminalSettingId.TabsHideCondition]: {
 			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
 			type: 'string',
 			enum: ['never', 'singleTerminal'],
@@ -319,7 +319,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'singleTerminal',
 		},
-		[TERMINAL_SETTING_ID.TabsShowActiveTerminal]: {
+		[TerminalSettingId.TabsShowActiveTerminal]: {
 			description: localize('terminal.integrated.tabs.showActiveTerminal', 'Shows the active terminal information in the view, this is particularly useful when the title within the tabs aren\'t visible.'),
 			type: 'string',
 			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
@@ -331,7 +331,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'singleTerminalOrNarrow',
 		},
-		[TERMINAL_SETTING_ID.TabsLocation]: {
+		[TerminalSettingId.TabsLocation]: {
 			type: 'string',
 			enum: ['left', 'right'],
 			enumDescriptions: [
@@ -341,7 +341,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
-		[TERMINAL_SETTING_ID.TabsFocusMode]: {
+		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
 			enumDescriptions: [
@@ -351,32 +351,32 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: 'doubleClick',
 			description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
 		},
-		[TERMINAL_SETTING_ID.MacOptionIsMeta]: {
+		[TerminalSettingId.MacOptionIsMeta]: {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.MacOptionClickForcesSelection]: {
+		[TerminalSettingId.MacOptionClickForcesSelection]: {
 			description: localize('terminal.integrated.macOptionClickForcesSelection', "Controls whether to force selection when using Option+click on macOS. This will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection, for example, when mouse mode is enabled in tmux."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.AltClickMovesCursor]: {
+		[TerminalSettingId.AltClickMovesCursor]: {
 			markdownDescription: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will reposition the prompt cursor to underneath the mouse when `#editor.multiCursorModifier#` is set to `'alt'` (the default value). This may not work reliably depending on your shell."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.CopyOnSelection]: {
+		[TerminalSettingId.CopyOnSelection]: {
 			description: localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.DrawBoldTextInBrightColors]: {
+		[TerminalSettingId.DrawBoldTextInBrightColors]: {
 			description: localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.FontFamily]: {
+		[TerminalSettingId.FontFamily]: {
 			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to `#editor.fontFamily#`'s value."),
 			type: 'string'
 		},
@@ -386,42 +386,42 @@ export const terminalConfiguration: IConfigurationNode = {
 		// 	'type': 'boolean',
 		// 	'default': false
 		// },
-		[TERMINAL_SETTING_ID.FontSize]: {
+		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
 			default: EDITOR_FONT_DEFAULTS.fontSize
 		},
-		[TERMINAL_SETTING_ID.LetterSpacing]: {
+		[TerminalSettingId.LetterSpacing]: {
 			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal, this is an integer value which represents the amount of additional pixels to add between characters."),
 			type: 'number',
 			default: DEFAULT_LETTER_SPACING
 		},
-		[TERMINAL_SETTING_ID.LineHeight]: {
+		[TerminalSettingId.LineHeight]: {
 			description: localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multiplied by the terminal font size to get the actual line-height in pixels."),
 			type: 'number',
 			default: DEFAULT_LINE_HEIGHT
 		},
-		[TERMINAL_SETTING_ID.MinimumContrastRatio]: {
+		[TerminalSettingId.MinimumContrastRatio]: {
 			markdownDescription: localize('terminal.integrated.minimumContrastRatio', "When set the foreground color of each cell will change to try meet the contrast ratio specified. Example values:\n\n- 1: The default, do nothing.\n- 4.5: [WCAG AA compliance (minimum)](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast-contrast.html).\n- 7: [WCAG AAA compliance (enhanced)](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast7.html).\n- 21: White on black or black on white."),
 			type: 'number',
 			default: 1
 		},
-		[TERMINAL_SETTING_ID.FastScrollSensitivity]: {
+		[TerminalSettingId.FastScrollSensitivity]: {
 			markdownDescription: localize('terminal.integrated.fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`."),
 			type: 'number',
 			default: 5
 		},
-		[TERMINAL_SETTING_ID.MouseWheelScrollSensitivity]: {
+		[TerminalSettingId.MouseWheelScrollSensitivity]: {
 			markdownDescription: localize('terminal.integrated.mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaY` of mouse wheel scroll events."),
 			type: 'number',
 			default: 1
 		},
-		[TERMINAL_SETTING_ID.BellDuration]: {
+		[TerminalSettingId.BellDuration]: {
 			markdownDescription: localize('terminal.integrated.bellDuration', "The number of milliseconds to show the bell within a terminal tab when triggered."),
 			type: 'number',
 			default: 1000
 		},
-		[TERMINAL_SETTING_ID.FontWeight]: {
+		[TerminalSettingId.FontWeight]: {
 			'anyOf': [
 				{
 					type: 'number',
@@ -440,7 +440,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 			default: 'normal'
 		},
-		[TERMINAL_SETTING_ID.FontWeightBold]: {
+		[TerminalSettingId.FontWeightBold]: {
 			'anyOf': [
 				{
 					type: 'number',
@@ -459,27 +459,27 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 			default: 'bold'
 		},
-		[TERMINAL_SETTING_ID.CursorBlinking]: {
+		[TerminalSettingId.CursorBlinking]: {
 			description: localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.CursorStyle]: {
+		[TerminalSettingId.CursorStyle]: {
 			description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor."),
 			enum: [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
 			default: TerminalCursorStyle.BLOCK
 		},
-		[TERMINAL_SETTING_ID.CursorWidth]: {
+		[TerminalSettingId.CursorWidth]: {
 			markdownDescription: localize('terminal.integrated.cursorWidth', "Controls the width of the cursor when `#terminal.integrated.cursorStyle#` is set to `line`."),
 			type: 'number',
 			default: 1
 		},
-		[TERMINAL_SETTING_ID.Scrollback]: {
+		[TerminalSettingId.Scrollback]: {
 			description: localize('terminal.integrated.scrollback', "Controls the maximum amount of lines the terminal keeps in its buffer."),
 			type: 'number',
 			default: 1000
 		},
-		[TERMINAL_SETTING_ID.DetectLocale]: {
+		[TerminalSettingId.DetectLocale]: {
 			markdownDescription: localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since VS Code's terminal only supports UTF-8 encoded data coming from the shell."),
 			type: 'string',
 			enum: ['auto', 'off', 'on'],
@@ -490,7 +490,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'auto'
 		},
-		[TERMINAL_SETTING_ID.GpuAcceleration]: {
+		[TerminalSettingId.GpuAcceleration]: {
 			type: 'string',
 			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
@@ -501,7 +501,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
 		},
-		[TERMINAL_SETTING_ID.RightClickBehavior]: {
+		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',
 			enum: ['default', 'copyPaste', 'paste', 'selectWord'],
 			enumDescriptions: [
@@ -513,23 +513,23 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: isMacintosh ? 'selectWord' : isWindows ? 'copyPaste' : 'default',
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
 		},
-		[TERMINAL_SETTING_ID.Cwd]: {
+		[TerminalSettingId.Cwd]: {
 			restricted: true,
 			description: localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
 			type: 'string',
 			default: undefined
 		},
-		[TERMINAL_SETTING_ID.ConfirmOnExit]: {
+		[TerminalSettingId.ConfirmOnExit]: {
 			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.EnableBell]: {
+		[TerminalSettingId.EnableBell]: {
 			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.CommandsToSkipShell]: {
+		[TerminalSettingId.CommandsToSkipShell]: {
 			markdownDescription: localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by VS Code. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open.\n\n&nbsp;\n\nMany commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell.\n\n&nbsp;\n\nThe following list of default skipped commands is truncated when viewed in Settings Editor. To see the full list, [open the default settings JSON](command:workbench.action.openRawDefaultSettings 'Open Default Settings (JSON)') and search for the first command from the list below.\n\n&nbsp;\n\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
 			type: 'array',
 			items: {
@@ -537,17 +537,17 @@ export const terminalConfiguration: IConfigurationNode = {
 			},
 			default: []
 		},
-		[TERMINAL_SETTING_ID.AllowChords]: {
+		[TerminalSettingId.AllowChords]: {
 			markdownDescription: localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass `#terminal.integrated.commandsToSkipShell#`, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code)."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.AllowMnemonics]: {
+		[TerminalSettingId.AllowMnemonics]: {
 			markdownDescription: localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes to skip the shell when true. This does nothing on macOS."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.EnvMacOs]: {
+		[TerminalSettingId.EnvMacOs]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 			type: 'object',
@@ -556,7 +556,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			},
 			default: {}
 		},
-		[TERMINAL_SETTING_ID.EnvLinux]: {
+		[TerminalSettingId.EnvLinux]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 			type: 'object',
@@ -565,7 +565,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			},
 			default: {}
 		},
-		[TERMINAL_SETTING_ID.EnvWindows]: {
+		[TerminalSettingId.EnvWindows]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 			type: 'object',
@@ -574,7 +574,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			},
 			default: {}
 		},
-		[TERMINAL_SETTING_ID.EnvironmentChangesIndicator]: {
+		[TerminalSettingId.EnvironmentChangesIndicator]: {
 			markdownDescription: localize('terminal.integrated.environmentChangesIndicator', "Whether to display the environment changes indicator on each terminal which explains whether extensions have made, or want to make changes to the terminal's environment."),
 			type: 'string',
 			enum: ['off', 'on', 'warnonly'],
@@ -585,17 +585,17 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'warnonly'
 		},
-		[TERMINAL_SETTING_ID.EnvironmentChangesRelaunch]: {
+		[TerminalSettingId.EnvironmentChangesRelaunch]: {
 			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.ShowExitAlert]: {
+		[TerminalSettingId.ShowExitAlert]: {
 			description: localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.SplitCwd]: {
+		[TerminalSettingId.SplitCwd]: {
 			description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
 			type: 'string',
 			enum: ['workspaceRoot', 'initial', 'inherited'],
@@ -606,27 +606,27 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'inherited'
 		},
-		[TERMINAL_SETTING_ID.WindowsEnableConpty]: {
+		[TerminalSettingId.WindowsEnableConpty]: {
 			description: localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.WordSeparators]: {
+		[TerminalSettingId.WordSeparators]: {
 			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
 			type: 'string',
 			default: ' ()[]{}\',"`─'
 		},
-		[TERMINAL_SETTING_ID.ExperimentalUseTitleEvent]: {
+		[TerminalSettingId.ExperimentalUseTitleEvent]: {
 			description: localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
 			type: 'boolean',
 			default: false
 		},
-		[TERMINAL_SETTING_ID.EnableFileLinks]: {
+		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.UnicodeVersion]: {
+		[TerminalSettingId.UnicodeVersion]: {
 			type: 'string',
 			enum: ['6', '11'],
 			enumDescriptions: [
@@ -636,18 +636,18 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: '11',
 			description: localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		},
-		[TERMINAL_SETTING_ID.ExperimentalLinkProvider]: {
+		[TerminalSettingId.ExperimentalLinkProvider]: {
 			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that aims to improve link detection in the terminal by improving when links are detected and by enabling shared link detection with the editor. Currently this only supports web links."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.LocalEchoLatencyThreshold]: {
+		[TerminalSettingId.LocalEchoLatencyThreshold]: {
 			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
 			minimum: -1,
 			default: 30,
 		},
-		[TERMINAL_SETTING_ID.LocalEchoExcludePrograms]: {
+		[TerminalSettingId.LocalEchoExcludePrograms]: {
 			description: localize('terminal.integrated.localEchoExcludePrograms', "Experimental: local echo will be disabled when any of these program names are found in the terminal title."),
 			type: 'array',
 			items: {
@@ -656,7 +656,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			},
 			default: DEFAULT_LOCAL_ECHO_EXCLUDE,
 		},
-		[TERMINAL_SETTING_ID.LocalEchoStyle]: {
+		[TerminalSettingId.LocalEchoStyle]: {
 			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),
 			default: 'dim',
 			oneOf: [
@@ -672,12 +672,12 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			]
 		},
-		[TERMINAL_SETTING_ID.EnablePersistentSessions]: {
+		[TerminalSettingId.EnablePersistentSessions]: {
 			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions for the workspace across window reloads."),
 			type: 'boolean',
 			default: true
 		},
-		[TERMINAL_SETTING_ID.AllowWorkspaceConfiguration]: {
+		[TerminalSettingId.AllowWorkspaceConfiguration]: {
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('terminal.integrated.allowWorkspaceConfiguration', "Allows shell and profile settings to be pick up from a workspace."),
 			type: 'boolean',

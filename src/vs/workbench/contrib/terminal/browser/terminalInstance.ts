@@ -24,7 +24,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -85,8 +85,6 @@ interface IGridDimensions {
 }
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
-	private static readonly EOL_REGEX = /\r?\n/g;
-
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
 	private static _instanceIdCounter = 1;
@@ -135,7 +133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _timeoutDimension: dom.Dimension | undefined;
 
-	private hasHadInput: boolean;
+	private _hasHadInput: boolean;
 
 	public readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	public disableLayout: boolean;
@@ -248,7 +246,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isDisposed = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
 
-		this.hasHadInput = false;
+		this._hasHadInput = false;
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
 		});
@@ -292,13 +290,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// supported.
 				this.setVisible(this._isVisible);
 			}
-			if (e.affectsConfiguration(TERMINAL_SETTING_ID.UnicodeVersion)) {
+			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
 			}
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
 			}
-			if (e.affectsConfiguration(TERMINAL_SETTING_ID.GpuAcceleration)) {
+			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
 				this._storageService.remove(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
 			}
 		}));
@@ -491,8 +489,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermCore = (xterm as any)._core as XTermCore;
 		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
-		this._terminalInstanceService.getXtermSearchConstructor().then(Addon => {
-			this._xtermSearch = new Addon();
+		this._terminalInstanceService.getXtermSearchConstructor().then(addonCtor => {
+			this._xtermSearch = new addonCtor();
 			xterm.loadAddon(this._xtermSearch);
 		});
 		if (this._shellLaunchConfig.initialText) {
@@ -586,7 +584,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 	}
 
-	public async _attachToElement(container: HTMLElement): Promise<void> {
+	private async _attachToElement(container: HTMLElement): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
 
 		if (this._wrapperElement) {
@@ -645,7 +643,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				!event.ctrlKey &&
 				!event.shiftKey &&
 				!event.altKey) {
-				this.hasHadInput = true;
+				this._hasHadInput = true;
 			}
 
 			// for keyboard events that resolve to commands described
@@ -653,7 +651,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (resolveResult && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.GLOBAL, true) &&
-					this.hasHadInput &&
+					this._hasHadInput &&
 					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
 					this._notificationService.prompt(
 						Severity.Info,
@@ -662,7 +660,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							{
 								label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
 								run: () => {
-									this._preferencesService.openSettings(false, `@id:${TERMINAL_SETTING_ID.CommandsToSkipShell},${TERMINAL_SETTING_ID.SendKeybindingsToShell},${TERMINAL_SETTING_ID.AllowChords}`);
+									this._preferencesService.openSettings(false, `@id:${TerminalSettingId.CommandsToSkipShell},${TerminalSettingId.SendKeybindingsToShell},${TerminalSettingId.AllowChords}`);
 								}
 							} as IPromptChoice
 						]
@@ -763,7 +761,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					const promptChoices: IPromptChoice[] = [
 						{
 							label: nls.localize('yes', "Yes"),
-							run: () => this._configurationService.updateValue(TERMINAL_SETTING_ID.GpuAcceleration, 'off', ConfigurationTarget.USER)
+							run: () => this._configurationService.updateValue(TerminalSettingId.GpuAcceleration, 'off', ConfigurationTarget.USER)
 						} as IPromptChoice,
 						{
 							label: nls.localize('no', "No"),
@@ -942,7 +940,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public async sendText(text: string, addNewLine: boolean): Promise<void> {
 		// Normalize line endings to 'enter' press.
-		text = text.replace(TerminalInstance.EOL_REGEX, '\r');
+		text = text.replace(/\r?\n/g, '\r');
 		if (addNewLine && text.substr(text.length - 1) !== '\r') {
 			text += '\r';
 		}
@@ -1137,7 +1135,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 				}
 
-				if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
+				if (this._processManager.processState === ProcessState.KilledDuringLaunch) {
 					if (commandLine) {
 						exitCodeMessage = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1}).", commandLine, this._exitCode);
 						break;
@@ -1161,7 +1159,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
-		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KILLED_BY_USER) {
+		if (this._shellLaunchConfig.waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
 				if (exitCodeMessage) {
 					xterm.writeln(exitCodeMessage);
@@ -1178,7 +1176,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			this.dispose();
 			if (exitCodeMessage) {
-				const failedDuringLaunch = this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH;
+				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || this._configHelper.config.showExitAlert) {
 					// Always show launch failures
 					this._notificationService.notify({
@@ -1326,7 +1324,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _onSelectionChange(): Promise<void> {
-		if (this._configurationService.getValue(TERMINAL_SETTING_ID.CopyOnSelection)) {
+		if (this._configurationService.getValue(TerminalSettingId.CopyOnSelection)) {
 			if (this.hasSelection()) {
 				await this.copySelection();
 			}

@@ -229,7 +229,6 @@ class SplitPane implements IView {
 export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _splitPaneContainer: SplitPaneContainer | undefined;
-	private get splitPaneContainer(): SplitPaneContainer | undefined { return this._splitPaneContainer; }
 	private _tabElement: HTMLElement | undefined;
 	private _panelPosition: Position = Position.BOTTOM;
 	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
@@ -300,7 +299,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
-		const isHorizontal = this.splitPaneContainer?.orientation === Orientation.HORIZONTAL;
+		const isHorizontal = this._splitPaneContainer?.orientation === Orientation.HORIZONTAL;
 		const instances = this.terminalInstances.filter(instance => typeof instance.persistentProcessId === 'number' && instance.shouldPersist);
 		const totalSize = instances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
 		return {

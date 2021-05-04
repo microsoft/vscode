@@ -25,7 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -173,13 +173,13 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TERMINAL_SETTING_ID.ProfilesWindows) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.ProfilesMacOs) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.ProfilesLinux) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.DefaultProfileWindows) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.DefaultProfileMacOs) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.DefaultProfileLinux) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.UseWslProfiles)) {
+			if (e.affectsConfiguration(TerminalSettingId.ProfilesWindows) ||
+				e.affectsConfiguration(TerminalSettingId.ProfilesMacOs) ||
+				e.affectsConfiguration(TerminalSettingId.ProfilesLinux) ||
+				e.affectsConfiguration(TerminalSettingId.DefaultProfileWindows) ||
+				e.affectsConfiguration(TerminalSettingId.DefaultProfileMacOs) ||
+				e.affectsConfiguration(TerminalSettingId.DefaultProfileLinux) ||
+				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this._refreshAvailableProfiles();
 			}
 		});
@@ -236,7 +236,7 @@ export class TerminalService implements ITerminalService {
 		this._telemetryService.publicLog('terminalReconnection', data);
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
-		this.attachProcessLayoutListeners(true);
+		this._attachProcessLayoutListeners(true);
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
@@ -250,7 +250,7 @@ export class TerminalService implements ITerminalService {
 		}
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
-		this.attachProcessLayoutListeners(false);
+		this._attachProcessLayoutListeners(false);
 	}
 
 	private _recreateTerminalTabs(layoutInfo?: ITerminalsLayoutInfo): number {
@@ -292,7 +292,7 @@ export class TerminalService implements ITerminalService {
 		return reconnectCounter;
 	}
 
-	private attachProcessLayoutListeners(isRemote: boolean): void {
+	private _attachProcessLayoutListeners(isRemote: boolean): void {
 		this.onActiveTabChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 		this.onActiveInstanceChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 		this.onInstancesChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
@@ -705,7 +705,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public showTabs() {
-		this._configurationService.updateValue(TERMINAL_SETTING_ID.TabsEnabled, true);
+		this._configurationService.updateValue(TerminalSettingId.TabsEnabled, true);
 	}
 
 	private _getIndexFromId(terminalId: number): number {

@@ -14,7 +14,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 
@@ -280,7 +280,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this.getSafeConfigValueFullKey(`terminal.integrated.${key}.${this._getOsKey(os)}`);
 	}
 	getSafeConfigValueFullKey(key: string): unknown | undefined {
-		const isWorkspaceConfigAllowed = this._configurationService.getValue(TERMINAL_SETTING_ID.AllowWorkspaceConfiguration);
+		const isWorkspaceConfigAllowed = this._configurationService.getValue(TerminalSettingId.AllowWorkspaceConfiguration);
 		if (isWorkspaceConfigAllowed) {
 			return this._configurationService.getValue(key);
 		} else {

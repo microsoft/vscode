@@ -11,7 +11,7 @@ import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
-import { TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -238,18 +238,18 @@ function _sanitizeCwd(cwd: string): string {
 }
 
 export type TerminalShellSetting = (
-	TERMINAL_SETTING_ID.AutomationShellWindows
-	| TERMINAL_SETTING_ID.AutomationShellMacOs
-	| TERMINAL_SETTING_ID.AutomationShellLinux
-	| TERMINAL_SETTING_ID.ShellWindows
-	| TERMINAL_SETTING_ID.ShellMacOs
-	| TERMINAL_SETTING_ID.ShellLinux
+	TerminalSettingId.AutomationShellWindows
+	| TerminalSettingId.AutomationShellMacOs
+	| TerminalSettingId.AutomationShellLinux
+	| TerminalSettingId.ShellWindows
+	| TerminalSettingId.ShellMacOs
+	| TerminalSettingId.ShellLinux
 );
 
 export type TerminalShellArgsSetting = (
-	TERMINAL_SETTING_ID.ShellArgsWindows
-	| TERMINAL_SETTING_ID.ShellArgsMacOs
-	| TERMINAL_SETTING_ID.ShellArgsLinux
+	TerminalSettingId.ShellArgsWindows
+	| TerminalSettingId.ShellArgsMacOs
+	| TerminalSettingId.ShellArgsLinux
 );
 
 export type VariableResolver = (str: string) => string;
@@ -367,7 +367,7 @@ export function createTerminalEnvironment(
 	baseEnv: IProcessEnvironment
 ): IProcessEnvironment {
 	// Create a terminal environment based on settings, launch config and permissions
-	let env: IProcessEnvironment = {};
+	const env: IProcessEnvironment = {};
 	if (shellLaunchConfig.strictEnv) {
 		// strictEnv is true, only use the requested env (ignoring null entries)
 		mergeNonNullKeys(env, shellLaunchConfig.env);

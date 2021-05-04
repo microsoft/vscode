@@ -150,8 +150,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
-		let result = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
-		return result;
+		return await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
 	}
 
 	private _getWorkspaceId(): string {
