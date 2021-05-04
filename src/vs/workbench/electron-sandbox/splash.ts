@@ -20,7 +20,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { ThrottledDelayer } from 'vs/base/common/async';
 
 export class PartsSplash {
 
@@ -29,7 +28,6 @@ export class PartsSplash {
 	private readonly _disposables = new DisposableStore();
 
 	private _didChangeTitleBarStyle?: boolean;
-	private _savePartsSplashScheduler = this._disposables.add(new ThrottledDelayer<void>(800));
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
@@ -45,10 +43,10 @@ export class PartsSplash {
 			perf.mark('code/didRemovePartsSplash');
 		});
 
-		Event.any(
+		Event.debounce(Event.any(
 			onDidChangeFullscreen,
 			editorGroupsService.onDidLayout
-		)(this._savePartsSplash, this, this._disposables);
+		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
 
 		configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.titleBarStyle')) {
@@ -67,10 +65,6 @@ export class PartsSplash {
 	}
 
 	private _savePartsSplash() {
-		this._savePartsSplashScheduler.trigger(() => this._doSavePartsSplash(), 800);
-	}
-
-	private _doSavePartsSplash(): Promise<void> {
 		const theme = this._themeService.getColorTheme();
 		const baseTheme = getThemeTypeSelector(theme.type);
 		const colorInfo = {
@@ -94,7 +88,7 @@ export class PartsSplash {
 			windowBorder: this._layoutService.hasWindowBorder(),
 			windowBorderRadius: this._layoutService.getWindowBorderRadius()
 		};
-		return this._nativeHostService.saveWindowSplash({
+		this._nativeHostService.saveWindowSplash({
 			baseTheme,
 			colorInfo,
 			layoutInfo
