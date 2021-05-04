@@ -18,16 +18,16 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 	static PREFIX = 'term ';
 
 	constructor(
-		@ITerminalService private readonly terminalService: ITerminalService,
-		@ICommandService private readonly commandService: ICommandService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
 
-	protected getPicks(filter: string): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
+	protected _getPicks(filter: string): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
 		const terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
-		const terminalTabs = this.terminalService.terminalTabs;
+		const terminalTabs = this._terminalService.terminalTabs;
 		for (let tabIndex = 0; tabIndex < terminalTabs.length; tabIndex++) {
 			const terminalTab = terminalTabs[tabIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalTab.terminalInstances.length; terminalIndex++) {
@@ -52,7 +52,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 						trigger: buttonIndex => {
 							switch (buttonIndex) {
 								case 0:
-									this.commandService.executeCommand(TERMINAL_COMMAND_ID.RENAME, terminal);
+									this._commandService.executeCommand(TERMINAL_COMMAND_ID.RENAME, terminal);
 									return TriggerAction.NO_ACTION;
 								case 1:
 									terminal.dispose(true);
@@ -62,8 +62,8 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 							return TriggerAction.NO_ACTION;
 						},
 						accept: (keyMod, event) => {
-							this.terminalService.setActiveInstance(terminal);
-							this.terminalService.showPanel(!event.inBackground);
+							this._terminalService.setActiveInstance(terminal);
+							this._terminalService.showPanel(!event.inBackground);
 						}
 					});
 				}
@@ -78,13 +78,13 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		terminalPicks.push({
 			label: `$(plus) ${createTerminalLabel}`,
 			ariaLabel: createTerminalLabel,
-			accept: () => this.commandService.executeCommand(TERMINAL_COMMAND_ID.NEW)
+			accept: () => this._commandService.executeCommand(TERMINAL_COMMAND_ID.NEW)
 		});
 		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile");
 		terminalPicks.push({
 			label: `$(plus) ${createWithProfileLabel}`,
 			ariaLabel: createWithProfileLabel,
-			accept: () => this.commandService.executeCommand(TERMINAL_COMMAND_ID.NEW_WITH_PROFILE)
+			accept: () => this._commandService.executeCommand(TERMINAL_COMMAND_ID.NEW_WITH_PROFILE)
 		});
 
 		return terminalPicks;

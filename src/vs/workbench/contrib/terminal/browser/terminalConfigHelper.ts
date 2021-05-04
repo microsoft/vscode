@@ -43,9 +43,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -74,15 +74,15 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	public configFontIsMonospace(): boolean {
 		const fontSize = 15;
 		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		const i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
-		const w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
+		const iRect = this._getBoundingRectFor('i', fontFamily, fontSize);
+		const wRect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
 		// Check for invalid bounds, there is no reason to believe the font is not monospace
-		if (!i_rect || !w_rect || !i_rect.width || !w_rect.width) {
+		if (!iRect || !wRect || !iRect.width || !wRect.width) {
 			return true;
 		}
 
-		return i_rect.width === w_rect.width;
+		return iRect.width === wRect.width;
 	}
 
 	private _createCharMeasureElementIfNecessary(): HTMLElement {
@@ -217,21 +217,21 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return r;
 	}
 
-	private recommendationsShown = false;
+	private _recommendationsShown = false;
 
 	public async showRecommendations(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
-		if (this.recommendationsShown) {
+		if (this._recommendationsShown) {
 			return;
 		}
-		this.recommendationsShown = true;
+		this._recommendationsShown = true;
 
 		if (isWindows && shellLaunchConfig.executable && basename(shellLaunchConfig.executable).toLowerCase() === 'wsl.exe') {
-			const exeBasedExtensionTips = this.productService.exeBasedExtensionTips;
+			const exeBasedExtensionTips = this._productService.exeBasedExtensionTips;
 			if (!exeBasedExtensionTips || !exeBasedExtensionTips.wsl) {
 				return;
 			}
 			const extId = Object.keys(exeBasedExtensionTips.wsl.recommendations).find(extId => exeBasedExtensionTips.wsl.recommendations[extId].important);
-			if (extId && ! await this.isExtensionInstalled(extId)) {
+			if (extId && ! await this._isExtensionInstalled(extId)) {
 				this._notificationService.prompt(
 					Severity.Info,
 					nls.localize(
@@ -246,8 +246,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 								}
 								*/
-								this.telemetryService.publicLog('terminalLaunchRecommendation:popup', { userReaction: 'install', extId });
-								this.instantiationService.createInstance(InstallRecommendedExtensionAction, extId).run();
+								this._telemetryService.publicLog('terminalLaunchRecommendation:popup', { userReaction: 'install', extId });
+								this._instantiationService.createInstance(InstallRecommendedExtensionAction, extId).run();
 							}
 						}
 					],
@@ -260,7 +260,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/
-							this.telemetryService.publicLog('terminalLaunchRecommendation:popup', { userReaction: 'cancelled' });
+							this._telemetryService.publicLog('terminalLaunchRecommendation:popup', { userReaction: 'cancelled' });
 						}
 					}
 				);
@@ -268,7 +268,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		}
 	}
 
-	private async isExtensionInstalled(id: string): Promise<boolean> {
+	private async _isExtensionInstalled(id: string): Promise<boolean> {
 		const extensions = await this._extensionManagementService.getInstalled();
 		return extensions.some(e => e.identifier.id === id);
 	}

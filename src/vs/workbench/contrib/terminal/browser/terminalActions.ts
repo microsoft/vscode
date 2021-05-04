@@ -464,11 +464,11 @@ export function registerTerminalActions() {
 			const codeEditorService = accessor.get(ICodeEditorService);
 
 			const instance = terminalService.getActiveOrCreateInstance();
-			let editor = codeEditorService.getActiveCodeEditor();
+			const editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
 			}
-			let selection = editor.getSelection();
+			const selection = editor.getSelection();
 			let text: string;
 			if (selection.isEmpty()) {
 				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
@@ -836,7 +836,7 @@ export function registerTerminalActions() {
 			const labelService = accessor.get(ILabelService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
 			const notificationService = accessor.get(INotificationService);
-			let offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
+			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
 
 			const terms = await offProcTerminalService.listProcesses();
 

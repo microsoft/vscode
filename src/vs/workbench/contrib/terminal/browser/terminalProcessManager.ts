@@ -448,7 +448,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				} else {
 					// For normal terminals write a message indicating what happened and relaunch
 					// using the previous shellLaunchConfig
-					let message = localize('ptyHostRelaunch', "Restarting the terminal because the connection to the shell process was lost...");
+					const message = localize('ptyHostRelaunch', "Restarting the terminal because the connection to the shell process was lost...");
 					this._onProcessData.fire({ data: formatMessageForTerminal(message), trackCommit: false });
 					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, this._isScreenReaderModeEnabled, false);
 				}
