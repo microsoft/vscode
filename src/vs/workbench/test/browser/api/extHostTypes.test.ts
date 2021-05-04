@@ -8,7 +8,6 @@ import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
-import { notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -649,29 +648,10 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
 	});
 
-	test('NotebookMetadata - defaults', function () {
-		const obj = new types.NotebookDocumentMetadata();
-		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
-	});
-
-	test('NotebookMetadata - with', function () {
-		const obj = new types.NotebookDocumentMetadata();
-		const newObj = obj.with({ trusted: false });
-		assert.ok(obj !== newObj);
-		const sameObj = newObj.with({ trusted: false });
-		assert.ok(newObj === sameObj);
-		assert.strictEqual(obj.trusted, true);
-		assert.strictEqual(newObj.trusted, false);
-	});
-
 	test('NotebookMetadata - with custom', function () {
 		const obj = new types.NotebookDocumentMetadata();
-		const newObj = obj.with({ trusted: false, mycustom: { display: 'hello' } });
+		const newObj = obj.with({ mycustom: { display: 'hello' } });
 		assert.ok(obj !== newObj);
-		const sameObj = newObj.with({ trusted: false });
-		assert.ok(newObj === sameObj);
-		assert.strictEqual(obj.trusted, true);
-		assert.strictEqual(newObj.trusted, false);
 		assert.deepStrictEqual(newObj.mycustom, { display: 'hello' });
 	});
 

@@ -317,7 +317,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	abstract enterWorkspace(path: URI): Promise<void>;
 
-	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
+	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		if (!!this.environmentService.extensionTestsLocationURI) {
 			throw new Error('Entering a new workspace is not possible in tests.');
 		}

@@ -2449,7 +2449,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async trust(): Promise<boolean> {
 		return (await this.workspaceTrustRequestService.requestWorkspaceTrust(
 			{
-				modal: true,
 				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
 			})) === true;
 	}

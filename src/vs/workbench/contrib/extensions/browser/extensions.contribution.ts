@@ -72,6 +72,7 @@ import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { Promises } from 'vs/base/common/async';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { ExtensionsCompletionItemsProvider } from 'vs/workbench/contrib/extensions/browser/extensionsCompletionItemsProvider';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -1326,6 +1327,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContributi
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementByWorkspaceTrustRequirement, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 
 // Running Extensions
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);

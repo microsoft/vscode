@@ -276,11 +276,7 @@ export class DebugService implements IDebugService {
 	 */
 	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
 		const message = options && options.noDebug ? nls.localize('runTrust', "Running executes build tasks and program code from your workspace.") : nls.localize('debugTrust', "Debugging executes build tasks and program code from your workspace.");
-		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			modal: true,
-			message,
-
-		});
+		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
 			return false;
 		}

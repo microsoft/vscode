@@ -42,15 +42,8 @@ export class NotebookEditorKernelManager extends Disposable {
 
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
 		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
-		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({
-			modal: true,
-			message
-		});
+		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
-			return;
-		}
-
-		if (!notebook.metadata.trusted) {
 			return;
 		}
 

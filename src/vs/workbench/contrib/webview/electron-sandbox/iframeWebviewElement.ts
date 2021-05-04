@@ -42,11 +42,11 @@ export class ElectronIframeWebview extends IFrameWebview {
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@INotificationService noficationService: INotificationService,
+		@INotificationService notificationService: INotificationService,
 		@INativeHostService nativeHostService: INativeHostService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
-			configurationService, fileService, logService, noficationService, _remoteAuthorityResolverService, requestService, telemetryService, tunnelService, environmentService);
+			configurationService, fileService, logService, notificationService, _remoteAuthorityResolverService, requestService, telemetryService, tunnelService, environmentService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 

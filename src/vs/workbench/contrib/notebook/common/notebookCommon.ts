@@ -61,12 +61,10 @@ export enum NotebookRunState {
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	custom: {},
-	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
 	custom?: { [key: string]: unknown };
-	trusted: boolean;
 	[key: string]: unknown;
 }
 
