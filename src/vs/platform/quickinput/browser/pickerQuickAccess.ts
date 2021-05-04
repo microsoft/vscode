@@ -122,7 +122,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
 			const picksFilter = picker.value.substr(this.prefix.length).trim();
-			const providedPicks = this.getPicks(picksFilter, picksDisposables, picksToken);
+			const providedPicks = this._getPicks(picksFilter, picksDisposables, picksToken);
 
 			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {
 				let items: readonly Pick<T>[];
@@ -330,5 +330,5 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 * @returns the picks either directly, as promise or combined fast and slow results.
 	 * Pickers can return `null` to signal that no change in picks is needed.
 	 */
-	protected abstract getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<T> | Promise<Picks<T>> | FastAndSlowPicks<T> | null;
+	protected abstract _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Picks<T> | Promise<Picks<T>> | FastAndSlowPicks<T> | null;
 }

@@ -48,7 +48,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		});
 	}
 
-	protected getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
+	protected _getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
 		const filteredViewEntries = this.doGetViewPickItems().filter(entry => {
 			if (!filter) {
 				return true;

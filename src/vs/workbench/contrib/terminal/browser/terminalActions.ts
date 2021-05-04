@@ -32,7 +32,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfile, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_SETTING_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfile, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TerminalCommandId, TerminalSettingId, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -105,7 +105,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
+				id: TerminalCommandId.NewInActiveWorkspace,
 				title: { value: localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal (In Active Workspace)"), original: 'Create New Integrated Terminal (In Active Workspace)' },
 				f1: true,
 				category
@@ -126,7 +126,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
+				id: TerminalCommandId.NewWithProfile,
 				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
 				f1: true,
 				category,
@@ -195,7 +195,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SHOW_TABS,
+				id: TerminalCommandId.ShowTabs,
 				title: { value: localize('workbench.action.terminal.showTabs', "Show Tabs"), original: 'Show Tabs' },
 				f1: false,
 				category,
@@ -211,7 +211,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
+				id: TerminalCommandId.FocusPreviousPane,
 				title: { value: localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Pane"), original: 'Focus Previous Pane' },
 				f1: true,
 				category,
@@ -237,7 +237,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
+				id: TerminalCommandId.FocusNextPane,
 				title: { value: localize('workbench.action.terminal.focusNextPane', "Focus Next Pane"), original: 'Focus Next Pane' },
 				f1: true,
 				category,
@@ -263,7 +263,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
+				id: TerminalCommandId.ResizePaneLeft,
 				title: { value: localize('workbench.action.terminal.resizePaneLeft', "Resize Pane Left"), original: 'Resize Pane Left' },
 				f1: true,
 				category,
@@ -283,7 +283,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
+				id: TerminalCommandId.ResizePaneRight,
 				title: { value: localize('workbench.action.terminal.resizePaneRight', "Resize Pane Right"), original: 'Resize Pane Right' },
 				f1: true,
 				category,
@@ -303,7 +303,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
+				id: TerminalCommandId.ResizePaneUp,
 				title: { value: localize('workbench.action.terminal.resizePaneUp', "Resize Pane Up"), original: 'Resize Pane Up' },
 				f1: true,
 				category,
@@ -322,7 +322,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
+				id: TerminalCommandId.ResizePaneDown,
 				title: { value: localize('workbench.action.terminal.resizePaneDown', "Resize Pane Down"), original: 'Resize Pane Down' },
 				f1: true,
 				category,
@@ -341,7 +341,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FOCUS,
+				id: TerminalCommandId.Focus,
 				title: { value: localize('workbench.action.terminal.focus', "Focus Terminal"), original: 'Focus Terminal' },
 				f1: true,
 				category,
@@ -353,20 +353,20 @@ export function registerTerminalActions() {
 					order: 0,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.has(`config.${TERMINAL_SETTING_ID.TabsEnabled}`),
+						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TERMINAL_SETTING_ID.TabsShowActiveTerminal}`, 'singleTerminal'),
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminal'),
 								ContextKeyExpr.equals('terminalCount', 1)
 							),
 							ContextKeyExpr.and(
-								ContextKeyExpr.equals(`config.${TERMINAL_SETTING_ID.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
 									ContextKeyExpr.equals('terminalCount', 1),
 									ContextKeyExpr.has('isTerminalTabsNarrow')
 								)
 							),
-							ContextKeyExpr.equals(`config.${TERMINAL_SETTING_ID.TabsShowActiveTerminal}`, 'always')
+							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
 						)
 					]),
 				}
@@ -385,7 +385,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FOCUS_TABS,
+				id: TerminalCommandId.FocusTabs,
 				title: { value: localize('workbench.action.terminal.focus.tabsView', "Focus Terminal Tabs View"), original: 'Focus Terminal Tabs View' },
 				f1: true,
 				category,
@@ -404,7 +404,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FOCUS_NEXT,
+				id: TerminalCommandId.FocusNext,
 				title: { value: localize('workbench.action.terminal.focusNext', "Focus Next Terminal"), original: 'Focus Next Terminal' },
 				f1: true,
 				category,
@@ -428,7 +428,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
+				id: TerminalCommandId.FocusPrevious,
 				title: { value: localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal"), original: 'Focus Previous Terminal' },
 				f1: true,
 				category,
@@ -452,7 +452,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+				id: TerminalCommandId.RunSelectedText,
 				title: { value: localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal"), original: 'Run Selected Text In Active Terminal' },
 				f1: true,
 				category,
@@ -464,11 +464,11 @@ export function registerTerminalActions() {
 			const codeEditorService = accessor.get(ICodeEditorService);
 
 			const instance = terminalService.getActiveOrCreateInstance();
-			let editor = codeEditorService.getActiveCodeEditor();
+			const editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
 			}
-			let selection = editor.getSelection();
+			const selection = editor.getSelection();
 			let text: string;
 			if (selection.isEmpty()) {
 				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
@@ -483,7 +483,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+				id: TerminalCommandId.RunActiveFile,
 				title: { value: localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal"), original: 'Run Active File In Active Terminal' },
 				f1: true,
 				category,
@@ -508,7 +508,7 @@ export function registerTerminalActions() {
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 			const instance = terminalService.getActiveOrCreateInstance();
-			const path = await terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
+			const path = await terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 			instance.sendText(path, true);
 			return terminalService.showPanel();
 		}
@@ -516,7 +516,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
+				id: TerminalCommandId.ScrollDownLine,
 				title: { value: localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)"), original: 'Scroll Down (Line)' },
 				f1: true,
 				category,
@@ -536,7 +536,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
+				id: TerminalCommandId.ScrollDownPage,
 				title: { value: localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)"), original: 'Scroll Down (Page)' },
 				f1: true,
 				category,
@@ -556,7 +556,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
+				id: TerminalCommandId.ScrollToBottom,
 				title: { value: localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom"), original: 'Scroll to Bottom' },
 				f1: true,
 				category,
@@ -576,7 +576,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
+				id: TerminalCommandId.ScrollUpLine,
 				title: { value: localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)"), original: 'Scroll Up (Line)' },
 				f1: true,
 				category,
@@ -596,7 +596,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+				id: TerminalCommandId.ScrollUpPage,
 				title: { value: localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)"), original: 'Scroll Up (Page)' },
 				f1: true,
 				category,
@@ -616,7 +616,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
+				id: TerminalCommandId.ScrollToTop,
 				title: { value: localize('workbench.action.terminal.scrollToTop', "Scroll to Top"), original: 'Scroll to Top' },
 				f1: true,
 				category,
@@ -636,7 +636,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT,
+				id: TerminalCommandId.NavigationModeExit,
 				title: { value: localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode"), original: 'Exit Navigation Mode' },
 				f1: true,
 				category,
@@ -655,7 +655,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS,
+				id: TerminalCommandId.NavigationModeFocusPrevious,
 				title: { value: localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)"), original: 'Focus Previous Line (Navigation Mode)' },
 				f1: true,
 				category,
@@ -677,7 +677,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT,
+				id: TerminalCommandId.NavigationModeFocusNext,
 				title: { value: localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)"), original: 'Focus Next Line (Navigation Mode)' },
 				f1: true,
 				category,
@@ -699,7 +699,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.CLEAR_SELECTION,
+				id: TerminalCommandId.ClearSelection,
 				title: { value: localize('workbench.action.terminal.clearSelection', "Clear Selection"), original: 'Clear Selection' },
 				f1: true,
 				category,
@@ -721,7 +721,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.CHANGE_ICON,
+				id: TerminalCommandId.ChangeIcon,
 				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon..."), original: 'Change Icon...' },
 				f1: true,
 				category,
@@ -735,7 +735,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.CHANGE_ICON_INSTANCE,
+				id: TerminalCommandId.ChangeIconInstance,
 				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon..."), original: 'Change Icon...' },
 				f1: false,
 				category,
@@ -749,7 +749,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RENAME,
+				id: TerminalCommandId.Rename,
 				title: { value: localize('workbench.action.terminal.rename', "Rename..."), original: 'Rename...' },
 				f1: true,
 				category,
@@ -763,7 +763,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RENAME_INSTANCE,
+				id: TerminalCommandId.RenameInstance,
 				title: { value: localize('workbench.action.terminal.renameInstance', "Rename..."), original: 'Rename...' },
 				f1: false,
 				category,
@@ -785,7 +785,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FIND_FOCUS,
+				id: TerminalCommandId.FindFocus,
 				title: { value: localize('workbench.action.terminal.focusFind', "Focus Find"), original: 'Focus Find' },
 				f1: true,
 				category,
@@ -804,7 +804,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FIND_HIDE,
+				id: TerminalCommandId.FindHide,
 				title: { value: localize('workbench.action.terminal.hideFind', "Hide Find"), original: 'Hide Find' },
 				f1: true,
 				category,
@@ -824,7 +824,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.ATTACH_TO_REMOTE_TERMINAL,
+				id: TerminalCommandId.AttachToRemoteTerminal,
 				title: { value: localize('workbench.action.terminal.attachToRemote', "Attach to Session"), original: 'Attach to Session' },
 				f1: true,
 				category
@@ -836,7 +836,7 @@ export function registerTerminalActions() {
 			const labelService = accessor.get(ILabelService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
 			const notificationService = accessor.get(INotificationService);
-			let offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
+			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
 
 			const terms = await offProcTerminalService.listProcesses();
 
@@ -867,7 +867,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.QUICK_OPEN_TERM,
+				id: TerminalCommandId.QuickOpenTerm,
 				title: { value: localize('quickAccessTerminal', "Switch Active Terminal"), original: 'Switch Active Terminal' },
 				f1: true,
 				category,
@@ -881,7 +881,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
+				id: TerminalCommandId.ScrollToPreviousCommand,
 				title: { value: localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"), original: 'Scroll To Previous Command' },
 				f1: true,
 				category,
@@ -903,7 +903,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
+				id: TerminalCommandId.ScrollToNextCommand,
 				title: { value: localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command"), original: 'Scroll To Next Command' },
 				f1: true,
 				category,
@@ -925,7 +925,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
+				id: TerminalCommandId.SelectToPreviousCommand,
 				title: { value: localize('workbench.action.terminal.selectToPreviousCommand', "Select To Previous Command"), original: 'Select To Previous Command' },
 				f1: true,
 				category,
@@ -947,7 +947,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
+				id: TerminalCommandId.SelectToNextCommand,
 				title: { value: localize('workbench.action.terminal.selectToNextCommand', "Select To Next Command"), original: 'Select To Next Command' },
 				f1: true,
 				category,
@@ -969,7 +969,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
+				id: TerminalCommandId.SelectToPreviousLine,
 				title: { value: localize('workbench.action.terminal.selectToPreviousLine', "Select To Previous Line"), original: 'Select To Previous Line' },
 				f1: true,
 				category,
@@ -986,7 +986,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
+				id: TerminalCommandId.SelectToNextLine,
 				title: { value: localize('workbench.action.terminal.selectToNextLine', "Select To Next Line"), original: 'Select To Next Line' },
 				f1: true,
 				category,
@@ -1003,7 +1003,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.TOGGLE_ESCAPE_SEQUENCE_LOGGING,
+				id: TerminalCommandId.ToggleEscapeSequenceLogging,
 				title: { value: localize('workbench.action.terminal.toggleEscapeSequenceLogging', "Toggle Escape Sequence Logging"), original: 'Toggle Escape Sequence Logging' },
 				f1: true,
 				category,
@@ -1018,7 +1018,7 @@ export function registerTerminalActions() {
 		constructor() {
 			const title = localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
 			super({
-				id: TERMINAL_COMMAND_ID.SEND_SEQUENCE,
+				id: TerminalCommandId.SendSequence,
 				title: { value: title, original: 'Send Custom Sequence To Terminal' },
 				category,
 				description: {
@@ -1045,7 +1045,7 @@ export function registerTerminalActions() {
 		constructor() {
 			const title = localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
 			super({
-				id: TERMINAL_COMMAND_ID.NEW_WITH_CWD,
+				id: TerminalCommandId.NewWithCwd,
 				title: { value: title, original: 'Create New Integrated Terminal Starting in a Custom Working Directory' },
 				category,
 				description: {
@@ -1083,7 +1083,7 @@ export function registerTerminalActions() {
 		constructor() {
 			const title = localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
 			super({
-				id: TERMINAL_COMMAND_ID.RENAME_WITH_ARG,
+				id: TerminalCommandId.RenameWithArgs,
 				title: { value: title, original: 'Rename the Currently Active Terminal' },
 				category,
 				description: {
@@ -1118,7 +1118,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX,
+				id: TerminalCommandId.ToggleFindRegex,
 				title: { value: localize('workbench.action.terminal.toggleFindRegex', "Toggle Find Using Regex"), original: 'Toggle Find Using Regex' },
 				f1: true,
 				category,
@@ -1139,7 +1139,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD,
+				id: TerminalCommandId.ToggleFindWholeWord,
 				title: { value: localize('workbench.action.terminal.toggleFindWholeWord', "Toggle Find Using Whole Word"), original: 'Toggle Find Using Whole Word' },
 				f1: true,
 				category,
@@ -1160,7 +1160,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE,
+				id: TerminalCommandId.ToggleFindCaseSensitive,
 				title: { value: localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle Find Using Case Sensitive"), original: 'Toggle Find Using Case Sensitive' },
 				f1: true,
 				category,
@@ -1181,7 +1181,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FIND_NEXT,
+				id: TerminalCommandId.FindNext,
 				title: { value: localize('workbench.action.terminal.findNext', "Find Next"), original: 'Find Next' },
 				f1: true,
 				category,
@@ -1208,7 +1208,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FIND_PREVIOUS,
+				id: TerminalCommandId.FindPrevious,
 				title: { value: localize('workbench.action.terminal.findPrevious', "Find Previous"), original: 'Find Previous' },
 				f1: true,
 				category,
@@ -1235,7 +1235,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SEARCH_WORKSPACE,
+				id: TerminalCommandId.SearchWorkspace,
 				title: { value: localize('workbench.action.terminal.searchWorkspace', "Search Workspace"), original: 'Search Workspace' },
 				f1: true,
 				category,
@@ -1257,7 +1257,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.RELAUNCH,
+				id: TerminalCommandId.Relaunch,
 				title: { value: localize('workbench.action.terminal.relaunch', "Relaunch Active Terminal"), original: 'Relaunch Active Terminal' },
 				f1: true,
 				category,
@@ -1271,7 +1271,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SHOW_ENVIRONMENT_INFORMATION,
+				id: TerminalCommandId.ShowEnvironmentInformation,
 				title: { value: localize('workbench.action.terminal.showEnvironmentInformation', "Show Environment Information"), original: 'Show Environment Information' },
 				f1: true,
 				category,
@@ -1285,7 +1285,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SPLIT,
+				id: TerminalCommandId.Split,
 				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
 				f1: true,
 				category,
@@ -1326,7 +1326,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SPLIT_INSTANCE,
+				id: TerminalCommandId.SplitInstance,
 				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
 				f1: false,
 				category,
@@ -1356,7 +1356,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
+				id: TerminalCommandId.SplitInActiveWorkspace,
 				title: { value: localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal (In Active Workspace)"), original: 'Split Terminal (In Active Workspace)' },
 				f1: true,
 				category,
@@ -1375,7 +1375,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SELECT_ALL,
+				id: TerminalCommandId.SelectAll,
 				title: { value: localize('workbench.action.terminal.selectAll', "Select All"), original: 'Select All' },
 				f1: true,
 				category,
@@ -1400,7 +1400,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.NEW,
+				id: TerminalCommandId.New,
 				title: { value: localize('workbench.action.terminal.new', "Create New Integrated Terminal"), original: 'Create New Integrated Terminal' },
 				f1: true,
 				category,
@@ -1452,7 +1452,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.KILL,
+				id: TerminalCommandId.Kill,
 				title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
 				f1: true,
 				category,
@@ -1464,7 +1464,7 @@ export function registerTerminalActions() {
 					order: 3,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not(`config.${TERMINAL_SETTING_ID.TabsEnabled}`)
+						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
 					])
 				}
 			});
@@ -1483,7 +1483,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.KILL_INSTANCE,
+				id: TerminalCommandId.KillInstance,
 				title: {
 					value: localize('workbench.action.terminal.kill.short', "Kill Terminal"), original: 'Kill Terminal'
 				},
@@ -1513,7 +1513,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.CLEAR,
+				id: TerminalCommandId.Clear,
 				title: { value: localize('workbench.action.terminal.clear', "Clear"), original: 'Clear' },
 				f1: true,
 				category,
@@ -1538,7 +1538,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_PROFILE,
+				id: TerminalCommandId.SelectDefaultProfile,
 				title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' },
 				f1: true,
 				category,
@@ -1553,8 +1553,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON,
-				title: TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON,
+				id: TerminalCommandId.CreateWithProfileButton,
+				title: TerminalCommandId.CreateWithProfileButton,
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -1575,7 +1575,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
+				id: TerminalCommandId.ConfigureTerminalSettings,
 				title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
 				f1: true,
 				category,
@@ -1592,7 +1592,7 @@ export function registerTerminalActions() {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: TERMINAL_COMMAND_ID.COPY_SELECTION,
+					id: TerminalCommandId.CopySelection,
 					title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
 					f1: true,
 					category,
@@ -1617,7 +1617,7 @@ export function registerTerminalActions() {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: TERMINAL_COMMAND_ID.PASTE,
+					id: TerminalCommandId.Paste,
 					title: { value: localize('workbench.action.terminal.paste', "Paste into Active Terminal"), original: 'Paste into Active Terminal' },
 					f1: true,
 					category,
@@ -1641,7 +1641,7 @@ export function registerTerminalActions() {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: TERMINAL_COMMAND_ID.PASTE_SELECTION,
+					id: TerminalCommandId.PasteSelection,
 					title: { value: localize('workbench.action.terminal.pasteSelection', "Paste Selection into Active Terminal"), original: 'Paste Selection into Active Terminal' },
 					f1: true,
 					category,
@@ -1663,7 +1663,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SWITCH_TERMINAL,
+				id: TerminalCommandId.SwitchTerminal,
 				title: switchTerminalTitle,
 				f1: true,
 				category,
@@ -1682,7 +1682,7 @@ export function registerTerminalActions() {
 				return Promise.resolve(null);
 			}
 			if (item === switchTerminalShowTabsTitle) {
-				accessor.get(IConfigurationService).updateValue(TERMINAL_SETTING_ID.TabsEnabled, true);
+				accessor.get(IConfigurationService).updateValue(TerminalSettingId.TabsEnabled, true);
 				return;
 			}
 			const indexMatches = terminalIndexRe.exec(item);

@@ -23,7 +23,7 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
@@ -113,10 +113,10 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalTabsFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS.bindTo(contextKeyService);
 
 		_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TERMINAL_SETTING_ID.TabsEnabled) ||
-				e.affectsConfiguration(TERMINAL_SETTING_ID.TabsHideCondition)) {
+			if (e.affectsConfiguration(TerminalSettingId.TabsEnabled) ||
+				e.affectsConfiguration(TerminalSettingId.TabsHideCondition)) {
 				this._refreshShowTabs();
-			} else if (e.affectsConfiguration(TERMINAL_SETTING_ID.TabsLocation)) {
+			} else if (e.affectsConfiguration(TerminalSettingId.TabsLocation)) {
 				this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
 				this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
 				if (this._shouldShowTabs()) {
@@ -211,7 +211,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _handleOnDidSashChange(): void {
-		let widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
+		const widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
 		if (!this._width || widgetWidth <= 0) {
 			return;
 		}
@@ -422,7 +422,7 @@ export class TerminalTabbedView extends Disposable {
 
 				const terminal = this._terminalService.getActiveInstance();
 				if (terminal) {
-					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType);
+					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType, terminal.isRemote);
 					terminal.sendText(preparedPath, false);
 					terminal.focus();
 				}
@@ -460,20 +460,20 @@ export class TerminalTabbedView extends Disposable {
 	private _getTabActions(): Action[] {
 		return [
 			new Separator(),
-			this._configurationService.inspect(TERMINAL_SETTING_ID.TabsLocation).userValue === 'left' ?
+			this._configurationService.inspect(TerminalSettingId.TabsLocation).userValue === 'left' ?
 				new Action('moveRight', localize('moveTabsRight', "Move Tabs Right"), undefined, undefined, async () => {
-					this._configurationService.updateValue(TERMINAL_SETTING_ID.TabsLocation, 'right');
+					this._configurationService.updateValue(TerminalSettingId.TabsLocation, 'right');
 				}) :
 				new Action('moveLeft', localize('moveTabsLeft', "Move Tabs Left"), undefined, undefined, async () => {
-					this._configurationService.updateValue(TERMINAL_SETTING_ID.TabsLocation, 'left');
+					this._configurationService.updateValue(TerminalSettingId.TabsLocation, 'left');
 				}),
 			new Action('hideTabs', localize('hideTabs', "Hide Tabs"), undefined, undefined, async () => {
-				this._configurationService.updateValue(TERMINAL_SETTING_ID.TabsEnabled, false);
+				this._configurationService.updateValue(TerminalSettingId.TabsEnabled, false);
 			})
 		];
 	}
 
-	public focusTabs(): void {
+	focusTabs(): void {
 		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabsWidget.getSelection();
 		this._tabsWidget.domFocus();
@@ -482,7 +482,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	public focusFindWidget() {
+	focusFindWidget() {
 		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
@@ -492,13 +492,13 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	public hideFindWidget() {
+	hideFindWidget() {
 		this._findWidgetVisible.reset();
 		this.focus();
 		this._findWidget!.hide();
 	}
 
-	public showFindWidget() {
+	showFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget!.show(activeInstance.selection);
@@ -507,10 +507,10 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	public getFindWidget(): TerminalFindWidget {
+	getFindWidget(): TerminalFindWidget {
 		return this._findWidget!;
 	}
-	public focus() {
+	focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
 			// be focused. So wait for connection to finish, then focus.
