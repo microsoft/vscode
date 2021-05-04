@@ -41,6 +41,7 @@ import { Schemas } from 'vs/base/common/network';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { splitName } from 'vs/base/common/labels';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 
@@ -58,12 +59,23 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
 		if (isWorkspaceTrustEnabled(configurationService)) {
 			this.registerListeners();
-			this.showModalOnStart();
+
+			if (this.hostService.hasFocus) {
+				this.showModalOnStart();
+			} else {
+				const focusDisposable = this.hostService.onDidChangeFocus(focused => {
+					if (focused) {
+						focusDisposable.dispose();
+						this.showModalOnStart();
+					}
+				});
+			}
 		}
 	}
 
