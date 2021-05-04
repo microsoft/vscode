@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { Application } from '../../../../automation';
 
 export function setup() {
-	describe.only('Search', () => {
+	describe('Search', () => {
 		after(function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
