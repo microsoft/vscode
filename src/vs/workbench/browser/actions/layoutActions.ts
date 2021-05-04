@@ -52,16 +52,25 @@ registerAction2(CloseSidebarAction);
 export class ToggleActivityBarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleActivityBarVisibility';
-	static readonly LABEL = localize('toggleActivityBar', "Toggle Activity Bar Visibility");
 
 	private static readonly activityBarVisibleKey = 'workbench.activityBar.visible';
 
 	constructor() {
 		super({
 			id: ToggleActivityBarVisibilityAction.ID,
-			title: { value: ToggleActivityBarVisibilityAction.LABEL, original: 'Toggle Activity Bar Visibility' },
+			title: {
+				value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
+				mnemonicTitle: localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
+				original: 'Toggle Activity Bar Visibility'
+			},
 			category: CATEGORIES.View,
-			f1: true
+			f1: true,
+			toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true),
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 4
+			}
 		});
 	}
 
@@ -78,28 +87,26 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 
 registerAction2(ToggleActivityBarVisibilityAction);
 
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
-	command: {
-		id: ToggleActivityBarVisibilityAction.ID,
-		title: localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
-		toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true)
-	},
-	order: 4
-});
-
 // --- Toggle Centered Layout
 
 class ToggleCenteredLayout extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleCenteredLayout';
-
 	constructor() {
 		super({
-			id: ToggleCenteredLayout.ID,
-			title: { value: localize('toggleCenteredLayout', "Toggle Centered Layout"), original: 'Toggle Centered Layout' },
+			id: 'workbench.action.toggleCenteredLayout',
+			title: {
+				value: localize('toggleCenteredLayout', "Toggle Centered Layout"),
+				mnemonicTitle: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
+				original: 'Toggle Centered Layout'
+			},
 			category: CATEGORIES.View,
-			f1: true
+			f1: true,
+			toggled: IsCenteredLayoutContext,
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '1_toggle_view',
+				order: 3
+			}
 		});
 	}
 
@@ -111,16 +118,6 @@ class ToggleCenteredLayout extends Action2 {
 }
 
 registerAction2(ToggleCenteredLayout);
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '1_toggle_view',
-	command: {
-		id: ToggleCenteredLayout.ID,
-		title: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
-		toggled: IsCenteredLayoutContext
-	},
-	order: 3
-});
 
 // --- Toggle Sidebar Position
 

@@ -47,7 +47,7 @@ export class DiskFileSystemProvider extends Disposable implements
 	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
 
 	constructor(
-		private readonly logService: ILogService,
+		protected readonly logService: ILogService,
 		private readonly options?: IDiskFileSystemProviderOptions
 	) {
 		super();

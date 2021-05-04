@@ -79,7 +79,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.sortText = tsEntry.sortText;
 		}
 
-		// @ts-expect-error until 4.3 protocol update
 		const { sourceDisplay, isSnippet } = tsEntry;
 		if (sourceDisplay) {
 			this.label2 = { name: tsEntry.name, qualifier: Previewer.plainWithLinks(sourceDisplay, client) };
@@ -184,11 +183,9 @@ class MyCompletionItem extends vscode.CompletionItem {
 			const args: Proto.CompletionDetailsRequestArgs = {
 				...typeConverters.Position.toFileLocationRequestArgs(filepath, this.position),
 				entryNames: [
-					// @ts-expect-error until TypeScript 4.3 protocol update
 					this.tsEntry.source || this.tsEntry.data ? {
 						name: this.tsEntry.name,
 						source: this.tsEntry.source,
-						// @ts-expect-error until TypeScript 4.3 protocol update
 						data: this.tsEntry.data,
 					} : this.tsEntry.name
 				]
@@ -561,7 +558,6 @@ class CompletionAcceptedCommand implements Command {
 			*/
 			this.telemetryReporter.logTelemetry('completions.accept', {
 				isPackageJsonImport: item.tsEntry.isPackageJsonImport ? 'true' : undefined,
-				// @ts-expect-error until 4.3 protocol update
 				isImportStatementCompletion: item.tsEntry.isImportStatementCompletion ? 'true' : undefined,
 			});
 		}
@@ -753,7 +749,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 					dotAccessorContext = { range, text };
 				}
 			}
-			// @ts-expect-error until 4.3 protocol update
 			isIncomplete = !!response.body.isIncomplete || (response as any).metadata && (response as any).metadata.isIncomplete;
 			entries = response.body.entries;
 			metadata = response.metadata;
@@ -792,7 +787,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				};
 				items.push(item);
 				includesPackageJsonImport = includesPackageJsonImport || !!entry.isPackageJsonImport;
-				// @ts-expect-error until 4.3 protocol update
 				includesImportStatementCompletion = includesImportStatementCompletion || !!entry.isImportStatementCompletion;
 			}
 		}
@@ -842,7 +836,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				return this.client.apiVersion.lt(API.v381) ? undefined : '#';
 
 			case ' ':
-				// @ts-expect-error until 4.3.0 protocol update
 				const space: Proto.CompletionsTriggerCharacter = ' ';
 				return this.client.apiVersion.gte(API.v430) ? space : undefined;
 
