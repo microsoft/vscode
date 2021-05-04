@@ -64,7 +64,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		return [{
 			label: localize('relaunchTerminalLabel', "Relaunch terminal"),
 			run: () => this._terminalService.getInstanceFromId(this._terminalId)?.relaunch(),
-			commandId: TERMINAL_COMMAND_ID.RELAUNCH
+			commandId: TERMINAL_COMMAND_ID.Relaunch
 		}];
 	}
 }

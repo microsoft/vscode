@@ -14,7 +14,7 @@ registerSingleton(ITerminalProfileResolverService, BrowserTerminalProfileResolve
 // Register standard external terminal keybinding as integrated terminal when in web as the
 // external terminal is not available
 KeybindingsRegistry.registerKeybindingRule({
-	id: TERMINAL_COMMAND_ID.NEW,
+	id: TERMINAL_COMMAND_ID.New,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C

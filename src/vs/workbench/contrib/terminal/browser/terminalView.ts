@@ -173,15 +173,15 @@ export class TerminalViewPane extends ViewPane {
 
 	public override getActionViewItem(action: Action): IActionViewItem | undefined {
 		switch (action.id) {
-			case TERMINAL_COMMAND_ID.SWITCH_TERMINAL: {
+			case TERMINAL_COMMAND_ID.SwitchTerminal: {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 			}
-			case TERMINAL_COMMAND_ID.FOCUS: {
+			case TERMINAL_COMMAND_ID.Focus: {
 				const actions: IAction[] = [];
 				createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
 				return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 			}
-			case TERMINAL_COMMAND_ID.CREATE_WITH_PROFILE_BUTTON: {
+			case TERMINAL_COMMAND_ID.CreateWithProfileButton: {
 				if (this._tabButtons) {
 					this._tabButtons.dispose();
 				}
@@ -210,8 +210,8 @@ export class TerminalViewPane extends ViewPane {
 		const submenuActions: IAction[] = [];
 
 		for (const p of profiles) {
-			dropdownActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
-			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			dropdownActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NewWithProfile, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.Split, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
 		for (const contributed of this._terminalContributionService.terminalTypes) {
@@ -232,7 +232,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}
 
-		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.New, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
 		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
 		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
 	}

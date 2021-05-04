@@ -82,7 +82,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane),
 	openCommandActionDescriptor: {
-		id: TERMINAL_COMMAND_ID.TOGGLE,
+		id: TERMINAL_COMMAND_ID.Toggle,
 		mnemonicTitle: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
@@ -97,7 +97,7 @@ registerTerminalActions();
 
 function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyExpression } & IKeybindings): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TERMINAL_COMMAND_ID.SEND_SEQUENCE,
+		id: TERMINAL_COMMAND_ID.SendSequence,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: rule.when || KEYBINDING_CONTEXT_TERMINAL_FOCUS,
 		primary: rule.primary,

@@ -18,7 +18,7 @@ export function registerRemoteContributions() {
 }
 
 export class CreateNewLocalTerminalAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.NEW_LOCAL;
+	public static readonly ID = TERMINAL_COMMAND_ID.NewLocal;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.newLocal', "Create New Integrated Terminal (Local)");
 
 	constructor(

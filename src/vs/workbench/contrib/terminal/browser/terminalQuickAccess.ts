@@ -52,7 +52,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 						trigger: buttonIndex => {
 							switch (buttonIndex) {
 								case 0:
-									this._commandService.executeCommand(TERMINAL_COMMAND_ID.RENAME, terminal);
+									this._commandService.executeCommand(TERMINAL_COMMAND_ID.Rename, terminal);
 									return TriggerAction.NO_ACTION;
 								case 1:
 									terminal.dispose(true);
@@ -78,13 +78,13 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		terminalPicks.push({
 			label: `$(plus) ${createTerminalLabel}`,
 			ariaLabel: createTerminalLabel,
-			accept: () => this._commandService.executeCommand(TERMINAL_COMMAND_ID.NEW)
+			accept: () => this._commandService.executeCommand(TERMINAL_COMMAND_ID.New)
 		});
 		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile");
 		terminalPicks.push({
 			label: `$(plus) ${createWithProfileLabel}`,
 			ariaLabel: createWithProfileLabel,
-			accept: () => this._commandService.executeCommand(TERMINAL_COMMAND_ID.NEW_WITH_PROFILE)
+			accept: () => this._commandService.executeCommand(TERMINAL_COMMAND_ID.NewWithProfile)
 		});
 
 		return terminalPicks;
