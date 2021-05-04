@@ -598,7 +598,7 @@ suite('vscode API - workspace', () => {
 		source.cancel();
 
 		return vscode.workspace.findFiles('*.js', null, 100, token).then((res) => {
-			assert.deepEqual(res, []);
+			assert.deepStrictEqual(res, []);
 		});
 	});
 

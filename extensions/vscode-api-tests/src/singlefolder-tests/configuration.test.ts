@@ -15,7 +15,7 @@ suite('vscode API - configuration', () => {
 	test('configurations, language defaults', function () {
 		const defaultLanguageSettings = vscode.workspace.getConfiguration().get('[abcLang]');
 
-		assert.deepEqual(defaultLanguageSettings, {
+		assert.deepStrictEqual(defaultLanguageSettings, {
 			'editor.lineNumbers': 'off',
 			'editor.tabSize': 2
 		});
@@ -43,7 +43,7 @@ suite('vscode API - configuration', () => {
 
 		assert.ok(config.has('get'));
 		assert.strictEqual(config.get('get'), 'get-prop');
-		assert.deepEqual(config['get'], config.get);
+		assert.deepStrictEqual(config['get'], config.get);
 		assert.throws(() => config['get'] = <any>'get-prop');
 	});
 });

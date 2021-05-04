@@ -218,8 +218,8 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void,
 			eventIndex++;
 			assert.strictEqual('active', expected.events.shift(), `onDidChangeActive (event ${eventIndex})`);
 			const expectedItems = expected.activeItems.shift();
-			assert.deepEqual(items.map(item => item.label), expectedItems, `onDidChangeActive event items (event ${eventIndex})`);
-			assert.deepEqual(quickPick.activeItems.map(item => item.label), expectedItems, `onDidChangeActive active items (event ${eventIndex})`);
+			assert.deepStrictEqual(items.map(item => item.label), expectedItems, `onDidChangeActive event items (event ${eventIndex})`);
+			assert.deepStrictEqual(quickPick.activeItems.map(item => item.label), expectedItems, `onDidChangeActive active items (event ${eventIndex})`);
 		} catch (err) {
 			done(err);
 		}
@@ -233,8 +233,8 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void,
 			eventIndex++;
 			assert.strictEqual('selection', expected.events.shift(), `onDidChangeSelection (event ${eventIndex})`);
 			const expectedItems = expected.selectionItems.shift();
-			assert.deepEqual(items.map(item => item.label), expectedItems, `onDidChangeSelection event items (event ${eventIndex})`);
-			assert.deepEqual(quickPick.selectedItems.map(item => item.label), expectedItems, `onDidChangeSelection selected items (event ${eventIndex})`);
+			assert.deepStrictEqual(items.map(item => item.label), expectedItems, `onDidChangeSelection event items (event ${eventIndex})`);
+			assert.deepStrictEqual(quickPick.selectedItems.map(item => item.label), expectedItems, `onDidChangeSelection selected items (event ${eventIndex})`);
 		} catch (err) {
 			done(err);
 		}
@@ -248,9 +248,9 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void,
 			eventIndex++;
 			assert.strictEqual('accept', expected.events.shift(), `onDidAccept (event ${eventIndex})`);
 			const expectedActive = expected.acceptedItems.active.shift();
-			assert.deepEqual(quickPick.activeItems.map(item => item.label), expectedActive, `onDidAccept active items (event ${eventIndex})`);
+			assert.deepStrictEqual(quickPick.activeItems.map(item => item.label), expectedActive, `onDidAccept active items (event ${eventIndex})`);
 			const expectedSelection = expected.acceptedItems.selection.shift();
-			assert.deepEqual(quickPick.selectedItems.map(item => item.label), expectedSelection, `onDidAccept selected items (event ${eventIndex})`);
+			assert.deepStrictEqual(quickPick.selectedItems.map(item => item.label), expectedSelection, `onDidAccept selected items (event ${eventIndex})`);
 			if (expected.acceptedItems.dispose.shift()) {
 				quickPick.dispose();
 			}
