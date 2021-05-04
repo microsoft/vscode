@@ -63,7 +63,7 @@ registerThemingParticipant((theme, collector) => {
 
 	// List highlight w/ focus
 	const listHighlightFocusForegroundColor = theme.getColor(listFocusHighlightForeground);
-	if (listHighlightForegroundColor) {
+	if (listHighlightFocusForegroundColor) {
 		collector.addRule(`
 			.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
 				color: ${listHighlightFocusForegroundColor} !important;
