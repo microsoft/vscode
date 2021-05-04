@@ -49,6 +49,10 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 
 	private readonly groupListener = this._register(new MutableDisposable());
 
+	private _instantiationService: IInstantiationService;
+	protected get instantiationService(): IInstantiationService { return this._instantiationService; }
+	protected set instantiationService(value: IInstantiationService) { this._instantiationService = value; }
+
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
 	}
@@ -56,7 +60,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
@@ -64,6 +68,8 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
 	) {
 		super(id, telemetryService, themeService, storageService);
+
+		this._instantiationService = instantiationService;
 
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
