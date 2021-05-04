@@ -105,7 +105,7 @@
     "@types/keytar": "^4.4.0",
     "@types/minimist": "^1.2.1",
     "@types/mocha": "^8.2.0",
-    "@types/node": "^14.14.37",
+    "@types/node": "14.x",
     "@types/sinon": "^1.16.36",
     "@types/trusted-types": "^1.0.6",
     "@types/vscode-windows-registry": "^1.0.0",
