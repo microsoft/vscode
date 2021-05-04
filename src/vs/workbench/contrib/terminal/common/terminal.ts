@@ -239,11 +239,6 @@ export interface ITerminalNativeWindowsDelegate {
 	 * Gets the Windows build number, eg. this would be `19041` for Windows 10 version 2004
 	 */
 	getWindowsBuildNumber(): number;
-	/**
-	 * Converts a regular Windows path into the WSL path equivalent, eg. `C:\` -> `/mnt/c`
-	 * @param path The Windows path.
-	 */
-	getWslPath(path: string): Promise<string>;
 }
 
 export interface ICommandTracker {

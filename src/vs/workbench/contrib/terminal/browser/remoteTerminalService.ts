@@ -197,6 +197,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel?.getEnvironment() || {};
 	}
 
+	public async getWslPath(original: string): Promise<string> {
+		const env = await this._remoteAgentService.getEnvironment();
+		if (env?.os !== OperatingSystem.Windows) {
+			return original;
+		}
+		return this._remoteTerminalChannel?.getWslPath(original) || original;
+	}
+
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call setActiveInstanceId when there is no remote`);

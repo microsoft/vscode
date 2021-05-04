@@ -134,6 +134,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.getEnvironment();
 	}
 
+	public async getWslPath(original: string): Promise<string> {
+		return this._localPtyService.getWslPath(original);
+	}
+
 	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),

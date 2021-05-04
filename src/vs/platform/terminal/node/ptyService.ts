@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
@@ -14,6 +14,9 @@ import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IProcessDetails,
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { getSystemShell } from 'vs/base/node/shell';
+import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { execFile } from 'child_process';
+import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 
 type WorkspaceId = string;
 
@@ -168,6 +171,21 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async getEnvironment(): Promise<IProcessEnvironment> {
 		return { ...process.env };
+	}
+
+	async getWslPath(original: string): Promise<string> {
+		if (!isWindows) {
+			return original;
+		}
+		if (getWindowsBuildNumber() < 17063) {
+			return original.replace(/\\/g, '/');
+		}
+		return new Promise<string>(c => {
+			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
+				c(escapeNonWindowsPath(stdout.trim()));
+			});
+			proc.stdin!.end();
+		});
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {

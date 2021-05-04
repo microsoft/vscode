@@ -240,6 +240,10 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$getEnvironment');
 	}
 
+	public getWslPath(original: string): Promise<string> {
+		return this._channel.call('$getWslPath', [original]);
+	}
+
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: ISetTerminalLayoutInfoArgs = {

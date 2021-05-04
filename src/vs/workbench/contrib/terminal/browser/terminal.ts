@@ -183,9 +183,10 @@ export interface ITerminalService {
 	 * @param executable The executable off the shellLaunchConfig
 	 * @param title The terminal's title
 	 * @param path The path to be escaped and formatted.
+	 * @param isRemote Whether the terminal's pty is remote.
 	 * @returns An escaped version of the path to be execuded in the terminal.
 	 */
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType): Promise<string>;
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
@@ -280,6 +281,11 @@ export interface ITerminalInstance {
 	 * Whether the process communication channel has been disconnected.
 	 */
 	readonly isDisconnected: boolean;
+
+	/**
+	 * Whether the terminal's pty is hosted on a remote.
+	 */
+	readonly isRemote: boolean;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.
