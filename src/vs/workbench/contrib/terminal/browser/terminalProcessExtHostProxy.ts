@@ -53,7 +53,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	private _pendingLatencyRequests: ((value: number | PromiseLike<number>) => void)[] = [];
 
 	constructor(
-		instanceId: number,
+		public instanceId: number,
 		private _cols: number,
 		private _rows: number,
 		@ITerminalService private readonly _terminalService: ITerminalService,
