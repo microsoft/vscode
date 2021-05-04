@@ -5,9 +5,9 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IStateService = createDecorator<IStateService>('stateService');
+export const IStateMainService = createDecorator<IStateMainService>('stateMainService');
 
-export interface IStateService {
+export interface IStateMainService {
 	readonly _serviceBrand: undefined;
 
 	getItem<T>(key: string, defaultValue: T): T;

@@ -8,10 +8,10 @@ import { tmpdir } from 'os';
 import { promises } from 'fs';
 import { join } from 'vs/base/common/path';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileStorage } from 'vs/platform/state/node/stateService';
+import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
 import { rimraf, writeFileSync } from 'vs/base/node/pfs';
 
-flakySuite('StateService', () => {
+flakySuite('StateMainService', () => {
 
 	let testDir: string;
 

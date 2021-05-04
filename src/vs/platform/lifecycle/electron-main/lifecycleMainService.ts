@@ -5,7 +5,7 @@
 
 import { ipcMain, app, BrowserWindow } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -197,7 +197,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IStateService private readonly stateService: IStateService
+		@IStateMainService private readonly stateMainService: IStateMainService
 	) {
 		super();
 
@@ -206,10 +206,10 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	private handleRestarted(): void {
-		this._wasRestarted = !!this.stateService.getItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER);
+		this._wasRestarted = !!this.stateMainService.getItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER);
 
 		if (this._wasRestarted) {
-			this.stateService.removeItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
+			this.stateMainService.removeItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
 		}
 	}
 
@@ -511,7 +511,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Remember the reason for quit was to restart
 		if (fromUpdate) {
-			this.stateService.setItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER, true);
+			this.stateMainService.setItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER, true);
 		}
 
 		this.pendingQuitPromise = new Promise(resolve => {
@@ -550,7 +550,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			if (!quitVetoed) {
 
 				// Remember the reason for quit was to restart
-				this.stateService.setItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER, true);
+				this.stateMainService.setItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER, true);
 
 				// Windows: we are about to restart and as such we need to restore the original
 				// current working directory we had on startup to get the exact same startup

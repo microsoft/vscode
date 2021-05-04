@@ -5,11 +5,11 @@
 
 import { join } from 'vs/base/common/path';
 import { readFileSync, promises } from 'fs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { writeFileSync } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService as IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 
 type StorageDatabase = { [key: string]: unknown; };
 
@@ -152,7 +152,7 @@ export class FileStorage {
 	}
 }
 
-export class StateService implements IStateService {
+export class StateMainService implements IStateMainService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -161,10 +161,10 @@ export class StateService implements IStateService {
 	private fileStorage: FileStorage;
 
 	constructor(
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService
 	) {
-		this.fileStorage = new FileStorage(join(environmentService.userDataPath, StateService.STATE_FILE), error => logService.error(error));
+		this.fileStorage = new FileStorage(join(environmentMainService.userDataPath, StateMainService.STATE_FILE), error => logService.error(error));
 	}
 
 	init(): Promise<void> {
