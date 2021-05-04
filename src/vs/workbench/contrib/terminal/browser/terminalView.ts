@@ -123,7 +123,7 @@ export class TerminalViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
-				const hadTerminals = !!this._terminalService.terminalTabs.length;
+				const hadTerminals = !!this._terminalService.terminalGroups.length;
 				if (this._terminalService.isProcessSupportRegistered) {
 					if (this._terminalsInitialized) {
 						if (!hadTerminals) {

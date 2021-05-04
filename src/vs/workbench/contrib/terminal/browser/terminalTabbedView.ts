@@ -206,7 +206,7 @@ export class TerminalTabbedView extends Disposable {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
 		const additionalWidth = 30;
 		const statusIconWidth = instance.statusList.statuses.length > 0 ? STATUS_ICON_WIDTH : 0;
-		const splitAnnotationWidth = (this._terminalService.getTabForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
+		const splitAnnotationWidth = (this._terminalService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
 		return additionalWidth + splitAnnotationWidth + statusIconWidth;
 	}
 
@@ -239,7 +239,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._splitView.addView({
 			element: this._terminalContainer,
-			layout: width => this._terminalService.terminalTabs.forEach(tab => tab.layout(width, this._height || 0)),
+			layout: width => this._terminalService.terminalGroups.forEach(tab => tab.layout(width, this._height || 0)),
 			minimumSize: 120,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,

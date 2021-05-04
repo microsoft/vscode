@@ -20,10 +20,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
+import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
@@ -56,10 +56,10 @@ export class TerminalService implements ITerminalService {
 	private _terminalCountContextKey: IContextKey<number>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
-	private _terminalTabs: ITerminalTab[] = [];
+	private _terminalGroups: ITerminalGroup[] = [];
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private get _terminalInstances(): ITerminalInstance[] {
-		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
+		return this._terminalGroups.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
 	private _findState: FindReplaceState;
 	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
@@ -70,7 +70,7 @@ export class TerminalService implements ITerminalService {
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
-	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
+	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
 	public get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 
 	private _configHelper: TerminalConfigHelper;
@@ -114,8 +114,8 @@ export class TerminalService implements ITerminalService {
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	private readonly _onInstancePrimaryStatusChanged = new Emitter<ITerminalInstance>();
 	public get onInstancePrimaryStatusChanged(): Event<ITerminalInstance> { return this._onInstancePrimaryStatusChanged.event; }
-	private readonly _onTabDisposed = new Emitter<ITerminalTab>();
-	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
+	private readonly _onTabDisposed = new Emitter<ITerminalGroup>();
+	public get onTabDisposed(): Event<ITerminalGroup> { return this._onTabDisposed.event; }
 	private readonly _onRequestAvailableProfiles = new Emitter<IAvailableProfilesRequest>();
 	public get onRequestAvailableProfiles(): Event<IAvailableProfilesRequest> { return this._onRequestAvailableProfiles.event; }
 	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
@@ -256,19 +256,19 @@ export class TerminalService implements ITerminalService {
 
 	private _recreateTerminalTabs(layoutInfo?: ITerminalsLayoutInfo): number {
 		let reconnectCounter = 0;
-		let activeTab: ITerminalTab | undefined;
+		let activeTab: ITerminalGroup | undefined;
 		if (layoutInfo) {
 			layoutInfo.tabs.forEach(tabLayout => {
 				const terminalLayouts = tabLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
 				if (terminalLayouts.length) {
 					reconnectCounter += terminalLayouts.length;
 					let terminalInstance: ITerminalInstance | undefined;
-					let tab: ITerminalTab | undefined;
+					let tab: ITerminalGroup | undefined;
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create tab and terminal
 							terminalInstance = this.createTerminal({ attachPersistentProcess: terminalLayout.terminal! });
-							tab = this.getTabForInstance(terminalInstance);
+							tab = this.getGroupForInstance(terminalInstance);
 							if (tabLayout.isActive) {
 								activeTab = tab;
 							}
@@ -287,7 +287,7 @@ export class TerminalService implements ITerminalService {
 				}
 			});
 			if (layoutInfo.tabs.length) {
-				this.setActiveTabByIndex(activeTab ? this.terminalTabs.indexOf(activeTab) : 0);
+				this.setActiveTabByIndex(activeTab ? this.terminalGroups.indexOf(activeTab) : 0);
 			}
 		}
 		return reconnectCounter;
@@ -409,7 +409,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => {
+		return this._terminalGroups.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => {
 			return `${index + 1}: ${tab.title ? tab.title : ''}`;
 		});
 	}
@@ -422,7 +422,7 @@ export class TerminalService implements ITerminalService {
 	private _updateRemoteState(): void {
 		if (!!this._environmentService.remoteAuthority) {
 			const state: ITerminalsLayoutInfoById = {
-				tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
+				tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveTab()))
 			};
 			this._remoteTerminalService.setTerminalLayoutInfo(state);
 		}
@@ -431,38 +431,38 @@ export class TerminalService implements ITerminalService {
 	@debounce(500)
 	private _updateLocalState(): void {
 		const state: ITerminalsLayoutInfoById = {
-			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
+			tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveTab()))
 		};
 		this._localTerminalService!.setTerminalLayoutInfo(state);
 	}
 
-	private _removeTab(tab: ITerminalTab): void {
+	private _removeTab(tab: ITerminalGroup): void {
 		// Get the index of the tab and remove it from the list
-		const index = this._terminalTabs.indexOf(tab);
+		const index = this._terminalGroups.indexOf(tab);
 		const activeTab = this.getActiveTab();
-		const activeTabIndex = activeTab ? this._terminalTabs.indexOf(activeTab) : -1;
+		const activeTabIndex = activeTab ? this._terminalGroups.indexOf(activeTab) : -1;
 		const wasActiveTab = tab === activeTab;
 		if (index !== -1) {
-			this._terminalTabs.splice(index, 1);
+			this._terminalGroups.splice(index, 1);
 		}
 
 		// Adjust focus if the tab was active
-		if (wasActiveTab && this._terminalTabs.length > 0) {
-			const newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
+		if (wasActiveTab && this._terminalGroups.length > 0) {
+			const newIndex = index < this._terminalGroups.length ? index : this._terminalGroups.length - 1;
 			this.setActiveTabByIndex(newIndex);
 			const activeInstance = this.getActiveInstance();
 			if (activeInstance) {
 				activeInstance.focus(true);
 			}
-		} else if (activeTabIndex >= this._terminalTabs.length) {
-			const newIndex = this._terminalTabs.length - 1;
+		} else if (activeTabIndex >= this._terminalGroups.length) {
+			const newIndex = this._terminalGroups.length - 1;
 			this.setActiveTabByIndex(newIndex);
 		}
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
 		// down. When shutting down the panel is locked in place so that it is restored upon next
 		// launch.
-		if (this._terminalTabs.length === 0 && !this._isShuttingDown) {
+		if (this._terminalGroups.length === 0 && !this._isShuttingDown) {
 			this.hidePanel();
 			this._onActiveInstanceChanged.fire(undefined);
 		}
@@ -479,11 +479,11 @@ export class TerminalService implements ITerminalService {
 		this._onActiveTabChanged.fire();
 	}
 
-	public getActiveTab(): ITerminalTab | null {
-		if (this._activeTabIndex < 0 || this._activeTabIndex >= this._terminalTabs.length) {
+	public getActiveTab(): ITerminalGroup | null {
+		if (this._activeTabIndex < 0 || this._activeTabIndex >= this._terminalGroups.length) {
 			return null;
 		}
-		return this._terminalTabs[this._activeTabIndex];
+		return this._terminalGroups[this._activeTabIndex];
 	}
 
 	public getActiveInstance(): ITerminalInstance | null {
@@ -532,14 +532,14 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setActiveTabByIndex(tabIndex: number): void {
-		if (tabIndex >= this._terminalTabs.length) {
+		if (tabIndex >= this._terminalGroups.length) {
 			return;
 		}
 
 		const didTabChange = this._activeTabIndex !== tabIndex;
 		this._activeTabIndex = tabIndex;
 
-		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+		this._terminalGroups.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
 		if (didTabChange) {
 			this._onActiveTabChanged.fire();
 		}
@@ -555,15 +555,15 @@ export class TerminalService implements ITerminalService {
 		} else if (this._localTerminalsInitPromise) {
 			await this._localTerminalsInitPromise;
 		}
-		if (this.terminalTabs.length === 0 && this.isProcessSupportRegistered) {
+		if (this.terminalGroups.length === 0 && this.isProcessSupportRegistered) {
 			this.createTerminal();
 		}
 	}
 
-	private _getInstanceFromGlobalInstanceIndex(index: number): { tab: ITerminalTab, tabIndex: number, instance: ITerminalInstance, localInstanceIndex: number } | null {
+	private _getInstanceFromGlobalInstanceIndex(index: number): { tab: ITerminalGroup, tabIndex: number, instance: ITerminalInstance, localInstanceIndex: number } | null {
 		let currentTabIndex = 0;
-		while (index >= 0 && currentTabIndex < this._terminalTabs.length) {
-			const tab = this._terminalTabs[currentTabIndex];
+		while (index >= 0 && currentTabIndex < this._terminalGroups.length) {
+			const tab = this._terminalGroups[currentTabIndex];
 			const count = tab.terminalInstances.length;
 			if (index < count) {
 				return {
@@ -588,7 +588,7 @@ export class TerminalService implements ITerminalService {
 		query.tab.setActiveInstanceByIndex(query.localInstanceIndex);
 		const didTabChange = this._activeTabIndex !== query.tabIndex;
 		this._activeTabIndex = query.tabIndex;
-		this._terminalTabs.forEach((t, i) => t.setVisible(i === query.tabIndex));
+		this._terminalGroups.forEach((t, i) => t.setVisible(i === query.tabIndex));
 
 		// Only fire the event if there was a change
 		if (didTabChange) {
@@ -597,23 +597,23 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public setActiveTabToNext(): void {
-		if (this._terminalTabs.length <= 1) {
+		if (this._terminalGroups.length <= 1) {
 			return;
 		}
 		let newIndex = this._activeTabIndex + 1;
-		if (newIndex >= this._terminalTabs.length) {
+		if (newIndex >= this._terminalGroups.length) {
 			newIndex = 0;
 		}
 		this.setActiveTabByIndex(newIndex);
 	}
 
 	public setActiveTabToPrevious(): void {
-		if (this._terminalTabs.length <= 1) {
+		if (this._terminalGroups.length <= 1) {
 			return;
 		}
 		let newIndex = this._activeTabIndex - 1;
 		if (newIndex < 0) {
-			newIndex = this._terminalTabs.length - 1;
+			newIndex = this._terminalGroups.length - 1;
 		}
 		this.setActiveTabByIndex(newIndex);
 	}
@@ -621,7 +621,7 @@ export class TerminalService implements ITerminalService {
 	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
 	public splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
 	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
-		const tab = this.getTabForInstance(instanceToSplit);
+		const tab = this.getGroupForInstance(instanceToSplit);
 		if (!tab) {
 			return null;
 		}
@@ -631,7 +631,7 @@ export class TerminalService implements ITerminalService {
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 
-		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+		this._terminalGroups.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
 		return instance;
 	}
 
@@ -687,8 +687,8 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	public getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
-		return this._terminalTabs.find(tab => tab.terminalInstances.indexOf(instance) !== -1);
+	public getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
+		return this._terminalGroups.find(tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
 
 	public async showPanel(focus?: boolean): Promise<void> {
@@ -1019,14 +1019,14 @@ export class TerminalService implements ITerminalService {
 			shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
 		}
 
-		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shellLaunchConfig);
-		this._terminalTabs.push(terminalTab);
-		terminalTab.onPanelMovedToSide(() => this._onPanelMovedToSide.fire());
+		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
+		this._terminalGroups.push(terminalGroup);
+		terminalGroup.onPanelMovedToSide(() => this._onPanelMovedToSide.fire());
 
-		const instance = terminalTab.terminalInstances[0];
+		const instance = terminalGroup.terminalInstances[0];
 
-		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
-		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		terminalGroup.addDisposable(terminalGroup.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
+		terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 		if (this.terminalInstances.length === 1) {
@@ -1040,10 +1040,10 @@ export class TerminalService implements ITerminalService {
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
 		instance.shellLaunchConfig.hideFromUser = false;
-		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, instance);
-		this._terminalTabs.push(terminalTab);
-		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
-		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
+		this._terminalGroups.push(terminalGroup);
+		terminalGroup.addDisposable(terminalGroup.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
+		terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
@@ -1081,7 +1081,7 @@ export class TerminalService implements ITerminalService {
 	public async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
-		this._terminalTabs.forEach(tab => tab.attachToElement(terminalContainer));
+		this._terminalGroups.forEach(tab => tab.attachToElement(terminalContainer));
 	}
 
 	public hidePanel(): void {

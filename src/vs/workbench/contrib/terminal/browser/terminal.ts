@@ -52,11 +52,11 @@ export const enum Direction {
 	Down = 3
 }
 
-export interface ITerminalTab {
+export interface ITerminalGroup {
 	activeInstance: ITerminalInstance | null;
 	terminalInstances: ITerminalInstance[];
 	title: string;
-	onDisposed: Event<ITerminalTab>;
+	onDisposed: Event<ITerminalGroup>;
 	onInstancesChanged: Event<void>;
 	focusPreviousPane(): void;
 	focusNextPane(): void;
@@ -82,14 +82,14 @@ export interface ITerminalService {
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
-	terminalTabs: ITerminalTab[];
+	terminalGroups: ITerminalGroup[];
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly availableProfiles: ITerminalProfile[];
 
 	initializeTerminals(): Promise<void>;
 	onActiveTabChanged: Event<void>;
-	onTabDisposed: Event<ITerminalTab>;
+	onTabDisposed: Event<ITerminalGroup>;
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
@@ -139,7 +139,7 @@ export interface ITerminalService {
 	 */
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
 
-	getActiveTab(): ITerminalTab | null;
+	getActiveTab(): ITerminalGroup | null;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
@@ -171,7 +171,7 @@ export interface ITerminalService {
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
-	getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined;
+	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 

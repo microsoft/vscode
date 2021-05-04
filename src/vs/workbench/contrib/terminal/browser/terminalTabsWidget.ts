@@ -225,7 +225,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	renderElement(node: ITreeNode<ITerminalInstance>, index: number, template: ITerminalTabEntryTemplate): void {
 		let instance = node.element;
 
-		const tab = this._terminalService.getTabForInstance(instance);
+		const tab = this._terminalService.getGroupForInstance(instance);
 		if (!tab) {
 			throw new Error(`Could not find tab for instance "${instance.instanceId}"`);
 		}
@@ -362,7 +362,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 	getAriaLabel(instance: ITerminalInstance): string {
 		let ariaLabel: string = '';
-		const tab = this._terminalService.getTabForInstance(instance);
+		const tab = this._terminalService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
 			const terminalIndex = tab.terminalInstances.indexOf(instance);
 			ariaLabel = localize({
