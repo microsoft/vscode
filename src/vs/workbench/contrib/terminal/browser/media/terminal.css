@@ -253,10 +253,6 @@
 	vertical-align: text-bottom;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-tl-twistie.force-no-twistie {
-	display: none !important;
-}
-
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .actions {
 	display: none;
 }
