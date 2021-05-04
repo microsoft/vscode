@@ -624,7 +624,7 @@
 	top: 0;
 }
 
-.codicon-getting-started-setup::before, .codicon-getting-started-beginner::before, .codicon-getting-started-intermediate::before, .codicon-close::before {
+.monaco-workbench .part.editor > .content .getting-started-category .codicon::before{
 	vertical-align: middle;
 }
 
