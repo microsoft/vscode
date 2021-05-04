@@ -130,7 +130,7 @@ import 'vs/workbench/contrib/extensions/browser/extensions.web.contribution';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.web.contribution';
-import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.web.contribution';
+import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks
