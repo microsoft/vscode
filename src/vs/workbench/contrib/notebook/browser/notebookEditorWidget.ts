@@ -1691,7 +1691,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 		const { selected } = this.notebookKernelService.getMatchingKernel(this.viewModel.notebookDocument);
-		if (!selected || selected.preloadUris.length) {
+		if (!selected || !selected.preloadUris.length) {
 			return;
 		}
 		if (!this._webview?.isResolved()) {
@@ -2238,13 +2238,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
 
-	postMessage(forRendererId: string | undefined, message: any) {
+	postMessage(message: any) {
 		if (this._webview?.isResolved()) {
-			if (forRendererId === undefined) {
-				this._webview.webview.postMessage(message);
-			} else {
-				this._webview.postRendererMessage(forRendererId, message);
-			}
+			this._webview.postKernelMessage(message);
 		}
 	}
 
