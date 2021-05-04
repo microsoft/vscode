@@ -12,32 +12,32 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IContentDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { InlineHintsProvider, InlineHintsProviderRegistry, InlineHint } from 'vs/editor/common/modes';
+import { InlayHintsProvider, InlayHintsProviderRegistry, InlayHint } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { flatten } from 'vs/base/common/arrays';
-import { editorInlineHintForeground, editorInlineHintBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorInlayHintForeground, editorInlayHintBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { Position } from 'vs/editor/common/core/position';
 
 const MAX_DECORATORS = 500;
 
-export interface InlineHintsData {
-	list: InlineHint[];
-	provider: InlineHintsProvider;
+export interface InlayHintsData {
+	list: InlayHint[];
+	provider: InlayHintsProvider;
 }
 
-export async function getInlineHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlineHintsData[]> {
-	const datas: InlineHintsData[] = [];
-	const providers = InlineHintsProviderRegistry.ordered(model).reverse();
-	const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineHints(model, range, token)).then(result => {
+export async function getInlayHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHintsData[]> {
+	const datas: InlayHintsData[] = [];
+	const providers = InlayHintsProviderRegistry.ordered(model).reverse();
+	const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlayHints(model, range, token)).then(result => {
 		if (result) {
 			datas.push({ list: result, provider });
 		}
@@ -50,17 +50,13 @@ export async function getInlineHints(model: ITextModel, ranges: Range[], token: 
 	return datas;
 }
 
-export class InlineHintsController implements IEditorContribution {
+export class InlayHintsController implements IEditorContribution {
 
-	static readonly ID: string = 'editor.contrib.InlineHints';
-
-	// static get(editor: ICodeEditor): InlineHintsController {
-	// 	return editor.getContribution<InlineHintsController>(this.ID);
-	// }
+	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _getInlineHintsDelays = new LanguageFeatureRequestDelays(InlineHintsProviderRegistry, 250, 2500);
+	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 250, 2500);
 
 	private _decorationsTypeIds: string[] = [];
 	private _decorationIds: string[] = [];
@@ -70,12 +66,12 @@ export class InlineHintsController implements IEditorContribution {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
-		this._disposables.add(InlineHintsProviderRegistry.onDidChange(() => this._update()));
+		this._disposables.add(InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_themeService.onDidColorThemeChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.inlineHints)) {
+			if (e.hasChanged(EditorOption.inlayHints)) {
 				this._update();
 			}
 		}));
@@ -92,13 +88,13 @@ export class InlineHintsController implements IEditorContribution {
 	private _update(): void {
 		this._sessionDisposables.clear();
 
-		if (!this._editor.getOption(EditorOption.inlineHints).enabled) {
+		if (!this._editor.getOption(EditorOption.inlayHints).enabled) {
 			this._removeAllDecorations();
 			return;
 		}
 
 		const model = this._editor.getModel();
-		if (!model || !InlineHintsProviderRegistry.has(model)) {
+		if (!model || !InlayHintsProviderRegistry.has(model)) {
 			this._removeAllDecorations();
 			return;
 		}
@@ -110,16 +106,16 @@ export class InlineHintsController implements IEditorContribution {
 			this._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 
 			const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
-			const result = await getInlineHints(model, visibleRanges, cts.token);
+			const result = await getInlayHints(model, visibleRanges, cts.token);
 
 			// update moving average
-			const newDelay = this._getInlineHintsDelays.update(model, Date.now() - t1);
+			const newDelay = this._getInlayHintsDelays.update(model, Date.now() - t1);
 			scheduler.delay = newDelay;
 
 			// render hints
 			this._updateHintsDecorators(result);
 
-		}, this._getInlineHintsDelays.get(model));
+		}, this._getInlayHintsDelays.get(model));
 
 		this._sessionDisposables.add(scheduler);
 
@@ -131,28 +127,28 @@ export class InlineHintsController implements IEditorContribution {
 		// update inline hints when any any provider fires an event
 		const providerListener = new DisposableStore();
 		this._sessionDisposables.add(providerListener);
-		for (const provider of InlineHintsProviderRegistry.all(model)) {
-			if (typeof provider.onDidChangeInlineHints === 'function') {
-				providerListener.add(provider.onDidChangeInlineHints(() => scheduler.schedule()));
+		for (const provider of InlayHintsProviderRegistry.all(model)) {
+			if (typeof provider.onDidChangeInlayHints === 'function') {
+				providerListener.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
 			}
 		}
 	}
 
-	private _updateHintsDecorators(hintsData: InlineHintsData[]): void {
+	private _updateHintsDecorators(hintsData: InlayHintsData[]): void {
 		const { fontSize, fontFamily } = this._getLayoutInfo();
-		const backgroundColor = this._themeService.getColorTheme().getColor(editorInlineHintBackground);
-		const fontColor = this._themeService.getColorTheme().getColor(editorInlineHintForeground);
+		const backgroundColor = this._themeService.getColorTheme().getColor(editorInlayHintBackground);
+		const fontColor = this._themeService.getColorTheme().getColor(editorInlayHintForeground);
 
 		const newDecorationsTypeIds: string[] = [];
 		const newDecorationsData: IModelDeltaDecoration[] = [];
 
-		const fontFamilyVar = '--inlineHintsFontFamily';
+		const fontFamilyVar = '--inlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
 		for (const { list: hints } of hintsData) {
 
 			for (let j = 0; j < hints.length && newDecorationsData.length < MAX_DECORATORS; j++) {
-				const { text, range, description: hoverMessage, whitespaceBefore, whitespaceAfter } = hints[j];
+				const { text, position, whitespaceBefore, whitespaceAfter } = hints[j];
 				const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
 				const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
@@ -166,7 +162,7 @@ export class InlineHintsController implements IEditorContribution {
 					padding: `0px ${(fontSize / 4) | 0}px`,
 					borderRadius: `${(fontSize / 4) | 0}px`,
 				};
-				const key = 'inlineHints-' + hash(before).toString(16);
+				const key = 'inlayHints-' + hash(before).toString(16);
 				this._codeEditorService.registerDecorationType(key, { before }, undefined, this._editor);
 
 				// decoration types are ref-counted which means we only need to
@@ -174,14 +170,8 @@ export class InlineHintsController implements IEditorContribution {
 				newDecorationsTypeIds.push(key);
 
 				const options = this._codeEditorService.resolveDecorationOptions(key, true);
-				if (typeof hoverMessage === 'string') {
-					options.hoverMessage = new MarkdownString().appendText(hoverMessage);
-				} else if (hoverMessage) {
-					options.hoverMessage = hoverMessage;
-				}
-
 				newDecorationsData.push({
-					range,
+					range: Range.fromPositions(position),
 					options
 				});
 			}
@@ -194,7 +184,7 @@ export class InlineHintsController implements IEditorContribution {
 	}
 
 	private _getLayoutInfo() {
-		const options = this._editor.getOption(EditorOption.inlineHints);
+		const options = this._editor.getOption(EditorOption.inlayHints);
 		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
 		let fontSize = options.fontSize;
 		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
@@ -211,9 +201,9 @@ export class InlineHintsController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(InlineHintsController.ID, InlineHintsController);
+registerEditorContribution(InlayHintsController.ID, InlayHintsController);
 
-CommandsRegistry.registerCommand('_executeInlineHintProvider', async (accessor, ...args: [URI, IRange]): Promise<InlineHint[]> => {
+CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<InlayHint[]> => {
 
 	const [uri, range] = args;
 	assertType(URI.isUri(uri));
@@ -221,8 +211,8 @@ CommandsRegistry.registerCommand('_executeInlineHintProvider', async (accessor, 
 
 	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
-		const data = await getInlineHints(ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
-		return flatten(data.map(item => item.list)).sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		const data = await getInlayHints(ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
+		return flatten(data.map(item => item.list)).sort((a, b) => Position.compare(a.position, b.position));
 
 	} finally {
 		ref.dispose();

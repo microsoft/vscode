@@ -52,11 +52,11 @@ export function filterSettingsRequireWorkspaceTrust(settings: ReadonlyArray<stri
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	return settings.filter(key => {
 		const property = configurationRegistry.getConfigurationProperties()[key];
-		return property.requireTrust && property.scope !== ConfigurationScope.APPLICATION && property.scope !== ConfigurationScope.MACHINE;
+		return property.restricted && property.scope !== ConfigurationScope.APPLICATION && property.scope !== ConfigurationScope.MACHINE;
 	});
 }
 
-export type UntrustedSettings = {
+export type RestrictedSettings = {
 	default: ReadonlyArray<string>;
 	userLocal?: ReadonlyArray<string>;
 	userRemote?: ReadonlyArray<string>;
@@ -67,14 +67,14 @@ export type UntrustedSettings = {
 export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
 export interface IWorkbenchConfigurationService extends IConfigurationService {
 	/**
-	 * List of untrusted settings
+	 * Restricted settings defined in each configuraiton target
 	 */
-	readonly unTrustedSettings: UntrustedSettings;
+	readonly restrictedSettings: RestrictedSettings;
 
 	/**
-	 * Event that triggers when the list of untrusted settings changes
+	 * Event that triggers when the restricted settings changes
 	 */
-	readonly onDidChangeUntrustdSettings: Event<UntrustedSettings>;
+	readonly onDidChangeRestrictedSettings: Event<RestrictedSettings>;
 
 	/**
 	 * A promise that resolves when the remote configuration is loaded in a remote window.

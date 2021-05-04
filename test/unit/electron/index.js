@@ -33,6 +33,7 @@ const optimist = require('optimist')
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', 'spec')
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
 	.describe('wait-server', 'port to connect to and wait before running tests')
+	.describe('timeout', 'timeout for tests')
 	.describe('tfs').string('tfs')
 	.describe('help', 'show the help').alias('help', 'h');
 

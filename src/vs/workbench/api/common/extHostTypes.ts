@@ -1420,24 +1420,23 @@ export enum SignatureHelpTriggerKind {
 }
 
 
-export enum InlineHintKind {
+export enum InlayHintKind {
 	Other = 0,
 	Type = 1,
 	Parameter = 2,
 }
 
 @es5ClassCompat
-export class InlineHint {
+export class InlayHint {
 	text: string;
-	range: Range;
-	kind?: vscode.InlineHintKind;
-	description?: string | vscode.MarkdownString;
+	position: Position;
+	kind?: vscode.InlayHintKind;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 
-	constructor(text: string, range: Range, kind?: vscode.InlineHintKind) {
+	constructor(text: string, position: Position, kind?: vscode.InlayHintKind) {
 		this.text = text;
-		this.range = range;
+		this.position = position;
 		this.kind = kind;
 	}
 }
@@ -3009,45 +3008,16 @@ export class NotebookCellMetadata {
 }
 
 export class NotebookDocumentMetadata {
-	readonly trusted: boolean;
 	readonly [key: string]: any;
 
-	constructor(trusted?: boolean);
-	constructor(data: Record<string, any>);
-	constructor(trustedOrData: boolean | Record<string, any> = true) {
-		if (typeof trustedOrData === 'object') {
-			Object.assign(this, trustedOrData);
-			this.trusted = trustedOrData.trusted ?? true;
-		} else {
-			this.trusted = trustedOrData;
-		}
+	constructor(data: Record<string, any> = {}) {
+		Object.assign(this, data);
 	}
 
 	with(change: {
-		trusted?: boolean | null,
 		[key: string]: any
 	}): NotebookDocumentMetadata {
-
-		let { trusted, ...remaining } = change;
-
-		if (trusted === undefined) {
-			trusted = this.trusted;
-		} else if (trusted === null) {
-			trusted = undefined;
-		}
-
-		if (trusted === this.trusted &&
-			Object.keys(remaining).length === 0
-		) {
-			return this;
-		}
-
-		return new NotebookDocumentMetadata(
-			{
-				trusted,
-				...remaining
-			}
-		);
+		return new NotebookDocumentMetadata(change);
 	}
 }
 
@@ -3155,18 +3125,29 @@ export enum NotebookEditorRevealType {
 
 export class NotebookCellStatusBarItem {
 	constructor(
-		readonly text: string,
-		readonly alignment: NotebookCellStatusBarAlignment,
-		readonly command?: string | vscode.Command,
-		readonly tooltip?: string,
-		readonly priority?: number,
-		readonly accessibilityInformation?: vscode.AccessibilityInformation) { }
+		public text: string,
+		public alignment: NotebookCellStatusBarAlignment,
+		public command?: string | vscode.Command,
+		public tooltip?: string,
+		public priority?: number,
+		public accessibilityInformation?: vscode.AccessibilityInformation) { }
 }
 
 
 export enum NotebookControllerAffinity {
 	Default = 1,
 	Preferred = 2
+}
+
+export class NotebookKernelPreload {
+	public readonly provides: string[];
+
+	constructor(
+		public readonly uri: vscode.Uri,
+		provides: string | string[] = []
+	) {
+		this.provides = typeof provides === 'string' ? [provides] : provides;
+	}
 }
 
 //#endregion

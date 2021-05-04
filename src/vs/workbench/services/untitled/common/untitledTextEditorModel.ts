@@ -57,7 +57,7 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 	/**
 	 * Sets the encoding to use for this untitled model.
 	 */
-	setEncoding(encoding: string): void;
+	setEncoding(encoding: string): Promise<void>;
 
 	/**
 	 * Resolves the untitled model.
@@ -220,7 +220,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.preferredEncoding || this.configuredEncoding;
 	}
 
-	setEncoding(encoding: string): void {
+	async setEncoding(encoding: string): Promise<void> {
 		const oldEncoding = this.getEncoding();
 		this.preferredEncoding = encoding;
 

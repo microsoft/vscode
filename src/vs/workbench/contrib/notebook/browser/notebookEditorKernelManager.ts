@@ -21,29 +21,29 @@ export class NotebookEditorKernelManager extends Disposable {
 		super();
 	}
 
-	getActiveKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
+	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
+		// returns SELECTED or the ONLY available kernel
 		const info = this._notebookKernelService.getMatchingKernel(notebook);
-		return info.selected ?? info.all[0];
+		if (info.selected) {
+			return info.selected;
+		}
+		if (info.all.length === 1) {
+			return info.all[0];
+		}
+		return undefined;
 	}
 
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
 		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
-		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({
-			modal: true,
-			message
-		});
+		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
 			return;
 		}
 
-		if (!notebook.metadata.trusted) {
-			return;
-		}
-
-		let kernel = this.getActiveKernel(notebook);
+		let kernel = this.getSelectedOrSuggestedKernel(notebook);
 		if (!kernel) {
 			await this._commandService.executeCommand('notebook.selectKernel');
-			kernel = this.getActiveKernel(notebook);
+			kernel = this.getSelectedOrSuggestedKernel(notebook);
 		}
 
 		if (!kernel) {
@@ -68,7 +68,7 @@ export class NotebookEditorKernelManager extends Disposable {
 	}
 
 	async cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
-		let kernel = this.getActiveKernel(notebook);
+		let kernel = this.getSelectedOrSuggestedKernel(notebook);
 		if (kernel) {
 			await kernel.cancelNotebookCellExecution(notebook.uri, Array.from(cells, cell => cell.handle));
 		}

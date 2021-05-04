@@ -77,7 +77,7 @@ type GettingStartedActionEvent = {
 
 export class GettingStartedPage extends EditorPane {
 
-	public static ID = 'gettingStartedPage';
+	public static readonly ID = 'gettingStartedPage';
 
 	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
@@ -293,7 +293,8 @@ export class GettingStartedPage extends EditorPane {
 								this.gettingStartedList?.rerender();
 								break;
 							}
-							case 'selectStep': {
+							// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
+							case 'selectTask': {
 								this.selectStep(argument);
 								break;
 							}
@@ -442,7 +443,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
-		element.srcset = sources[themeType].toString() + ' 1.5x';
+		element.srcset = sources[themeType].toString().replace(/ /g, '%20') + ' 1.5x';
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
@@ -920,7 +921,7 @@ export class GettingStartedPage extends EditorPane {
 
 				return $('button.getting-started-step',
 					{
-						'x-dispatch': 'selectStep:' + step.id,
+						'x-dispatch': 'selectTask:' + step.id,
 						'data-step-id': step.id,
 						'aria-expanded': 'false',
 						'aria-checked': '' + step.done,
@@ -946,6 +947,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private getKeybindingLabel(command: string) {
+		command = command.replace(/^command:/, '');
 		const label = this.keybindingService.lookupKeybinding(command)?.getLabel();
 		if (!label) { return ''; }
 		else {

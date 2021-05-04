@@ -188,10 +188,10 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
-	private pendingQuitPromise: Promise<boolean> | null = null;
-	private pendingQuitPromiseResolve: { (veto: boolean): void } | null = null;
+	private pendingQuitPromise: Promise<boolean> | undefined = undefined;
+	private pendingQuitPromiseResolve: { (veto: boolean): void } | undefined = undefined;
 
-	private pendingWillShutdownPromise: Promise<void> | null = null;
+	private pendingWillShutdownPromise: Promise<void> | undefined = undefined;
 
 	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
 
@@ -454,8 +454,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private resolvePendingQuitPromise(veto: boolean): void {
 		if (this.pendingQuitPromiseResolve) {
 			this.pendingQuitPromiseResolve(veto);
-			this.pendingQuitPromiseResolve = null;
-			this.pendingQuitPromise = null;
+			this.pendingQuitPromiseResolve = undefined;
+			this.pendingQuitPromise = undefined;
 		}
 	}
 

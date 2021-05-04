@@ -137,6 +137,11 @@ interface TaskCustomizationTelemetryEvent {
 	properties: string[];
 }
 
+interface CommandUpgrade {
+	command?: string;
+	args?: string[];
+}
+
 class TaskMap {
 	private _store: Map<string, Task[]> = new Map();
 
@@ -2444,7 +2449,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async trust(): Promise<boolean> {
 		return (await this.workspaceTrustRequestService.requestWorkspaceTrust(
 			{
-				modal: true,
 				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
 			})) === true;
 	}
@@ -3160,13 +3164,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const tasksFile = folder.toResource('.vscode/tasks.json');
 		if (await this.fileService.exists(tasksFile)) {
 			const oldFile = tasksFile.with({ path: `${tasksFile.path}.old` });
-			await this.fileService.copy(tasksFile, oldFile);
+			await this.fileService.copy(tasksFile, oldFile, true);
 			return [oldFile, tasksFile];
 		}
 		return undefined;
 	}
 
-	private upgradeTask(task: Task): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
+	private upgradeTask(task: Task, suppressTaskName: boolean, globalConfig: { windows?: CommandUpgrade, osx?: CommandUpgrade, linux?: CommandUpgrade }): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
 		if (!CustomTask.is(task)) {
 			return;
 		}
@@ -3181,11 +3185,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (task.command.runtime === RuntimeType.Shell) {
 				configElement.type = RuntimeType.toString(RuntimeType.Shell);
 			}
-			if (task.command.name) {
+			if (task.command.name && !suppressTaskName && !globalConfig.windows?.command && !globalConfig.osx?.command && !globalConfig.linux?.command) {
 				configElement.command = task.command.name;
+			} else if (suppressTaskName) {
+				configElement.command = task._source.config.element.command;
 			}
-			if (task.command.args) {
-				configElement.args = task.command.args;
+			if (task.command.args && (!Types.isArray(task.command.args) || (task.command.args.length > 0))) {
+				if (!globalConfig.windows?.args && !globalConfig.osx?.args && !globalConfig.linux?.args) {
+					configElement.args = task.command.args;
+				} else {
+					configElement.args = task._source.config.element.args;
+				}
 			}
 		}
 
@@ -3212,7 +3222,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async upgrade(): Promise<void> {
-		if (this.executionEngine !== ExecutionEngine.Process) {
+		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
+			return;
+		}
+
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+			this._register(Event.once(this.workspaceTrustManagementService.onDidChangeTrust)(isTrusted => {
+				if (isTrusted) {
+					this.upgrade();
+				}
+			}));
 			return;
 		}
 
@@ -3228,8 +3247,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			const configTasks: (TaskConfig.CustomTask | TaskConfig.ConfiguringTask)[] = [];
+			const suppressTaskName = !!this.configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri });
+			const globalConfig = {
+				windows: <CommandUpgrade>this.configurationService.getValue('tasks.windows', { resource: folder.uri }),
+				osx: <CommandUpgrade>this.configurationService.getValue('tasks.osx', { resource: folder.uri }),
+				linux: <CommandUpgrade>this.configurationService.getValue('tasks.linux', { resource: folder.uri })
+			};
 			tasks.get(folder).forEach(task => {
-				const configTask = this.upgradeTask(task);
+				const configTask = this.upgradeTask(task, suppressTaskName, globalConfig);
 				if (configTask) {
 					configTasks.push(configTask);
 				}
@@ -3251,9 +3276,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.updateSetup();
 
 		this.notificationService.prompt(Severity.Warning,
-			nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diffs to review the upgrade."),
+			fileDiffs.length === 1 ?
+				nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diff to review the upgrade.")
+				: nls.localize('taskService.upgradeVersionPlural', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diffs to review the upgrade."),
 			[{
-				label: nls.localize('taskService.openDiffs', "Open diffs"),
+				label: fileDiffs.length === 1 ? nls.localize('taskService.openDiff', "Open diff") : nls.localize('taskService.openDiffs', "Open diffs"),
 				run: async () => {
 					for (const upgrade of fileDiffs) {
 						await this.editorService.openEditor({

@@ -83,10 +83,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		const previousSelectedLaunch = this.launches.find(l => l.uri.toString() === previousSelectedRoot);
 		const previousSelectedName = this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
+		const dynamicConfig = previousSelectedType ? { type: previousSelectedType } : undefined;
 		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
-			this.selectConfiguration(previousSelectedLaunch, previousSelectedName, undefined, { type: previousSelectedType });
+			this.selectConfiguration(previousSelectedLaunch, previousSelectedName, undefined, dynamicConfig);
 		} else if (this.launches.length > 0) {
-			this.selectConfiguration(undefined, previousSelectedName, undefined, { type: previousSelectedType });
+			this.selectConfiguration(undefined, previousSelectedName, undefined, dynamicConfig);
 		}
 	}
 
@@ -416,7 +417,9 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		this.selectedType = dynamicConfig?.type || config?.type;
-		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		// Only store the selected type if we are having a dynamic configuration. Otherwise restoring this configuration from storage might be misindentified as a dynamic configuration
+		this.storageService.store(DEBUG_SELECTED_TYPE, dynamicConfig ? this.selectedType : undefined, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
 		if (type) {
 			this.debugConfigurationTypeContext.set(type);
 		} else {

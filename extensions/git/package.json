@@ -27,7 +27,7 @@
     "test": "node ../../node_modules/mocha/bin/mocha"
   },
   "capabilities": {
-    "virtualWorkspaces": false,
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }
@@ -1695,7 +1695,7 @@
           "type": ["boolean", "string"],
           "enum": [true, false, "all"],
           "scope": "resource",
-          "description": "%config.autofetch%",
+          "markdownDescription": "%config.autofetch%",
           "default": false,
           "tags": [
             "usesOnlineServices"
@@ -1704,7 +1704,7 @@
         "git.autofetchPeriod": {
           "type": "number",
           "scope": "resource",
-          "description": "%config.autofetchPeriod%",
+          "markdownDescription": "%config.autofetchPeriod%",
           "default": 180
         },
         "git.branchValidationRegex": {

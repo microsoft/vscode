@@ -217,7 +217,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.renderTree();
 		}));
 
-		this._register(configurationService.onDidChangeUntrustdSettings(e => {
+		this._register(configurationService.onDidChangeRestrictedSettings(e => {
 			if (e.default.length) {
 				this.updateElementsByKey([...e.default]);
 			}

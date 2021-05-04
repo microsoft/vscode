@@ -40,11 +40,14 @@
     }
   },
   "contributes": {
-    "notebookMarkdownRenderer": [
+    "notebookMarkupRenderers": [
       {
         "id": "markdownItRenderer",
         "displayName": "Markdown it renderer",
-        "entrypoint": "./notebook-out/index.js"
+        "entrypoint": "./notebook-out/index.js",
+        "mimeTypes": [
+          "text/markdown"
+        ]
       }
     ],
     "commands": [
@@ -343,7 +346,7 @@
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
     "build-preview": "npx webpack-cli --mode production",
-    "build-notebook": "npx webpack-cli --config webpack.notebook --mode production",
+    "build-notebook": "node ./esbuild",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },

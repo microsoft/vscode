@@ -553,7 +553,9 @@
 	/** Overidden for code cells */
 	top: 0px;
 	bottom: 0px;
+}
 
+.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side {
 	/* Disable pointer events for the folding container */
 	pointer-events: none;
 }
@@ -908,7 +910,7 @@
 	width: 1px !important;
 	height: 16px !important;
 	margin: 5px 4px !important;
-	cursor: none;
+	cursor: default;
 	min-width: 1px !important;
 }
 

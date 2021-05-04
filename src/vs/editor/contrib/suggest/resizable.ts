@@ -151,6 +151,13 @@ export class ResizableHTMLElement {
 		}
 	}
 
+	clearSashHoverState(): void {
+		this._eastSash.clearSashHoverState();
+		this._westSash.clearSashHoverState();
+		this._northSash.clearSashHoverState();
+		this._southSash.clearSashHoverState();
+	}
+
 	get size() {
 		return this._size;
 	}

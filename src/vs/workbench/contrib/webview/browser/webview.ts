@@ -80,7 +80,7 @@ export interface WebviewOptions {
 }
 
 export interface WebviewContentOptions {
-	readonly alwaysFetchFromRemote?: boolean;
+	readonly useRootAuthority?: boolean;
 	readonly allowMultipleAPIAcquire?: boolean;
 	readonly allowScripts?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;

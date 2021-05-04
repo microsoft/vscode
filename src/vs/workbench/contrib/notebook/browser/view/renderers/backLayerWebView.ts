@@ -449,7 +449,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.position = 'absolute';
 	}
 	private generateContent(coreDependencies: string, baseUrl: string) {
-		const markdownRenderersSrc = this.getMarkdownRendererScripts();
+		const markupRenderer = this.getMarkdownRenderer();
 		const outputWidth = `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`;
 		const outputMarginLeft = `${this.options.leftMargin + this.options.runGutter}px`;
 		return html`
@@ -493,7 +493,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 						h1 {
 							font-size: 26px;
-							padding-bottom: 8px;
 							line-height: 31px;
 							margin: 0;
 							margin-bottom: 13px;
@@ -718,31 +717,42 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr({
+				<script type="module">${preloadsScriptStr({
 			outputNodePadding: this.options.outputNodePadding,
 			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
+		}, {
+			entrypoint: markupRenderer[0].entrypoint,
+			dependencies: markupRenderer[0].dependencies,
 		})}</script>
-				${markdownRenderersSrc}
 			</body>
 		</html>`;
 	}
 
-	private getMarkdownRendererScripts() {
-		const markdownRenderers = this.notebookService.getMarkdownRendererInfo();
+	private getMarkdownRenderer(): Array<{ entrypoint: string, dependencies: Array<{ entrypoint: string }> }> {
+		const allRenderers = this.notebookService.getMarkupRendererInfo();
 
-		return markdownRenderers
-			.sort((a, b) => {
-				// prefer built-in extension
-				if (a.extensionIsBuiltin) {
-					return b.extensionIsBuiltin ? 0 : -1;
+		const topLevelMarkdownRenderers = allRenderers
+			.filter(renderer => !renderer.dependsOn)
+			.filter(renderer => renderer.mimeTypes?.includes('text/markdown'));
+
+		const subRenderers = new Map<string, Array<{ entrypoint: string }>>();
+		for (const renderer of allRenderers) {
+			if (renderer.dependsOn) {
+				if (!subRenderers.has(renderer.dependsOn)) {
+					subRenderers.set(renderer.dependsOn, []);
 				}
-				return b.extensionIsBuiltin ? 1 : -1;
-			})
-			.map(renderer => {
-				return asWebviewUri(this.environmentService, this.id, renderer.entrypoint);
-			})
-			.map(src => `<script src="${src}"></script>`)
-			.join('\n');
+				const entryPoint = asWebviewUri(this.environmentService, this.id, renderer.entrypoint);
+				subRenderers.get(renderer.dependsOn)!.push({ entrypoint: entryPoint.toString(true) });
+			}
+		}
+
+		return topLevelMarkdownRenderers.map((renderer) => {
+			const src = asWebviewUri(this.environmentService, this.id, renderer.entrypoint);
+			return {
+				entrypoint: src.toString(),
+				dependencies: subRenderers.get(renderer.id) || [],
+			};
+		});
 	}
 
 	postRendererMessage(rendererId: string, message: any) {
@@ -1144,7 +1154,7 @@ var requirejs = (function() {
 
 		this.localResourceRootsCache = [
 			...this.notebookService.getNotebookProviderResourceRoots(),
-			...this.notebookService.getMarkdownRendererInfo().map(x => dirname(x.entrypoint)),
+			...this.notebookService.getMarkupRendererInfo().map(x => dirname(x.entrypoint)),
 			...workspaceFolders,
 			rootPath,
 		];
@@ -1158,7 +1168,7 @@ var requirejs = (function() {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache,
-			alwaysFetchFromRemote: true
+			useRootAuthority: true
 		}, undefined);
 
 		let resolveFunc: () => void;

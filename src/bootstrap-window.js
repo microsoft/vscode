@@ -171,13 +171,6 @@
 		require(modulePaths, async result => {
 			try {
 
-				// Wait for process environment being fully resolved
-				performance.mark('code/willWaitForShellEnv');
-				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-					await safeProcess.shellEnv();
-				}
-				performance.mark('code/didWaitForShellEnv');
-
 				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);
 				if (callbackResult instanceof Promise) {

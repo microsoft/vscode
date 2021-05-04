@@ -21,7 +21,6 @@ import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminal
 import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_VIEW_ID, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
-import { setupTerminalMenu } from 'vs/workbench/contrib/terminal/common/terminalMenu';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -37,6 +36,7 @@ import { RemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/rem
 import { isIPad } from 'vs/base/browser/browser';
 import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { isWindows } from 'vs/base/common/platform';
+import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -161,6 +161,7 @@ registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 });
 
 setupTerminalCommands();
-setupTerminalMenu();
+
+setupTerminalMenus();
 
 registerColors();

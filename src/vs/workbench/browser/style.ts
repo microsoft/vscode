@@ -209,7 +209,7 @@ registerThemingParticipant((theme, collector) => {
 	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
 	if (toolbarHoverOutlineColor) {
 		collector.addRule(`
-			.monaco-action-bar:not(.vertical) .action-item:hover .action-label:not(.disabled) {
+			.monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
 				outline: 1px dashed ${toolbarHoverOutlineColor};
 				outline-offset: -1px;
 			}

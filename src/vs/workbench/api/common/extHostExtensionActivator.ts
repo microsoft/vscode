@@ -393,9 +393,9 @@ export class ExtensionsActivator {
 				error.name = err.name;
 			}
 			if (err && err.message) {
-				error.message = `Activating extension '${extensionId}' failed: ${err.message}.`;
+				error.message = `Activating extension '${extensionId.value}' failed: ${err.message}.`;
 			} else {
-				error.message = `Activating extension '${extensionId}' failed: ${err}.`;
+				error.message = `Activating extension '${extensionId.value}' failed: ${err}.`;
 			}
 			if (err && err.stack) {
 				error.stack = err.stack;

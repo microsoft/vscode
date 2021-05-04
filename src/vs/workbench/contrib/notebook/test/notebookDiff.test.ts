@@ -124,7 +124,7 @@ suite('NotebookCommon', () => {
 		});
 	});
 
-	test.skip('LCS 2', async () => {
+	test('LCS 2', async () => {
 		await withTestNotebookDiffModel([
 			['# Description', 'markdown', CellKind.Markdown, [], { custom: { metadata: {} } }],
 			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
@@ -144,6 +144,8 @@ suite('NotebookCommon', () => {
 		], async (model) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
+			NotebookTextDiffEditor.prettyChanges(model, diffResult);
+
 			assert.deepStrictEqual(diffResult.changes.map(change => ({
 				originalStart: change.originalStart,
 				originalLength: change.originalLength,
@@ -170,66 +172,6 @@ suite('NotebookCommon', () => {
 				modifiedStart: 7,
 				modifiedLength: 0
 			}]);
-		});
-	});
-
-
-	test.skip('diff consistent move operations', async () => {
-
-		await withTestNotebookDiffModel([
-			['# Description', 'markdown', CellKind.Markdown, [], {}],
-			['x = 3', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '3' }] }], {}],
-			['x', 'javascript', CellKind.Code, [], {}],
-			['x = 5', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '5' }] }], {}],
-		], [
-			['# Description', 'markdown', CellKind.Markdown, [], {}],
-			['x = 3', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '3' }] }], {}],
-			['x = 5', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '5' }] }], {}],
-			['x', 'javascript', CellKind.Code, [], {}],
-		], async (model, accessor) => {
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: {
-					changes: [{
-						originalStart: 2,
-						originalLength: 1,
-						modifiedStart: 2,
-						modifiedLength: 0
-					}, {
-						originalStart: 4,
-						originalLength: 0,
-						modifiedStart: 3,
-						modifiedLength: 1
-					}, {
-						originalStart: 5,
-						originalLength: 0,
-						modifiedStart: 5,
-						modifiedLength: 1
-					}, {
-						originalStart: 6,
-						originalLength: 1,
-						modifiedStart: 7,
-						modifiedLength: 0
-					}],
-					quitEarly: false
-				}
-			});
-
-			assert.strictEqual(diffResult.firstChangeIndex, 0);
-			assert.strictEqual(diffResult.viewModels[0].type, 'insert');
-			assert.strictEqual(diffResult.viewModels[1].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[2].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[3].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[4].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[5].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[6].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[7].type, 'unchanged');
 		});
 	});
 });

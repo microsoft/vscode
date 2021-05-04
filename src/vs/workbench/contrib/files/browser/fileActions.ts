@@ -55,8 +55,6 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { listenStream } from 'vs/base/common/stream';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
-import { ContributedEditorPriority, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -444,8 +442,7 @@ export class GlobalCompareResourcesAction extends Action {
 		label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super(id, label);
 	}
@@ -454,49 +451,17 @@ export class GlobalCompareResourcesAction extends Action {
 		const activeInput = this.editorService.activeEditor;
 		const activeResource = EditorResourceAccessor.getOriginalUri(activeInput);
 		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
-
-			// Define a one-time override that has highest priority
-			// and matches every resource to be able to create a
-			// diff editor to show the comparison.
-			const editorOverrideDisposable = this.editorOverrideService.registerContributionPoint('*', {
-				id: GlobalCompareResourcesAction.ID,
-				label: GlobalCompareResourcesAction.LABEL,
-				priority: ContributedEditorPriority.exclusive,
-				detail: '',
-				describes: () => false
-			}, {}, resource => {
-
-				// Only once!
-				editorOverrideDisposable.dispose();
-
-				// Open editor as diff if the selected editor resource
-				// can be handled by the text model service
-				if (this.textModelService.canHandleResource(resource)) {
-					return {
-						editor: this.editorService.createEditorInput({
-							leftResource: activeResource,
-							rightResource: resource,
-							options: { override: EditorOverride.DISABLED, pinned: true }
-						})
-					};
+			const picks = await this.quickInputService.quickAccess.pick('', { itemActivation: ItemActivation.SECOND });
+			if (picks?.length === 1) {
+				const resource = (picks[0] as unknown as { resource: unknown }).resource;
+				if (URI.isUri(resource) && this.textModelService.canHandleResource(resource)) {
+					this.editorService.openEditor({
+						leftResource: activeResource,
+						rightResource: resource,
+						options: { pinned: true }
+					});
 				}
-
-				// Otherwise stay on current resource
-				return {
-					editor: this.editorService.createEditorInput({
-						resource: activeResource,
-						options: { override: EditorOverride.DISABLED, pinned: true }
-					})
-				};
-			});
-
-			once(this.quickInputService.onHide)((async () => {
-				await timeout(0); // prevent race condition with editor
-				editorOverrideDisposable.dispose();
-			}));
-
-			// Bring up quick access
-			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
+			}
 		}
 	}
 }
@@ -639,7 +604,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		label: string,
 		@IEditorService private readonly editorService: IEditorService,
 		@IHostService private readonly hostService: IHostService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(id, label);
@@ -651,7 +616,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 			} else {
-				this.notificationService.info(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
+				this.dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."), [nls.localize('ok', 'OK')]);
 			}
 		}
 	}
@@ -1211,6 +1176,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
 	const notificationService = accessor.get(INotificationService);
+	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
 
@@ -1265,6 +1231,12 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 			const pair = sourceTargetPairs[0];
 			await explorerService.select(pair.target);
+			if (sourceTargetPairs.length === 1) {
+				const item = explorerService.findClosest(pair.target);
+				if (item && !item.isDirectory) {
+					await editorService.openEditor({ resource: item.resource, options: { pinned: true, preserveFocus: true } });
+				}
+			}
 		}
 	} catch (e) {
 		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));

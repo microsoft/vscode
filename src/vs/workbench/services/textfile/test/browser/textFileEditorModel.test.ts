@@ -250,18 +250,18 @@ suite('Files - TextFileEditorModel', () => {
 		}
 	});
 
-	test('setEncoding - encode', function () {
+	test('setEncoding - encode', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		let encodingEvent = false;
 		model.onDidChangeEncoding(() => encodingEvent = true);
 
-		model.setEncoding('utf8', EncodingMode.Encode); // no-op
+		await model.setEncoding('utf8', EncodingMode.Encode); // no-op
 		assert.strictEqual(getLastModifiedTime(model), -1);
 
 		assert.ok(!encodingEvent);
 
-		model.setEncoding('utf16', EncodingMode.Encode);
+		await model.setEncoding('utf16', EncodingMode.Encode);
 
 		assert.ok(encodingEvent);
 
@@ -273,10 +273,22 @@ suite('Files - TextFileEditorModel', () => {
 	test('setEncoding - decode', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.setEncoding('utf16', EncodingMode.Decode);
+		await model.setEncoding('utf16', EncodingMode.Decode);
 
-		await timeout(0);
 		assert.ok(model.isResolved()); // model got resolved due to decoding
+		model.dispose();
+	});
+
+	test('setEncoding - decode dirty file saves first', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		await model.resolve();
+
+		model.updateTextEditorModel(createTextBufferFactory('bar'));
+		assert.strictEqual(model.isDirty(), true);
+
+		await model.setEncoding('utf16', EncodingMode.Decode);
+
+		assert.strictEqual(model.isDirty(), false);
 		model.dispose();
 	});
 

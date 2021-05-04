@@ -31,6 +31,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	_serviceBrand: any;
 
 	private readonly _contributedEditors: ContributedCustomEditors;
+	private readonly _editorOverrideDisposables: IDisposable[] = [];
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
 	private readonly _models = new CustomEditorModelManager();
@@ -62,6 +63,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this.registerContributionPoints();
 
 		this._register(this._contributedEditors.onChange(() => {
+			this.registerContributionPoints();
 			this.updateContexts();
 			this._onDidChangeEditorTypes.fire();
 		}));
@@ -102,12 +104,14 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	private registerContributionPoints(): void {
+		// Clear all previous contributions we know
+		this._editorOverrideDisposables.forEach(d => d.dispose());
 		for (const contributedEditor of this._contributedEditors) {
 			for (const globPattern of contributedEditor.selector) {
 				if (!globPattern.filenamePattern) {
 					continue;
 				}
-				this._register(this.extensionContributedEditorService.registerContributionPoint(
+				this._editorOverrideDisposables.push(this._register(this.extensionContributedEditorService.registerContributionPoint(
 					globPattern.filenamePattern,
 					{
 						id: contributedEditor.id,
@@ -125,7 +129,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					(diffEditorInput, options, group) => {
 						return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
 					}
-				));
+				)));
 			}
 		}
 	}

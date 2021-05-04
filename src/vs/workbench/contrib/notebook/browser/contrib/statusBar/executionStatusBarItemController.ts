@@ -7,12 +7,11 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { executingStateIcon, pendingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -84,9 +83,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 		super();
 
 		this._update();
-		this._register(
-			Event.filter(this._cell.model.onDidChangeMetadata, e => !!e.runStateChanged)
-				(() => this._update()));
+		this._register(this._cell.model.onDidChangeMetadata(() => this._update()));
 	}
 
 	private async _update() {
@@ -138,14 +135,14 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 			};
 		} else if (runState === NotebookCellExecutionState.Pending) {
 			return <INotebookCellStatusBarItem>{
-				icon: pendingStateIcon,
+				text: '$(notebook-state-pending)',
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
 			};
 		} else if (runState === NotebookCellExecutionState.Executing) {
 			return <INotebookCellStatusBarItem>{
-				icon: ThemeIcon.modify(executingStateIcon, 'spin'),
+				text: '$(notebook-state-executing~spin)',
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
@@ -174,11 +171,11 @@ class TimerCellStatusBarHelper extends Disposable {
 	) {
 		super();
 
+		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarHelper.UPDATE_INTERVAL));
 		this._update();
 		this._register(
 			Event.filter(this._cell.model.onDidChangeMetadata, e => !!e.runStateChanged)
 				(() => this._update()));
-		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarHelper.UPDATE_INTERVAL));
 	}
 
 	private async _update() {

@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -34,6 +35,9 @@ suite('NotebookProviderInfoStore', function () {
 			new TestConfigurationService(),
 			new class extends mock<IAccessibilityService>() { },
 			instantiationService,
+			new class extends mock<IFileService>() {
+				override canHandleResource() { return true; }
+			}
 		);
 
 		const fooInfo = new NotebookProviderInfo({

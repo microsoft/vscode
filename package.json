@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.56.0",
-  "distro": "6dceefb0496818c4beb78822a13a5a13f30c56c1",
+  "version": "1.57.0",
+  "distro": "f2ce80c1b46a963b719486003a0f17cf678add41",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,6 +28,8 @@
     "watch-extension-media": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-extension-media",
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
+    "watch-extension-mediad": "deemon yarn watch-extension-media",
+    "kill-watch-extension-mediad": "deemon --kill yarn watch-extension-media",
     "mocha": "mocha test/unit/node/all.js --delay",
     "precommit": "node build/hygiene.js",
     "gulp": "node --max_old_space_size=8192 ./node_modules/gulp/bin/gulp.js",
@@ -42,7 +44,6 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
-    "no-implicit-override-watch": "tsc --watch -p src/tsconfig.json --noEmit --noImplicitOverride",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node resources/web/code-web.js",
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
@@ -61,11 +62,11 @@
   "dependencies": {
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
-    "graceful-fs": "4.2.3",
+    "graceful-fs": "4.2.6",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
     "iconv-lite-umd": "0.6.8",
-    "jschardet": "2.3.0",
+    "jschardet": "3.0.0",
     "keytar": "7.2.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.3",
@@ -83,10 +84,10 @@
     "vscode-ripgrep": "^1.11.3",
     "vscode-sqlite3": "4.0.11",
     "vscode-textmate": "5.2.0",
-    "xterm": "4.12.0-beta.20",
-    "xterm-addon-search": "0.9.0-beta.1",
-    "xterm-addon-unicode11": "0.3.0-beta.4",
-    "xterm-addon-webgl": "0.11.0-beta.7",
+    "xterm": "4.12.0-beta.26",
+    "xterm-addon-search": "0.9.0-beta.2",
+    "xterm-addon-unicode11": "0.3.0-beta.5",
+    "xterm-addon-webgl": "0.11.0-beta.8",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -191,7 +192,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.1",
     "tsec": "0.1.4",
-    "typescript": "^4.3.0-dev.20210426",
+    "typescript": "^4.3.0-dev.20210503",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
@@ -214,8 +215,8 @@
   },
   "optionalDependencies": {
     "vscode-windows-registry": "1.0.3",
-    "windows-foreground-love": "0.2.0",
-    "windows-mutex": "0.3.0",
+    "windows-foreground-love": "0.4.0",
+    "windows-mutex": "0.4.1",
     "windows-process-tree": "0.3.0"
   },
   "resolutions": {

@@ -100,6 +100,10 @@ export interface ITerminalProfileResolverService {
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
+
+	// TODO: Remove when workspace trust is enabled
+	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined;
+	getSafeConfigValueFullKey(key: string): unknown | undefined;
 }
 
 export interface IShellLaunchConfigResolveOptions {
@@ -189,12 +193,13 @@ export interface ITerminalConfiguration {
 	enablePersistentSessions: boolean;
 	tabs: {
 		enabled: boolean;
-		hideForSingle: boolean;
+		hideCondition: 'never' | 'singleTerminal';
 		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
 		location: 'left' | 'right';
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
+	allowWorkspaceConfiguration: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -423,6 +428,78 @@ export enum TitleEventSource {
 
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
+export const enum TERMINAL_SETTING_ID {
+	ShellLinux = 'terminal.integrated.shell.linux',
+	ShellMacOs = 'terminal.integrated.shell.osx',
+	ShellWindows = 'terminal.integrated.shell.windows',
+	SendKeybindingsToShell = 'terminal.integrated.sendKeybindingsToShell',
+	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
+	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
+	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
+	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
+	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
+	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
+	ProfilesWindows = 'terminal.integrated.profiles.windows',
+	ProfilesMacOs = 'terminal.integrated.profiles.osx',
+	ProfilesLinux = 'terminal.integrated.profiles.linux',
+	DefaultProfileLinux = 'terminal.integrated.defaultProfile.linux',
+	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
+	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
+	UseWslProfiles = 'terminal.integrated.useWslProfiles',
+	TabsEnabled = 'terminal.integrated.tabs.enabled',
+	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
+	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
+	TabsLocation = 'terminal.integrated.tabs.location',
+	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
+	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
+	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
+	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
+	CopyOnSelection = 'terminal.integrated.copyOnSelection',
+	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
+	FontFamily = 'terminal.integrated.fontFamily',
+	FontSize = 'terminal.integrated.fontSize',
+	LetterSpacing = 'terminal.integrated.letterSpacing',
+	LineHeight = 'terminal.integrated.lineHeight',
+	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
+	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
+	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
+	BellDuration = 'terminal.integrated.bellDuration',
+	FontWeight = 'terminal.integrated.fontWeight',
+	FontWeightBold = 'terminal.integrated.fontWeightBold',
+	CursorBlinking = 'terminal.integrated.cursorBlinking',
+	CursorStyle = 'terminal.integrated.cursorStyle',
+	CursorWidth = 'terminal.integrated.cursorWidth',
+	Scrollback = 'terminal.integrated.scrollback',
+	DetectLocale = 'terminal.integrated.detectLocale',
+	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
+	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
+	Cwd = 'terminal.integrated.cwd',
+	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
+	EnableBell = 'terminal.integrated.enableBell',
+	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
+	AllowChords = 'terminal.integrated.allowChords',
+	AllowMnemonics = 'terminal.integrated.allowMnemonics',
+	InheritEnv = 'terminal.integrated.inheritEnv',
+	EnvMacOs = 'terminal.integrated.env.osx',
+	EnvLinux = 'terminal.integrated.env.linux',
+	EnvWindows = 'terminal.integrated.env.windows',
+	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
+	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
+	ShowExitAlert = 'terminal.integrated.showExitAlert',
+	SplitCwd = 'terminal.integrated.splitCwd',
+	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
+	WordSeparators = 'terminal.integrated.wordSeparators',
+	ExperimentalUseTitleEvent = 'terminal.integrated.experimentalUseTitleEvent',
+	EnableFileLinks = 'terminal.integrated.enableFileLinks',
+	UnicodeVersion = 'terminal.integrated.unicodeVersion',
+	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
+	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
+	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
+	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
+	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
+	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration'
+}
+
 export const enum TERMINAL_COMMAND_ID {
 	FIND_NEXT = 'workbench.action.terminal.findNext',
 	FIND_PREVIOUS = 'workbench.action.terminal.findPrevious',
@@ -448,7 +525,8 @@ export const enum TERMINAL_COMMAND_ID {
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',
 	FOCUS_PREVIOUS_PANE = 'workbench.action.terminal.focusPreviousPane',
-	FOCUS_TABS_VIEW = 'workbench.action.terminal.focusTabsView',
+	SHOW_TABS = 'workbench.action.terminal.showTabs',
+	FOCUS_TABS = 'workbench.action.terminal.focusTabs',
 	FOCUS_NEXT_PANE = 'workbench.action.terminal.focusNextPane',
 	RESIZE_PANE_LEFT = 'workbench.action.terminal.resizePaneLeft',
 	RESIZE_PANE_RIGHT = 'workbench.action.terminal.resizePaneRight',

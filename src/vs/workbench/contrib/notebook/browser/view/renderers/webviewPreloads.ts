@@ -36,7 +36,7 @@ interface EmitterLike<T> {
 	event: Event<T>;
 }
 
-function webviewPreloads() {
+async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -409,18 +409,12 @@ function webviewPreloads() {
 		metadata: unknown;
 	}
 
-	interface ICreateMarkdownInfo {
-		readonly content: string;
-		readonly element: HTMLElement;
-	}
-
 	interface IDestroyCellInfo {
 		outputId: string;
 	}
 
 	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
 	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
-	const onDidCreateMarkdown = createEmitter<[string | undefined /* namespace */, ICreateMarkdownInfo]>();
 	const onDidReceiveMessage = createEmitter<[string, unknown]>();
 
 	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
@@ -447,7 +441,6 @@ function webviewPreloads() {
 			onDidReceiveMessage: mapEmitter(onDidReceiveMessage, ([ns, data]) => ns === namespace ? data : dontEmit),
 			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
 			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
-			onDidCreateMarkdown: mapEmitter(onDidCreateMarkdown, ([ns, data]) => data),
 		};
 	};
 
@@ -805,6 +798,10 @@ function webviewPreloads() {
 		}
 	});
 
+	const markdownRenderer: {
+		renderMarkup: (context: { element: HTMLElement, content: string }) => void,
+	} = await markdownRendererModule.activate(markdownDeps);
+
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
@@ -910,13 +907,13 @@ function webviewPreloads() {
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');
-				previewContainerNode.innerText = '';
+				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+				markdownRenderer.renderMarkup({
 					element: previewNode,
 					content: content
-				}]);
+				});
 
 				if (!hasPostedRenderedMathTelemetry) {
 					const hasRenderedMath = previewNode.querySelector('.katex');
@@ -1015,11 +1012,20 @@ function webviewPreloads() {
 	}();
 }
 
-export function preloadsScriptStr(values: {
+export function preloadsScriptStr(styleValues: {
 	outputNodePadding: number;
 	outputNodeLeftPadding: number;
+}, markdownRenderer: {
+	entrypoint: string,
+	dependencies: Array<{ entrypoint: string }>,
 }) {
-	return `(${webviewPreloads})()`
-		.replace(/__outputNodePadding__/g, `${values.outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`);
+	const markdownCtx = {
+		dependencies: markdownRenderer.dependencies,
+	};
+
+	return `
+	import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
+	(${webviewPreloads})(markdownRendererModule, JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}")))`
+		.replace(/__outputNodePadding__/g, `${styleValues.outputNodePadding}`)
+		.replace(/__outputNodeLeftPadding__/g, `${styleValues.outputNodeLeftPadding}`);
 }

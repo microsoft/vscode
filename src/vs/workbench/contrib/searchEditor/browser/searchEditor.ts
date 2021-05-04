@@ -27,7 +27,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -84,7 +83,7 @@ export class SearchEditor extends BaseTextEditor {
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
 	private messageDisposables: DisposableStore;
-	private container: HTMLElement;
+	private readonly container = DOM.$('.search-editor');
 	private searchModel: SearchModel;
 	private ongoingOperations: number = 0;
 
@@ -107,21 +106,21 @@ export class SearchEditor extends BaseTextEditor {
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
-		this.container = DOM.$('.search-editor');
 
-
-		const scopedContextKeyService = contextKeyService.createScoped(this.container);
-		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-
-		this.inSearchEditorContextKey = InSearchEditor.bindTo(scopedContextKeyService);
+		this.inSearchEditorContextKey = InSearchEditor.bindTo(this.scopedContextKeyService);
 		this.inSearchEditorContextKey.set(true);
-		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(scopedContextKeyService);
+		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(this.scopedContextKeyService);
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
 		this._register(this.messageDisposables = new DisposableStore());
 
 		this.searchHistoryDelayer = new Delayer<void>(2000);
 
 		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
+	}
+
+	private _scopedContextKeyService = this.contextKeyService.createScoped(this.container);
+	override get scopedContextKeyService(): IContextKeyService {
+		return this._scopedContextKeyService;
 	}
 
 	override createEditor(parent: HTMLElement) {

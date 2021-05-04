@@ -83,6 +83,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	private readonly onDiff = this._register(new Emitter<[IWorkspaceFolderData, TestsDiff]>());
 	public readonly onFolderChange = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	public readonly c: TestSingleUseCollection = this._register(this.owned.createForHierarchy(d => this.c.setDiff(d /* don't clear during testing */)));
+	private isProcessingDiff = false;
 	public readonly projection: T;
 	public readonly tree: TestObjectTree<TestExplorerTreeElement>;
 
@@ -92,7 +93,9 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 			workspaceFolderCollections: folders.map(folder => [{ folder }, {
 				expand: (testId: string, levels: number) => {
 					this.c.expand(testId, levels);
-					this.onDiff.fire([folder, this.c.collectDiff()]);
+					if (!this.isProcessingDiff) {
+						this.onDiff.fire([folder, this.c.collectDiff()]);
+					}
 					return Promise.resolve();
 				},
 				all: [],
@@ -109,7 +112,12 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	}
 
 	public flush(folder: IWorkspaceFolderData) {
-		this.onDiff.fire([folder!, this.c.collectDiff()]);
+		this.isProcessingDiff = true;
+		while (this.c.currentDiff.length) {
+			this.onDiff.fire([folder!, this.c.collectDiff()]);
+		}
+		this.isProcessingDiff = false;
+
 		this.projection.applyTo(this.tree);
 		return this.tree.getRendered();
 	}

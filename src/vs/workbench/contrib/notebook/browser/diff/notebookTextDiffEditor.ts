@@ -30,7 +30,7 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { URI } from 'vs/base/common/uri';
-import { IDiffChange } from 'vs/base/common/diff/diff';
+import { IDiffChange, IDiffResult } from 'vs/base/common/diff/diff';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { SequencerByKey } from 'vs/base/common/async';
@@ -407,6 +407,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
+		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
 		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this._model, this._eventDispatcher!, diffResult);
 
 		this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
@@ -419,6 +420,44 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._revealFirst = false;
 			this._list.setFocus([firstChangeIndex]);
 			this._list.reveal(firstChangeIndex, 0.3);
+		}
+	}
+
+	/**
+	 * making sure that swapping cells are always translated to `insert+delete`.
+	 */
+	static prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiffResult) {
+		const changes = diffResult.changes;
+		for (let i = 0; i < diffResult.changes.length - 1; i++) {
+			// then we know there is another change after current one
+			const curr = changes[i];
+			const next = changes[i + 1];
+			const x = curr.originalStart;
+			const y = curr.modifiedStart;
+
+			if (
+				curr.originalLength === 1
+				&& curr.modifiedLength === 0
+				&& next.originalStart === x + 2
+				&& next.originalLength === 0
+				&& next.modifiedStart === y + 1
+				&& next.modifiedLength === 1
+				&& model.original.notebook.cells[x].getHashValue() === model.modified.notebook.cells[y + 1].getHashValue()
+				&& model.original.notebook.cells[x + 1].getHashValue() === model.modified.notebook.cells[y].getHashValue()
+			) {
+				// this is a swap
+				curr.originalStart = x;
+				curr.originalLength = 0;
+				curr.modifiedStart = y;
+				curr.modifiedLength = 1;
+
+				next.originalStart = x + 1;
+				next.originalLength = 1;
+				next.modifiedStart = y + 2;
+				next.modifiedLength = 0;
+
+				i++;
+			}
 		}
 	}
 

@@ -5,7 +5,7 @@
 
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TERMINAL_COMMAND_ID, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -56,17 +56,14 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				getHeight: () => TAB_HEIGHT,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER))],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelection())],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				identityProvider: {
-					getId: e => e.instanceId
+					getId: e => e?.instanceId
 				},
-				accessibilityProvider: {
-					getAriaLabel: e => e.title,
-					getWidgetAriaLabel: () => localize('terminal.tabs', "Terminal tabs")
-				},
+				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
@@ -101,7 +98,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 
 		this.onMouseClick(e => {
 			// If focus mode is single click focus the element unless a multi-select in happening
-			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>('terminal.integrated.tabs.focusMode');
+			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TERMINAL_SETTING_ID.TabsFocusMode);
 			if (focusMode === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
@@ -125,6 +122,13 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 
 		this.onDidChangeSelection(e => {
 			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
+			if (this._terminalTabsSingleSelectedContextKey) {
+				const instance = e.elements[0];
+				if (!instance) {
+					return;
+				}
+				this._terminalService.setActiveInstance(instance);
+			}
 		});
 
 		this.onDidChangeFocus(e => {
@@ -166,10 +170,13 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _labels: ResourceLabels,
+		private readonly _getSelection: () => (ITerminalInstance | null)[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IListService private readonly _listService: IListService
 	) {
 	}
 
@@ -228,7 +235,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 
 		let prefix: string = '';
 		if (tab.terminalInstances.length > 1) {
-			const terminalIndex = tab?.terminalInstances.indexOf(instance);
+			const terminalIndex = tab.terminalInstances.indexOf(instance);
 			if (terminalIndex === 0) {
 				prefix = `┌ `;
 			} else if (terminalIndex === tab!.terminalInstances.length - 1) {
@@ -277,6 +284,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 				instance.dispose();
 			}
 		}));
+
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
@@ -302,12 +310,35 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
-		const split = new Action(TERMINAL_COMMAND_ID.SPLIT, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => this._terminalService.splitInstance(instance));
-		const kill = new Action(TERMINAL_COMMAND_ID.KILL, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => instance.dispose(true));
+		// If the instance is within the selection, split all selected
+		const actions = [
+			new Action(TERMINAL_COMMAND_ID.SPLIT_INSTANCE, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+				this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
+			}),
+			new Action(TERMINAL_COMMAND_ID.KILL_INSTANCE, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+				this._runForSelectionOrInstance(instance, e => e.dispose());
+			})
+		];
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();
-		template.actionBar.push(split, { icon: true, label: false });
-		template.actionBar.push(kill, { icon: true, label: false });
+		for (const action of actions) {
+			template.actionBar.push(action, { icon: true, label: false, keybinding: this._keybindingService.lookupKeybinding(action.id)?.getLabel() });
+		}
+	}
+
+	private _runForSelectionOrInstance(instance: ITerminalInstance, callback: (instance: ITerminalInstance) => void) {
+		const selection = this._getSelection();
+		if (selection.includes(instance)) {
+			for (const s of selection) {
+				if (s) {
+					callback(s);
+				}
+			}
+		} else {
+			callback(instance);
+		}
+		this._terminalService.focusTabs();
+		this._listService.lastFocusedList?.focusNext();
 	}
 }
 
@@ -319,4 +350,39 @@ interface ITerminalTabEntryTemplate {
 		hoverActions?: IHoverAction[];
 	};
 	elementDispoables?: DisposableStore;
+}
+
+
+class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
+	constructor(@ITerminalService private readonly _terminalService: ITerminalService) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('terminal.tabs', "Terminal tabs");
+	}
+
+	getAriaLabel(instance: ITerminalInstance): string {
+		let ariaLabel: string = '';
+		const tab = this._terminalService.getTabForInstance(instance);
+		if (tab && tab.terminalInstances?.length > 1) {
+			const terminalIndex = tab.terminalInstances.indexOf(instance);
+			ariaLabel = localize({
+				key: 'splitTerminalAriaLabel',
+				comment: [
+					`The terminal's ID`,
+					`The terminal's title`,
+					`The terminal's split number`,
+					`The terminal group's total split number`
+				]
+			}, "Terminal {0} {1}, split {2} of {3}", instance.instanceId, instance.title, terminalIndex + 1, tab.terminalInstances.length);
+		} else {
+			ariaLabel = localize({
+				key: 'terminalAriaLabel',
+				comment: [
+					`The terminal's ID`,
+					`The terminal's title`
+				]
+			}, "Terminal {0} {1}", instance.instanceId, instance.title);
+		}
+		return ariaLabel;
+	}
 }

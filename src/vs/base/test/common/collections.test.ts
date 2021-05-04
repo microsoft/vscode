@@ -53,4 +53,26 @@ suite('Collections', () => {
 		assert.strictEqual(grouped[group2].length, 1);
 		assert.strictEqual(grouped[group2][0].value, value3);
 	});
+
+	test('groupByNumber', () => {
+
+		const group1 = 1, group2 = 2;
+		const value1 = 'a', value2 = 'b', value3 = 'c';
+		let source = [
+			{ key: group1, value: value1 },
+			{ key: group1, value: value2 },
+			{ key: group2, value: value3 },
+		];
+
+		let grouped = collections.groupByNumber(source, x => x.key);
+
+		// Group 1
+		assert.strictEqual(grouped.get(group1)!.length, 2);
+		assert.strictEqual(grouped.get(group1)![0].value, value1);
+		assert.strictEqual(grouped.get(group1)![1].value, value2);
+
+		// Group 2
+		assert.strictEqual(grouped.get(group2)!.length, 1);
+		assert.strictEqual(grouped.get(group2)![0].value, value3);
+	});
 });
