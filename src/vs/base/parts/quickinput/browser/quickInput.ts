@@ -473,8 +473,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	set value(value: string) {
-		this._value = value || '';
-		this.update();
+		if (this._value !== value) {
+			this._value = value || '';
+			this.onDidChangeValueEmitter.fire(this._value);
+			this.update();
+		}
 	}
 
 	filterValue = (value: string) => value;
