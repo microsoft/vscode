@@ -730,10 +730,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
-		this._register(dom.addDisposableListener(xterm.textarea, dom.EventType.DROP, (e: DragEvent) => {
-			this._onDropped.fire({ instance: this, dragEvent: e });
-		}));
-
 		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DROP, (e: DragEvent) => {
 			this._onDropped.fire({ instance: this, dragEvent: e });
 		}));
