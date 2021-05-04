@@ -247,7 +247,7 @@ export class AdapterManager implements IAdapterManager {
 			}
 		}
 
-		if (gettingConfigurations && candidates.length === 0) {
+		if ((!languageLabel || gettingConfigurations) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
 			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}
