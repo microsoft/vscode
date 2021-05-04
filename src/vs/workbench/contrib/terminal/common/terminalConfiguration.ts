@@ -7,7 +7,7 @@ import { ConfigurationScope, IConfigurationNode } from 'vs/platform/configuratio
 import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const terminalProfileSchema: IJSONSchema = {
@@ -84,6 +84,27 @@ export const terminalConfiguration: IConfigurationNode = {
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
 			type: ['string', 'null'],
 			default: null
+		},
+		[TERMINAL_SETTING_ID.ShellLinux]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			type: ['string', 'null'],
+			default: null,
+			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
+		},
+		[TERMINAL_SETTING_ID.ShellMacOs]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			type: ['string', 'null'],
+			default: null,
+			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
+		},
+		[TERMINAL_SETTING_ID.ShellWindows]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			type: ['string', 'null'],
+			default: null,
+			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
 		},
 		[TERMINAL_SETTING_ID.ShellArgsLinux]: {
 			restricted: true,
@@ -664,49 +685,3 @@ export const terminalConfiguration: IConfigurationNode = {
 		}
 	}
 };
-
-function getTerminalShellConfigurationStub(linux: string, osx: string, windows: string): IConfigurationNode {
-	return {
-		id: 'terminal',
-		order: 100,
-		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
-		type: 'object',
-		properties: {
-			[TERMINAL_SETTING_ID.ShellLinux]: {
-				restricted: true,
-				markdownDescription: linux,
-				type: ['string', 'null'],
-				default: null,
-				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
-			},
-			[TERMINAL_SETTING_ID.ShellMacOs]: {
-				restricted: true,
-				markdownDescription: osx,
-				type: ['string', 'null'],
-				default: null,
-				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
-			},
-			[TERMINAL_SETTING_ID.ShellWindows]: {
-				restricted: true,
-				markdownDescription: windows,
-				type: ['string', 'null'],
-				default: null,
-				markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
-			}
-		}
-	};
-}
-
-export function getNoDefaultTerminalShellConfiguration(): IConfigurationNode {
-	return getTerminalShellConfigurationStub(
-		localize('terminal.integrated.shell.linux.noDefault', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-		localize('terminal.integrated.shell.osx.noDefault', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-		localize('terminal.integrated.shell.windows.noDefault', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."));
-}
-
-export async function getTerminalShellConfiguration(getSystemShell: (os: OperatingSystem) => Promise<string>): Promise<IConfigurationNode> {
-	return getTerminalShellConfigurationStub(
-		localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(OperatingSystem.Linux)),
-		localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(OperatingSystem.Macintosh)),
-		localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(OperatingSystem.Windows)));
-}
