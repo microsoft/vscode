@@ -5,27 +5,33 @@
 
 import { join } from 'vs/base/common/path';
 import { readFileSync, promises } from 'fs';
-import { writeFileSync } from 'vs/base/node/pfs';
+import { writeFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateMainService as IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ThrottledDelayer } from 'vs/base/common/async';
 
 type StorageDatabase = { [key: string]: unknown; };
 
 export class FileStorage {
 
 	private _database: StorageDatabase | undefined = undefined;
-	private lastFlushedSerializedDatabase: string | undefined = undefined;
-
-	constructor(private dbPath: string, private onError: (error: Error) => void) { }
-
 	private get database(): StorageDatabase {
 		if (!this._database) {
 			this._database = this.loadSync();
 		}
 
 		return this._database;
+	}
+
+	private lastFlushedSerializedDatabase: string | undefined = undefined;
+	private readonly flushDelayer = new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
+
+	constructor(
+		private readonly dbPath: string,
+		private readonly logService: ILogService
+	) {
 	}
 
 	async init(): Promise<void> {
@@ -49,7 +55,7 @@ export class FileStorage {
 			return JSON.parse(this.lastFlushedSerializedDatabase);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
-				this.onError(error);
+				this.logService.error(error);
 			}
 
 			return {};
@@ -63,7 +69,7 @@ export class FileStorage {
 			return JSON.parse(this.lastFlushedSerializedDatabase);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
-				this.onError(error);
+				this.logService.error(error);
 			}
 
 			return {};
@@ -96,7 +102,7 @@ export class FileStorage {
 		}
 
 		this.database[key] = data;
-		this.saveSync();
+		this.save();
 	}
 
 	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
@@ -124,7 +130,7 @@ export class FileStorage {
 		}
 
 		if (save) {
-			this.saveSync();
+			this.save();
 		}
 	}
 
@@ -133,22 +139,30 @@ export class FileStorage {
 		// Only update if the key is actually present (not undefined)
 		if (!isUndefined(this.database[key])) {
 			this.database[key] = undefined;
-			this.saveSync();
+			this.save();
 		}
 	}
 
-	private saveSync(): void {
+	private save(delay?: number): Promise<void> {
+		return this.flushDelayer.trigger(() => this.doSave(), delay);
+	}
+
+	private async doSave(): Promise<void> {
 		const serializedDatabase = JSON.stringify(this.database, null, 4);
 		if (serializedDatabase === this.lastFlushedSerializedDatabase) {
 			return; // return early if the database has not changed
 		}
 
 		try {
-			writeFileSync(this.dbPath, serializedDatabase); // permission issue can happen here
+			await writeFile(this.dbPath, serializedDatabase);
 			this.lastFlushedSerializedDatabase = serializedDatabase;
 		} catch (error) {
-			this.onError(error);
+			this.logService.error(error);
 		}
+	}
+
+	flush(): Promise<void> {
+		return this.save(0 /* as soon as possible */);
 	}
 }
 
@@ -164,7 +178,7 @@ export class StateMainService implements IStateMainService {
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService
 	) {
-		this.fileStorage = new FileStorage(join(environmentMainService.userDataPath, StateMainService.STATE_FILE), error => logService.error(error));
+		this.fileStorage = new FileStorage(join(environmentMainService.userDataPath, StateMainService.STATE_FILE), logService);
 	}
 
 	init(): Promise<void> {
@@ -187,5 +201,9 @@ export class StateMainService implements IStateMainService {
 
 	removeItem(key: string): void {
 		this.fileStorage.removeItem(key);
+	}
+
+	flush(): Promise<void> {
+		return this.fileStorage.flush();
 	}
 }

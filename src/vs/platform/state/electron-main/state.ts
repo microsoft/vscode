@@ -8,6 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IStateMainService = createDecorator<IStateMainService>('stateMainService');
 
 export interface IStateMainService {
+
 	readonly _serviceBrand: undefined;
 
 	getItem<T>(key: string, defaultValue: T): T;
@@ -17,4 +18,6 @@ export interface IStateMainService {
 	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void;
 
 	removeItem(key: string): void;
+
+	flush(): Promise<void>;
 }

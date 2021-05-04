@@ -120,7 +120,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Shutdown the application normally. All lifecycle event handlers are triggered.
 	 */
-	quit(fromUpdate?: boolean): Promise<boolean /* veto */>;
+	quit(willRestart?: boolean): Promise<boolean /* veto */>;
 
 	/**
 	 * Forcefully shutdown the application. No livecycle event handlers are triggered.
@@ -158,7 +158,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
+	private static readonly QUIT_AND_RESTART_KEY = 'lifecycle.quitAndRestart';
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
 	readonly onBeforeShutdown = this._onBeforeShutdown.event;
@@ -201,15 +201,16 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	) {
 		super();
 
-		this.handleRestarted();
+		this.resolveRestarted();
 		this.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
 	}
 
-	private handleRestarted(): void {
-		this._wasRestarted = !!this.stateMainService.getItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER);
+	private resolveRestarted(): void {
+		this._wasRestarted = !!this.stateMainService.getItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
 
 		if (this._wasRestarted) {
-			this.stateMainService.removeItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
+			// remove the marker right after if found
+			this.stateMainService.removeItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
 		}
 	}
 
@@ -286,7 +287,13 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		this.logService.trace('Lifecycle#onWillShutdown.fire()');
 
-		const joiners: Promise<void>[] = [];
+		const joiners: Promise<void>[] = [
+			// Always make sure the state service
+			// is flushed. Since we depend on it
+			// we cannot really use the lifecycle
+			// service from the state service...
+			this.stateMainService.flush()
+		];
 
 		this._onWillShutdown.fire({
 			join(promise) {
@@ -502,16 +509,16 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 	}
 
-	quit(fromUpdate?: boolean): Promise<boolean /* veto */> {
+	quit(willRestart?: boolean): Promise<boolean /* veto */> {
 		if (this.pendingQuitPromise) {
 			return this.pendingQuitPromise;
 		}
 
-		this.logService.trace(`Lifecycle#quit() - from update: ${fromUpdate}`);
+		this.logService.trace(`Lifecycle#quit() - will restart: ${willRestart}`);
 
-		// Remember the reason for quit was to restart
-		if (fromUpdate) {
-			this.stateMainService.setItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER, true);
+		// Remember if we are about to restart
+		if (willRestart) {
+			this.stateMainService.setItem(LifecycleMainService.QUIT_AND_RESTART_KEY, true);
 		}
 
 		this.pendingQuitPromise = new Promise(resolve => {
@@ -549,9 +556,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		app.once('quit', () => {
 			if (!quitVetoed) {
 
-				// Remember the reason for quit was to restart
-				this.stateMainService.setItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER, true);
-
 				// Windows: we are about to restart and as such we need to restore the original
 				// current working directory we had on startup to get the exact same startup
 				// behaviour. As such, we briefly change back to that directory and then when
@@ -575,7 +579,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// app.relaunch() does not quit automatically, so we quit first,
 		// check for vetoes and then relaunch from the app.on('quit') event
-		this.quit().then(veto => quitVetoed = veto);
+		this.quit(true /* will restart */).then(veto => quitVetoed = veto);
 	}
 
 	async kill(code?: number): Promise<void> {
