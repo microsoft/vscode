@@ -230,7 +230,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.getActiveTab()?.focusPreviousPane();
+			terminalService.getActiveGroup()?.focusPreviousPane();
 			await terminalService.showPanel(true);
 		}
 	});
@@ -256,7 +256,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.getActiveTab()?.focusNextPane();
+			terminalService.getActiveGroup()?.focusNextPane();
 			await terminalService.showPanel(true);
 		}
 	});
@@ -277,7 +277,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getActiveTab()?.resizePane(Direction.Left);
+			accessor.get(ITerminalService).getActiveGroup()?.resizePane(Direction.Left);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -297,7 +297,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getActiveTab()?.resizePane(Direction.Right);
+			accessor.get(ITerminalService).getActiveGroup()?.resizePane(Direction.Right);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -316,7 +316,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getActiveTab()?.resizePane(Direction.Up);
+			accessor.get(ITerminalService).getActiveGroup()?.resizePane(Direction.Up);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -335,7 +335,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getActiveTab()?.resizePane(Direction.Down);
+			accessor.get(ITerminalService).getActiveGroup()?.resizePane(Direction.Down);
 		}
 	});
 	registerAction2(class extends Action2 {

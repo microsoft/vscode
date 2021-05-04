@@ -209,20 +209,20 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
-		const tab = this._terminalService.getTabForInstance(instance);
-		if (!tab) {
-			throw new Error(`Could not find tab for instance "${instance.instanceId}"`);
+		const group = this._terminalService.getGroupForInstance(instance);
+		if (!group) {
+			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
 		}
 
 		const hasText = !this.shouldHideText();
 		template.element.classList.toggle('has-text', hasText);
 
 		let prefix: string = '';
-		if (tab.terminalInstances.length > 1) {
-			const terminalIndex = tab.terminalInstances.indexOf(instance);
+		if (group.terminalInstances.length > 1) {
+			const terminalIndex = group.terminalInstances.indexOf(instance);
 			if (terminalIndex === 0) {
 				prefix = `┌ `;
-			} else if (terminalIndex === tab!.terminalInstances.length - 1) {
+			} else if (terminalIndex === group!.terminalInstances.length - 1) {
 				prefix = `└ `;
 			} else {
 				prefix = `├ `;
@@ -346,7 +346,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 	getAriaLabel(instance: ITerminalInstance): string {
 		let ariaLabel: string = '';
-		const tab = this._terminalService.getTabForInstance(instance);
+		const tab = this._terminalService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
 			const terminalIndex = tab.terminalInstances.indexOf(instance);
 			ariaLabel = localize({

@@ -21,7 +21,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tab {
+.monaco-workbench .pane-body.integrated-terminal .terminal-group {
 	height: 100%;
 }
 
