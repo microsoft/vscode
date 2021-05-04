@@ -395,12 +395,6 @@ export interface IDefaultShellAndArgsRequest {
 	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
-export enum LinuxDistro {
-	Fedora,
-	Ubuntu,
-	Unknown
-}
-
 export enum TitleEventSource {
 	/** From the API or the rename command that overrides any other type */
 	Api,

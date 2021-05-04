@@ -6,10 +6,10 @@
 import * as nls from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IBrowserTerminalConfigHelper, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -19,7 +19,7 @@ import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensio
 import { IProductService } from 'vs/platform/product/common/productService';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -33,7 +33,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
-	private _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
+	protected _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
 	public config!: ITerminalConfiguration;
 
 	private readonly _onConfigChanged = new Emitter<void>();
@@ -53,10 +53,13 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 				this._updateConfig();
 			}
 		});
-	}
-
-	public setLinuxDistro(linuxDistro: LinuxDistro) {
-		this._linuxDistro = linuxDistro;
+		if (isLinux) {
+			if (navigator.userAgent.includes('Ubuntu')) {
+				this._linuxDistro = LinuxDistro.Ubuntu;
+			} else if (navigator.userAgent.includes('Fedora')) {
+				this._linuxDistro = LinuxDistro.Fedora;
+			}
+		}
 	}
 
 	private _updateConfig(): void {
