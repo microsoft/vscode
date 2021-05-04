@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalProfile, ITerminalProfileObject, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -29,8 +29,8 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, safeCon
 			configuredProfilesOnly,
 			fsProvider,
 			logService,
-			safeConfigProvider('terminal.integrated.useWslProfiles') || true,
-			safeConfigProvider('terminal.integrated.profiles.windows'),
+			safeConfigProvider(TerminalSettingId.UseWslProfiles) || true,
+			safeConfigProvider(TerminalSettingId.ProfilesWindows),
 			variableResolver,
 			workspaceFolder
 		);
@@ -39,7 +39,7 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, safeCon
 		fsProvider,
 		logService,
 		configuredProfilesOnly,
-		safeConfigProvider(`terminal.integrated.profiles.${isMacintosh ? 'osx' : 'linux'}`),
+		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
 		testPaths,
 		variableResolver,
 		workspaceFolder
@@ -201,7 +201,7 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 		if (distroOutput) {
 			const regex = new RegExp(/[\r?\n]/);
 			const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
-			for (let distroName of distroNames) {
+			for (const distroName of distroNames) {
 				// Skip empty lines
 				if (distroName === '') {
 					continue;

@@ -135,4 +135,7 @@ import 'vs/workbench/contrib/performance/electron-sandbox/performance.contributi
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-sandbox/taskService';
 
+// External terminal
+import 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.contribution';
+
 //#endregion

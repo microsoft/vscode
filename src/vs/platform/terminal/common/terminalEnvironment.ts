@@ -3,4 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
+export function escapeNonWindowsPath(path: string): string {
+	let newPath = path;
+	if (newPath.indexOf('\\') !== 0) {
+		newPath = newPath.replace(/\\/g, '\\\\');
+	}
+	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
+	newPath = newPath.replace(bannedChars, '');
+	return `'${newPath}'`;
+}

@@ -69,7 +69,7 @@
   },
   "devDependencies": {
     "@types/markdown-it": "0.0.2",
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "repository": {
     "type": "git",

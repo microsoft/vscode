@@ -55,7 +55,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		this.options = options;
 	}
 
-	protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
+	protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
 
 		// Ask subclass for all command picks
 		const allCommandPicks = await this.getCommandPicks(disposables, token);

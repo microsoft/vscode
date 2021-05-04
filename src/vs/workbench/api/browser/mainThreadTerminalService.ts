@@ -16,7 +16,7 @@ import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceServ
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IAvailableProfilesRequest as IAvailableProfilesRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest as IAvailableProfilesRequest, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -71,11 +71,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 		this._toDispose.add(_terminalService.onRequestAvailableProfiles(e => this._onRequestAvailableProfiles(e)));
-
-		// ITerminalInstanceService listeners
-		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
-			this._toDispose.add(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e)));
-		}
 
 		// Set initial ext host state
 		this._terminalService.terminalInstances.forEach(t => {
@@ -320,13 +315,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private async _onRequestAvailableProfiles(req: IAvailableProfilesRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
 			req.callback(await this._proxy.$getAvailableProfiles(req.configuredProfilesOnly));
-		}
-	}
-
-	private async _onRequestDefaultShellAndArgs(req: IDefaultShellAndArgsRequest): Promise<void> {
-		if (this._isPrimaryExtHost()) {
-			const res = await this._proxy.$getDefaultShellAndArgs(req.useAutomationShell);
-			req.callback(res.shell, res.args);
 		}
 	}
 

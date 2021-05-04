@@ -27,7 +27,7 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TerminalSettingId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
@@ -1074,7 +1074,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					// Under Mac remove -l to not start it as a login shell.
 					if (platform === Platform.Platform.Mac) {
 						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
-						const osxShellArgs = this.configurationService.inspect('terminal.integrated.shellArgs.osx');
+						const osxShellArgs = this.configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
 						if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
 							&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
 							&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
@@ -1155,14 +1155,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = await this.resolveOptions(resolver, task.command.options);
-
-		let waitOnExit: boolean | string = false;
 		const presentationOptions = task.command.presentation;
+
+		let waitOnExit: boolean | string = presentationOptions?.close ? !presentationOptions.close : false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
 
-		if (presentationOptions.reveal !== RevealKind.Never || !task.configurationProperties.isBackground) {
+		if ((presentationOptions.close === undefined) && ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground)) {
 			if (presentationOptions.panel === PanelKind.New) {
 				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
 			} else if (presentationOptions.showReuseMessage) {

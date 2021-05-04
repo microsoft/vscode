@@ -252,9 +252,6 @@ import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 // Keybindings Contributions
 import 'vs/workbench/contrib/keybindings/browser/keybindings.contribution';
 
-// Execution
-import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
-
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import 'vs/workbench/contrib/snippets/browser/snippetsService';

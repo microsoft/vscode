@@ -3008,45 +3008,16 @@ export class NotebookCellMetadata {
 }
 
 export class NotebookDocumentMetadata {
-	readonly trusted: boolean;
 	readonly [key: string]: any;
 
-	constructor(trusted?: boolean);
-	constructor(data: Record<string, any>);
-	constructor(trustedOrData: boolean | Record<string, any> = true) {
-		if (typeof trustedOrData === 'object') {
-			Object.assign(this, trustedOrData);
-			this.trusted = trustedOrData.trusted ?? true;
-		} else {
-			this.trusted = trustedOrData;
-		}
+	constructor(data: Record<string, any> = {}) {
+		Object.assign(this, data);
 	}
 
 	with(change: {
-		trusted?: boolean | null,
 		[key: string]: any
 	}): NotebookDocumentMetadata {
-
-		let { trusted, ...remaining } = change;
-
-		if (trusted === undefined) {
-			trusted = this.trusted;
-		} else if (trusted === null) {
-			trusted = undefined;
-		}
-
-		if (trusted === this.trusted &&
-			Object.keys(remaining).length === 0
-		) {
-			return this;
-		}
-
-		return new NotebookDocumentMetadata(
-			{
-				trusted,
-				...remaining
-			}
-		);
+		return new NotebookDocumentMetadata(change);
 	}
 }
 
@@ -3166,6 +3137,17 @@ export class NotebookCellStatusBarItem {
 export enum NotebookControllerAffinity {
 	Default = 1,
 	Preferred = 2
+}
+
+export class NotebookKernelPreload {
+	public readonly provides: string[];
+
+	constructor(
+		public readonly uri: vscode.Uri,
+		provides: string | string[] = []
+	) {
+		this.provides = typeof provides === 'string' ? [provides] : provides;
+	}
 }
 
 //#endregion
