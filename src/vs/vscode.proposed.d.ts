@@ -19,16 +19,16 @@ declare module 'vscode' {
 	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
-	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
+	 * An {@link Event} which fires when an {@link AuthenticationProvider} is added or removed.
 	 */
 	export interface AuthenticationProvidersChangeEvent {
 		/**
-		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
+		 * The ids of the {@link AuthenticationProvider}s that have been added.
 		 */
 		readonly added: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
+		 * The ids of the {@link AuthenticationProvider}s that have been removed.
 		 */
 		readonly removed: ReadonlyArray<AuthenticationProviderInformation>;
 	}
@@ -289,7 +289,7 @@ declare module 'vscode' {
 	/**
 	 * A file glob pattern to match file paths against.
 	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
-	 * @see [GlobPattern](#GlobPattern)
+	 * @see {@link GlobPattern}
 	 */
 	export type GlobString = string;
 
@@ -398,7 +398,7 @@ declare module 'vscode' {
 	export interface TextSearchComplete {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on [`TextSearchOptions`](#TextSearchOptions) specifies the max number of results.
+		 * `maxResults` on {@link TextSearchOptions `TextSearchOptions`} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -545,7 +545,7 @@ declare module 'vscode' {
 		 *
 		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
 		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
 
@@ -556,7 +556,7 @@ declare module 'vscode' {
 		 *
 		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
 		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
 	}
@@ -570,14 +570,14 @@ declare module 'vscode' {
 	 */
 	export interface FindTextInFilesOptions {
 		/**
-		 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
-		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
+		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 */
 		include?: GlobPattern;
 
 		/**
-		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
 		 * apply.
 		 */
@@ -635,7 +635,7 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param callback A callback, called for each result
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
@@ -644,7 +644,7 @@ declare module 'vscode' {
 		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
 
 		/**
-		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
 		 * @param callback A callback, called for each result
@@ -674,13 +674,13 @@ declare module 'vscode' {
 		 * Registers a diff information command that can be invoked via a keyboard shortcut,
 		 * a menu item, an action, or directly.
 		 *
-		 * Diff information commands are different from ordinary [commands](#commands.registerCommand) as
+		 * Diff information commands are different from ordinary {@link commands.registerCommand commands} as
 		 * they only execute when there is an active diff editor when the command is called, and the diff
 		 * information has been computed. Also, the command handler of an editor command has access to
 		 * the diff information.
 		 *
 		 * @param command A unique identifier for the command.
-		 * @param callback A command handler function with access to the [diff information](#LineChange).
+		 * @param callback A command handler function with access to the {@link LineChange diff information}.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 * @return Disposable which unregisters this command on disposal.
 		 */
@@ -788,7 +788,7 @@ declare module 'vscode' {
 
 	export interface TerminalDataWriteEvent {
 		/**
-		 * The [terminal](#Terminal) for which the data was written.
+		 * The {@link Terminal} for which the data was written.
 		 */
 		readonly terminal: Terminal;
 		/**
@@ -811,22 +811,22 @@ declare module 'vscode' {
 	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
 
 	/**
-	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
+	 * An {@link Event} which fires when a {@link Terminal}'s dimensions change.
 	 */
 	export interface TerminalDimensionsChangeEvent {
 		/**
-		 * The [terminal](#Terminal) for which the dimensions have changed.
+		 * The {@link Terminal} for which the dimensions have changed.
 		 */
 		readonly terminal: Terminal;
 		/**
-		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
+		 * The new value for the {@link Terminal.dimensions terminal's dimensions}.
 		 */
 		readonly dimensions: TerminalDimensions;
 	}
 
 	export namespace window {
 		/**
-		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
+		 * An event which fires when the {@link Terminal.dimensions dimensions} of the terminal change.
 		 */
 		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
 	}
@@ -931,7 +931,7 @@ declare module 'vscode' {
 	export namespace window {
 
 		/**
-		 * Creates a status bar [item](#StatusBarItem).
+		 * Creates a status bar {@link StatusBarItem item}.
 		 *
 		 * @param options The options of the item. If not provided, some default values
 		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
@@ -1042,21 +1042,14 @@ declare module 'vscode' {
 
 	export class NotebookDocumentMetadata {
 		/**
-		 * Whether the document is trusted, default to true
-		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
-		 */
-		readonly trusted: boolean;
-
-		/**
 		 * Additional attributes of the document metadata.
 		 */
 		readonly [key: string]: any;
 
 		/**
 		 * Create a new notebook document metadata
-		 * @param trusted Whether the document metadata is trusted.
 		 */
-		constructor(trusted?: boolean);
+		constructor();
 
 		/**
 		 * Derived a new document metadata from this metadata.
@@ -1065,7 +1058,7 @@ declare module 'vscode' {
 		 * @return A new NotebookDocumentMetadata that reflects the given change. Will return `this` NotebookDocumentMetadata if the change
 		 *  is not changing anything.
 		 */
-		with(change: { trusted?: boolean | null, [key: string]: any }): NotebookDocumentMetadata
+		with(change: { [key: string]: any }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1099,8 +1092,8 @@ declare module 'vscode' {
 		 * *Note* that most notebooks use the `file`-scheme, which means they are files on disk. However, **not** all notebooks are
 		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
 		 *
-		 * @see [FileSystemProvider](#FileSystemProvider)
-		 * @see [TextDocumentContentProvider](#TextDocumentContentProvider)
+		 * @see {@link FileSystemProvider}
+		 * @see {@link TextDocumentContentProvider}
 		 */
 		readonly uri: Uri;
 
@@ -1131,7 +1124,7 @@ declare module 'vscode' {
 		readonly isClosed: boolean;
 
 		/**
-		 * The [metadata](#NotebookDocumentMetadata) for this notebook.
+		 * The {@link NotebookDocumentMetadata metadata} for this notebook.
 		 */
 		readonly metadata: NotebookDocumentMetadata;
 
@@ -1144,7 +1137,7 @@ declare module 'vscode' {
 		 * Return the cell at the specified index. The index will be adjusted to the notebook.
 		 *
 		 * @param index - The index of the cell to retrieve.
-		 * @return A [cell](#NotebookCell).
+		 * @return A {@link NotebookCell cell}.
 		 */
 		cellAt(index: number): NotebookCell;
 
@@ -1264,7 +1257,7 @@ declare module 'vscode' {
 
 	export interface NotebookDocumentMetadataChangeEvent {
 		/**
-		 * The [notebook document](#NotebookDocument) for which the document metadata have changed.
+		 * The {@link NotebookDocument notebook document} for which the document metadata have changed.
 		 */
 		readonly document: NotebookDocument;
 	}
@@ -1281,7 +1274,7 @@ declare module 'vscode' {
 
 	export interface NotebookCellsChangeEvent {
 		/**
-		 * The [notebook document](#NotebookDocument) for which the cells have changed.
+		 * The {@link NotebookDocument notebook document} for which the cells have changed.
 		 */
 		readonly document: NotebookDocument;
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
@@ -1289,7 +1282,7 @@ declare module 'vscode' {
 
 	export interface NotebookCellOutputsChangeEvent {
 		/**
-		 * The [notebook document](#NotebookDocument) for which the cell outputs have changed.
+		 * The {@link NotebookDocument notebook document} for which the cell outputs have changed.
 		 */
 		readonly document: NotebookDocument;
 		readonly cells: NotebookCell[];
@@ -1297,7 +1290,7 @@ declare module 'vscode' {
 
 	export interface NotebookCellMetadataChangeEvent {
 		/**
-		 * The [notebook document](#NotebookDocument) for which the cell metadata have changed.
+		 * The {@link NotebookDocument notebook document} for which the cell metadata have changed.
 		 */
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
@@ -1305,7 +1298,7 @@ declare module 'vscode' {
 
 	export interface NotebookEditorSelectionChangeEvent {
 		/**
-		 * The [notebook editor](#NotebookEditor) for which the selections have changed.
+		 * The {@link NotebookEditor notebook editor} for which the selections have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
 		readonly selections: ReadonlyArray<NotebookRange>
@@ -1313,7 +1306,7 @@ declare module 'vscode' {
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
 		/**
-		 * The [notebook editor](#NotebookEditor) for which the visible ranges have changed.
+		 * The {@link NotebookEditor notebook editor} for which the visible ranges have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
 		readonly visibleRanges: ReadonlyArray<NotebookRange>;
@@ -1321,7 +1314,7 @@ declare module 'vscode' {
 
 	export interface NotebookCellExecutionStateChangeEvent {
 		/**
-		 * The [notebook document](#NotebookDocument) for which the cell execution state has changed.
+		 * The {@link NotebookDocument notebook document} for which the cell execution state has changed.
 		 */
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
@@ -1459,11 +1452,11 @@ declare module 'vscode' {
 		/**
 		 * Perform an edit on the notebook associated with this notebook editor.
 		 *
-		 * The given callback-function is invoked with an [edit-builder](#NotebookEditorEdit) which must
+		 * The given callback-function is invoked with an {@link NotebookEditorEdit edit-builder} which must
 		 * be used to make edits. Note that the edit-builder is only valid while the
 		 * callback executes.
 		 *
-		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
+		 * @param callback A function which can create edits using an {@link NotebookEditorEdit edit-builder}.
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
 		// @jrieken REMOVE maybe
@@ -1477,7 +1470,7 @@ declare module 'vscode' {
 	/**
 	 * The notebook serializer enables the editor to open notebook files.
 	 *
-	 * At its core the editor only knows a [notebook data structure](#NotebookData) but not
+	 * At its core the editor only knows a {@link NotebookData notebook data structure} but not
 	 * how that data structure is written to a file, nor how it is read from a file. The
 	 * notebook serializer bridges this gap by deserializing bytes into notebook data and
 	 * vice versa.
@@ -1507,12 +1500,12 @@ declare module 'vscode' {
 
 		// todo@API remove output when notebook marks that as transient, same for metadata
 		/**
-		 * Register a [notebook serializer](#NotebookSerializer).
+		 * Register a {@link NotebookSerializer notebook serializer}.
 		 *
 		 * @param notebookType A notebook.
 		 * @param serializer A notebook serialzier.
 		 * @param options Optional context options that define what parts of a notebook should be persisted
-		 * @return A [disposable](#Disposable) that unregisters this serializer when being disposed.
+		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
 		 */
 		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
 	}
@@ -1560,7 +1553,7 @@ declare module 'vscode' {
 
 		/**
 		 * An array of language identifiers that are supported by this
-		 * controller. Any language identifier from [`getLanguages`](#languages.getLanguages)
+		 * controller. Any language identifier from {@link languages.getLanguages `getLanguages`}
 		 * is possible. When falsy all languages are supported.
 		 *
 		 * Samples:
@@ -1625,7 +1618,7 @@ declare module 'vscode' {
 		/**
 		 * Create a cell execution task.
 		 *
-		 * This should be used in response to the [execution handler](#NotebookController.executeHandler)
+		 * This should be used in response to the {@link NotebookController.executeHandler execution handler}
 		 * being calleed or when cell execution has been started else, e.g when a cell was already
 		 * executing or when cell execution was triggered from another source.
 		 *
@@ -1727,7 +1720,7 @@ declare module 'vscode' {
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
 
 		/**
-		 * Content providers should always use [file system providers](#FileSystemProvider) to
+		 * Content providers should always use {@link FileSystemProvider file system providers} to
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
 		 */
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext, token: CancellationToken): NotebookData | Thenable<NotebookData>;
@@ -1764,10 +1757,24 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
-	// todo@API make class?
-	export interface NotebookKernelPreload {
-		provides?: string | string[];
-		uri: Uri;
+	export class NotebookKernelPreload {
+		/**
+		 * APIs that the preload provides to the renderer. These are matched
+		 * against the `dependencies` and `optionalDependencies` arrays in the
+		 * notebook renderer contribution point.
+		 */
+		readonly provides: string[];
+
+		/**
+		 * URI for the file to preload
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * @param uri URI for the file to preload
+		 * @param provides Value for the `provides` property
+		 */
+		constructor(uri: Uri, provides?: string | string[]);
 	}
 
 	export interface NotebookCellExecuteStartContext {
@@ -1793,7 +1800,7 @@ declare module 'vscode' {
 
 	/**
 	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
-	 * [`createNotebookCellExecutionTask`](#notebook.createNotebookCellExecutionTask) is called, the cell
+	 * {@link notebook.createNotebookCellExecutionTask `createNotebookCellExecutionTask`} is called, the cell
 	 * enters the Pending state. When `start()` is called on the execution task, it enters the Executing state. When
 	 * `end()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
 	 * modified with the methods on the run task.
@@ -1993,7 +2000,7 @@ declare module 'vscode' {
 		id?: string;
 
 		/**
-		 * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item.
+		 * The icon path or {@link ThemeIcon} for the timeline item.
 		 */
 		iconPath?: Uri | { light: Uri; dark: Uri; } | ThemeIcon;
 
@@ -2008,7 +2015,7 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
-		 * The [command](#Command) that should be executed when the timeline item is selected.
+		 * The {@link Command} that should be executed when the timeline item is selected.
 		 */
 		command?: Command;
 
@@ -2046,7 +2053,7 @@ declare module 'vscode' {
 
 	export interface TimelineChangeEvent {
 		/**
-		 * The [uri](#Uri) of the resource for which the timeline changed.
+		 * The {@link Uri} of the resource for which the timeline changed.
 		 */
 		uri: Uri;
 
@@ -2066,7 +2073,7 @@ declare module 'vscode' {
 		};
 
 		/**
-		 * An array of [timeline items](#TimelineItem).
+		 * An array of {@link TimelineItem timeline items}.
 		 */
 		readonly items: readonly TimelineItem[];
 	}
@@ -2102,12 +2109,12 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri).
+		 * Provide {@link TimelineItem timeline items} for a {@link Uri}.
 		 *
-		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
+		 * @param uri The {@link Uri} of the file to provide the timeline for.
 		 * @param options A set of options to determine how results should be returned.
 		 * @param token A cancellation token.
-		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
+		 * @return The {@link TimelineResult timeline result} or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideTimeline(uri: Uri, options: TimelineOptions, token: CancellationToken): ProviderResult<Timeline>;
@@ -2123,7 +2130,7 @@ declare module 'vscode' {
 		 *
 		 * @param scheme A scheme or schemes that defines which documents this provider is applicable to. Can be `*` to target all documents.
 		 * @param provider A timeline provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		*/
 		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
 	}
@@ -2168,7 +2175,7 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider An inlay hints provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerInlayHintsProvider(selector: DocumentSelector, provider: InlayHintsProvider): Disposable;
 	}
@@ -2216,7 +2223,7 @@ declare module 'vscode' {
 
 		/**
 		 * An optional event to signal that inlay hints have changed.
-		 * @see [EventEmitter](#EventEmitter)
+		 * @see {@link EventEmitter}
 		 */
 		onDidChangeInlayHints?: Event<void>;
 
@@ -2255,7 +2262,7 @@ declare module 'vscode' {
 	export interface TextDocument {
 
 		/**
-		 * The [notebook](#NotebookDocument) that contains this document as a notebook cell or `undefined` when
+		 * The {@link NotebookDocument notebook} that contains this document as a notebook cell or `undefined` when
 		 * the document is not contained by a notebook (this should be the more frequent case).
 		 */
 		notebook: NotebookDocument | undefined;

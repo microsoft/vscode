@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -30,6 +30,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isLinux } from 'vs/base/common/platform';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 suite('EditorService', () => {
 
@@ -1024,6 +1025,107 @@ suite('EditorService', () => {
 		assert.strictEqual(service.activeEditor, input2);
 
 		handler.dispose();
+	});
+
+	test('editorOverrideService - openEditor', async function () {
+		const [, service, accessor] = await createEditorService();
+		const editorOverrideService = accessor.editorOverrideService;
+		let overrideCount = 0;
+		const registrationDisposable = editorOverrideService.registerContributionPoint(
+			'*.md',
+			{
+				id: 'TestEditor',
+				label: 'Test Editor',
+				detail: 'Test Editor Provider',
+				describes: () => false,
+				priority: ContributedEditorPriority.builtin
+			},
+			{},
+			(resource) => {
+				overrideCount++;
+				return ({ editor: service.createEditorInput({ resource }) });
+			},
+			diffEditor => ({ editor: diffEditor })
+		);
+		assert.strictEqual(overrideCount, 0);
+		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
+		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
+		await service.openEditor(input1);
+		assert.strictEqual(overrideCount, 0);
+		// Open editor input 2 and it should trigger override as the glob doesn match
+		await service.openEditor(input2);
+		assert.strictEqual(overrideCount, 1);
+		// Because we specify an override we shouldn't see it triggered even if it matches
+		await service.openEditor(input2, { override: 'default' });
+		assert.strictEqual(overrideCount, 1);
+
+		registrationDisposable.dispose();
+	});
+
+	test('editorOverrideService - openEditors', async function () {
+		const [, service, accessor] = await createEditorService();
+		const editorOverrideService = accessor.editorOverrideService;
+		let overrideCount = 0;
+		const registrationDisposable = editorOverrideService.registerContributionPoint(
+			'*.md',
+			{
+				id: 'TestEditor',
+				label: 'Test Editor',
+				detail: 'Test Editor Provider',
+				describes: () => false,
+				priority: ContributedEditorPriority.builtin
+			},
+			{},
+			(resource) => {
+				overrideCount++;
+				return ({ editor: service.createEditorInput({ resource }) });
+			},
+			diffEditor => ({ editor: diffEditor })
+		);
+		assert.strictEqual(overrideCount, 0);
+		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.txt'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.parse('file://test/path/resource3.md'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.parse('file://test/path/resource4.md'), TEST_EDITOR_INPUT_ID);
+		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
+		await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: input3 }, { editor: input4 }]);
+		assert.strictEqual(overrideCount, 2);
+
+		registrationDisposable.dispose();
+	});
+
+	test('editorOverrideService - replaceEditors', async function () {
+		const [part, service, accessor] = await createEditorService();
+		const editorOverrideService = accessor.editorOverrideService;
+		let overrideCount = 0;
+		const registrationDisposable = editorOverrideService.registerContributionPoint(
+			'*.md',
+			{
+				id: 'TestEditor',
+				label: 'Test Editor',
+				detail: 'Test Editor Provider',
+				describes: () => false,
+				priority: ContributedEditorPriority.builtin
+			},
+			{},
+			(resource) => {
+				overrideCount++;
+				return ({ editor: service.createEditorInput({ resource }) });
+			},
+			diffEditor => ({ editor: diffEditor })
+		);
+		assert.strictEqual(overrideCount, 0);
+		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
+		// Open editor input 1 and it shouldn't trigger because I've disabled the override logic
+		await service.openEditor(input1, { override: EditorOverride.DISABLED });
+		assert.strictEqual(overrideCount, 0);
+		await service.replaceEditors([{
+			editor: input1,
+			replacement: input1,
+		}], part.activeGroup);
+		assert.strictEqual(overrideCount, 1);
+		registrationDisposable.dispose();
 	});
 
 	test('findEditors (in group)', async () => {

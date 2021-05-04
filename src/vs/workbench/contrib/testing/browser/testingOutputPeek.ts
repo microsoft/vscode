@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -247,7 +249,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			this.peek.value!.create();
 		}
 
-		alert(message.message.toString());
+		alert(toPlainText(message.message));
 		this.peek.value!.setModel(dto);
 		this.currentPeekUri = uri;
 	}
@@ -309,7 +311,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 }
 
 abstract class TestingOutputPeek extends PeekViewWidget {
-	protected model = new MutableDisposable();
+	protected readonly model = new MutableDisposable();
 	protected dimension?: dom.Dimension;
 
 	constructor(
@@ -414,7 +416,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 
 		this.test = test;
 		this.show(message.location.range, hintDiffPeekHeight(message));
-		this.setTitle(message.message.toString().split('\n')[0], test.label);
+		this.setTitle(firstLine(toPlainText(message.message)), test.label);
 
 		const [original, modified] = await Promise.all([
 			this.modelService.createModelReference(expectedUri),
@@ -426,6 +428,9 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 			this.model.value = undefined;
 		} else {
 			this.diff.value.setModel(model);
+			this.diff.value.updateOptions(this.getOptions(
+				isMultiline(message.expectedOutput) || isMultiline(message.actualOutput)
+			));
 		}
 	}
 
@@ -443,6 +448,12 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 		super._doLayoutBody(height, width);
 		this.diff.value?.layout(this.dimension);
 	}
+
+	protected getOptions(isMultiline: boolean): IDiffEditorOptions {
+		return isMultiline
+			? { ...diffEditorOptions, lineNumbers: 'on' }
+			: { ...diffEditorOptions, lineNumbers: 'off' };
+	}
 }
 
 class TestingMessageOutputPeek extends TestingOutputPeek {
@@ -454,7 +465,12 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 	 */
 	protected _fillBody(containerElement: HTMLElement): void {
 		const diffContainer = dom.append(containerElement, dom.$('div.preview.inline'));
-		const preview = this.preview.value = this.instantiationService.createInstance(EmbeddedCodeEditorWidget, diffContainer, commonEditorOptions, this.editor);
+		const preview = this.preview.value = this.instantiationService.createInstance(
+			EmbeddedCodeEditorWidget,
+			diffContainer,
+			commonEditorOptions,
+			this.editor,
+		);
 
 		if (this.dimension) {
 			preview.layout(this.dimension);
@@ -471,12 +487,15 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 		}
 
 		this.test = test;
-		this.show(message.location.range, hintPeekStrHeight(message.message.toString()));
-		this.setTitle(message.message.toString(), test.label);
+
+		const messageStr = toPlainText(message.message);
+		this.show(message.location.range, hintPeekStrHeight(messageStr));
+		this.setTitle(firstLine(messageStr), test.label);
 
 		const modelRef = this.model.value = await this.modelService.createModelReference(messageUri);
 		if (this.preview.value) {
 			this.preview.value.setModel(modelRef.object.textEditorModel);
+			this.preview.value.updateOptions(this.getOptions(isMultiline(messageStr)));
 		} else {
 			this.model.value = undefined;
 		}
@@ -496,11 +515,27 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 		super._doLayoutBody(height, width);
 		this.preview.value?.layout(this.dimension);
 	}
+
+	protected getOptions(isMultiline: boolean): IEditorOptions {
+		return isMultiline
+			? { ...commonEditorOptions, lineNumbers: 'on' }
+			: { ...commonEditorOptions, lineNumbers: 'off' };
+	}
 }
 
 const hintDiffPeekHeight = (message: ITestMessage) =>
 	Math.max(hintPeekStrHeight(message.actualOutput), hintPeekStrHeight(message.expectedOutput));
 
+const toPlainText = (message: IMarkdownString | string) => typeof message === 'string'
+	? message
+	: renderMarkdownAsPlaintext(message);
+
+const firstLine = (str: string) => {
+	const index = str.indexOf('\n');
+	return index === -1 ? str : str.slice(0, index);
+};
+
+const isMultiline = (str: string | undefined) => !!str && str.includes('\n');
 const hintPeekStrHeight = (str: string | undefined) => clamp(count(str || '', '\n'), 5, 20);
 
 class SimpleDiffEditorModel extends EditorModel {

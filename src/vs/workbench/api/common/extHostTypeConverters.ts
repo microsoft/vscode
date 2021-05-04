@@ -1660,16 +1660,14 @@ export namespace NotebookKernelPreload {
 	export function from(preload: vscode.NotebookKernelPreload): { uri: UriComponents; provides: string[] } {
 		return {
 			uri: preload.uri,
+			// todo@connor4312: the conditional here can be removed after a migration period
 			provides: typeof preload.provides === 'string'
 				? [preload.provides]
 				: preload.provides ?? []
 		};
 	}
 	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookKernelPreload {
-		return {
-			uri: URI.revive(preload.uri),
-			provides: preload.provides
-		};
+		return new types.NotebookKernelPreload(URI.revive(preload.uri), preload.provides);
 	}
 }
 

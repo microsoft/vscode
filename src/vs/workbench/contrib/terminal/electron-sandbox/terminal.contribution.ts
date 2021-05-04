@@ -9,6 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILocalTerminalService, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { ExternalTerminalContribution } from 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.contribution';
 import { LocalTerminalService } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalService';
 import { TerminalNativeContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalNativeContribution';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -19,3 +20,5 @@ registerSingleton(ILocalTerminalService, LocalTerminalService, true);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, LifecyclePhase.Ready);
+
+workbenchRegistry.registerWorkbenchContribution(ExternalTerminalContribution, LifecyclePhase.Ready);
