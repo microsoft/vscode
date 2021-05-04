@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
+import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
@@ -25,7 +25,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
 
 const $ = dom.$;
@@ -45,7 +44,7 @@ export class TerminalTabbedView extends Disposable {
 	private _parentElement: HTMLElement;
 	private _tabTreeContainer: HTMLElement;
 
-	private _tabsWidget: TerminalTabsWidget;
+	private _tabList: TerminalTabList;
 	private _findWidget: TerminalFindWidget;
 	private _sashDisposables: IDisposable[] | undefined;
 
@@ -77,7 +76,6 @@ export class TerminalTabbedView extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -94,7 +92,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsWidgetMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsWidgetEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
-		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
+		this._register(this._tabList = this._instantiationService.createInstance(TerminalTabList, this._terminalTabTree));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
 		parentElement.appendChild(this._findWidget.getDomNode());
 
@@ -254,7 +252,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabTreeContainer,
-			layout: width => this._tabsWidget.layout(this._height || 0, width),
+			layout: width => this._tabList.layout(this._height || 0, width),
 			minimumSize: MIN_TABS_WIDGET_WIDTH,
 			maximumSize: MAX_TABS_WIDGET_WIDTH,
 			onDidChange: () => Disposable.None,
@@ -267,13 +265,7 @@ export class TerminalTabbedView extends Disposable {
 		const hasText = this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH;
 		this._tabTreeContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		for (const instance of this._terminalService.terminalInstances) {
-			try {
-				this._tabsWidget.rerender(instance);
-			} catch (e) {
-				this._logService.warn('Exception when rerendering new tab widget', e);
-			}
-		}
+		this._tabList.rerender();
 	}
 
 	private _addSashListener() {
@@ -439,7 +431,7 @@ export class TerminalTabbedView extends Disposable {
 		if (parent === this._terminalContainer) {
 			menu = this._instanceMenu;
 		} else {
-			menu = this._tabsWidget.getFocus().length === 0 ? this._tabsWidgetEmptyMenu : this._tabsWidgetMenu;
+			menu = this._tabList.getFocus().length === 0 ? this._tabsWidgetEmptyMenu : this._tabsWidgetMenu;
 		}
 
 		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
@@ -475,10 +467,10 @@ export class TerminalTabbedView extends Disposable {
 
 	focusTabs(): void {
 		this._terminalTabsFocusContextKey.set(true);
-		const selected = this._tabsWidget.getSelection();
-		this._tabsWidget.domFocus();
+		const selected = this._tabList.getSelection();
+		this._tabList.domFocus();
 		if (selected) {
-			this._tabsWidget.setFocus(selected);
+			this._tabList.setFocus(selected);
 		}
 	}
 
