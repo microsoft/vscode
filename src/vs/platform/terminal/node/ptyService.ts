@@ -297,13 +297,11 @@ export class PersistentTerminalProcess extends Disposable {
 
 	private _pid = -1;
 	private _cwd = '';
+	private _title: string | undefined;
 
-	private _title: string = '';
 
 	get pid(): number { return this._pid; }
-	get title(): string {
-		return this._title || this._terminalProcess.currentTitle;
-	}
+	get title(): string { return this._title || this._terminalProcess.currentTitle; }
 	get icon(): string | undefined { return this._icon; }
 
 	setTitle(title: string): void {
