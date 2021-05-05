@@ -296,27 +296,19 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _attachProcessLayoutListeners(isRemote: boolean): void {
-		this.onActiveTabChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-		this.onActiveInstanceChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-		this.onInstancesChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		this.onActiveTabChanged(() => this._saveState(isRemote));
+		this.onActiveInstanceChanged(() => this._saveState(isRemote));
+		this.onInstancesChanged(() => this._saveState(isRemote));
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
-		this.onInstanceProcessIdReady(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		this.onInstanceProcessIdReady(() => this._saveState(isRemote));
 		this.onInstanceTitleChanged(instance => {
 			this._updateTitle(instance);
-			if (isRemote) {
-				this._updateRemoteState();
-			} else {
-				this._updateLocalState();
-			}
+			this._saveState(isRemote);
 		});
 		this.onInstanceIconChanged(instance => {
 			this._updateIcon(instance);
-			if (isRemote) {
-				this._updateRemoteState();
-			} else {
-				this._updateLocalState();
-			}
+			this._saveState(isRemote);
 		});
 	}
 
@@ -429,13 +421,12 @@ export class TerminalService implements ITerminalService {
 	}
 
 	@debounce(500)
-	private _updateRemoteState(): void {
-		if (!!this._environmentService.remoteAuthority) {
-			const state: ITerminalsLayoutInfoById = {
-				tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveGroup()))
-			};
-			this._remoteTerminalService.setTerminalLayoutInfo(state);
-		}
+	private _saveState(isRemote?: boolean): void {
+		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+		const state: ITerminalsLayoutInfoById = {
+			tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveGroup()))
+		};
+		offProcService!.setTerminalLayoutInfo(state);
 	}
 
 	@debounce(500)
@@ -444,7 +435,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		this._localTerminalService!.updateTitle(instance.persistentProcessId, instance.title);
-		this._updateLocalState();
+		this._saveState();
 	}
 
 	@debounce(500)
@@ -453,15 +444,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		this._localTerminalService!.updateIcon(instance.persistentProcessId, instance.icon.id);
-		this._updateLocalState();
-	}
-
-	@debounce(500)
-	private _updateLocalState(): void {
-		const state: ITerminalsLayoutInfoById = {
-			tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveGroup()))
-		};
-		this._localTerminalService!.setTerminalLayoutInfo(state);
+		this._saveState();
 	}
 
 	private _removeTab(group: ITerminalGroup): void {
@@ -673,7 +656,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onDimensionsChanged(() => {
 			this._onInstanceDimensionsChanged.fire(instance);
 			if (this.configHelper.config.enablePersistentSessions && this.isProcessSupportRegistered) {
-				!!this._environmentService.remoteAuthority ? this._updateRemoteState() : this._updateLocalState();
+				this._saveState(!!this._environmentService.remoteAuthority);
 			}
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
