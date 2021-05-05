@@ -373,7 +373,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all contribution points
 		let contributionPoints = resource.scheme === Schemas.untitled ? distinct(flatten(Array.from(this._contributionPoints.values())), (contrib) => contrib.editorInfo.id) : this.findMatchingContributions(resource);
-		const defaultSetting = this.getAssociationsForResource(resource)[0].viewType;
+		const defaultSetting = this.getAssociationsForResource(resource)[0]?.viewType;
 		// Not the most efficient way to do this, but we want to ensure the text editor is at the top of the quickpick
 		contributionPoints = contributionPoints.sort((a, b) => {
 			if (a.editorInfo.id === DEFAULT_EDITOR_ASSOCIATION.id) {
