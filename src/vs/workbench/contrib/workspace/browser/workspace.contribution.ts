@@ -234,7 +234,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			return e.join(new Promise(async resolve => {
 				// Workspace is trusted and there are added/changed folders
 				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
-					const addedFoldersTrustInfo = e.changes.added.map(folder => this.workspaceTrustManagementService.getFolderTrustInfo(folder.uri));
+					const addedFoldersTrustInfo = e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri));
 					if (!addedFoldersTrustInfo.map(i => i.trusted).every(trusted => trusted)) {
 						const result = await this.dialogService.show(
 							Severity.Info,
@@ -248,7 +248,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						);
 
 						// Mark added/changed folders as trusted
-						this.workspaceTrustManagementService.setFoldersTrust(addedFoldersTrustInfo.map(i => i.uri), result.choice === 0);
+						this.workspaceTrustManagementService.setUrisTrust(addedFoldersTrustInfo.map(i => i.uri), result.choice === 0);
 
 						resolve();
 					}
@@ -502,7 +502,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			};
 
 			for (const folder of this.workspaceContextService.getWorkspace().folders) {
-				const { trusted, uri } = this.workspaceTrustManagementService.getFolderTrustInfo(folder.uri);
+				const { trusted, uri } = this.workspaceTrustManagementService.getUriTrustInfo(folder.uri);
 				if (!trusted) {
 					continue;
 				}

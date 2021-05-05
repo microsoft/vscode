@@ -31,7 +31,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
+	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
 		throw new Error('Method not implemented.');
 	}
 
@@ -39,7 +39,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	setFoldersTrust(folders: URI[], trusted: boolean): void {
+	setUrisTrust(uris: URI[], trusted: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 
