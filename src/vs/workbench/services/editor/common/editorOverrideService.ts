@@ -43,44 +43,6 @@ export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
-// const editorTypeSchemaAddition: IJSONSchema = {
-// 	type: 'string',
-// 	enum: []
-// };
-
-// const editorAssociationsConfigurationNode: IConfigurationNode = {
-// 	...workbenchConfigurationNodeBase,
-// 	properties: {
-// 		'workbench.editorAssociations': {
-// 			type: 'array',
-// 			markdownDescription: localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
-// 			items: {
-// 				type: 'object',
-// 				defaultSnippets: [{
-// 					body: {
-// 						'viewType': '$1',
-// 						'filenamePattern': '$2'
-// 					}
-// 				}],
-// 				properties: {
-// 					'viewType': {
-// 						anyOf: [
-// 							{
-// 								type: 'string',
-// 								description: localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
-// 							},
-// 							editorTypeSchemaAddition
-// 						]
-// 					},
-// 					'filenamePattern': {
-// 						type: 'string',
-// 						description: localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// };
 const editorAssociationsConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
@@ -100,54 +62,6 @@ export interface IEditorType {
 	readonly providerDisplayName: string;
 }
 
-// class EditorAssociationsRegistry implements IEditorAssociationsRegistry {
-
-// 	private readonly editorTypesHandlers = new Map<string, IEditorTypesHandler>();
-
-// 	registerEditorTypesHandler(id: string, handler: IEditorTypesHandler): IDisposable {
-// 		if (this.editorTypesHandlers.has(id)) {
-// 			throw new Error(`An editor type handler with ${id} was already registered.`);
-// 		}
-
-// 		this.editorTypesHandlers.set(id, handler);
-// 		this.updateEditorAssociationsSchema();
-
-// 		const editorTypeChangeEvent = handler.onDidChangeEditorTypes(() => {
-// 			this.updateEditorAssociationsSchema();
-// 		});
-
-// 		return {
-// 			dispose: () => {
-// 				editorTypeChangeEvent.dispose();
-// 				this.editorTypesHandlers.delete(id);
-// 				this.updateEditorAssociationsSchema();
-// 			}
-// 		};
-// 	}
-
-// 	private updateEditorAssociationsSchema() {
-// 		const enumValues: string[] = [];
-// 		const enumDescriptions: string[] = [];
-
-// 		const editorTypes: IEditorType[] = [DEFAULT_EDITOR_ASSOCIATION];
-
-// 		for (const [, handler] of this.editorTypesHandlers) {
-// 			editorTypes.push(...handler.getEditorTypes());
-// 		}
-
-// 		for (const { id, providerDisplayName } of editorTypes) {
-// 			enumValues.push(id);
-// 			enumDescriptions.push(localize('editorAssociations.viewType.sourceDescription', "Source: {0}", providerDisplayName));
-// 		}
-
-// 		editorTypeSchemaAddition.enum = enumValues;
-// 		editorTypeSchemaAddition.enumDescriptions = enumDescriptions;
-
-// 		configurationRegistry.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
-// 	}
-// }
-
-// Registry.add(EditorExtensions.Associations, new EditorAssociationsRegistry());
 configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
 //#endregion
 
