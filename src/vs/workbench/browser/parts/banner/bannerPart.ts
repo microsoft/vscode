@@ -117,13 +117,14 @@ export class BannerPart extends Part implements IBannerService {
 		messageContainer.innerText = localize('restrictedModeMessage', "Restricted Mode has limited functionality. Trust this folder to enable advanced features.");
 
 		// Message Actions
+		const messageActionsContainer = append(this.element, $('div.message-actions-container'));
 		const manageLink = this._register(this.instantiationService.createInstance(Link, { label: 'Manage', href: 'command:workbench.trust.manage' }));
 		this._register(attachLinkStyler(manageLink, this.themeService, { textLinkForeground: BANNER_TEXT_LINK_FOREGROUND }));
-		messageContainer.appendChild(manageLink.el);
+		messageActionsContainer.appendChild(manageLink.el);
 
 		const learnMoreLink = this._register(this.instantiationService.createInstance(Link, { label: 'Learn More', href: 'https://aka.ms/vscode-workspace-trust' }));
 		this._register(attachLinkStyler(learnMoreLink, this.themeService, { textLinkForeground: BANNER_TEXT_LINK_FOREGROUND }));
-		messageContainer.appendChild(learnMoreLink.el);
+		messageActionsContainer.appendChild(learnMoreLink.el);
 
 		// Action
 		const actionBarContainer = append(this.element, $('div.action-container'));

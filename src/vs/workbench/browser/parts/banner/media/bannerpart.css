@@ -20,16 +20,24 @@
 }
 
 .monaco-workbench .part.banner .message-container {
+	line-height: 26px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.banner .message-actions-container {
 	flex-grow: 1;
+	flex-shrink: 0;
 	line-height: 26px;
 }
 
-.monaco-workbench .part.banner .message-container a {
+.monaco-workbench .part.banner .message-actions-container a {
 	margin-left: 12px;
 	text-decoration: underline;
 }
 
-.monaco-workbench .part.banner .message-container a:hover {
+.monaco-workbench .part.banner .message-actions-container a:hover {
 	text-decoration: none;
 }
 
