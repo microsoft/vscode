@@ -429,20 +429,22 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _updateTitle(instance?: ITerminalInstance): void {
-		if (!instance?.persistentProcessId || !instance?.title) {
+		const isRemote = !!this._environmentService.remoteAuthority;
+		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+		if (!instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
-		this._localTerminalService!.updateTitle(instance.persistentProcessId, instance.title);
-		this._saveState();
+		offProcService?.updateTitle(instance.persistentProcessId, instance.title);
 	}
 
 	@debounce(500)
 	private _updateIcon(instance?: ITerminalInstance): void {
-		if (!instance?.persistentProcessId || !instance?.icon) {
+		const isRemote = !!this._environmentService.remoteAuthority;
+		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+		if (!instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		this._localTerminalService!.updateIcon(instance.persistentProcessId, instance.icon.id);
-		this._saveState();
+		offProcService?.updateIcon(instance.persistentProcessId, instance.icon.id);
 	}
 
 	private _removeTab(group: ITerminalGroup): void {
