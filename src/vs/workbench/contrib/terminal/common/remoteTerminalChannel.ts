@@ -254,11 +254,11 @@ export class RemoteTerminalChannelClient {
 	}
 
 	updateTitle(id: number, title: string): Promise<string> {
-		return this._channel.call('$updateTitle', { id, title });
+		return this._channel.call('$updateTitle', [id, title]);
 	}
 
 	updateIcon(id: number, icon: string): Promise<string> {
-		return this._channel.call('$updateIcon', { id, icon });
+		return this._channel.call('$updateIcon', [id, icon]);
 	}
 
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
