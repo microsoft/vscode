@@ -302,6 +302,9 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
 	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
 
+	private readonly _onWillRemoveViewType = this._register(new Emitter<string>());
+	readonly onWillRemoveViewType = this._onWillRemoveViewType.event;
+
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
 
@@ -471,15 +474,19 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return this._notebookProviders.has(viewType);
 	}
 
-	private _registerProviderData(viewType: string, data: SimpleNotebookProviderInfo | ComplexNotebookProviderInfo): void {
+	private _registerProviderData(viewType: string, data: SimpleNotebookProviderInfo | ComplexNotebookProviderInfo): IDisposable {
 		if (this._notebookProviders.has(viewType)) {
 			throw new Error(`notebook controller for viewtype '${viewType}' already exists`);
 		}
 		this._notebookProviders.set(viewType, data);
+		return toDisposable(() => {
+			this._onWillRemoveViewType.fire(viewType);
+			this._notebookProviders.delete(viewType);
+		});
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable {
-		this._registerProviderData(viewType, new ComplexNotebookProviderInfo(viewType, controller, extensionData));
+		const reg = this._registerProviderData(viewType, new ComplexNotebookProviderInfo(viewType, controller, extensionData));
 		if (controller.viewOptions && !this._notebookProviderInfoStore.get(viewType)) {
 			// register this content provider to the static contribution, if it does not exist
 			const info = new NotebookProviderInfo({
@@ -504,16 +511,13 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 		this._onDidChangeEditorTypes.fire();
 		return toDisposable(() => {
-			this._notebookProviders.delete(viewType);
+			reg.dispose();
 			this._onDidChangeEditorTypes.fire();
 		});
 	}
 
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
-		this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
-		return toDisposable(() => {
-			this._notebookProviders.delete(viewType);
-		});
+		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
 	}
 
 	async withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
