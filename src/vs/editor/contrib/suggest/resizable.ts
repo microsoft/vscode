@@ -121,6 +121,8 @@ export class ResizableHTMLElement {
 		this._eastSash.dispose();
 		this._westSash.dispose();
 		this._sashListener.dispose();
+		this._onDidResize.dispose();
+		this._onDidWillResize.dispose();
 		this.domNode.remove();
 	}
 
