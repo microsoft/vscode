@@ -44,10 +44,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const id = generateUuid();
 			const webview = accessor.get(IWebviewService).createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
 			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData });
-			// If we're loading untitled file data we should ensure it's dirty
-			if (untitledDocumentData) {
-				input._defaultDirtyState = true;
-			}
 			if (typeof group !== 'undefined') {
 				input.updateGroup(group);
 			}
@@ -221,7 +217,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
-
+			// If we're loading untitled file data we should ensure it's dirty
+			if (this._untitledDocumentData) {
+				this._defaultDirtyState = true;
+			}
 			if (this.isDirty()) {
 				this._onDidChangeDirty.fire();
 			}

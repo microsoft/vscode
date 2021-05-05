@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -18,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TERMINAL_COMMAND_ID, TERMINAL_SETTING_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -28,6 +26,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IListRenderer } from 'vs/base/browser/ui/list/list';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -35,7 +34,7 @@ export const MIN_TABS_WIDGET_WIDTH = 46;
 export const DEFAULT_TABS_WIDGET_WIDTH = 80;
 export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
 
-export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
+export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 
@@ -46,7 +45,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService
@@ -56,7 +54,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				getHeight: () => TAB_HEIGHT,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelection())],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -64,27 +62,23 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 					getId: e => e?.instanceId
 				},
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
-				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
-				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				expandOnlyOnTwistieClick: true,
-				selectionNavigation: true,
 				additionalScrollHeight: TAB_HEIGHT
 			},
 			contextKeyService,
 			listService,
 			themeService,
 			configurationService,
-			keybindingService,
-			accessibilityService,
+			keybindingService
 		);
 		this._terminalService.onInstancesChanged(() => this._render());
 		this._terminalService.onInstanceTitleChanged(() => this._render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
-				this.setSelection([e]);
-				this.reveal(e);
+				const i = this._terminalService.terminalInstances.indexOf(e);
+				this.setSelection([i]);
+				this.reveal(i);
 			}
 		});
 
@@ -96,25 +90,29 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			}
 		});
 
+		// on left click, if focus mode = single click, focus the element
+		// unless multi-selection is in progress
 		this.onMouseClick(e => {
-			// If focus mode is single click focus the element unless a multi-select in happening
-			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TERMINAL_SETTING_ID.TabsFocusMode);
-			if (focusMode === 'singleClick') {
+			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
+			if (e.browserEvent.altKey && e.element) {
+				this._terminalService.splitInstance(e.element);
+			} else if (focusMode === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
 				}
 			}
 		});
 
-		// Set the selection to whatever is right clicked if it is not inside the selection
+		// on right click, set the focus to that element
+		// unless multi-selection is in progress
 		this.onContextMenu(e => {
 			if (!e.element) {
-				this.setSelection([null]);
+				this.setSelection([]);
 				return;
 			}
-			const selection = this.getSelection();
+			const selection = this.getSelectedElements();
 			if (!selection || !selection.find(s => e.element === s)) {
-				this.setSelection([e.element]);
+				this.setFocus(e.index !== undefined ? [e.index] : []);
 			}
 		});
 
@@ -154,23 +152,17 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 	}
 
 	private _render(): void {
-		this.setChildren(null, this._terminalService.terminalInstances.map(instance => {
-			return {
-				element: instance,
-				collapsed: true,
-				collapsible: false
-			};
-		}));
+		this.splice(0, this.length, this._terminalService.terminalInstances);
 	}
 }
 
-class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, ITerminalTabEntryTemplate> {
+class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminalTabEntryTemplate> {
 	templateId = 'terminal.tabs';
 
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _labels: ResourceLabels,
-		private readonly _getSelection: () => (ITerminalInstance | null)[],
+		private readonly _getSelection: () => ITerminalInstance[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -181,8 +173,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	}
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
-
 		const element = DOM.append(container, $('.terminal-tabs-entry'));
 		const context: { hoverActions?: IHoverAction[] } = {};
 		const label = this._labels.create(element, {
@@ -222,23 +212,21 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		return this._container ? this._container.clientWidth < MIDPOINT_WIDGET_WIDTH : false;
 	}
 
-	renderElement(node: ITreeNode<ITerminalInstance>, index: number, template: ITerminalTabEntryTemplate): void {
-		let instance = node.element;
-
-		const tab = this._terminalService.getTabForInstance(instance);
-		if (!tab) {
-			throw new Error(`Could not find tab for instance "${instance.instanceId}"`);
+	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
+		const group = this._terminalService.getGroupForInstance(instance);
+		if (!group) {
+			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
 		}
 
 		const hasText = !this.shouldHideText();
 		template.element.classList.toggle('has-text', hasText);
 
 		let prefix: string = '';
-		if (tab.terminalInstances.length > 1) {
-			const terminalIndex = tab.terminalInstances.indexOf(instance);
+		if (group.terminalInstances.length > 1) {
+			const terminalIndex = group.terminalInstances.indexOf(instance);
 			if (terminalIndex === 0) {
 				prefix = `┌ `;
-			} else if (terminalIndex === tab!.terminalInstances.length - 1) {
+			} else if (terminalIndex === group!.terminalInstances.length - 1) {
 				prefix = `└ `;
 			} else {
 				prefix = `├ `;
@@ -301,7 +289,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		});
 	}
 
-	disposeElement(element: ITreeNode<ITerminalInstance, any>, index: number, templateData: ITerminalTabEntryTemplate): void {
+	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
 		templateData.elementDispoables?.dispose();
 		templateData.elementDispoables = undefined;
 	}
@@ -312,10 +300,10 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
 		const actions = [
-			new Action(TERMINAL_COMMAND_ID.SPLIT_INSTANCE, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+			new Action(TerminalCommandId.SplitInstance, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
 			}),
-			new Action(TERMINAL_COMMAND_ID.KILL_INSTANCE, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+			new Action(TerminalCommandId.KillInstance, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
 				this._runForSelectionOrInstance(instance, e => e.dispose());
 			})
 		];
@@ -362,7 +350,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 	getAriaLabel(instance: ITerminalInstance): string {
 		let ariaLabel: string = '';
-		const tab = this._terminalService.getTabForInstance(instance);
+		const tab = this._terminalService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
 			const terminalIndex = tab.terminalInstances.indexOf(instance);
 			ariaLabel = localize({

@@ -71,7 +71,7 @@
   },
   "devDependencies": {
     "vscode-codicons": "^0.0.14",
-    "@types/node": "^12.11.7"
+    "@types/node": "14.x"
   },
   "repository": {
     "type": "git",

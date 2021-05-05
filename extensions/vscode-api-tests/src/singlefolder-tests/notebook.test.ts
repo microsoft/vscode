@@ -522,7 +522,7 @@ suite('Notebook API tests', function () {
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		const activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.notEqual(getFocusedCell(vscode.window.activeNotebookEditor), undefined);
+		assert.notStrictEqual(getFocusedCell(vscode.window.activeNotebookEditor), undefined);
 		assert.strictEqual(activeCell!.document.getText(), '');
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 4);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
@@ -545,7 +545,7 @@ suite('Notebook API tests', function () {
 		// ---- insert cell above and focus ---- //
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		let activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.notEqual(getFocusedCell(vscode.window.activeNotebookEditor), undefined);
+		assert.notStrictEqual(getFocusedCell(vscode.window.activeNotebookEditor), undefined);
 		assert.strictEqual(activeCell!.document.getText(), '');
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 4);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
@@ -1049,7 +1049,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.getText(), 'test');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.languageId, 'typescript');
 
-		assert.notEqual(firstNotebookEditor, secondNotebookEditor);
+		assert.notStrictEqual(firstNotebookEditor, secondNotebookEditor);
 		assert.strictEqual(firstNotebookEditor?.document, secondNotebookEditor?.document, 'split notebook editors share the same document');
 
 		await saveAllFilesAndCloseAll(resource);
@@ -1151,15 +1151,15 @@ suite('Notebook API tests', function () {
 
 		// now it's dirty, open the resource with notebook editor should open a new one
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.notEqual(vscode.window.activeNotebookEditor, undefined, 'notebook first');
-		// assert.notEqual(vscode.window.activeTextEditor, undefined);
+		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'notebook first');
+		// assert.notStrictEqual(vscode.window.activeTextEditor, undefined);
 
 		await closeAllEditors();
 	});
 
 	test('#102411 - untitled notebook creation failed', async function () {
 		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
-		assert.notEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
 
 		await closeAllEditors();
 	});
@@ -1182,7 +1182,7 @@ suite('Notebook API tests', function () {
 		await vscode.workspace.applyEdit(edit);
 
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().length, 3);
-		assert.notEqual(vscode.window.activeNotebookEditor!.document.cellAt(0).document.getText(), vscode.window.activeNotebookEditor!.document.cellAt(1).document.getText());
+		assert.notStrictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0).document.getText(), vscode.window.activeNotebookEditor!.document.cellAt(1).document.getText());
 
 		await closeAllEditors();
 	});

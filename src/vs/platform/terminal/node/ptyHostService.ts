@@ -122,6 +122,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		// Setup logging
 		const logChannel = client.getChannel(TerminalIpcChannels.Log);
+		LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
 		this._register(this._logService.onDidChangeLogLevel(() => {
 			LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
 		}));
@@ -199,8 +200,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._proxy.getShellEnvironment();
+	getEnvironment(): Promise<IProcessEnvironment> {
+		return this._proxy.getEnvironment();
+	}
+	getWslPath(original: string): Promise<string> {
+		return this._proxy.getWslPath(original);
 	}
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {

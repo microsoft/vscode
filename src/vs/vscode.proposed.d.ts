@@ -842,18 +842,27 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal initial text https://github.com/microsoft/vscode/issues/120368
+	//#region Terminal name change event https://github.com/microsoft/vscode/issues/114898
 
-	export interface TerminalOptions {
+	export interface Pseudoterminal {
 		/**
-		 * A message to write to the terminal on first launch, note that this is not sent to the
-		 * process but, rather written directly to the terminal. This supports escape sequences such
-		 * a setting text style.
+		 * An event that when fired allows changing the name of the terminal.
+		 *
+		 * **Example:** Change the terminal name to "My new terminal".
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const changeNameEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidChangeName: changeNameEmitter.event,
+		 *   open: () => changeNameEmitter.fire('My new terminal'),
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
 		 */
-		readonly message?: string;
+		onDidChangeName?: Event<string>;
 	}
-
-	//#endregion
 
 	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
 
@@ -879,6 +888,28 @@ declare module 'vscode' {
 	export interface TreeView<T> extends Disposable {
 		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number; }): Thenable<void>;
 	}
+	//#endregion
+
+	//#region Custom Tree View Drag and Drop https://github.com/microsoft/vscode/issues/32592
+	export interface TreeViewOptions<T> {
+		/**
+		 * * Whether the tree supports drag and drop.
+		 */
+		canDragAndDrop?: boolean;
+	}
+
+	export interface TreeDataProvider<T> {
+		/**
+		 * Optional method to reparent an `element`.
+		 *
+		 * **NOTE:**  This method should be implemented if the tree supports drag and drop.
+		 *
+		 * @param elements The selected elements that will be reparented.
+		 * @param targetElement The new parent of the elements.
+		 */
+		setParent?(elements: T[], targetElement: T): Thenable<void>;
+	}
+
 	//#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
