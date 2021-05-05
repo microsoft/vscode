@@ -1105,6 +1105,8 @@ export function getLeftDeleteOffset(offset: number, str: string): number {
 }
 
 function getOffsetBeforeLastEmojiComponent(offset: number, str: string): number | undefined {
+	// See https://www.unicode.org/reports/tr51/tr51-14.html#EBNF_and_Regex for the
+	// structure of emojis.
 	let codePoint = getPrevCodePoint(str, offset);
 	offset -= getUTF16Length(codePoint);
 
