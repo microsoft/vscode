@@ -18,9 +18,9 @@ async function createSpdLogLogger(name: string, logfilePath: string, filesize: n
 	return null;
 }
 
-export function createRotatingLoggerSync(name: string, filename: string, filesize: number, filecount: number): spdlog.Logger {
+export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): Promise<spdlog.Logger> {
 	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
-	return _spdlog.createRotatingLoggerSync(name, filename, filesize, filecount);
+	return _spdlog.createRotatingLogger(name, filename, filesize, filecount);
 }
 
 interface ILog {

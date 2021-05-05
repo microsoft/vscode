@@ -15,24 +15,34 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createRotatingLoggerSync } from 'vs/platform/log/node/spdlogLog';
+import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
 import { Logger } from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 
 class OutputAppender {
-	private appender: Logger;
+	private appender: Logger | undefined;
 
 	constructor(readonly name: string, readonly file: string) {
-		this.appender = createRotatingLoggerSync(name, file, 30 * ByteSize.MB, 1);
-		this.appender.clearFormatters();
+	}
+
+	private getAppender(): Promise<Logger> {
+		if (this.appender) {
+			return Promise.resolve(this.appender);
+		} else {
+			return createRotatingLogger(this.name, this.file, 30 * ByteSize.MB, 1).then(logger => {
+				this.appender = logger;
+				this.appender.clearFormatters();
+				return logger;
+			});
+		}
 	}
 
 	append(content: string): void {
-		this.appender.critical(content);
+		this.getAppender().then(logger => logger.critical(content));
 	}
 
 	flush(): void {
-		this.appender.flush();
+		this.getAppender().then(logger => logger.flush());
 	}
 }
 
