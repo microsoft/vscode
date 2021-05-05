@@ -17,7 +17,7 @@ flakySuite('StateMainService', () => {
 	let testDir: string;
 
 	setup(() => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'stateservice');
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'statemainservice');
 
 		return promises.mkdir(testDir, { recursive: true });
 	});

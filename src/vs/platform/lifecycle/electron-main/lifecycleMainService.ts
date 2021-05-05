@@ -115,7 +115,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Restart the application with optional arguments (CLI). All lifecycle event handlers are triggered.
 	 */
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void;
+	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 
 	/**
 	 * Shutdown the application normally. All lifecycle event handlers are triggered.
@@ -535,7 +535,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		return this.pendingQuitPromise;
 	}
 
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
+	async relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
 		this.logService.trace('Lifecycle#relaunch()');
 
 		const args = process.argv.slice(1);
@@ -552,34 +552,34 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			}
 		}
 
-		let quitVetoed = false;
-		app.once('quit', () => {
-			if (!quitVetoed) {
-
-				// Windows: we are about to restart and as such we need to restore the original
-				// current working directory we had on startup to get the exact same startup
-				// behaviour. As such, we briefly change back to that directory and then when
-				// Code starts it will set it back to the installation directory again.
-				try {
-					if (isWindows) {
-						const currentWorkingDir = cwd();
-						if (currentWorkingDir !== process.cwd()) {
-							process.chdir(currentWorkingDir);
-						}
+		const quitListener = () => {
+			// Windows: we are about to restart and as such we need to restore the original
+			// current working directory we had on startup to get the exact same startup
+			// behaviour. As such, we briefly change back to that directory and then when
+			// Code starts it will set it back to the installation directory again.
+			try {
+				if (isWindows) {
+					const currentWorkingDir = cwd();
+					if (currentWorkingDir !== process.cwd()) {
+						process.chdir(currentWorkingDir);
 					}
-				} catch (err) {
-					this.logService.error(err);
 				}
-
-				// relaunch after we are sure there is no veto
-				this.logService.trace('Lifecycle#relaunch() - calling app.relaunch()');
-				app.relaunch({ args });
+			} catch (err) {
+				this.logService.error(err);
 			}
-		});
+
+			// relaunch after we are sure there is no veto
+			this.logService.trace('Lifecycle#relaunch() - calling app.relaunch()');
+			app.relaunch({ args });
+		};
+		app.once('quit', quitListener);
 
 		// app.relaunch() does not quit automatically, so we quit first,
 		// check for vetoes and then relaunch from the app.on('quit') event
-		this.quit(true /* will restart */).then(veto => quitVetoed = veto);
+		const veto = await this.quit(true /* will restart */);
+		if (veto) {
+			app.removeListener('quit', quitListener);
+		}
 	}
 
 	async kill(code?: number): Promise<void> {

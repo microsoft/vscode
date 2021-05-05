@@ -7,7 +7,7 @@ import { join } from 'vs/base/common/path';
 import { readFileSync, promises } from 'fs';
 import { writeFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { IStateMainService as IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';

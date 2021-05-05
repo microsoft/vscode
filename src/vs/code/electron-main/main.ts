@@ -84,17 +84,17 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentService, configurationService, stateService, bufferLogService, productService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
 
 		try {
 
 			// Init services
 			try {
-				await this.initServices(environmentService, configurationService, stateService);
+				await this.initServices(environmentMainService, configurationService, stateMainService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentService, productService.nameLong, error);
+				this.handleStartupDataDirError(environmentMainService, productService.nameLong, error);
 
 				throw error;
 			}
@@ -108,10 +108,10 @@ class CodeMain {
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
 				// instance of VS Code running and so we would quit.
-				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentService, lifecycleMainService, instantiationService, productService, true);
+				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, 'main.log'), true, bufferLogService.getLevel());
+				bufferLogService.logger = new SpdLogLogger('main', join(environmentMainService.logsPath, 'main.log'), true, bufferLogService.getLevel());
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(() => {
@@ -217,9 +217,9 @@ class CodeMain {
 		const configurationServiceInitialization = configurationService.initialize();
 
 		// State service
-		const stateServiceInitialization = stateMainService.init();
+		const stateMainServiceInitialization = stateMainService.init();
 
-		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
+		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateMainServiceInitialization]);
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
