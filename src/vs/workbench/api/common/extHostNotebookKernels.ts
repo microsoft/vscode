@@ -13,12 +13,14 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { ResourceMap } from 'vs/base/common/map';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
 	controller: vscode.NotebookController;
 	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument; }>;
 	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any }>;
+	associatedNotebooks: ResourceMap<boolean>;
 }
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
@@ -91,6 +93,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			});
 		};
 
+		// notebook documents that are associated to this controller
+		const associatedNotebooks = new ResourceMap<boolean>();
+
 		const controller: vscode.NotebookController = {
 			get id() { return id; },
 			get viewType() { return data.viewType; },
@@ -151,6 +156,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				if (isDisposed) {
 					throw new Error('notebook controller is DISPOSED');
 				}
+				if (!associatedNotebooks.has(cell.notebook.uri)) {
+					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
+				}
 				//todo@jrieken
 				return that._extHostNotebook.createNotebookCellExecution(cell.notebook.uri, cell.index, data.id)!;
 			},
@@ -178,16 +186,30 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			}
 		};
 
-		this._kernelData.set(handle, { extensionId: extension.identifier, controller, onDidChangeSelection, onDidReceiveMessage });
+		this._kernelData.set(handle, {
+			extensionId: extension.identifier,
+			controller,
+			onDidReceiveMessage,
+			onDidChangeSelection,
+			associatedNotebooks
+		});
 		return controller;
 	}
 
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void {
 		const obj = this._kernelData.get(handle);
 		if (obj) {
+			// update data structure
+			const notebook = this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!;
+			if (value) {
+				obj.associatedNotebooks.set(notebook.uri, true);
+			} else {
+				obj.associatedNotebooks.delete(notebook.uri);
+			}
+			// send event
 			obj.onDidChangeSelection.fire({
 				selected: value,
-				notebook: this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!.apiNotebook
+				notebook: notebook.apiNotebook
 			});
 		}
 	}
