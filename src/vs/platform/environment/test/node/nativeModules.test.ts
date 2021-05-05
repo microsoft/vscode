@@ -34,7 +34,7 @@ suite('Native Modules (all platforms)', () => {
 
 	test('spdlog', async () => {
 		const spdlog = await import('spdlog');
-		assert.ok(typeof spdlog.createRotatingLoggerSync === 'function', testErrorMessage('spdlog'));
+		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('spdlog'));
 	});
 
 	test('nsfw', async () => {
