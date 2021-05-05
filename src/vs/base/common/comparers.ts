@@ -6,11 +6,11 @@
 import { sep } from 'vs/base/common/path';
 import { IdleValue } from 'vs/base/common/async';
 
-// When comparing large numbers of strings, such as in sorting large arrays, is better for
-// performance to create an Intl.Collator object and use the function provided by its compare
-// property than it is to use String.prototype.localeCompare()
+// When comparing large numbers of strings it's better for performance to create an
+// Intl.Collator object and use the function provided by its compare property
+// than it is to use String.prototype.localeCompare()
 
-// A collator with numeric sorting enabled, and no sensitivity to case or to accents
+// A collator with numeric sorting enabled, and no sensitivity to case, accents or diacritics.
 const intlFileNameCollatorBaseNumeric: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }> = new IdleValue(() => {
 	const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 	return {
@@ -41,8 +41,7 @@ export function compareFileNames(one: string | null, other: string | null, caseS
 	const b = other || '';
 	const result = intlFileNameCollatorBaseNumeric.value.collator.compare(a, b);
 
-	// Using the numeric option in the collator will
-	// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
+	// Using the numeric option will make compare(`foo1`, `foo01`) === 0. Disambiguate.
 	if (intlFileNameCollatorBaseNumeric.value.collatorIsNumeric && result === 0 && a !== b) {
 		return a < b ? -1 : 1;
 	}
@@ -117,8 +116,7 @@ export function compareFileExtensions(one: string | null, other: string | null):
 	let result = intlFileNameCollatorBaseNumeric.value.collator.compare(oneExtension, otherExtension);
 
 	if (result === 0) {
-		// Using the numeric option in the collator will
-		// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
+		// Using the numeric option will  make compare(`foo1`, `foo01`) === 0. Disambiguate.
 		if (intlFileNameCollatorBaseNumeric.value.collatorIsNumeric && oneExtension !== otherExtension) {
 			return oneExtension < otherExtension ? -1 : 1;
 		}
@@ -203,7 +201,7 @@ function extractNameAndExtension(str?: string | null, dotfilesAsNames = false): 
 
 	let result: [string, string] = [(match && match[1]) || '', (match && match[3]) || ''];
 
-	// if the dotfilesAsNames option is selected, treat an empty filename with an extension,
+	// if the dotfilesAsNames option is selected, treat an empty filename with an extension
 	// or a filename that starts with a dot, as a dotfile name
 	if (dotfilesAsNames && (!result[0] && result[1] || result[0] && result[0].charAt(0) === '.')) {
 		result = [result[0] + '.' + result[1], ''];
@@ -239,26 +237,18 @@ function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, ot
 function isLower(string: string) {
 	const character = string.charAt(0);
 
-	if (character.toLocaleUpperCase() !== character) {
-		return true;
-	}
-
-	return false;
+	return (character.toLocaleUpperCase() !== character) ? true : false;
 }
 
 /** @returns `true` if the string starts with an uppercase letter. Otherwise, `false`. */
 function isUpper(string: string) {
 	const character = string.charAt(0);
 
-	if (character.toLocaleLowerCase() !== character) {
-		return true;
-	}
-
-	return false;
+	return (character.toLocaleLowerCase() !== character) ? true : false;
 }
 
 /**
- * Compares the case of the provided strings - with lowercase considered less than uppercase
+ * Compares the case of the provided strings - lowercase before uppercase
  *
  * @returns
  * ```text
@@ -271,14 +261,11 @@ function compareCaseLowerFirst(one: string, other: string): number {
 	if (isLower(one) && isUpper(other)) {
 		return -1;
 	}
-	if (isUpper(one) && isLower(other)) {
-		return 1;
-	}
-	return 0;
+	return (isUpper(one) && isLower(other)) ? 1 : 0;
 }
 
 /**
- * Compares the case of the provided strings - with uppercase considered less than lowercase
+ * Compares the case of the provided strings - uppercase before lowercase
  *
  * @returns
  * ```text
@@ -291,10 +278,7 @@ function compareCaseUpperFirst(one: string, other: string): number {
 	if (isUpper(one) && isLower(other)) {
 		return -1;
 	}
-	if (isLower(one) && isUpper(other)) {
-		return 1;
-	}
-	return 0;
+	return (isLower(one) && isUpper(other)) ? 1 : 0;
 }
 
 function comparePathComponents(one: string, other: string, caseSensitive = false): number {
