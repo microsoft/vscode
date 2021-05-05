@@ -31,6 +31,7 @@ flakySuite('StateMainService', () => {
 		writeFileSync(storageFile, '');
 
 		let service = new FileStorage(storageFile, new NullLogService());
+		await service.init();
 
 		service.setItem('some.key', 'some.value');
 		assert.strictEqual(service.getItem('some.key'), 'some.value');
@@ -45,6 +46,7 @@ flakySuite('StateMainService', () => {
 		await service.flush();
 
 		service = new FileStorage(storageFile, new NullLogService());
+		await service.init();
 
 		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
 
@@ -91,6 +93,7 @@ flakySuite('StateMainService', () => {
 		writeFileSync(storageFile, '');
 
 		let service = new FileStorage(storageFile, new NullLogService());
+		await service.init();
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');
@@ -106,10 +109,36 @@ flakySuite('StateMainService', () => {
 		await service.flush();
 
 		service = new FileStorage(storageFile, new NullLogService());
+		await service.init();
 
 		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
 		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
+		assert.strictEqual(service.getItem('some.key4'), undefined);
+	});
+
+	test('Used before init', async function () {
+		const storageFile = join(testDir, 'storage.json');
+		writeFileSync(storageFile, '');
+
+		let service = new FileStorage(storageFile, new NullLogService());
+
+		service.setItem('some.key1', 'some.value1');
+		service.setItem('some.key2', 'some.value2');
+		service.setItem('some.key3', 'some.value3');
+		service.setItem('some.key4', 'some.value4');
+		service.removeItem('some.key4');
+
+		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
+		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
+		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
+		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		await service.init();
+
+		assert.strictEqual(service.getItem('some.key1'), undefined);
+		assert.strictEqual(service.getItem('some.key2'), undefined);
+		assert.strictEqual(service.getItem('some.key3'), undefined);
 		assert.strictEqual(service.getItem('some.key4'), undefined);
 	});
 });
