@@ -384,11 +384,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
 		}
 		for (const desc of contributions) {
+			let contribution: INotebookEditorContribution | undefined;
 			try {
-				const contribution = this.instantiationService.createInstance(desc.ctor, this);
-				this._contributions.set(desc.id, contribution);
+				contribution = this.instantiationService.createInstance(desc.ctor, this);
 			} catch (err) {
 				onUnexpectedError(err);
+			}
+			if (contribution) {
+				if (!this._contributions.has(desc.id)) {
+					this._contributions.set(desc.id, contribution);
+				} else {
+					contribution.dispose();
+					throw new Error(`DUPLICATE notebook editor contribution: '${desc.id}'`);
+				}
 			}
 		}
 

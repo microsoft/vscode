@@ -16,7 +16,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookStatusBarController extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.statusBar';
+	static id: string = 'workbench.notebook.statusBar.exec';
 
 	private readonly _visibleCells = new Map<number, IDisposable[]>();
 
