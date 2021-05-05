@@ -932,7 +932,6 @@ export class SettingsEditor2 extends EditorPane {
 
 		const data = {
 			key: props.key,
-			query: props.query,
 			groupId,
 			nlpIndex,
 			displayIndex,
@@ -944,7 +943,6 @@ export class SettingsEditor2 extends EditorPane {
 		/* __GDPR__
 			"settingsEditor.settingModified" : {
 				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -1267,7 +1265,6 @@ export class SettingsEditor2 extends EditorPane {
 		const requestCount = nlpMetadata && nlpMetadata.requestCount;
 
 		const data = {
-			query,
 			durations,
 			counts,
 			requestCount
@@ -1275,7 +1272,6 @@ export class SettingsEditor2 extends EditorPane {
 
 		/* __GDPR__
 			"settingsEditor.filter" : {
-				"query": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

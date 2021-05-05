@@ -23,6 +23,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { EditorExtensions, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -32,7 +33,7 @@ import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/cont
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookMarkupRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookMarkupRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookMarkupRendererInfo as NotebookMarkupRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
@@ -148,7 +149,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 				if (data) {
 					notebookUri = data.notebook;
-					cellOptions = { resource: resource };
+					cellOptions = { resource: resource, options: options };
 				}
 
 				const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions });
@@ -316,6 +317,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -614,7 +616,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: true // TODO@roblourens mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkpaceTrusted()
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkpaceTrusted()
 					});
 				}
 			} else {
@@ -622,7 +624,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: true // TODO@roblourens mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkpaceTrusted()
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkpaceTrusted()
 					});
 				} else {
 					orderMimeTypes.push({

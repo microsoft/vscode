@@ -31,7 +31,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -190,6 +190,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
 	get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
+	private readonly _onDropped = new Emitter<{ instance: ITerminalInstance, dragEvent: DragEvent; }>();
+	get onDropped(): Event<{ instance: ITerminalInstance, dragEvent: DragEvent; }> { return this._onDropped.event; }
 	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
 	get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	private readonly _onLinksReady = new Emitter<ITerminalInstance>();
@@ -722,10 +724,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this._onFocused.fire(this);
 		}));
+
 		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
+
+		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DROP, (e: DragEvent) => {
+			this._onDropped.fire({ instance: this, dragEvent: e });
+		}));
+
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
 
@@ -1688,7 +1696,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _getXtermTheme(theme?: IColorTheme): any {
+	private _getXtermTheme(theme?: IColorTheme): ITheme {
 		if (!theme) {
 			theme = this._themeService.getColorTheme();
 		}
@@ -1701,11 +1709,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
 
 		return {
-			background: backgroundColor ? backgroundColor.toString() : null,
-			foreground: foregroundColor ? foregroundColor.toString() : null,
-			cursor: cursorColor ? cursorColor.toString() : null,
-			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : null,
-			selection: selectionColor ? selectionColor.toString() : null,
+			background: backgroundColor ? backgroundColor.toString() : undefined,
+			foreground: foregroundColor ? foregroundColor.toString() : undefined,
+			cursor: cursorColor ? cursorColor.toString() : undefined,
+			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : undefined,
+			selection: selectionColor ? selectionColor.toString() : undefined,
 			black: theme.getColor(ansiColorIdentifiers[0])!.toString(),
 			red: theme.getColor(ansiColorIdentifiers[1])!.toString(),
 			green: theme.getColor(ansiColorIdentifiers[2])!.toString(),

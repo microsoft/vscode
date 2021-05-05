@@ -14,6 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { FileAccess } from 'vs/base/common/network';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -71,8 +72,8 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 		}
 
 		return new Promise<void>((c, e) => {
-			const env = cwd ? { cwd: cwd } : undefined;
-			const child = spawner.spawn(command, cmdArgs, env);
+			const env = getSanitizedEnvironment(process);
+			const child = spawner.spawn(command, cmdArgs, { cwd, env });
 			child.on('error', e);
 			child.on('exit', () => c());
 		});
@@ -91,7 +92,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 			];
 
 			// merge environment variables into a copy of the process.env
-			const env = Object.assign({}, process.env, envVars);
+			const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
 
 			// delete environment variables that have a null value
 			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
@@ -319,13 +320,19 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 
 		return new Promise<void>((c, e) => {
 			execPromise.then(exec => {
-				const env = cwd ? { cwd } : undefined;
-				const child = spawner.spawn(exec, [], env);
+				const env = getSanitizedEnvironment(process);
+				const child = spawner.spawn(exec, [], { cwd, env });
 				child.on('error', e);
 				child.on('exit', () => c());
 			});
 		});
 	}
+}
+
+function getSanitizedEnvironment(process: NodeJS.Process) {
+	const env = process.env;
+	sanitizeProcessEnvironment(env);
+	return env;
 }
 
 /**

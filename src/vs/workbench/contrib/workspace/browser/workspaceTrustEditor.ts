@@ -333,7 +333,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			if (!uris) {
 				this.workspaceTrustManagementService.setWorkspaceTrust(true);
 			} else {
-				this.workspaceTrustManagementService.setFoldersTrust(uris, true);
+				this.workspaceTrustManagementService.setUrisTrust(uris, true);
 			}
 		};
 

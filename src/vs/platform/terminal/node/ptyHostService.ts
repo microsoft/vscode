@@ -122,6 +122,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		// Setup logging
 		const logChannel = client.getChannel(TerminalIpcChannels.Log);
+		LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
 		this._register(this._logService.onDidChangeLogLevel(() => {
 			LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
 		}));

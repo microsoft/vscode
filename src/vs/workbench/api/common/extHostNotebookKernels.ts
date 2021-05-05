@@ -242,7 +242,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	$acceptRendererMessage(handle: number, editorId: string, message: any): void {
+	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			// extension can dispose kernels in the meantime

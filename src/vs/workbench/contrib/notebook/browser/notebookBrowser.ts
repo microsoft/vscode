@@ -503,7 +503,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	/**
 	 * Send message to the webview for outputs.
 	 */
-	postMessage(forRendererId: string | undefined, message: any): void;
+	postMessage(message: any): void;
 
 	/**
 	 * Remove class name on the notebook editor root DOM node.

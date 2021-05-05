@@ -307,7 +307,6 @@ export class PreferencesEditor extends EditorPane {
 			}
 
 			const data = {
-				filter,
 				durations,
 				counts,
 				requestCount: metadata && metadata['nlpResult'] && metadata['nlpResult'].requestCount
@@ -315,7 +314,6 @@ export class PreferencesEditor extends EditorPane {
 
 			/* __GDPR__
 				"defaultSettings.filter" : {
-					"filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 					"durations.nlpresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"counts.nlpresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"durations.filterresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -684,7 +682,6 @@ class PreferencesRenderersController extends Disposable {
 		};
 
 		if (this.lastFilterResult) {
-			data['query'] = this.lastFilterResult.query;
 			data['editableSide'] = !!fromEditableSettings;
 
 			const nlpMetadata = this.lastFilterResult.metadata && this.lastFilterResult.metadata['nlpResult'];
@@ -704,7 +701,6 @@ class PreferencesRenderersController extends Disposable {
 		/* __GDPR__
 			"defaultSettingsActions.copySetting" : {
 				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"displayIdx" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

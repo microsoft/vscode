@@ -554,12 +554,12 @@ suite('QueryBuilder', () => {
 	suite('parseSearchPaths', () => {
 		test('simple includes', () => {
 			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {
+				const result = queryBuilder.parseSearchPaths(includePattern);
 				assert.deepStrictEqual(
-					queryBuilder.parseSearchPaths(includePattern),
-					{
-						pattern: patternsToIExpression(...expectedPatterns)
-					},
+					{ ...result.pattern },
+					patternsToIExpression(...expectedPatterns),
 					includePattern);
+				assert.strictEqual(result.searchPaths, undefined);
 			}
 
 			[
@@ -1070,18 +1070,18 @@ export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: IT
 	actual.excludePattern = normalizeExpression(actual.excludePattern);
 	cleanUndefinedQueryValues(actual);
 
-	assert.deepEqual(actual, expected);
+	assert.deepStrictEqual(actual, expected);
 }
 
 export function assertEqualSearchPathResults(actual: ISearchPathsInfo, expected: ISearchPathsInfo, message?: string): void {
 	cleanUndefinedQueryValues(actual);
-	assert.deepStrictEqual(actual.pattern, expected.pattern, message);
+	assert.deepStrictEqual({ ...actual.pattern }, { ...expected.pattern }, message);
 
 	assert.strictEqual(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
 	if (actual.searchPaths) {
 		actual.searchPaths.forEach((searchPath, i) => {
 			const expectedSearchPath = expected.searchPaths![i];
-			assert.deepStrictEqual(searchPath.pattern, expectedSearchPath.pattern);
+			assert.deepStrictEqual(searchPath.pattern && { ...searchPath.pattern }, expectedSearchPath.pattern);
 			assert.strictEqual(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
 		});
 	}
@@ -1110,9 +1110,9 @@ export function globalGlob(pattern: string): string[] {
 	];
 }
 
-export function patternsToIExpression(...patterns: string[]): IExpression {
+export function patternsToIExpression(...patterns: string[]): IExpression | undefined {
 	return patterns.length ?
-		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
+		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, {} as IExpression) :
 		undefined;
 }
 
@@ -1133,7 +1133,7 @@ export function normalizeExpression(expression: IExpression | undefined): IExpre
 		return expression;
 	}
 
-	const normalized = Object.create(null);
+	const normalized: IExpression = {};
 	Object.keys(expression).forEach(key => {
 		normalized[key.replace(/\\/g, '/')] = expression[key];
 	});

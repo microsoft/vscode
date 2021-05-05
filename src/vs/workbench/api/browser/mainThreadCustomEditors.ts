@@ -322,7 +322,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			untitledDocumentData = editors[0].untitledDocumentData;
 		}
 		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, untitledDocumentData, cancellation);
-		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, getEditors);
+		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, !!untitledDocumentData, getEditors);
 	}
 
 	constructor(
@@ -331,6 +331,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		private readonly _editorResource: URI,
 		fromBackup: boolean,
 		private readonly _editable: boolean,
+		startDirty: boolean,
 		private readonly _getEditors: () => CustomEditorInput[],
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IFileService private readonly _fileService: IFileService,
@@ -338,7 +339,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@IPathService private readonly _pathService: IPathService
+		@IPathService private readonly _pathService: IPathService,
 	) {
 		super();
 
@@ -346,6 +347,11 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
+		}
+
+		// Normally means we're re-opening an untitled file
+		if (startDirty) {
+			this._isDirtyFromContentChange = true;
 		}
 
 		this._register(_fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
