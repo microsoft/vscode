@@ -19,7 +19,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -129,18 +129,15 @@ export class ElectronIframeWebview extends IFrameWebview {
 			return;
 		}
 
-		// // ensure options is defined without modifying the original
-		// options = options || {};
-
-		// // FindNext must be false for a first request
-		// const findOptions: FindInPageOptions = {
-		// 	forward: options.forward,
-		// 	findNext: true,
-		// 	matchCase: options.matchCase
-		// };
+		// FindNext must be true for a first request
+		const options: FindInFrameOptions = {
+			forward: true,
+			findNext: true,
+			matchCase: false
+		};
 
 		this._findStarted = true;
-		this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, {});
+		this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
 	}
 
 	/**
@@ -155,11 +152,12 @@ export class ElectronIframeWebview extends IFrameWebview {
 			return;
 		}
 
-		// const options = { findNext: false, forward: !previous };
 		if (!this._findStarted) {
 			this.startFind(value);
 		} else {
-			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, {});
+			// continuing the find, so set findNext to false
+			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
+			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
 		}
 	}
 

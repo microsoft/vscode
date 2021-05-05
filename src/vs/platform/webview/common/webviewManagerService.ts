@@ -17,12 +17,18 @@ export interface WebviewWindowId {
 	readonly windowId: number;
 }
 
+export interface FindInFrameOptions {
+	forward?: boolean;
+	findNext?: boolean;
+	matchCase?: boolean;
+}
+
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
-	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean, forward?: boolean }): Promise<void>;
+	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: FindInPageOptions): Promise<void>;
 
 	stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
 }
