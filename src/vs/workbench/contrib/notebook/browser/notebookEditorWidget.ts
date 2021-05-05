@@ -207,6 +207,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _webview: BackLayerWebView<ICommonCellInfo> | null = null;
 	private _webviewResolvePromise: Promise<BackLayerWebView<ICommonCellInfo> | null> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
+	private _listDelegate: NotebookCellListDelegate | null = null;
 	private _list!: INotebookCellList;
 	private _listViewInfoAccessor!: ListViewInfoAccessor;
 	private _dndController: CellDragAndDropController | null = null;
@@ -557,12 +558,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._register(renderer);
 		});
 
+		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate);
+		this._register(this._listDelegate);
+
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
 			this._overlayContainer,
 			this._body,
-			this.instantiationService.createInstance(NotebookCellListDelegate),
+			this._listDelegate,
 			renderers,
 			this.scopedContextKeyService,
 			{
@@ -2442,6 +2446,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._cellContextKeyManager = null;
 		this._renderedEditors.clear();
 		this._pendingLayouts = null;
+		this._listDelegate = null;
+
 		super.dispose();
 	}
 

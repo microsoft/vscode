@@ -56,12 +56,14 @@ import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/re
 
 const $ = DOM.$;
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
+export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel> {
 	private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		super();
+
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()).lineHeight;
 	}
@@ -94,7 +96,7 @@ abstract class AbstractCellRenderer {
 		configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
 		private readonly notificationService: INotificationService,
-		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		protected readonlycontextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		language: string,
 		protected dndController: CellDragAndDropController | undefined,
 	) {
