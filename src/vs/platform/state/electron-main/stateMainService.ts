@@ -4,69 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from 'vs/base/common/path';
-import { readFileSync, promises } from 'fs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { writeFileSync } from 'vs/base/node/pfs';
+import { promises } from 'fs';
+import { writeFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ThrottledDelayer } from 'vs/base/common/async';
 
 type StorageDatabase = { [key: string]: unknown; };
 
 export class FileStorage {
 
-	private _database: StorageDatabase | undefined = undefined;
+	private database: StorageDatabase = Object.create(null);
 	private lastFlushedSerializedDatabase: string | undefined = undefined;
 
-	constructor(private dbPath: string, private onError: (error: Error) => void) { }
+	private readonly flushDelayer = new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
 
-	private get database(): StorageDatabase {
-		if (!this._database) {
-			this._database = this.loadSync();
-		}
-
-		return this._database;
+	constructor(
+		private readonly dbPath: string,
+		private readonly logService: ILogService
+	) {
 	}
 
 	async init(): Promise<void> {
-		if (this._database) {
-			return; // return if database was already loaded
-		}
-
-		const database = await this.loadAsync();
-
-		if (this._database) {
-			return; // return if database was already loaded
-		}
-
-		this._database = database;
+		this.database = await this.load();
 	}
 
-	private loadSync(): StorageDatabase {
-		try {
-			this.lastFlushedSerializedDatabase = readFileSync(this.dbPath).toString();
-
-			return JSON.parse(this.lastFlushedSerializedDatabase);
-		} catch (error) {
-			if (error.code !== 'ENOENT') {
-				this.onError(error);
-			}
-
-			return {};
-		}
-	}
-
-	private async loadAsync(): Promise<StorageDatabase> {
+	private async load(): Promise<StorageDatabase> {
 		try {
 			this.lastFlushedSerializedDatabase = (await promises.readFile(this.dbPath)).toString();
 
 			return JSON.parse(this.lastFlushedSerializedDatabase);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
-				this.onError(error);
+				this.logService.error(error);
 			}
 
-			return {};
+			return Object.create(null);
 		}
 	}
 
@@ -96,7 +71,7 @@ export class FileStorage {
 		}
 
 		this.database[key] = data;
-		this.saveSync();
+		this.save();
 	}
 
 	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
@@ -124,7 +99,7 @@ export class FileStorage {
 		}
 
 		if (save) {
-			this.saveSync();
+			this.save();
 		}
 	}
 
@@ -133,59 +108,94 @@ export class FileStorage {
 		// Only update if the key is actually present (not undefined)
 		if (!isUndefined(this.database[key])) {
 			this.database[key] = undefined;
-			this.saveSync();
+			this.save();
 		}
 	}
 
-	private saveSync(): void {
+	private save(delay?: number): Promise<void> {
+		return this.flushDelayer.trigger(() => this.doSave(), delay);
+	}
+
+	private async doSave(): Promise<void> {
 		const serializedDatabase = JSON.stringify(this.database, null, 4);
 		if (serializedDatabase === this.lastFlushedSerializedDatabase) {
 			return; // return early if the database has not changed
 		}
 
 		try {
-			writeFileSync(this.dbPath, serializedDatabase); // permission issue can happen here
+			await writeFile(this.dbPath, serializedDatabase);
 			this.lastFlushedSerializedDatabase = serializedDatabase;
 		} catch (error) {
-			this.onError(error);
+			this.logService.error(error);
 		}
+	}
+
+	flush(): Promise<void> {
+		return this.save(0 /* as soon as possible */);
 	}
 }
 
-export class StateService implements IStateService {
+export class StateMainService implements IStateMainService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly STATE_FILE = 'storage.json';
 
 	private fileStorage: FileStorage;
+	private storageDidInit = false;
 
 	constructor(
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
-		@ILogService logService: ILogService
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
+		@ILogService private readonly logService: ILogService
 	) {
-		this.fileStorage = new FileStorage(join(environmentService.userDataPath, StateService.STATE_FILE), error => logService.error(error));
+		this.fileStorage = new FileStorage(join(environmentMainService.userDataPath, StateMainService.STATE_FILE), logService);
 	}
 
-	init(): Promise<void> {
+	async init(): Promise<void> {
+		if (this.storageDidInit) {
+			return;
+		}
+
+		this.storageDidInit = true;
+
 		return this.fileStorage.init();
+	}
+
+	private checkInit(): void {
+		if (!this.storageDidInit) {
+			this.logService.warn('StateMainService used before init()');
+		}
 	}
 
 	getItem<T>(key: string, defaultValue: T): T;
 	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
+		this.checkInit();
+
 		return this.fileStorage.getItem(key, defaultValue);
 	}
 
 	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
+		this.checkInit();
+
 		this.fileStorage.setItem(key, data);
 	}
 
 	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
+		this.checkInit();
+
 		this.fileStorage.setItems(items);
 	}
 
 	removeItem(key: string): void {
+		this.checkInit();
+
 		this.fileStorage.removeItem(key);
+	}
+
+	flush(): Promise<void> {
+		this.checkInit();
+
+		return this.fileStorage.flush();
 	}
 }
