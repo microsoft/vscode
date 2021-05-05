@@ -578,20 +578,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 							white-space: pre-wrap;
 						}
 
-						.latex-block {
-							display: block;
-						}
-
-						.latex {
-							vertical-align: middle;
-							display: inline-block;
-						}
-
-						.latex img,
-						.latex-block img {
-							filter: brightness(0) invert(0)
-						}
-
 						dragging {
 							background-color: var(--vscode-editor-background);
 						}
