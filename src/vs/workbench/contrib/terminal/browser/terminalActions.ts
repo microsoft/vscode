@@ -1738,7 +1738,7 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 
 	// multi-select
 	for (const selection of selections) {
-		instances.push(terminalService.getInstanceFromIndex(selection[0]) as ITerminalInstance);
+		instances.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
 	}
 	return instances;
 }
