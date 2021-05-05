@@ -5,7 +5,7 @@
 
 import { BrowserWindow, nativeTheme } from 'electron';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IPartsSplash } from 'vs/platform/windows/common/windows';
 
@@ -33,20 +33,20 @@ export class ThemeMainService implements IThemeMainService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IStateService private stateService: IStateService) { }
+	constructor(@IStateMainService private stateMainService: IStateMainService) { }
 
 	getBackgroundColor(): string {
 		if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
 			return DEFAULT_BG_HC_BLACK;
 		}
 
-		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
+		let background = this.stateMainService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
 		if (!background) {
 			let baseTheme: string;
 			if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
 				baseTheme = 'hc-black';
 			} else {
-				baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
+				baseTheme = this.stateMainService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
 			}
 
 			background = (baseTheme === 'hc-black') ? DEFAULT_BG_HC_BLACK : (baseTheme === 'vs' ? DEFAULT_BG_LIGHT : DEFAULT_BG_DARK);
@@ -62,7 +62,7 @@ export class ThemeMainService implements IThemeMainService {
 	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void {
 
 		// Update in storage
-		this.stateService.setItems([
+		this.stateMainService.setItems([
 			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
 			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
 			{ key: THEME_WINDOW_SPLASH, data: splash }
@@ -84,6 +84,6 @@ export class ThemeMainService implements IThemeMainService {
 	}
 
 	getWindowSplash(): IPartsSplash | undefined {
-		return this.stateService.getItem('windowSplash');
+		return this.stateMainService.getItem('windowSplash');
 	}
 }

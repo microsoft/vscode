@@ -111,9 +111,6 @@ import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 // Extensions Management
 import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
 
-// Terminal
-import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
-
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

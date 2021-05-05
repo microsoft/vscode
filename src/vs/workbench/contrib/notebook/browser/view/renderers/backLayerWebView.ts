@@ -205,7 +205,7 @@ export interface ICreationRequestMessage {
 	left: number;
 	requiredPreloads: ReadonlyArray<IPreloadResource>;
 	readonly initiallyHidden?: boolean;
-	apiNamespace?: string | undefined;
+	rendererId?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
@@ -234,7 +234,7 @@ export interface IClearOutputRequestMessage {
 	cellId: string;
 	outputId: string;
 	cellUri: string;
-	apiNamespace: string | undefined;
+	rendererId: string | undefined;
 }
 
 export interface IHideOutputMessage {
@@ -266,12 +266,12 @@ export interface IAckOutputHeightMessage {
 export interface IPreloadResource {
 	originalUri: string;
 	uri: string;
+	source: 'kernel' | { rendererId: string };
 }
 
 export interface IUpdatePreloadResourceMessage {
 	type: 'preload';
 	resources: IPreloadResource[];
-	source: 'renderer' | 'kernel';
 }
 
 export interface IUpdateDecorationsMessage {
@@ -281,9 +281,8 @@ export interface IUpdateDecorationsMessage {
 	removedClassNames: string[];
 }
 
-export interface ICustomRendererMessage extends BaseToWebviewMessage {
-	type: 'customRendererMessage';
-	rendererId: string;
+export interface ICustomKernelMessage extends BaseToWebviewMessage {
+	type: 'customKernelMessage';
 	message: unknown;
 }
 
@@ -337,7 +336,7 @@ export type FromWebviewMessage =
 	| IWheelMessage
 	| IScrollAckMessage
 	| IBlurOutputMessage
-	| ICustomRendererMessage
+	| ICustomKernelMessage
 	| IClickedDataUrlMessage
 	| IClickMarkdownPreviewMessage
 	| IContextMenuMarkdownPreviewMessage
@@ -365,7 +364,7 @@ export type ToWebviewMessage =
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
 	| IUpdateDecorationsMessage
-	| ICustomRendererMessage
+	| ICustomKernelMessage
 	| ICreateMarkdownMessage
 	| IDeleteMarkdownMessage
 	| IShowMarkdownMessage
@@ -393,7 +392,6 @@ function html(strings: TemplateStringsArray, ...values: any[]): string {
 
 export interface INotebookWebviewMessage {
 	message: unknown;
-	forRenderer?: string;
 }
 
 export interface IResolvedBackLayerWebview {
@@ -755,12 +753,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 	}
 
-	postRendererMessage(rendererId: string, message: any) {
+	postKernelMessage(message: any) {
 		this._sendMessageToWebview({
 			__vscode_notebook_message: true,
-			type: 'customRendererMessage',
+			type: 'customKernelMessage',
 			message,
-			rendererId
 		});
 	}
 
@@ -886,7 +883,6 @@ var requirejs = (function() {
 			}
 
 			if (!data.__vscode_notebook_message) {
-				this._onMessage.fire({ message: data });
 				return;
 			}
 
@@ -990,9 +986,9 @@ var requirejs = (function() {
 						this._onDidClickDataLink(data);
 						break;
 					}
-				case 'customRendererMessage':
+				case 'customKernelMessage':
 					{
-						this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+						this._onMessage.fire({ message: data.message });
 						break;
 					}
 				case 'clickMarkdownPreview':
@@ -1460,7 +1456,7 @@ var requirejs = (function() {
 			message = {
 				...messageBase,
 				outputId: output.outputId,
-				apiNamespace: content.renderer.id,
+				rendererId: content.renderer.id,
 				requiredPreloads: await this.updateRendererPreloads([content.renderer]),
 				content: {
 					type: RenderOutputType.Extension,
@@ -1502,7 +1498,7 @@ var requirejs = (function() {
 
 			this._sendMessageToWebview({
 				type: 'clearOutput',
-				apiNamespace: outputCache.cachedCreation.apiNamespace,
+				rendererId: outputCache.cachedCreation.rendererId,
 				cellUri: outputCache.cellInfo.cellUri.toString(),
 				outputId: id,
 				cellId: outputCache.cellInfo.cellId
@@ -1589,7 +1585,7 @@ var requirejs = (function() {
 				? preload : asWebviewUri(this.environmentService, this.id, preload);
 
 			if (!this._preloadsCache.has(uri.toString())) {
-				resources.push({ uri: uri.toString(), originalUri: preload.toString() });
+				resources.push({ uri: uri.toString(), originalUri: preload.toString(), source: 'kernel' });
 				this._preloadsCache.add(uri.toString());
 			}
 		}
@@ -1599,7 +1595,7 @@ var requirejs = (function() {
 		}
 
 		this.kernelRootsCache = [...extensionLocations, ...this.kernelRootsCache];
-		this._updatePreloads(resources, 'kernel');
+		this._updatePreloads(resources);
 	}
 
 	async updateRendererPreloads(renderers: Iterable<INotebookRendererInfo>) {
@@ -1616,7 +1612,12 @@ var requirejs = (function() {
 			extensionLocations.push(rendererInfo.extensionLocation);
 			for (const preload of [rendererInfo.entrypoint, ...rendererInfo.preloads]) {
 				const uri = asWebviewUri(this.environmentService, this.id, preload);
-				const resource: IPreloadResource = { uri: uri.toString(), originalUri: preload.toString() };
+				const resource: IPreloadResource = {
+					uri: uri.toString(),
+					originalUri: preload.toString(),
+					source: { rendererId: rendererInfo.id },
+				};
+
 				requiredPreloads.push(resource);
 
 				if (!this._preloadsCache.has(uri.toString())) {
@@ -1631,11 +1632,11 @@ var requirejs = (function() {
 		}
 
 		this.rendererRootsCache = extensionLocations;
-		this._updatePreloads(resources, 'renderer');
+		this._updatePreloads(resources);
 		return requiredPreloads;
 	}
 
-	private _updatePreloads(resources: IPreloadResource[], source: 'renderer' | 'kernel') {
+	private _updatePreloads(resources: IPreloadResource[]) {
 		if (!this.webview) {
 			return;
 		}
@@ -1647,7 +1648,6 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'preload',
 			resources: resources,
-			source: source
 		});
 	}
 

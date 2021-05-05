@@ -78,7 +78,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 				run: () => {
 					sendTelemetry('accept');
 					this.telemetryService.getTelemetryInfo().then(info => {
-						this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
+						this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}`));
 						this.skipSurvey();
 					});
 				}

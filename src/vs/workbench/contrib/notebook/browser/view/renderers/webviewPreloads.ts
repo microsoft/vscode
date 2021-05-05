@@ -6,10 +6,10 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
-// function. Imports are not allowed. This is stringifies and injected into
+// function. Imports are not allowed. This is stringified and injected into
 // the webview.
 
 declare module globalThis {
@@ -413,35 +413,31 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 		outputId: string;
 	}
 
-	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
-	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
-	const onDidReceiveMessage = createEmitter<[string, unknown]>();
+	const onWillDestroyOutput = createEmitter<'all' | { rendererId: string, info: IDestroyCellInfo }>();
+	const onDidCreateOutput = createEmitter<{ rendererId: string, info: ICreateCellInfo }>();
+	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
+	const acquireNotebookRendererApi = <T>(id: string) => ({
+		setState(newState: T) {
+			vscode.setState({ ...vscode.getState(), [id]: newState });
+		},
+		getState(): T | undefined {
+			const state = vscode.getState();
+			return typeof state === 'object' && state ? state[id] as T : undefined;
+		},
+		onWillDestroyOutput: mapEmitter(onWillDestroyOutput, (evt) => {
+			if (evt === 'all') {
+				return undefined;
+			}
+			return evt.rendererId === id ? evt.info : dontEmit;
+		}),
+		onDidCreateOutput: mapEmitter(onDidCreateOutput, ({ rendererId, info }) => rendererId === id ? info : dontEmit),
+	});
 
-	(window as any).acquireNotebookRendererApi = <T>(namespace: string) => {
-		if (!namespace || typeof namespace !== 'string') {
-			throw new Error(`acquireNotebookRendererApi should be called your renderer type as a string, got: ${namespace}.`);
-		}
-
-		return {
-			postMessage(message: unknown) {
-				postNotebookMessage<ICustomRendererMessage>('customRendererMessage', {
-					rendererId: namespace,
-					message,
-				});
-			},
-			setState(newState: T) {
-				vscode.setState({ ...vscode.getState(), [namespace]: newState });
-			},
-			getState(): T | undefined {
-				const state = vscode.getState();
-				return typeof state === 'object' && state ? state[namespace] as T : undefined;
-			},
-			onDidReceiveMessage: mapEmitter(onDidReceiveMessage, ([ns, data]) => ns === namespace ? data : dontEmit),
-			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
-			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
-		};
+	const kernelPreloadGlobals = {
+		acquireVsCodeApi,
+		onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
+		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
 	};
 
 	const enum PreloadState {
@@ -638,28 +634,16 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 						cellOutputContainer.appendChild(outputContainer);
 						outputContainer.appendChild(outputNode);
 					} else {
-						const { metadata, mimeType, value } = content;
-						onDidCreateOutput.fire([data.apiNamespace, {
-							element: outputNode,
-							outputId,
-							mime: content.mimeType,
-							value: content.value,
-							metadata: content.metadata,
-
-							get mimeType() {
-								console.warn(`event.mimeType is deprecated, use 'mime' instead`);
-								return mimeType;
-							},
-
-							get output() {
-								console.warn(`event.output is deprecated, use properties directly instead`);
-								return {
-									metadata: { [mimeType]: metadata },
-									data: { [mimeType]: value },
-									outputId,
-								};
-							},
-						} as ICreateCellInfo]);
+						onDidCreateOutput.fire({
+							rendererId: data.rendererId!,
+							info: {
+								element: outputNode,
+								outputId,
+								mime: content.mimeType,
+								value: content.value,
+								metadata: content.metadata,
+							}
+						});
 						cellOutputContainer.appendChild(outputContainer);
 						outputContainer.appendChild(outputNode);
 					}
@@ -715,7 +699,7 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 				}
 			case 'clear':
 				queuedOuputActions.clear(); // stop all loading outputs
-				onWillDestroyOutput.fire([undefined, undefined]);
+				onWillDestroyOutput.fire('all');
 				document.getElementById('container')!.innerText = '';
 
 				focusTrackers.forEach(ft => {
@@ -723,14 +707,20 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 				});
 				focusTrackers.clear();
 				break;
-			case 'clearOutput':
+			case 'clearOutput': {
 				const output = document.getElementById(event.data.outputId);
-				queuedOuputActions.delete(event.data.outputId); // stop any in-progress rendering
+				const { rendererId, outputId } = event.data;
+
+				queuedOuputActions.delete(outputId); // stop any in-progress rendering
 				if (output && output.parentNode) {
-					onWillDestroyOutput.fire([event.data.apiNamespace, { outputId: event.data.outputId }]);
+					if (rendererId) {
+						onWillDestroyOutput.fire({ rendererId, info: { outputId } });
+					}
 					output.parentNode.removeChild(output);
 				}
+
 				break;
+			}
 			case 'hideOutput':
 				enqueueOutputAction(event.data, ({ outputId }) => {
 					const container = document.getElementById(outputId)?.parentElement?.parentElement;
@@ -764,9 +754,12 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 				}
 			case 'preload':
 				const resources = event.data.resources;
-				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
 				let queue: Promise<PreloadResult> = Promise.resolve({ state: PreloadState.Ok });
-				for (const { uri, originalUri } of resources) {
+				for (const { uri, originalUri, source } of resources) {
+					const globals = source === 'kernel'
+						? kernelPreloadGlobals
+						: { acquireNotebookRendererApi: () => acquireNotebookRendererApi(source.rendererId) };
+
 					// create the promise so that the scripts download in parallel, but
 					// only invoke them in series within the queue
 					const promise = runScript(uri, originalUri, globals);
@@ -792,8 +785,8 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 				}
 
 				break;
-			case 'customRendererMessage':
-				onDidReceiveMessage.fire([event.data.rendererId, event.data.message]);
+			case 'customKernelMessage':
+				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
 		}
 	});

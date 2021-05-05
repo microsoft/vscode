@@ -9,7 +9,7 @@ import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecyc
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalInstance, Direction, ITerminalTab, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, Direction, ITerminalGroup, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IShellLaunchConfig, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 
@@ -23,7 +23,7 @@ class SplitPaneContainer extends Disposable {
 	private _children: SplitPane[] = [];
 
 	private _onDidChange: Event<number | undefined> = Event.None;
-	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
+	get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
 	constructor(
 		private _container: HTMLElement,
@@ -43,11 +43,11 @@ class SplitPaneContainer extends Disposable {
 		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 	}
 
-	public split(instance: ITerminalInstance, index: number = this._children.length): void {
+	split(instance: ITerminalInstance, index: number = this._children.length): void {
 		this._addChild(instance, index);
 	}
 
-	public resizePane(index: number, direction: Direction, amount: number): void {
+	resizePane(index: number, direction: Direction, amount: number): void {
 		const isHorizontal = (direction === Direction.Left) || (direction === Direction.Right);
 
 		if ((isHorizontal && this.orientation !== Orientation.HORIZONTAL) ||
@@ -101,7 +101,7 @@ class SplitPaneContainer extends Disposable {
 		}
 	}
 
-	public resizePanes(relativeSizes: number[]): void {
+	resizePanes(relativeSizes: number[]): void {
 		if (this._children.length <= 1) {
 			return;
 		}
@@ -131,7 +131,7 @@ class SplitPaneContainer extends Disposable {
 		this._onDidChange = Event.any(...this._children.map(c => c.onDidChange));
 	}
 
-	public remove(instance: ITerminalInstance): void {
+	remove(instance: ITerminalInstance): void {
 		let index: number | null = null;
 		for (let i = 0; i < this._children.length; i++) {
 			if (this._children[i].instance === instance) {
@@ -144,7 +144,7 @@ class SplitPaneContainer extends Disposable {
 		}
 	}
 
-	public layout(width: number, height: number): void {
+	layout(width: number, height: number): void {
 		this._width = width;
 		this._height = height;
 		if (this.orientation === Orientation.HORIZONTAL) {
@@ -156,7 +156,7 @@ class SplitPaneContainer extends Disposable {
 		}
 	}
 
-	public setOrientation(orientation: Orientation): void {
+	setOrientation(orientation: Orientation): void {
 		if (this.orientation === orientation) {
 			return;
 		}
@@ -189,13 +189,13 @@ class SplitPaneContainer extends Disposable {
 }
 
 class SplitPane implements IView {
-	public minimumSize: number = SPLIT_PANE_MIN_SIZE;
-	public maximumSize: number = Number.MAX_VALUE;
+	minimumSize: number = SPLIT_PANE_MIN_SIZE;
+	maximumSize: number = Number.MAX_VALUE;
 
-	public orientation: Orientation | undefined;
+	orientation: Orientation | undefined;
 
 	private _onDidChange: Event<number | undefined> = Event.None;
-	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
+	get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
 	readonly element: HTMLElement;
 
@@ -208,7 +208,7 @@ class SplitPane implements IView {
 		this.instance.attachToElement(this.element);
 	}
 
-	public layout(size: number): void {
+	layout(size: number): void {
 		// Only layout when both sizes are known
 		if (!size || !this.orthogonalSize) {
 			return;
@@ -221,32 +221,31 @@ class SplitPane implements IView {
 		}
 	}
 
-	public orthogonalLayout(size: number): void {
+	orthogonalLayout(size: number): void {
 		this.orthogonalSize = size;
 	}
 }
 
-export class TerminalTab extends Disposable implements ITerminalTab {
+export class TerminalGroup extends Disposable implements ITerminalGroup {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _splitPaneContainer: SplitPaneContainer | undefined;
-	private get splitPaneContainer(): SplitPaneContainer | undefined { return this._splitPaneContainer; }
-	private _tabElement: HTMLElement | undefined;
+	private _groupElement: HTMLElement | undefined;
 	private _panelPosition: Position = Position.BOTTOM;
 	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
 
 	private _activeInstanceIndex: number;
 	private _isVisible: boolean = false;
 
-	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
+	get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
 	private _initialRelativeSizes: number[] | undefined;
 
-	private readonly _onDisposed: Emitter<ITerminalTab> = this._register(new Emitter<ITerminalTab>());
-	public readonly onDisposed: Event<ITerminalTab> = this._onDisposed.event;
+	private readonly _onDisposed: Emitter<ITerminalGroup> = this._register(new Emitter<ITerminalGroup>());
+	public readonly onDisposed: Event<ITerminalGroup> = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
+	readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
 	private readonly _onPanelMovedToSide = new Emitter<void>();
-	public get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
+	get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
 	constructor(
 		private _container: HTMLElement | undefined,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
@@ -265,7 +264,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 	}
 
-	public addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
+	addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
 		let instance: ITerminalInstance;
 		if ('instanceId' in shellLaunchConfigOrInstance) {
 			instance = shellLaunchConfigOrInstance;
@@ -282,25 +281,25 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._onInstancesChanged.fire();
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		super.dispose();
-		if (this._container && this._tabElement) {
-			this._container.removeChild(this._tabElement);
-			this._tabElement = undefined;
+		if (this._container && this._groupElement) {
+			this._container.removeChild(this._groupElement);
+			this._groupElement = undefined;
 		}
 		this._terminalInstances = [];
 		this._onInstancesChanged.fire();
 	}
 
-	public get activeInstance(): ITerminalInstance | null {
+	get activeInstance(): ITerminalInstance | null {
 		if (this._terminalInstances.length === 0) {
 			return null;
 		}
 		return this._terminalInstances[this._activeInstanceIndex];
 	}
 
-	public getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
-		const isHorizontal = this.splitPaneContainer?.orientation === Orientation.HORIZONTAL;
+	getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
+		const isHorizontal = this._splitPaneContainer?.orientation === Orientation.HORIZONTAL;
 		const instances = this.terminalInstances.filter(instance => typeof instance.persistentProcessId === 'number' && instance.shouldPersist);
 		const totalSize = instances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
 		return {
@@ -332,7 +331,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (wasActiveInstance && this._terminalInstances.length > 0) {
 			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
-			// TODO: Only focus the new instance if the tab had focus?
+			// TODO: Only focus the new instance if the group had focus?
 			if (this.activeInstance) {
 				this.activeInstance.focus(true);
 			}
@@ -346,7 +345,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			this._splitPaneContainer.remove(instance);
 		}
 
-		// Fire events and dispose tab if it was the last instance
+		// Fire events and dispose group if it was the last instance
 		if (this._terminalInstances.length === 0) {
 			this._onDisposed.fire(this);
 			this.dispose();
@@ -372,7 +371,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		return terminalIndex;
 	}
 
-	public setActiveInstanceByIndex(index: number): void {
+	setActiveInstanceByIndex(index: number): void {
 		// Check for invalid value
 		if (index < 0 || index >= this._terminalInstances.length) {
 			return;
@@ -386,31 +385,31 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 	}
 
-	public attachToElement(element: HTMLElement): void {
+	attachToElement(element: HTMLElement): void {
 		this._container = element;
 
-		// If we already have a tab element, we can reparent it
-		if (!this._tabElement) {
-			this._tabElement = document.createElement('div');
-			this._tabElement.classList.add('terminal-tab');
+		// If we already have a group element, we can reparent it
+		if (!this._groupElement) {
+			this._groupElement = document.createElement('div');
+			this._groupElement.classList.add('terminal-group');
 		}
 
-		this._container.appendChild(this._tabElement);
+		this._container.appendChild(this._groupElement);
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
 			this._terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 			const orientation = this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._tabElement, orientation);
+			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._groupElement, orientation);
 			this._splitPaneContainer = newLocal;
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
 		this.setVisible(this._isVisible);
 	}
 
-	public get title(): string {
+	get title(): string {
 		if (this._terminalInstances.length === 0) {
-			// Normally consumers should not call into title at all after the tab is disposed but
-			// this is required when the tab is used as part of a tree.
+			// Normally consumers should not call into title at all after the group is disposed but
+			// this is required when the group is used as part of a tree.
 			return '';
 		}
 		let title = this.terminalInstances[0].title;
@@ -429,15 +428,15 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		return title;
 	}
 
-	public setVisible(visible: boolean): void {
+	setVisible(visible: boolean): void {
 		this._isVisible = visible;
-		if (this._tabElement) {
-			this._tabElement.style.display = visible ? '' : 'none';
+		if (this._groupElement) {
+			this._groupElement.style.display = visible ? '' : 'none';
 		}
 		this.terminalInstances.forEach(i => i.setVisible(visible));
 	}
 
-	public split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
+	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._terminalService.createInstance(undefined, shellLaunchConfig);
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);
@@ -450,11 +449,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		return instance;
 	}
 
-	public addDisposable(disposable: IDisposable): void {
+	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
 	}
 
-	public layout(width: number, height: number): void {
+	layout(width: number, height: number): void {
 		if (this._splitPaneContainer) {
 			// Check if the panel position changed and rotate panes if so
 			const newPanelPosition = this._layoutService.getPanelPosition();
@@ -477,17 +476,17 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 	}
 
-	public focusPreviousPane(): void {
+	focusPreviousPane(): void {
 		const newIndex = this._activeInstanceIndex === 0 ? this._terminalInstances.length - 1 : this._activeInstanceIndex - 1;
 		this.setActiveInstanceByIndex(newIndex);
 	}
 
-	public focusNextPane(): void {
+	focusNextPane(): void {
 		const newIndex = this._activeInstanceIndex === this._terminalInstances.length - 1 ? 0 : this._activeInstanceIndex + 1;
 		this.setActiveInstanceByIndex(newIndex);
 	}
 
-	public resizePane(direction: Direction): void {
+	resizePane(direction: Direction): void {
 		if (!this._splitPaneContainer) {
 			return;
 		}
@@ -501,7 +500,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 	}
 
-	public resizePanes(relativeSizes: number[]): void {
+	resizePanes(relativeSizes: number[]): void {
 		if (!this._splitPaneContainer) {
 			this._initialRelativeSizes = relativeSizes;
 			return;
