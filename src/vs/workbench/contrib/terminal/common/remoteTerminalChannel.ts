@@ -253,6 +253,14 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call<void>('$setTerminalLayoutInfo', args);
 	}
 
+	updateTitle(id: number, title: string): Promise<string> {
+		return this._channel.call('$updateTitle', { id, title });
+	}
+
+	updateIcon(id: number, icon: string): Promise<string> {
+		return this._channel.call('$updateIcon', { id, icon });
+	}
+
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: IGetTerminalLayoutInfoArgs = {
