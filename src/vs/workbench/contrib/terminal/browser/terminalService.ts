@@ -304,11 +304,9 @@ export class TerminalService implements ITerminalService {
 		this.onInstanceProcessIdReady(() => this._saveState(isRemote));
 		this.onInstanceTitleChanged(instance => {
 			this._updateTitle(instance);
-			this._saveState(isRemote);
 		});
 		this.onInstanceIconChanged(instance => {
 			this._updateIcon(instance);
-			this._saveState(isRemote);
 		});
 	}
 
