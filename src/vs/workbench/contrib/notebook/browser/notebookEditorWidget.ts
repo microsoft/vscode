@@ -345,7 +345,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._memento = new Memento(NOTEBOOK_EDITOR_ID, storageService);
 
-		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
+		this._outputRenderer = this._register(new OutputRenderer(this, this.instantiationService));
 		this._scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -552,6 +552,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._dndController, getScopedContextKeyService),
 			this.instantiationService.createInstance(MarkdownCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService, { useRenderer: this.useRenderer }),
 		];
+
+		renderers.forEach(renderer => {
+			this._register(renderer);
+		});
 
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
@@ -1740,7 +1744,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#endregion
 
 	//#region Cell operations/layout API
-	private _pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
+	private _pendingLayouts: WeakMap<ICellViewModel, IDisposable> | null = new WeakMap<ICellViewModel, IDisposable>();
 	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
 		this._debug('layout cell', cell.handle, height);
 		const viewIndex = this._list.getViewIndex(cell);
@@ -1757,8 +1761,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._list.updateElementHeight2(cell, height);
 		};
 
-		if (this._pendingLayouts.has(cell)) {
-			this._pendingLayouts.get(cell)!.dispose();
+		if (this._pendingLayouts?.has(cell)) {
+			this._pendingLayouts?.get(cell)!.dispose();
 		}
 
 		let r: () => void;
@@ -1771,13 +1775,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return;
 			}
 
-			this._pendingLayouts.delete(cell);
+			this._pendingLayouts?.delete(cell);
 
 			relayout(cell, height);
 			r();
 		});
 
-		this._pendingLayouts.set(cell, toDisposable(() => {
+		this._pendingLayouts?.set(cell, toDisposable(() => {
 			layoutDisposable.dispose();
 			r();
 		}));
@@ -1865,7 +1869,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return false;
 		}
 
-		if (this._pendingLayouts.has(cell)) {
+		if (this._pendingLayouts?.has(cell)) {
 			this._pendingLayouts.get(cell)!.dispose();
 		}
 
@@ -2426,6 +2430,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();
+
+		// unref
+		this._webview = null;
+		this._webviewResolvePromise = null;
+		this._webviewTransparentCover = null;
+		this._dndController = null;
+		this._listTopCellToolbar = null;
+		this._eventDispatcher = undefined;
+		this._notebookViewModel = undefined;
+		this._cellContextKeyManager = null;
+		this._renderedEditors.clear();
+		this._pendingLayouts = null;
 		super.dispose();
 	}
 

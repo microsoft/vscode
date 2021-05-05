@@ -8,16 +8,19 @@ import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebook
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class OutputRenderer {
-	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };
-	protected readonly _renderers: IOutputTransformContribution[];
+export class OutputRenderer extends Disposable {
+	protected _contributions: { [key: string]: IOutputTransformContribution; };
+	protected _renderers: IOutputTransformContribution[];
 	private _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
 
 	constructor(
 		notebookEditor: ICommonNotebookEditor,
 		private readonly instantiationService: IInstantiationService
 	) {
+		super();
+
 		this._contributions = {};
 		this._renderers = [];
 
@@ -81,5 +84,11 @@ export class OutputRenderer {
 		} else {
 			return this.renderNoop(viewModel, container);
 		}
+	}
+
+	override dispose() {
+		this._contributions = {};
+		this._renderers = [];
+		this._richMimeTypeRenderers.clear();
 	}
 }
