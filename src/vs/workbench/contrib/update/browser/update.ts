@@ -181,8 +181,7 @@ export class ProductContribution implements IWorkbenchContribution {
 									const uri = URI.parse(releaseNotesUrl);
 									openerService.open(uri);
 								}
-							}],
-							{ sticky: true }
+							}]
 						);
 					});
 			}
@@ -335,8 +334,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					action.run();
 					action.dispose();
 				}
-			}],
-			{ sticky: true }
+			}]
 		);
 	}
 
@@ -362,8 +360,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					action.run();
 					action.dispose();
 				}
-			}],
-			{ sticky: true }
+			}]
 		);
 	}
 

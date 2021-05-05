@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -173,9 +172,7 @@ class TimerCellStatusBarHelper extends Disposable {
 
 		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarHelper.UPDATE_INTERVAL));
 		this._update();
-		this._register(
-			Event.filter(this._cell.model.onDidChangeMetadata, e => !!e.runStateChanged)
-				(() => this._update()));
+		this._register(this._cell.model.onDidChangeMetadata(() => this._update()));
 	}
 
 	private async _update() {

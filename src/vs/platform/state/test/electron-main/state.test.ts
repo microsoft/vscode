@@ -8,15 +8,16 @@ import { tmpdir } from 'os';
 import { promises } from 'fs';
 import { join } from 'vs/base/common/path';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileStorage } from 'vs/platform/state/node/stateService';
+import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
 import { rimraf, writeFileSync } from 'vs/base/node/pfs';
+import { NullLogService } from 'vs/platform/log/common/log';
 
-flakySuite('StateService', () => {
+flakySuite('StateMainService', () => {
 
 	let testDir: string;
 
 	setup(() => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'stateservice');
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'statemainservice');
 
 		return promises.mkdir(testDir, { recursive: true });
 	});
@@ -29,7 +30,8 @@ flakySuite('StateService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(storageFile, () => null);
+		let service = new FileStorage(storageFile, new NullLogService());
+		await service.init();
 
 		service.setItem('some.key', 'some.value');
 		assert.strictEqual(service.getItem('some.key'), 'some.value');
@@ -41,7 +43,10 @@ flakySuite('StateService', () => {
 
 		service.setItem('some.other.key', 'some.other.value');
 
-		service = new FileStorage(storageFile, () => null);
+		await service.flush();
+
+		service = new FileStorage(storageFile, new NullLogService());
+		await service.init();
 
 		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
 
@@ -81,5 +86,59 @@ flakySuite('StateService', () => {
 		assert.strictEqual(service.getItem('some.setItems.key3'), undefined);
 		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
 		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
+	});
+
+	test('Multiple ops are buffered and applied', async function () {
+		const storageFile = join(testDir, 'storage.json');
+		writeFileSync(storageFile, '');
+
+		let service = new FileStorage(storageFile, new NullLogService());
+		await service.init();
+
+		service.setItem('some.key1', 'some.value1');
+		service.setItem('some.key2', 'some.value2');
+		service.setItem('some.key3', 'some.value3');
+		service.setItem('some.key4', 'some.value4');
+		service.removeItem('some.key4');
+
+		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
+		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
+		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
+		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		await service.flush();
+
+		service = new FileStorage(storageFile, new NullLogService());
+		await service.init();
+
+		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
+		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
+		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
+		assert.strictEqual(service.getItem('some.key4'), undefined);
+	});
+
+	test('Used before init', async function () {
+		const storageFile = join(testDir, 'storage.json');
+		writeFileSync(storageFile, '');
+
+		let service = new FileStorage(storageFile, new NullLogService());
+
+		service.setItem('some.key1', 'some.value1');
+		service.setItem('some.key2', 'some.value2');
+		service.setItem('some.key3', 'some.value3');
+		service.setItem('some.key4', 'some.value4');
+		service.removeItem('some.key4');
+
+		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
+		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
+		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
+		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		await service.init();
+
+		assert.strictEqual(service.getItem('some.key1'), undefined);
+		assert.strictEqual(service.getItem('some.key2'), undefined);
+		assert.strictEqual(service.getItem('some.key3'), undefined);
+		assert.strictEqual(service.getItem('some.key4'), undefined);
 	});
 });
