@@ -1609,6 +1609,7 @@ declare module 'vscode' {
 		// todo@API qualify cell, ...NotebookCell...
 		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 
+		// todo@API use viewType instead of NotebookSelector
 		export function registerNotebookCellStatusBarItemProvider(selector: NotebookSelector, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
