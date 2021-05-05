@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from 'vs/base/common/actions';
+
 export interface ErrorListenerCallback {
 	(error: any): void;
 }
@@ -142,6 +144,15 @@ export function isPromiseCanceledError(error: any): boolean {
 	return error instanceof Error && error.name === canceledName && error.message === canceledName;
 }
 
+// !!!IMPORTANT!!!
+// Do NOT change this class because it is also used as an API-type.
+export class CancellationError extends Error {
+	constructor() {
+		super(canceledName);
+		this.name = this.message;
+	}
+}
+
 /**
  * Returns an error that signals cancellation.
  */
@@ -211,4 +222,32 @@ export class NotSupportedError extends Error {
 			this.message = message;
 		}
 	}
+}
+
+export class ExpectedError extends Error {
+	readonly isExpected = true;
+}
+
+export interface IErrorOptions {
+	actions?: readonly IAction[];
+}
+
+export interface IErrorWithActions {
+	actions?: readonly IAction[];
+}
+
+export function isErrorWithActions(obj: unknown): obj is IErrorWithActions {
+	const candidate = obj as IErrorWithActions | undefined;
+
+	return candidate instanceof Error && Array.isArray(candidate.actions);
+}
+
+export function createErrorWithActions(message: string, options: IErrorOptions = Object.create(null)): Error & IErrorWithActions {
+	const result = new Error(message);
+
+	if (options.actions) {
+		(result as IErrorWithActions).actions = options.actions;
+	}
+
+	return result;
 }

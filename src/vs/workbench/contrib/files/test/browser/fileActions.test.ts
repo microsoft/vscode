@@ -258,7 +258,7 @@ suite('Files - Increment file name smart', () => {
 		assert.strictEqual(result, '2-test.js');
 	});
 
-	test('Increment file name with prefix version with `-` as separator', function () {
+	test('Increment file name with prefix version with `_` as separator', function () {
 		const name = '1_test.js';
 		const result = incrementFileName(name, false, 'smart');
 		assert.strictEqual(result, '2_test.js');
@@ -268,6 +268,36 @@ suite('Files - Increment file name smart', () => {
 		const name = '9007199254740992.test.js';
 		const result = incrementFileName(name, false, 'smart');
 		assert.strictEqual(result, '9007199254740992.test.1.js');
+	});
+
+	test('Increment file name with just version and no extension', function () {
+		const name = '001004';
+		const result = incrementFileName(name, false, 'smart');
+		assert.strictEqual(result, '001005');
+	});
+
+	test('Increment file name with just version and no extension, too big number', function () {
+		const name = '9007199254740992';
+		const result = incrementFileName(name, false, 'smart');
+		assert.strictEqual(result, '9007199254740992.1');
+	});
+
+	test('Increment file name with no extension and no version', function () {
+		const name = 'file';
+		const result = incrementFileName(name, false, 'smart');
+		assert.strictEqual(result, 'file1');
+	});
+
+	test('Increment file name with no extension', function () {
+		const name = 'file1';
+		const result = incrementFileName(name, false, 'smart');
+		assert.strictEqual(result, 'file2');
+	});
+
+	test('Increment file name with no extension, too big number', function () {
+		const name = 'file9007199254740992';
+		const result = incrementFileName(name, false, 'smart');
+		assert.strictEqual(result, 'file9007199254740992.1');
 	});
 
 	test('Increment folder name with prefix version', function () {

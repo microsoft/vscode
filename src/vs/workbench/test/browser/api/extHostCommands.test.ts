@@ -18,10 +18,10 @@ suite('ExtHostCommands', function () {
 		let lastUnregister: string;
 
 		const shape = new class extends mock<MainThreadCommandsShape>() {
-			$registerCommand(id: string): void {
+			override $registerCommand(id: string): void {
 				//
 			}
-			$unregisterCommand(id: string): void {
+			override $unregisterCommand(id: string): void {
 				lastUnregister = id;
 			}
 		};
@@ -31,8 +31,8 @@ suite('ExtHostCommands', function () {
 			new NullLogService()
 		);
 		commands.registerCommand(true, 'foo', (): any => { }).dispose();
-		assert.equal(lastUnregister!, 'foo');
-		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
+		assert.strictEqual(lastUnregister!, 'foo');
+		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
 
 	});
 
@@ -41,10 +41,10 @@ suite('ExtHostCommands', function () {
 		let unregisterCounter = 0;
 
 		const shape = new class extends mock<MainThreadCommandsShape>() {
-			$registerCommand(id: string): void {
+			override $registerCommand(id: string): void {
 				//
 			}
-			$unregisterCommand(id: string): void {
+			override $unregisterCommand(id: string): void {
 				unregisterCounter += 1;
 			}
 		};
@@ -57,7 +57,7 @@ suite('ExtHostCommands', function () {
 		reg.dispose();
 		reg.dispose();
 		reg.dispose();
-		assert.equal(unregisterCounter, 1);
+		assert.strictEqual(unregisterCounter, 1);
 	});
 
 	test('execute with retry', async function () {
@@ -65,17 +65,17 @@ suite('ExtHostCommands', function () {
 		let count = 0;
 
 		const shape = new class extends mock<MainThreadCommandsShape>() {
-			$registerCommand(id: string): void {
+			override $registerCommand(id: string): void {
 				//
 			}
-			async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
+			override async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
 				count++;
-				assert.equal(retry, count === 1);
+				assert.strictEqual(retry, count === 1);
 				if (count === 1) {
-					assert.equal(retry, true);
+					assert.strictEqual(retry, true);
 					throw new Error('$executeCommand:retry');
 				} else {
-					assert.equal(retry, false);
+					assert.strictEqual(retry, false);
 					return <any>17;
 				}
 			}
@@ -87,7 +87,7 @@ suite('ExtHostCommands', function () {
 		);
 
 		const result = await commands.executeCommand('fooo', [this, true]);
-		assert.equal(result, 17);
-		assert.equal(count, 2);
+		assert.strictEqual(result, 17);
+		assert.strictEqual(count, 2);
 	});
 });

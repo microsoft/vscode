@@ -73,19 +73,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		const children = new Set(item.childItems || []);
 		for (const span of item.spans) {
 			const range = typeConverters.Range.fromTextSpan(span);
-			const selectionRange = item.nameSpan ? typeConverters.Range.fromTextSpan(item.nameSpan) : range;
-			const symbolInfo = new vscode.DocumentSymbol(
-				item.text,
-				'',
-				getSymbolKind(item.kind),
-				range,
-				range.contains(selectionRange) ? selectionRange : range);
-
-
-			const kindModifiers = parseKindModifier(item.kindModifiers);
-			if (kindModifiers.has(PConst.KindModifiers.depreacted)) {
-				symbolInfo.tags = [vscode.SymbolTag.Deprecated];
-			}
+			const symbolInfo = TypeScriptDocumentSymbolProvider.convertSymbol(item, range);
 
 			for (const child of children) {
 				if (child.spans.some(span => !!range.intersection(typeConverters.Range.fromTextSpan(span)))) {
@@ -101,6 +89,31 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		}
 
 		return shouldInclude;
+	}
+
+	private static convertSymbol(item: Proto.NavigationTree, range: vscode.Range): vscode.DocumentSymbol {
+		const selectionRange = item.nameSpan ? typeConverters.Range.fromTextSpan(item.nameSpan) : range;
+		let label = item.text;
+
+		switch (item.kind) {
+			case PConst.Kind.memberGetAccessor: label = `(get) ${label}`; break;
+			case PConst.Kind.memberSetAccessor: label = `(set) ${label}`; break;
+		}
+
+		const symbolInfo = new vscode.DocumentSymbol(
+			label,
+			'',
+			getSymbolKind(item.kind),
+			range,
+			range.contains(selectionRange) ? selectionRange : range);
+
+
+		const kindModifiers = parseKindModifier(item.kindModifiers);
+		if (kindModifiers.has(PConst.KindModifiers.depreacted)) {
+			symbolInfo.tags = [vscode.SymbolTag.Deprecated];
+		}
+
+		return symbolInfo;
 	}
 
 	private static shouldInclueEntry(item: Proto.NavigationTree | Proto.NavigationBarItem): boolean {

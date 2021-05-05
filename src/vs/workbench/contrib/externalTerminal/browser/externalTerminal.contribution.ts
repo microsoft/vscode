@@ -6,27 +6,26 @@
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
-import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
+import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { dirname, basename } from 'vs/base/common/path';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({
@@ -45,11 +44,7 @@ CommandsRegistry.registerCommand({
 			// Always use integrated terminal when using a remote
 			const useIntegratedTerminal = remoteAgentService.getConnection() || configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated';
 			if (useIntegratedTerminal) {
-
-
 				// TODO: Use uri for cwd in createterminal
-
-
 				const opened: { [path: string]: boolean } = {};
 				targets.map(({ stat }) => {
 					const resource = stat!.resource;

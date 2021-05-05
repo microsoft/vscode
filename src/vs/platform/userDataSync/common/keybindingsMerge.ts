@@ -6,7 +6,7 @@
 import * as objects from 'vs/base/common/objects';
 import { parse } from 'vs/base/common/json';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { firstIndex as findFirstIndex, equals } from 'vs/base/common/arrays';
+import { equals } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -346,7 +346,7 @@ function removeKeybindings(content: string, command: string, formattingOptions: 
 
 function updateKeybindings(content: string, command: string, keybindings: IUserFriendlyKeybinding[], formattingOptions: FormattingOptions): string {
 	const allKeybindings = parseKeybindings(content);
-	const location = findFirstIndex(allKeybindings, keybinding => keybinding.command === command || keybinding.command === `-${command}`);
+	const location = allKeybindings.findIndex(keybinding => keybinding.command === command || keybinding.command === `-${command}`);
 	// Remove all entries with this command
 	for (let index = allKeybindings.length - 1; index >= 0; index--) {
 		if (allKeybindings[index].command === command || allKeybindings[index].command === `-${command}`) {

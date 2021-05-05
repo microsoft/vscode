@@ -133,61 +133,61 @@ suite('QuickAccess', () => {
 		disposables.add(registry.registerQuickAccessProvider(providerDescriptor3));
 
 		accessor.quickInputService.quickAccess.show('test');
-		assert.equal(providerDefaultCalled, false);
-		assert.equal(provider1Called, true);
-		assert.equal(provider2Called, false);
-		assert.equal(provider3Called, false);
-		assert.equal(providerDefaultCanceled, false);
-		assert.equal(provider1Canceled, false);
-		assert.equal(provider2Canceled, false);
-		assert.equal(provider3Canceled, false);
-		assert.equal(providerDefaultDisposed, false);
-		assert.equal(provider1Disposed, false);
-		assert.equal(provider2Disposed, false);
-		assert.equal(provider3Disposed, false);
+		assert.strictEqual(providerDefaultCalled, false);
+		assert.strictEqual(provider1Called, true);
+		assert.strictEqual(provider2Called, false);
+		assert.strictEqual(provider3Called, false);
+		assert.strictEqual(providerDefaultCanceled, false);
+		assert.strictEqual(provider1Canceled, false);
+		assert.strictEqual(provider2Canceled, false);
+		assert.strictEqual(provider3Canceled, false);
+		assert.strictEqual(providerDefaultDisposed, false);
+		assert.strictEqual(provider1Disposed, false);
+		assert.strictEqual(provider2Disposed, false);
+		assert.strictEqual(provider3Disposed, false);
 		provider1Called = false;
 
 		accessor.quickInputService.quickAccess.show('test something');
-		assert.equal(providerDefaultCalled, false);
-		assert.equal(provider1Called, false);
-		assert.equal(provider2Called, true);
-		assert.equal(provider3Called, false);
-		assert.equal(providerDefaultCanceled, false);
-		assert.equal(provider1Canceled, true);
-		assert.equal(provider2Canceled, false);
-		assert.equal(provider3Canceled, false);
-		assert.equal(providerDefaultDisposed, false);
-		assert.equal(provider1Disposed, true);
-		assert.equal(provider2Disposed, false);
-		assert.equal(provider3Disposed, false);
+		assert.strictEqual(providerDefaultCalled, false);
+		assert.strictEqual(provider1Called, false);
+		assert.strictEqual(provider2Called, true);
+		assert.strictEqual(provider3Called, false);
+		assert.strictEqual(providerDefaultCanceled, false);
+		assert.strictEqual(provider1Canceled, true);
+		assert.strictEqual(provider2Canceled, false);
+		assert.strictEqual(provider3Canceled, false);
+		assert.strictEqual(providerDefaultDisposed, false);
+		assert.strictEqual(provider1Disposed, true);
+		assert.strictEqual(provider2Disposed, false);
+		assert.strictEqual(provider3Disposed, false);
 		provider2Called = false;
 		provider1Canceled = false;
 		provider1Disposed = false;
 
 		accessor.quickInputService.quickAccess.show('usedefault');
-		assert.equal(providerDefaultCalled, true);
-		assert.equal(provider1Called, false);
-		assert.equal(provider2Called, false);
-		assert.equal(provider3Called, false);
-		assert.equal(providerDefaultCanceled, false);
-		assert.equal(provider1Canceled, false);
-		assert.equal(provider2Canceled, true);
-		assert.equal(provider3Canceled, false);
-		assert.equal(providerDefaultDisposed, false);
-		assert.equal(provider1Disposed, false);
-		assert.equal(provider2Disposed, true);
-		assert.equal(provider3Disposed, false);
+		assert.strictEqual(providerDefaultCalled, true);
+		assert.strictEqual(provider1Called, false);
+		assert.strictEqual(provider2Called, false);
+		assert.strictEqual(provider3Called, false);
+		assert.strictEqual(providerDefaultCanceled, false);
+		assert.strictEqual(provider1Canceled, false);
+		assert.strictEqual(provider2Canceled, true);
+		assert.strictEqual(provider3Canceled, false);
+		assert.strictEqual(providerDefaultDisposed, false);
+		assert.strictEqual(provider1Disposed, false);
+		assert.strictEqual(provider2Disposed, true);
+		assert.strictEqual(provider3Disposed, false);
 
 		await timeout(1);
 
-		assert.equal(providerDefaultCanceled, true);
-		assert.equal(providerDefaultDisposed, true);
-		assert.equal(provider3Called, true);
+		assert.strictEqual(providerDefaultCanceled, true);
+		assert.strictEqual(providerDefaultDisposed, true);
+		assert.strictEqual(provider3Called, true);
 
 		await timeout(1);
 
-		assert.equal(provider3Canceled, true);
-		assert.equal(provider3Disposed, true);
+		assert.strictEqual(provider3Canceled, true);
+		assert.strictEqual(provider3Disposed, true);
 
 		disposables.dispose();
 
@@ -207,7 +207,7 @@ suite('QuickAccess', () => {
 			super('fast');
 		}
 
-		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IQuickPickItem> {
+		protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IQuickPickItem> {
 			fastProviderCalled = true;
 
 			return [{ label: 'Fast Pick' }];
@@ -220,7 +220,7 @@ suite('QuickAccess', () => {
 			super('slow');
 		}
 
-		protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IQuickPickItem>> {
+		protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IQuickPickItem>> {
 			slowProviderCalled = true;
 
 			await timeout(1);
@@ -239,7 +239,7 @@ suite('QuickAccess', () => {
 			super('bothFastAndSlow');
 		}
 
-		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
+		protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
 			fastAndSlowProviderCalled = true;
 
 			return {
@@ -261,7 +261,7 @@ suite('QuickAccess', () => {
 	const slowProviderDescriptor = { ctor: SlowTestQuickPickProvider, prefix: 'slow', helpEntries: [] };
 	const fastAndSlowProviderDescriptor = { ctor: FastAndSlowTestQuickPickProvider, prefix: 'bothFastAndSlow', helpEntries: [] };
 
-	test('quick pick access', async () => {
+	test('quick pick access - show()', async () => {
 		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
 		const restore = (registry as QuickAccessRegistry).clear();
 
@@ -272,40 +272,57 @@ suite('QuickAccess', () => {
 		disposables.add(registry.registerQuickAccessProvider(fastAndSlowProviderDescriptor));
 
 		accessor.quickInputService.quickAccess.show('fast');
-		assert.equal(fastProviderCalled, true);
-		assert.equal(slowProviderCalled, false);
-		assert.equal(fastAndSlowProviderCalled, false);
+		assert.strictEqual(fastProviderCalled, true);
+		assert.strictEqual(slowProviderCalled, false);
+		assert.strictEqual(fastAndSlowProviderCalled, false);
 		fastProviderCalled = false;
 
 		accessor.quickInputService.quickAccess.show('slow');
 		await timeout(2);
 
-		assert.equal(fastProviderCalled, false);
-		assert.equal(slowProviderCalled, true);
-		assert.equal(slowProviderCanceled, false);
-		assert.equal(fastAndSlowProviderCalled, false);
+		assert.strictEqual(fastProviderCalled, false);
+		assert.strictEqual(slowProviderCalled, true);
+		assert.strictEqual(slowProviderCanceled, false);
+		assert.strictEqual(fastAndSlowProviderCalled, false);
 		slowProviderCalled = false;
 
 		accessor.quickInputService.quickAccess.show('bothFastAndSlow');
 		await timeout(2);
 
-		assert.equal(fastProviderCalled, false);
-		assert.equal(slowProviderCalled, false);
-		assert.equal(fastAndSlowProviderCalled, true);
-		assert.equal(fastAndSlowProviderCanceled, false);
+		assert.strictEqual(fastProviderCalled, false);
+		assert.strictEqual(slowProviderCalled, false);
+		assert.strictEqual(fastAndSlowProviderCalled, true);
+		assert.strictEqual(fastAndSlowProviderCanceled, false);
 		fastAndSlowProviderCalled = false;
 
 		accessor.quickInputService.quickAccess.show('slow');
 		accessor.quickInputService.quickAccess.show('bothFastAndSlow');
 		accessor.quickInputService.quickAccess.show('fast');
 
-		assert.equal(fastProviderCalled, true);
-		assert.equal(slowProviderCalled, true);
-		assert.equal(fastAndSlowProviderCalled, true);
+		assert.strictEqual(fastProviderCalled, true);
+		assert.strictEqual(slowProviderCalled, true);
+		assert.strictEqual(fastAndSlowProviderCalled, true);
 
 		await timeout(2);
-		assert.equal(slowProviderCanceled, true);
-		assert.equal(fastAndSlowProviderCanceled, true);
+		assert.strictEqual(slowProviderCanceled, true);
+		assert.strictEqual(fastAndSlowProviderCanceled, true);
+
+		disposables.dispose();
+
+		restore();
+	});
+
+	test('quick pick access - pick()', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+
+		const disposables = new DisposableStore();
+
+		disposables.add(registry.registerQuickAccessProvider(fastProviderDescriptor));
+
+		const result = accessor.quickInputService.quickAccess.pick('fast');
+		assert.strictEqual(fastProviderCalled, true);
+		assert.ok(result instanceof Promise);
 
 		disposables.dispose();
 

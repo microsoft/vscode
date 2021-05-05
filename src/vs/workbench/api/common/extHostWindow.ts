@@ -12,7 +12,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
-export class ExtHostWindow implements IExtHostWindow {
+export class ExtHostWindow implements ExtHostWindowShape {
 
 	private static InitialState: WindowState = {
 		focused: true

@@ -38,8 +38,6 @@ export interface IURLCallbackProvider {
 
 export class BrowserURLService extends AbstractURLService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private provider: IURLCallbackProvider | undefined;
 
 	constructor(
@@ -47,7 +45,7 @@ export class BrowserURLService extends AbstractURLService {
 	) {
 		super();
 
-		this.provider = environmentService.options!.urlCallbackProvider;
+		this.provider = environmentService.options?.urlCallbackProvider;
 
 		this.registerListeners();
 	}

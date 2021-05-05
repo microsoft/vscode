@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, IColorTheme, DARK, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export class TestColorTheme implements IColorTheme {
 
 	public readonly label = 'test';
 
-	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
-	}
+	constructor(
+		private colors: { [id: string]: string; } = {},
+		public type = ColorScheme.DARK,
+		public readonly semanticHighlighting = false
+	) { }
 
 	getColor(color: string, useDefault?: boolean): Color | undefined {
 		let value = this.colors[color];
@@ -29,8 +33,6 @@ export class TestColorTheme implements IColorTheme {
 	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
 		return undefined;
 	}
-
-	readonly semanticHighlighting = false;
 
 	get tokenColorMap(): string[] {
 		return [];

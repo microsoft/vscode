@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IViewportRange, IBufferLine } from 'xterm';
+import type { Terminal, IViewportRange, IBufferLine } from 'xterm';
 import { getXtermLineContent, convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink, OPEN_FILE_LABEL, FOLDER_IN_WORKSPACE_LABEL, FOLDER_NOT_IN_WORKSPACE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isEqualOrParent } from 'vs/base/common/resources';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -19,15 +19,15 @@ import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
 // '":; are allowed in paths but they are often separators so ignore them
-// Also disallow \\ to prevent a catastropic backtracking case #24798
-const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
+// Also disallow \\ to prevent a catastropic backtracking case #24795
+const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
 export const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
-const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
+const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]\'":;]';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 export const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
 
@@ -49,6 +49,8 @@ export const unixLineAndColumnMatchIndex = 11;
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 export const lineAndColumnClauseGroupCount = 6;
 
+const MAX_LENGTH = 2000;
+
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
@@ -60,7 +62,8 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		super();
 	}
@@ -74,17 +77,20 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 			this._xterm.buffer.active.getLine(startLine)!
 		];
 
-		while (this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
+		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
 			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
 			startLine--;
 		}
 
-		while (this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
+		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
 			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
 
 		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
+		if (text.length > MAX_LENGTH) {
+			return [];
+		}
 
 		// clone regex to do a global search on text
 		const rex = new RegExp(this._localLinkRegex, 'g');
@@ -144,7 +150,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 								this._activateFileCallback(event, text);
 							}
 						});
-						r(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
+						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
 					} else {
 						r(undefined);
 					}
@@ -178,7 +184,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 	private _isDirectoryInsideWorkspace(uri: URI) {
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		for (let i = 0; i < folders.length; i++) {
-			if (isEqualOrParent(uri, folders[i].uri)) {
+			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
 				return true;
 			}
 		}

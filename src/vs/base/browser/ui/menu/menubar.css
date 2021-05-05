@@ -42,10 +42,14 @@
 }
 
 .menubar .menubar-menu-items-holder {
-	position: absolute;
+	position: fixed;
 	left: 0px;
 	opacity: 1;
 	z-index: 2000;
+}
+
+.menubar.compact .menubar-menu-items-holder {
+	position: fixed;
 }
 
 .menubar .menubar-menu-items-holder.monaco-menu-container {
@@ -80,4 +84,12 @@
 
 .menubar.compact .toolbar-toggle-more::before {
 	content: "\eb94" !important;
+}
+
+/* Match behavior of outline for activity bar icons */
+.menubar.compact > .menubar-menu-button.open,
+.menubar.compact > .menubar-menu-button:focus,
+.menubar.compact > .menubar-menu-button:hover {
+	outline-width: 1px !important;
+	outline-offset: -8px !important;
 }

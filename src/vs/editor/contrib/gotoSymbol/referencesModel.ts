@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, extUri } from 'vs/base/common/resources';
-import { IDisposable, dispose, IReference, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
@@ -23,16 +23,21 @@ export class OneReference {
 
 	readonly id: string = defaultGenerator.nextId();
 
+	private _range?: IRange;
+
 	constructor(
 		readonly isProviderFirst: boolean,
 		readonly parent: FileReferences,
-		readonly uri: URI,
-		private _range: IRange,
+		readonly link: LocationLink,
 		private _rangeCallback: (ref: OneReference) => void
 	) { }
 
+	get uri() {
+		return this.link.uri;
+	}
+
 	get range(): IRange {
-		return this._range;
+		return this._range ?? this.link.targetSelectionRange ?? this.link.range;
 	}
 
 	set range(value: IRange) {
@@ -41,10 +46,20 @@ export class OneReference {
 	}
 
 	get ariaMessage(): string {
-		return localize(
-			'aria.oneReference', "symbol in {0} on line {1} at column {2}",
-			basename(this.uri), this.range.startLineNumber, this.range.startColumn
-		);
+
+		const preview = this.parent.getPreview(this)?.preview(this.range);
+
+		if (!preview) {
+			return localize(
+				'aria.oneReference', "symbol in {0} on line {1} at column {2}",
+				basename(this.uri), this.range.startLineNumber, this.range.startColumn
+			);
+		} else {
+			return localize(
+				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "symbol in {0} on line {1} at column {2}, {3}",
+				basename(this.uri), this.range.startLineNumber, this.range.startColumn, preview.value
+			);
+		}
 	}
 }
 
@@ -131,7 +146,6 @@ export class FileReferences implements IDisposable {
 
 export class ReferencesModel implements IDisposable {
 
-	private readonly _disposables = new DisposableStore();
 	private readonly _links: LocationLink[];
 	private readonly _title: string;
 
@@ -163,8 +177,7 @@ export class ReferencesModel implements IDisposable {
 				const oneRef = new OneReference(
 					providersFirst === link,
 					current,
-					link.uri,
-					link.targetSelectionRange || link.range,
+					link,
 					ref => this._onDidChangeReferenceRange.fire(ref)
 				);
 				this.references.push(oneRef);
@@ -175,7 +188,6 @@ export class ReferencesModel implements IDisposable {
 
 	dispose(): void {
 		dispose(this.groups);
-		this._disposables.dispose();
 		this._onDidChangeReferenceRange.dispose();
 		this.groups.length = 0;
 	}

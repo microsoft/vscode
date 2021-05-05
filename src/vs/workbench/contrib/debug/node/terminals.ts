@@ -5,28 +5,12 @@
 
 import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
-import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
+import { getDriveLetter } from 'vs/base/common/extpath';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 
-let externalTerminalService: IExternalTerminalService | undefined = undefined;
-
-export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
-	if (!externalTerminalService) {
-		if (platform.isWindows) {
-			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else if (platform.isMacintosh) {
-			externalTerminalService = new MacExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else if (platform.isLinux) {
-			externalTerminalService = new LinuxExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else {
-			throw new Error('external terminals not supported on this platform');
-		}
-	}
-	const config = configProvider.getConfiguration('terminal');
-	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
-}
 
 function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -44,6 +28,24 @@ function spawnAsPromised(command: string, args: string[]): Promise<string> {
 			resolve(stdout);
 		});
 	});
+}
+
+let externalTerminalService: IExternalTerminalService | undefined = undefined;
+
+export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
+	if (!externalTerminalService) {
+		if (platform.isWindows) {
+			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
+		} else if (platform.isMacintosh) {
+			externalTerminalService = new MacExternalTerminalService(<IConfigurationService><unknown>undefined);
+		} else if (platform.isLinux) {
+			externalTerminalService = new LinuxExternalTerminalService(<IConfigurationService><unknown>undefined);
+		} else {
+			throw new Error('external terminals not supported on this platform');
+		}
+	}
+	const config = configProvider.getConfiguration('terminal');
+	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 }
 
 export function hasChildProcesses(processId: number | undefined): Promise<boolean> {
@@ -111,7 +113,11 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			};
 
 			if (cwd) {
-				command += `cd '${cwd}'; `;
+				const driveLetter = getDriveLetter(cwd);
+				if (driveLetter) {
+					command += `${driveLetter}:; `;
+				}
+				command += `cd ${quote(cwd)}; `;
 			}
 			if (env) {
 				for (let key in env) {
@@ -140,6 +146,10 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			};
 
 			if (cwd) {
+				const driveLetter = getDriveLetter(cwd);
+				if (driveLetter) {
+					command += `${driveLetter}: && `;
+				}
 				command += `cd ${quote(cwd)} && `;
 			}
 			if (env) {
@@ -177,7 +187,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				command += `cd ${quote(cwd)} ; `;
 			}
 			if (env) {
-				command += 'env';
+				command += '/usr/bin/env';
 				for (let key in env) {
 					const value = env[key];
 					if (value === null) {

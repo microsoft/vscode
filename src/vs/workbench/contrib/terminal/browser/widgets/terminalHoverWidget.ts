@@ -8,7 +8,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import * as dom from 'vs/base/browser/dom';
-import { IViewportRange } from 'xterm';
+import type { IViewportRange } from 'xterm';
 import { IHoverTarget, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
@@ -35,19 +35,22 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		super();
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 	}
 
 	attach(container: HTMLElement): void {
 		const target = new CellHoverTarget(container, this._targetOptions);
-		this._hoverService.showHover({
+		const hover = this._hoverService.showHover({
 			target,
 			text: this._text,
 			linkHandler: this._linkHandler,
 			// .xterm-hover lets xterm know that the hover is part of a link
 			additionalClasses: ['xterm-hover']
 		});
+		if (hover) {
+			this._register(hover);
+		}
 	}
 }
 
@@ -114,7 +117,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		container.appendChild(this._domNode);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._domNode?.parentElement?.removeChild(this._domNode);
 		super.dispose();
 	}

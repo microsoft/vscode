@@ -12,10 +12,18 @@ export interface ResolvedAuthority {
 	readonly authority: string;
 	readonly host: string;
 	readonly port: number;
+	readonly connectionToken: string | undefined;
+}
+
+export enum RemoteTrustOption {
+	Unknown = 0,
+	DisableTrust = 1,
+	MachineTrusted = 2
 }
 
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
+	readonly trust?: RemoteTrustOption;
 }
 
 export interface TunnelDescription {
@@ -75,7 +83,7 @@ export class RemoteAuthorityResolverError extends Error {
 		this.isHandled = (code === RemoteAuthorityResolverErrorCode.NotAvailable) && detail === true;
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 		}

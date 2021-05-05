@@ -22,7 +22,7 @@ export class MainThreadRemoteConnectionData extends Disposable {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostExtensionService);
 
-		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this._environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			this._register(remoteAuthorityResolverService.onDidChangeConnectionData(() => {
 				const connectionData = remoteAuthorityResolverService.getConnectionData(remoteAuthority);

@@ -49,7 +49,7 @@ function assertLink(text: string, extractedLink: string): void {
 	}
 
 	let r = myComputeLinks([text]);
-	assert.deepEqual(r, [{
+	assert.deepStrictEqual(r, [{
 		range: {
 			startLineNumber: 1,
 			startColumn: startColumn,
@@ -64,7 +64,7 @@ suite('Editor Modes - Link Computer', () => {
 
 	test('Null model', () => {
 		let r = computeLinks(null);
-		assert.deepEqual(r, []);
+		assert.deepStrictEqual(r, []);
 	});
 
 	test('Parsing', () => {

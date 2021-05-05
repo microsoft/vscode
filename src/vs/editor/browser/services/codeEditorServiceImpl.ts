@@ -11,7 +11,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export class RefCountedStyleSheet {
@@ -20,6 +19,10 @@ export class RefCountedStyleSheet {
 	private readonly _editorId: string;
 	private readonly _styleSheet: HTMLStyleElement;
 	private _refCount: number;
+
+	public get sheet() {
+		return this._styleSheet.sheet as CSSStyleSheet;
+	}
 
 	constructor(parent: CodeEditorServiceImpl, editorId: string, styleSheet: HTMLStyleElement) {
 		this._parent = parent;
@@ -53,6 +56,10 @@ export class RefCountedStyleSheet {
 export class GlobalStyleSheet {
 	private readonly _styleSheet: HTMLStyleElement;
 
+	public get sheet() {
+		return this._styleSheet.sheet as CSSStyleSheet;
+	}
+
 	constructor(styleSheet: HTMLStyleElement) {
 		this._styleSheet = styleSheet;
 	}
@@ -80,7 +87,10 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 	private readonly _themeService: IThemeService;
 
-	constructor(@IThemeService themeService: IThemeService, styleSheet: GlobalStyleSheet | null = null) {
+	constructor(
+		styleSheet: GlobalStyleSheet | null,
+		@IThemeService themeService: IThemeService,
+	) {
 		super();
 		this._globalStyleSheet = styleSheet ? styleSheet : null;
 		this._themeService = themeService;
@@ -129,6 +139,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
 			}
 			this._decorationOptionProviders.set(key, provider);
+			this._onDecorationTypeRegistered.fire(key);
 		}
 		provider.refCount++;
 	}
@@ -153,16 +164,22 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		return provider.getOptions(this, writable);
 	}
 
-	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+	public resolveDecorationCSSRules(decorationTypeKey: string) {
+		const provider = this._decorationOptionProviders.get(decorationTypeKey);
+		if (!provider) {
+			return null;
+		}
+		return provider.resolveDecorationCSSRules();
+	}
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
 	refCount: number;
 	getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions;
+	resolveDecorationCSSRules(): CSSRuleList;
 }
 
-class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
+export class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
@@ -192,6 +209,10 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 		return options;
 	}
 
+	public resolveDecorationCSSRules(): CSSRuleList {
+		return this._styleSheet.sheet.cssRules;
+	}
+
 	public dispose(): void {
 		if (this._beforeContentRules) {
 			this._beforeContentRules.dispose();
@@ -213,7 +234,7 @@ interface ProviderArguments {
 }
 
 
-class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
+export class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
@@ -295,6 +316,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		};
 	}
 
+	public resolveDecorationCSSRules(): CSSRuleList {
+		return this._styleSheet.sheet.rules;
+	}
+
 	public dispose(): void {
 		this._disposables.dispose();
 		this._styleSheet.unref();
@@ -302,7 +327,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 }
 
 
-const _CSS_MAP: { [prop: string]: string; } = {
+export const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
 	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',
@@ -321,6 +346,8 @@ const _CSS_MAP: { [prop: string]: string; } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
+	fontSize: 'font-size:{0};',
+	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
 	letterSpacing: 'letter-spacing:{0};',
@@ -331,6 +358,7 @@ const _CSS_MAP: { [prop: string]: string; } = {
 	contentText: 'content:\'{0}\';',
 	contentIconPath: 'content:{0};',
 	margin: 'margin:{0};',
+	padding: 'padding:{0};',
 	width: 'width:{0};',
 	height: 'height:{0};'
 };
@@ -503,7 +531,7 @@ class DecorationCSSRules {
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin'], cssTextArr);
+			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}

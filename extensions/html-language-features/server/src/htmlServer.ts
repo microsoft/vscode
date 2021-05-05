@@ -7,7 +7,7 @@ import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
 	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType
+	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
@@ -31,10 +31,7 @@ namespace CustomDataChangedNotification {
 }
 
 namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
-}
-namespace OnTypeRenameRequest {
-	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
+	export const type: RequestType<TextDocumentPositionParams, string | null, any> = new RequestType('html/tag');
 }
 
 // experimental: semantic tokens
@@ -43,10 +40,10 @@ interface SemanticTokenParams {
 	ranges?: Range[];
 }
 namespace SemanticTokenRequest {
-	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+	export const type: RequestType<SemanticTokenParams, number[] | null, any> = new RequestType('html/semanticTokens');
 }
 namespace SemanticTokenLegendRequest {
-	export const type: RequestType<void, { types: string[]; modifiers: string[] } | null, any, any> = new RequestType('html/semanticTokenLegend');
+	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 export interface RuntimeEnvironment {
@@ -112,16 +109,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		}
 
-		requestService = getRequestService(params.initializationOptions.handledSchemas || ['file'], connection, runtime);
+		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
 
 		const workspace = {
 			get settings() { return globalSettings; },
 			get folders() { return workspaceFolders; }
 		};
 
-		languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, params.capabilities, requestService);
+		languageModes = getLanguageModes(initializationOptions?.embeddedLanguages || { css: true, javascript: true }, workspace, params.capabilities, requestService);
 
-		const dataPaths: string[] = params.initializationOptions.dataPaths || [];
+		const dataPaths: string[] = initializationOptions?.dataPaths || [];
 		fetchHTMLDataProviders(dataPaths, requestService).then(dataProviders => {
 			languageModes.updateDataProviders(dataProviders);
 		});
@@ -146,7 +143,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 
 		clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-		dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions.provideFormatter !== 'boolean');
+		dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof initializationOptions?.provideFormatter !== 'boolean');
 		scopedSettingsSupport = getClientCapability('workspace.configuration', false);
 		workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
@@ -155,7 +152,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
 			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
+			documentRangeFormattingProvider: initializationOptions?.provideFormatter === true,
 			documentLinkProvider: { resolveProvider: false },
 			documentSymbolProvider: true,
 			definitionProvider: true,
@@ -164,7 +161,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
-			renameProvider: true
+			renameProvider: true,
+			linkedEditingRangeProvider: true
 		};
 		return { capabilities };
 	});
@@ -284,7 +282,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (!mode || !mode.doComplete) {
 				return { isIncomplete: true, items: [] };
 			}
-			const doComplete = mode.doComplete!;
+			const doComplete = mode.doComplete;
 
 			if (mode.getId() !== 'html') {
 				/* __GDPR__
@@ -321,8 +319,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const document = documents.get(textDocumentPosition.textDocument.uri);
 			if (document) {
 				const mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
-				if (mode && mode.doHover) {
-					return mode.doHover(document, textDocumentPosition.position);
+				const doHover = mode?.doHover;
+				if (doHover) {
+					const settings = await getDocumentSettings(document, () => doHover.length > 2);
+					return doHover(document, textDocumentPosition.position, settings);
 				}
 			}
 			return null;
@@ -499,24 +499,28 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const position: Position = params.position;
 
 			if (document) {
-				const htmlMode = languageModes.getMode('html');
-				if (htmlMode && htmlMode.doRename) {
-					return htmlMode.doRename(document, position, params.newName);
+				const mode = languageModes.getModeAtPosition(document, params.position);
+
+				if (mode && mode.doRename) {
+					return mode.doRename(document, position, params.newName);
 				}
 			}
 			return null;
 		}, null, `Error while computing rename for ${params.textDocument.uri}`, token);
 	});
 
-	connection.onRequest(OnTypeRenameRequest.type, (params, token) => {
-		return runSafe(async () => {
+	connection.languages.onLinkedEditingRange((params, token) => {
+		return <any> /* todo remove when microsoft/vscode-languageserver-node#700 fixed */ runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const pos = params.position;
 				if (pos.character > 0) {
 					const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
-					if (mode && mode.doOnTypeRename) {
-						return mode.doOnTypeRename(document, pos);
+					if (mode && mode.doLinkedEditing) {
+						const ranges = await mode.doLinkedEditing(document, pos);
+						if (ranges) {
+							return { ranges };
+						}
 					}
 				}
 			}
@@ -542,7 +546,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, null, `Error while computing semantic tokens for ${params.textDocument.uri}`, token);
 	});
 
-	connection.onRequest(SemanticTokenLegendRequest.type, (_params, token) => {
+	connection.onRequest(SemanticTokenLegendRequest.type, token => {
 		return runSafe(async () => {
 			return getSemanticTokenProvider().legend;
 		}, null, `Error while computing semantic tokens legend`, token);

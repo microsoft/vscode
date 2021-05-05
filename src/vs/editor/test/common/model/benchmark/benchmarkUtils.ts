@@ -58,7 +58,7 @@ export class BenchmarkSuite {
 				let timeDiffTotal = 0;
 				for (let j = 0; j < this.iterations; j++) {
 					let factory = benchmark.buildBuffer(builder);
-					let buffer = factory.create(DefaultEndOfLine.LF);
+					let buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
 					benchmark.preCycle(buffer);
 					let start = process.hrtime();
 					benchmark.fn(buffer);

@@ -130,7 +130,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
 		super();
 		this.settingsModel = reference.object.textEditorModel!;
-		this._register(this.onDispose(() => reference.dispose()));
+		this._register(this.onWillDispose(() => reference.dispose()));
 		this._register(this.settingsModel.onDidChangeContent(() => {
 			this._settingsGroups = undefined;
 			this._onDidChangeGroups.fire();
@@ -235,7 +235,7 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 		}));
 	}
 
-	protected get filterGroups(): ISettingsGroup[] {
+	protected override get filterGroups(): ISettingsGroup[] {
 		// Don't filter "commonly used"
 		return this.settingsGroups.slice(1);
 	}
@@ -351,7 +351,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		},
 		onObjectEnd: (offset: number, length: number) => {
 			currentParent = previousParents.pop();
-			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+			if (settingsPropertyIndex !== -1 && (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null))) {
 				// setting ended
 				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 				if (setting) {
@@ -434,12 +434,12 @@ export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 		return this._configurationGroups;
 	}
 
-	protected parse(): void {
+	protected override parse(): void {
 		super.parse();
 		this._configurationGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => previousParents.length === 0);
 	}
 
-	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
+	protected override isSettingsProperty(property: string, previousParents: string[]): boolean {
 		return property === 'settings' && previousParents.length === 1;
 	}
 
@@ -643,10 +643,12 @@ export class DefaultSettings extends Disposable {
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
+					restricted: prop.restricted,
 					extensionInfo: extensionInfo,
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
-					validator: createValidator(prop)
+					validator: createValidator(prop),
+					enumItemLabels: prop.enumItemLabels
 				});
 			}
 		}
@@ -724,7 +726,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 		this._register(defaultSettings.onDidChange(() => this._onDidChangeGroups.fire()));
 		this._model = reference.object.textEditorModel!;
-		this._register(this.onDispose(() => reference.dispose()));
+		this._register(this.onWillDispose(() => reference.dispose()));
 	}
 
 	get uri(): URI {
@@ -739,7 +741,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.defaultSettings.getSettingsGroups();
 	}
 
-	protected get filterGroups(): ISettingsGroup[] {
+	protected override get filterGroups(): ISettingsGroup[] {
 		// Don't look at "commonly used" for filter
 		return this.settingsGroups.slice(1);
 	}
@@ -867,7 +869,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return [];
 	}
 
-	getPreference(key: string): ISetting | undefined {
+	override getPreference(key: string): ISetting | undefined {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -995,7 +997,9 @@ class SettingsContentBuilder {
 					`${displayEnum}: ${fixSettingLink(desc)}` :
 					displayEnum;
 
-				this._contentByLines.push(`${indent}//  - ${line}`);
+				const lines = line.split(/\n/g);
+				lines[0] = ' - ' + lines[0];
+				this._contentByLines.push(...lines.map(l => `${indent}// ${l}`));
 
 				setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 			});
@@ -1040,7 +1044,7 @@ class RawSettingsContentBuilder extends SettingsContentBuilder {
 		super(0);
 	}
 
-	pushGroup(settingsGroups: ISettingsGroup): void {
+	override pushGroup(settingsGroups: ISettingsGroup): void {
 		this._pushGroup(settingsGroups, this.indent);
 	}
 

@@ -5,13 +5,15 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { assign } from 'vs/base/common/objects';
 import { VSBuffer, bufferToStream } from 'vs/base/common/buffer';
 import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 
 export function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	if (options.proxyAuthorization) {
-		options.headers = assign(options.headers || {}, { 'Proxy-Authorization': options.proxyAuthorization });
+		options.headers = {
+			...(options.headers || {}),
+			'Proxy-Authorization': options.proxyAuthorization
+		};
 	}
 
 	const xhr = new XMLHttpRequest();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, app, BrowserWindow } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -11,9 +11,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Promises, Barrier, timeout } from 'vs/base/common/async';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { assertIsDefined } from 'vs/base/common/types';
+import { cwd } from 'vs/base/common/process';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -22,6 +25,11 @@ export const enum UnloadReason {
 	QUIT = 2,
 	RELOAD = 3,
 	LOAD = 4
+}
+
+export interface IWindowLoadEvent {
+	window: ICodeWindow;
+	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
 }
 
 export interface IWindowUnloadEvent {
@@ -72,21 +80,32 @@ export interface ILifecycleMainService {
 	readonly onWillShutdown: Event<ShutdownEvent>;
 
 	/**
-	 * An event that fires before a window closes. This event is fired after any veto has been dealt
-	 * with so that listeners know for sure that the window will close without veto.
+	 * An event that fires when a window is loading. This can either be a window opening for the
+	 * first time or a window reloading or changing to another URL.
 	 */
-	readonly onBeforeWindowClose: Event<ICodeWindow>;
+	readonly onWillLoadWindow: Event<IWindowLoadEvent>;
 
 	/**
 	 * An event that fires before a window is about to unload. Listeners can veto this event to prevent
 	 * the window from unloading.
 	 */
-	readonly onBeforeWindowUnload: Event<IWindowUnloadEvent>;
+	readonly onBeforeUnloadWindow: Event<IWindowUnloadEvent>;
+
+	/**
+	 * An event that fires before a window closes. This event is fired after any veto has been dealt
+	 * with so that listeners know for sure that the window will close without veto.
+	 */
+	readonly onBeforeCloseWindow: Event<ICodeWindow>;
+
+	/**
+	 * Make a `ICodeWindow` known to the lifecycle main service.
+	 */
+	registerWindow(window: ICodeWindow): void;
 
 	/**
 	 * Reload a window. All lifecycle event handlers are triggered.
 	 */
-	reload(window: ICodeWindow, cli?: ParsedArgs): Promise<void>;
+	reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void>;
 
 	/**
 	 * Unload a window for the provided reason. All lifecycle event handlers are triggered.
@@ -147,11 +166,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private readonly _onWillShutdown = this._register(new Emitter<ShutdownEvent>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
-	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
-	readonly onBeforeWindowClose = this._onBeforeWindowClose.event;
+	private readonly _onWillLoadWindow = this._register(new Emitter<IWindowLoadEvent>());
+	readonly onWillLoadWindow = this._onWillLoadWindow.event;
 
-	private readonly _onBeforeWindowUnload = this._register(new Emitter<IWindowUnloadEvent>());
-	readonly onBeforeWindowUnload = this._onBeforeWindowUnload.event;
+	private readonly _onBeforeCloseWindow = this._register(new Emitter<ICodeWindow>());
+	readonly onBeforeCloseWindow = this._onBeforeCloseWindow.event;
+
+	private readonly _onBeforeUnloadWindow = this._register(new Emitter<IWindowUnloadEvent>());
+	readonly onBeforeUnloadWindow = this._onBeforeUnloadWindow.event;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
@@ -166,10 +188,10 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
-	private pendingQuitPromise: Promise<boolean> | null = null;
-	private pendingQuitPromiseResolve: { (veto: boolean): void } | null = null;
+	private pendingQuitPromise: Promise<boolean> | undefined = undefined;
+	private pendingQuitPromiseResolve: { (veto: boolean): void } | undefined = undefined;
 
-	private pendingWillShutdownPromise: Promise<void> | null = null;
+	private pendingWillShutdownPromise: Promise<void> | undefined = undefined;
 
 	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
 
@@ -268,13 +290,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		this._onWillShutdown.fire({
 			join(promise) {
-				if (promise) {
-					joiners.push(promise);
-				}
+				joiners.push(promise);
 			}
 		});
 
-		this.pendingWillShutdownPromise = Promise.all(joiners).then(() => undefined, err => this.logService.error(err));
+		this.pendingWillShutdownPromise = Promises.settled(joiners).then(() => undefined, err => this.logService.error(err));
 
 		return this.pendingWillShutdownPromise;
 	}
@@ -314,12 +334,17 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	registerWindow(window: ICodeWindow): void {
+		const windowListeners = new DisposableStore();
 
 		// track window count
 		this.windowCounter++;
 
+		// Window Will Load
+		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace })));
+
 		// Window Before Closing: Main -> Renderer
-		window.win.on('close', e => {
+		const win = assertIsDefined(window.win);
+		win.on('close', e => {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
@@ -341,9 +366,9 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 				this.windowToCloseRequest.add(windowId);
 
-				// Fire onBeforeWindowClose before actually closing
-				this.logService.trace(`Lifecycle#onBeforeWindowClose.fire() - window ID ${windowId}`);
-				this._onBeforeWindowClose.fire(window);
+				// Fire onBeforeCloseWindow before actually closing
+				this.logService.trace(`Lifecycle#onBeforeCloseWindow.fire() - window ID ${windowId}`);
+				this._onBeforeCloseWindow.fire(window);
 
 				// No veto, close window now
 				window.close();
@@ -351,11 +376,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 
 		// Window After Closing
-		window.win.on('closed', () => {
+		win.on('closed', () => {
 			this.logService.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
 
 			// update window count
 			this.windowCounter--;
+
+			// clear window listeners
+			windowListeners.dispose();
 
 			// if there are no more code windows opened, fire the onWillShutdown event, unless
 			// we are on macOS where it is perfectly fine to close the last window and
@@ -366,12 +394,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 	}
 
-	async reload(window: ICodeWindow, cli?: ParsedArgs): Promise<void> {
+	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {
 
 		// Only reload when the window has not vetoed this
 		const veto = await this.unload(window, UnloadReason.RELOAD);
 		if (!veto) {
-			window.reload(undefined, cli);
+			window.reload(cli);
 		}
 	}
 
@@ -379,7 +407,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Always allow to unload a window that is not yet ready
 		if (!window.isReady) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		this.logService.trace(`Lifecycle#unload() - window ID ${window.id}`);
@@ -426,23 +454,23 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private resolvePendingQuitPromise(veto: boolean): void {
 		if (this.pendingQuitPromiseResolve) {
 			this.pendingQuitPromiseResolve(veto);
-			this.pendingQuitPromiseResolve = null;
-			this.pendingQuitPromise = null;
+			this.pendingQuitPromiseResolve = undefined;
+			this.pendingQuitPromise = undefined;
 		}
 	}
 
 	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
-		return new Promise<boolean>(c => {
+		return new Promise<boolean>(resolve => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
 			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
 
-			ipc.once(okChannel, () => {
-				c(false); // no veto
+			ipcMain.once(okChannel, () => {
+				resolve(false); // no veto
 			});
 
-			ipc.once(cancelChannel, () => {
-				c(true); // veto
+			ipcMain.once(cancelChannel, () => {
+				resolve(true); // veto
 			});
 
 			window.send('vscode:onBeforeUnload', { okChannel, cancelChannel, reason });
@@ -452,7 +480,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
 		const vetos: (boolean | Promise<boolean>)[] = [];
 
-		this._onBeforeWindowUnload.fire({
+		this._onBeforeUnloadWindow.fire({
 			reason,
 			window,
 			veto(value) {
@@ -468,7 +496,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const replyChannel = `vscode:reply${oneTimeEventToken}`;
 
-			ipc.once(replyChannel, () => resolve());
+			ipcMain.once(replyChannel, () => resolve());
 
 			window.send('vscode:onWillUnload', { replyChannel, reason });
 		});
@@ -526,13 +554,13 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 				// Windows: we are about to restart and as such we need to restore the original
 				// current working directory we had on startup to get the exact same startup
-				// behaviour. As such, we briefly change back to the VSCODE_CWD and then when
+				// behaviour. As such, we briefly change back to that directory and then when
 				// Code starts it will set it back to the installation directory again.
 				try {
 					if (isWindows) {
-						const vscodeCwd = process.env['VSCODE_CWD'];
-						if (vscodeCwd) {
-							process.chdir(vscodeCwd);
+						const currentWorkingDir = cwd();
+						if (currentWorkingDir !== process.cwd()) {
+							process.chdir(currentWorkingDir);
 						}
 					}
 				} catch (err) {
@@ -576,7 +604,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 					if (window && !window.isDestroyed()) {
 						let whenWindowClosed: Promise<void>;
 						if (window.webContents && !window.webContents.isDestroyed()) {
-							whenWindowClosed = new Promise(c => window.once('closed', c));
+							whenWindowClosed = new Promise(resolve => window.once('closed', resolve));
 						} else {
 							whenWindowClosed = Promise.resolve();
 						}

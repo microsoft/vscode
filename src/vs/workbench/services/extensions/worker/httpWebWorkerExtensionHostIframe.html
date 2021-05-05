@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-LU+tuagpyx5mKuYgHsSvz9593ZGS6yeLPRvzq1lKXlY=' http: https:; connect-src http: https: ws: wss:" />
+	</head>
+	<body>
+	<script>
+(function() {
+	const idMatch = document.location.search.match(/\bvscodeWebWorkerExtHostId=([0-9a-f\-]+)/i);
+	const vscodeWebWorkerExtHostId = idMatch ? idMatch[1] : '';
+
+	function sendError(error) {
+		window.parent.postMessage({
+			vscodeWebWorkerExtHostId,
+			error: {
+				name: error ? error.name : '',
+				message: error ? error.message : '',
+				stack: error ? error.stack : []
+			}
+		}, '*');
+	}
+
+	try {
+		const worker = new Worker('extensionHostWorkerMain.js', { name: 'WorkerExtensionHost' });
+		const nestedWorkers = new Map();
+
+		worker.onmessage = (event) => {
+			const { data } = event;
+
+			if (data?.type === '_newWorker') {
+				const { id, port, url, options } = data;
+				const newWorker = new Worker(url, options);
+				newWorker.postMessage(port, [port]);
+				worker.onerror = console.error.bind(console);
+				nestedWorkers.set(id, newWorker);
+
+			} else if (data?.type === '_terminateWorker') {
+				const { id } = data;
+				if(nestedWorkers.has(id)) {
+					nestedWorkers.get(id).terminate();
+					nestedWorkers.delete(id);
+				}
+			} else {
+				worker.onerror = console.error.bind(console);
+				window.parent.postMessage({
+					vscodeWebWorkerExtHostId,
+					data
+				}, '*', [data]);
+			}
+		};
+
+		worker.onerror = (event) => {
+			console.error(event.message, event.error);
+			sendError(event.error);
+		};
+	} catch(err) {
+		console.error(err);
+		sendError(err);
+	}
+})();
+	</script>
+	</body>
+</html>

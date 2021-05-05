@@ -213,7 +213,9 @@
 		{
 			"name": "Invalid",
 			"scope": "invalid",
-			"settings": {}
+			"settings": {
+				"foreground": "#cd3131"
+			}
 		},
 		{
 			"name": "diff: header",
@@ -274,6 +276,20 @@
 			}
 		},
 		{
+			"name": "Markup: Strong",
+			"scope": "markup.bold",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup: Emphasis",
+			"scope": "markup.italic",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
 			"name": "Markup Inline",
 			"scope": "markup.inline.raw",
 			"settings": {
@@ -285,6 +301,7 @@
 			"name": "Markup Headings",
 			"scope": "markup.heading",
 			"settings": {
+				"fontStyle": "bold",
 				"foreground": "#268BD2"
 			}
 		},
@@ -333,7 +350,7 @@
 
 		"list.activeSelectionBackground": "#DFCA88",
 		"list.activeSelectionForeground": "#6C6C6C",
-		"list.focusBackground": "#DFCA8866",
+		"quickInputList.focusBackground": "#DFCA8866",
 		"list.hoverBackground": "#DFCA8844",
 		"list.inactiveSelectionBackground": "#D1CBB8",
 		"list.highlightForeground": "#B58900",
@@ -421,11 +438,11 @@
 		// "tab.activeBackground": "",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
+		"tab.lastPinnedBorder": "#FDF6E3",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#DDD6C1",
 		"activityBar.foreground": "#584c27",
-		"activityBar.dropBackground": "#EEE8D5",
 		"activityBarBadge.background": "#B58900",
 		// "activityBarBadge.foreground": "",
 
@@ -448,6 +465,7 @@
 		"statusBar.noFolderBackground": "#EEE8D5",
 		// "statusBar.foreground": "",
 		"statusBarItem.remoteBackground": "#AC9D57",
+		"ports.iconRunningProcessForeground": "#2AA19899",
 		"statusBarItem.prominentBackground": "#DDD6C1",
 		"statusBarItem.prominentHoverBackground": "#DDD6C199",
 		// "statusBarItem.activeBackground": "",

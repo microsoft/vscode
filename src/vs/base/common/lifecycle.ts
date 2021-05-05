@@ -14,34 +14,53 @@ import { Iterable } from 'vs/base/common/iterator';
  * extend Disposable or use a DisposableStore. This means there are a lot of false positives.
  */
 const TRACK_DISPOSABLES = false;
+let disposableTracker: IDisposableTracker | null = null;
 
-const __is_disposable_tracked__ = '__is_disposable_tracked__';
-
-function markTracked<T extends IDisposable>(x: T): void {
-	if (!TRACK_DISPOSABLES) {
-		return;
-	}
-
-	if (x && x !== Disposable.None) {
-		try {
-			(x as any)[__is_disposable_tracked__] = true;
-		} catch {
-			// noop
-		}
-	}
+export interface IDisposableTracker {
+	trackDisposable(x: IDisposable): void;
+	markTracked(x: IDisposable): void;
 }
 
-function trackDisposable<T extends IDisposable>(x: T): T {
-	if (!TRACK_DISPOSABLES) {
+export function setDisposableTracker(tracker: IDisposableTracker | null): void {
+	disposableTracker = tracker;
+}
+
+if (TRACK_DISPOSABLES) {
+	const __is_disposable_tracked__ = '__is_disposable_tracked__';
+	disposableTracker = new class implements IDisposableTracker {
+		trackDisposable(x: IDisposable): void {
+			const stack = new Error('Potentially leaked disposable').stack!;
+			setTimeout(() => {
+				if (!(x as any)[__is_disposable_tracked__]) {
+					console.log(stack);
+				}
+			}, 3000);
+		}
+
+		markTracked(x: IDisposable): void {
+			if (x && x !== Disposable.None) {
+				try {
+					(x as any)[__is_disposable_tracked__] = true;
+				} catch {
+					// noop
+				}
+			}
+		}
+	};
+}
+
+function markTracked<T extends IDisposable>(x: T): void {
+	if (!disposableTracker) {
+		return;
+	}
+	disposableTracker.markTracked(x);
+}
+
+export function trackDisposable<T extends IDisposable>(x: T): T {
+	if (!disposableTracker) {
 		return x;
 	}
-
-	const stack = new Error('Potentially leaked disposable').stack!;
-	setTimeout(() => {
-		if (!(x as any)[__is_disposable_tracked__]) {
-			console.log(stack);
-		}
-	}, 3000);
+	disposableTracker.trackDisposable(x);
 	return x;
 }
 
@@ -49,7 +68,7 @@ export class MultiDisposeError extends Error {
 	constructor(
 		public readonly errors: any[]
 	) {
-		super(`Encounter errors while disposing of store. Errors: [${errors.join(', ')}]`);
+		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
 	}
 }
 
@@ -98,7 +117,7 @@ export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | un
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	disposables.forEach(markTracked);
-	return trackDisposable({ dispose: () => dispose(disposables) });
+	return toDisposable(() => dispose(disposables));
 }
 
 export function toDisposable(fn: () => void): IDisposable {
@@ -212,9 +231,7 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 			return;
 		}
 
-		if (this._value) {
-			this._value.dispose();
-		}
+		this._value?.dispose();
 		if (value) {
 			markTracked(value);
 		}
@@ -228,9 +245,7 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 	dispose(): void {
 		this._isDisposed = true;
 		markTracked(this);
-		if (this._value) {
-			this._value.dispose();
-		}
+		this._value?.dispose();
 		this._value = undefined;
 	}
 }

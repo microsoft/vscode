@@ -9,7 +9,7 @@ export type EventHandler = HTMLElement | HTMLDocument | Window;
 
 export interface IDomEvent {
 	<K extends keyof HTMLElementEventMap>(element: EventHandler, type: K, useCapture?: boolean): BaseEvent<HTMLElementEventMap[K]>;
-	(element: EventHandler, type: string, useCapture?: boolean): BaseEvent<any>;
+	(element: EventHandler, type: string, useCapture?: boolean): BaseEvent<unknown>;
 }
 
 export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapture?: boolean) => {
@@ -31,10 +31,12 @@ export interface CancellableEvent {
 	stopPropagation(): void;
 }
 
+export function stopEvent<T extends CancellableEvent>(event: T): T {
+	event.preventDefault();
+	event.stopPropagation();
+	return event;
+}
+
 export function stop<T extends CancellableEvent>(event: BaseEvent<T>): BaseEvent<T> {
-	return BaseEvent.map(event, e => {
-		e.preventDefault();
-		e.stopPropagation();
-		return e;
-	});
+	return BaseEvent.map(event, stopEvent);
 }

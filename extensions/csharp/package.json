@@ -1,7 +1,7 @@
 {
   "name": "csharp",
-	"displayName": "%displayName%",
-	"description": "%description%",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
@@ -9,9 +9,8 @@
     "vscode": "0.10.x"
   },
   "scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js dotnet/csharp-tmLanguage grammars/csharp.tmLanguage ./syntaxes/csharp.tmLanguage.json"
-	},
-
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dotnet/csharp-tmLanguage grammars/csharp.tmLanguage ./syntaxes/csharp.tmLanguage.json"
+  },
   "contributes": {
     "languages": [
       {
@@ -35,9 +34,15 @@
         "path": "./syntaxes/csharp.tmLanguage.json"
       }
     ],
-		"snippets": [{
-			"language": "csharp",
-			"path": "./snippets/csharp.code-snippets"
-		}]
+    "snippets": [
+      {
+        "language": "csharp",
+        "path": "./snippets/csharp.code-snippets"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

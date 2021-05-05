@@ -48,7 +48,7 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(_actual.html, '<span><span class="mtk0">' + expected + '</span></span>');
+		assert.strictEqual(_actual.html, '<span><span class="mtk0">' + expected + '</span></span>');
 		assertCharacterMapping(_actual.characterMapping, expectedCharOffsetInPart, expectedPartLengts);
 	}
 
@@ -101,12 +101,12 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(_actual.html, '<span>' + expected + '</span>');
+		assert.strictEqual(_actual.html, '<span>' + expected + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedCharOffsetInPart, expectedPartLengts);
 	}
 
 	test('empty line', () => {
-		assertParts('', 4, [], '<span>\u00a0</span>', [], []);
+		assertParts('', 4, [], '<span></span>', [], []);
 	});
 
 	test('uses part type', () => {
@@ -167,7 +167,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span>&hellip;</span>'
 		].join('');
 
-		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping,
 			[
 				[0],
@@ -252,7 +252,7 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr, [4, 4, 6, 1, 5, 1, 4, 1, 1, 1, 3, 15, 2, 3]);
 	});
 
@@ -318,7 +318,7 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr, [12, 12, 24, 1, 21, 2, 1, 20, 1, 1]);
 	});
 
@@ -384,7 +384,7 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping(_actual.characterMapping, expectedOffsetsArr, [12, 12, 24, 1, 21, 2, 1, 20, 1, 1]);
 	});
 
@@ -444,11 +444,11 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(actual.html, '<span>' + expectedOutput + '</span>');
+		assert.strictEqual(actual.html, '<span>' + expectedOutput + '</span>');
 		assertCharacterMapping2(actual.characterMapping, expectedCharacterMapping);
 	});
 
-	test('issue Microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
+	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
 		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 
 		let lineParts = createViewLineTokens([
@@ -487,8 +487,8 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(_actual.html, '<span dir="ltr">' + expectedOutput + '</span>');
-		assert.equal(_actual.containsRTL, true);
+		assert.strictEqual(_actual.html, '<span dir="ltr">' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.containsRTL, true);
 	});
 
 	test('issue #6885: Splits large tokens', () => {
@@ -520,7 +520,7 @@ suite('viewLineRenderer.renderLine', () => {
 				false,
 				null
 			));
-			assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
+			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
 
 		// A token with 49 chars
@@ -624,7 +624,7 @@ suite('viewLineRenderer.renderLine', () => {
 				true,
 				null
 			));
-			assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
+			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
 
 		// A token with 101 chars
@@ -669,7 +669,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let expectedOutput = [
 			'<span class="mtk1">a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷</span>',
 		];
-		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
+		assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>');
 	});
 
 	test('issue #6885: Does not split large tokens in RTL text', () => {
@@ -699,8 +699,8 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			null
 		));
-		assert.equal(actual.html, '<span dir="ltr">' + expectedOutput.join('') + '</span>');
-		assert.equal(actual.containsRTL, true);
+		assert.strictEqual(actual.html, '<span dir="ltr">' + expectedOutput.join('') + '</span>');
+		assert.strictEqual(actual.containsRTL, true);
 	});
 
 	test('issue #95685: Uses unicode replacement character for Paragraph Separator', () => {
@@ -730,7 +730,7 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			null
 		));
-		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
+		assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>');
 	});
 
 	test('issue #19673: Monokai Theme bad-highlighting in line wrap', () => {
@@ -780,7 +780,7 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		assert.equal(_actual.html, '<span>' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.html, '<span>' + expectedOutput + '</span>');
 	});
 
 	interface ICharMappingData {
@@ -807,7 +807,7 @@ suite('viewLineRenderer.renderLine', () => {
 	function assertCharacterMapping2(actual: CharacterMapping, expected: CharacterMapping): void {
 		const _actual = decodeCharacterMapping(actual);
 		const _expected = decodeCharacterMapping(expected);
-		assert.deepEqual(_actual, _expected);
+		assert.deepStrictEqual(_actual, _expected);
 	}
 
 	function assertCharacterMapping(actual: CharacterMapping, expectedCharPartOffsets: number[][], expectedPartLengths: number[]): void {
@@ -830,7 +830,7 @@ suite('viewLineRenderer.renderLine', () => {
 		for (let i = 0; i < tmp.length; i++) {
 			actualCharOffset[i] = tmp[i];
 		}
-		assert.deepEqual(actualCharOffset, expectedCharAbsoluteOffset);
+		assert.deepStrictEqual(actualCharOffset, expectedCharAbsoluteOffset);
 	}
 
 	function assertCharPartOffsets(actual: CharacterMapping, expected: number[][]): void {
@@ -844,7 +844,7 @@ suite('viewLineRenderer.renderLine', () => {
 				let actualPartIndex = CharacterMapping.getPartIndex(_actualPartData);
 				let actualCharIndex = CharacterMapping.getCharIndex(_actualPartData);
 
-				assert.deepEqual(
+				assert.deepStrictEqual(
 					{ partIndex: actualPartIndex, charIndex: actualCharIndex },
 					{ partIndex: partIndex, charIndex: charIndex },
 					`character mapping for offset ${charOffset}`
@@ -853,7 +853,7 @@ suite('viewLineRenderer.renderLine', () => {
 				// here
 				let actualOffset = actual.partDataToCharOffset(partIndex, part[part.length - 1] + 1, charIndex);
 
-				assert.equal(
+				assert.strictEqual(
 					actualOffset,
 					charOffset,
 					`character mapping for part ${partIndex}, ${charIndex}`
@@ -863,13 +863,13 @@ suite('viewLineRenderer.renderLine', () => {
 			}
 		}
 
-		assert.equal(actual.length, charOffset);
+		assert.strictEqual(actual.length, charOffset);
 	}
 });
 
 suite('viewLineRenderer.renderLine 2', () => {
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'all', selections: LineRange[] | null, expected: string): void {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null, expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
@@ -892,7 +892,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			selections
 		));
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	}
 
 	test('issue #18616: Inline decorations ending at the text length are no longer rendered', () => {
@@ -927,7 +927,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #19207: Link in Monokai is not rendered correctly', () => {
@@ -976,7 +976,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('createLineParts simple', () => {
@@ -1355,6 +1355,95 @@ suite('viewLineRenderer.renderLine 2', () => {
 		);
 	});
 
+	test('createLineParts render whitespace for trailing with leading, inner, and without trailing whitespace', () => {
+		testCreateLineParts(
+			false,
+			' Hello world!',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk0">\u00a0Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="mtk2">\u00a0world!</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with leading, inner, and trailing whitespace', () => {
+		testCreateLineParts(
+			false,
+			' Hello world! \t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(15, 2)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk0">\u00a0Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="mtk2">\u00a0world!</span>',
+				'<span class="mtkz" style="width:30px">\u00b7\u2192\u00a0</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with 8 leading and 8 trailing whitespaces', () => {
+		testCreateLineParts(
+			false,
+			'        Hello world!        ',
+			[
+				createPart(8, 1),
+				createPart(10, 2),
+				createPart(28, 3)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk1">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo\u00a0world!</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with line containing only whitespaces', () => {
+		testCreateLineParts(
+			false,
+			' \t ',
+			[
+				createPart(2, 0),
+				createPart(3, 1),
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u2192\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
 	test('createLineParts can handle unsorted inline decorations', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,
@@ -1388,7 +1477,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		// bb---------
 		// -cccccc----
 
-		assert.deepEqual(actual.html, [
+		assert.deepStrictEqual(actual.html, [
 			'<span>',
 			'<span class="mtk0 b">H</span>',
 			'<span class="mtk0 b c">e</span>',
@@ -1433,7 +1522,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #32436: Non-monospace font + visible whitespace + After decorator causes line to "jump"', () => {
@@ -1470,7 +1559,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #30133: Empty lines don\'t render inline decorations', () => {
@@ -1505,7 +1594,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', () => {
@@ -1539,7 +1628,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #37401 #40127: Allow both before and after decorations on empty line', () => {
@@ -1554,8 +1643,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			createViewLineTokens([createPart(0, 3)]),
 			[
-				new LineDecoration(1, 2, 'before', InlineDecorationType.Before),
-				new LineDecoration(0, 1, 'after', InlineDecorationType.After),
+				new LineDecoration(1, 1, 'before', InlineDecorationType.Before),
+				new LineDecoration(1, 1, 'after', InlineDecorationType.After),
 			],
 			2,
 			0,
@@ -1576,7 +1665,48 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
+	test('issue #118759: enable multiple text editor decorations in empty lines', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			true,
+			'',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(0, 3)]),
+			[
+				new LineDecoration(1, 1, 'after1', InlineDecorationType.After),
+				new LineDecoration(1, 1, 'after2', InlineDecorationType.After),
+				new LineDecoration(1, 1, 'before1', InlineDecorationType.Before),
+				new LineDecoration(1, 1, 'before2', InlineDecorationType.Before),
+			],
+			2,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			false,
+			false,
+			null
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="before1"></span>',
+			'<span class="before2"></span>',
+			'<span class="after1"></span>',
+			'<span class="after2"></span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #38935: GitLens end-of-line blame no longer rendering', () => {
@@ -1613,7 +1743,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #22832: Consider fullwidth characters when rendering tabs', () => {
@@ -1646,7 +1776,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #22832: Consider fullwidth characters when rendering tabs (render whitespace)', () => {
@@ -1685,7 +1815,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #22352: COMBINING ACUTE ACCENT (U+0301)', () => {
@@ -1718,7 +1848,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #22352: Partially Broken Complex Script Rendering of Tamil', () => {
@@ -1753,7 +1883,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #42700: Hindi characters are not being rendered properly', () => {
@@ -1788,7 +1918,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #38123: editor.renderWhitespace: "boundary" renders whitespace at line wrap point when line is wrapped', () => {
@@ -1820,7 +1950,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #33525: Long line with ligatures takes a long time to paint decorations', () => {
@@ -1856,7 +1986,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #33525: Long line with ligatures takes a long time to paint decorations - not possible', () => {
@@ -1888,7 +2018,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
@@ -1973,7 +2103,39 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'</span>'
 		].join('');
 
-		assert.deepEqual(actual.html, expected);
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
+	test('issue #119416: Delete Control Character (U+007F / &#127;) displayed as space', () => {
+		const actual = renderViewLine(new RenderLineInput(
+			false,
+			false,
+			'[' + String.fromCharCode(127) + '] [' + String.fromCharCode(0) + ']',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(7, 3)]),
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			true,
+			true,
+			null
+		));
+
+		const expected = [
+			'<span>',
+			'<span class="mtk3">[\u2421]\u00a0[\u2400]</span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
 	});
 
 
@@ -2003,7 +2165,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {
 			let charOffset = renderLineOutput.characterMapping.partDataToCharOffset(partIndex, partLength, offset);
 			let actual = charOffset + 1;
-			assert.equal(actual, expected, 'getColumnOfLinePartOffset for ' + partIndex + ' @ ' + offset);
+			assert.strictEqual(actual, expected, 'getColumnOfLinePartOffset for ' + partIndex + ' @ ' + offset);
 		};
 	}
 

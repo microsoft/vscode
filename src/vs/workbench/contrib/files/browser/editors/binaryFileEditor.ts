@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -28,22 +25,17 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IStorageService storageService: IStorageService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IStorageService storageService: IStorageService
 	) {
 		super(
 			BinaryFileEditor.ID,
 			{
-				openInternal: (input, options) => this.openInternal(input, options),
-				openExternal: resource => this.openerService.open(resource, { openExternal: true })
+				openInternal: (input, options) => this.openInternal(input, options)
 			},
 			telemetryService,
 			themeService,
-			environmentService,
 			storageService
 		);
 	}
@@ -54,12 +46,22 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			// Enforce to open the input as text to enable our text based viewer
 			input.setForceOpenAsText();
 
-			// If more editors are installed that can handle this input, show a picker
-			await openEditorWith(input, undefined, options, this.group, this.editorService, this.configurationService, this.quickInputService);
+			// Try to let the user pick an override if there is one availabe
+			const overridenInput = await this.editorOverrideService.resolveEditorOverride(input, { ...options, override: EditorOverride.PICK, }, this.group);
+
+			// Replace the overrriden input, with the text based input
+			await this.editorService.replaceEditors([{
+				editor: input,
+				replacement: overridenInput?.editor ?? input,
+				options: {
+					...overridenInput?.options ?? options,
+					override: EditorOverride.DISABLED
+				}
+			}], overridenInput?.group ?? this.group);
 		}
 	}
 
-	getTitle(): string {
-		return this.input ? this.input.getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
+	override getTitle(): string {
+		return this.input ? this.input.getName() : localize('binaryFileEditor', "Binary File Viewer");
 	}
 }

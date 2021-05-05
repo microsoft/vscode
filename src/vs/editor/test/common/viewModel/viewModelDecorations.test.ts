@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
 
 suite('ViewModelDecorations', () => {
@@ -19,11 +19,11 @@ suite('ViewModelDecorations', () => {
 			wordWrapColumn: 13
 		};
 		testViewModel(text, opts, (viewModel, model) => {
-			assert.equal(viewModel.getLineContent(1), 'hello world, ');
-			assert.equal(viewModel.getLineContent(2), 'this is a ');
-			assert.equal(viewModel.getLineContent(3), 'buffer that ');
-			assert.equal(viewModel.getLineContent(4), 'will be ');
-			assert.equal(viewModel.getLineContent(5), 'wrapped');
+			assert.strictEqual(viewModel.getLineContent(1), 'hello world, ');
+			assert.strictEqual(viewModel.getLineContent(2), 'this is a ');
+			assert.strictEqual(viewModel.getLineContent(3), 'buffer that ');
+			assert.strictEqual(viewModel.getLineContent(4), 'will be ');
+			assert.strictEqual(viewModel.getLineContent(5), 'wrapped');
 
 			model.changeDecorations((accessor) => {
 				let createOpts = (id: string) => {
@@ -79,7 +79,7 @@ suite('ViewModelDecorations', () => {
 				return dec.options.className;
 			}).filter(Boolean);
 
-			assert.deepEqual(actualDecorations, [
+			assert.deepStrictEqual(actualDecorations, [
 				'dec1',
 				'dec2',
 				'dec3',
@@ -102,112 +102,28 @@ suite('ViewModelDecorations', () => {
 			).inlineDecorations;
 
 			// view line 2: (1,14 -> 1,24)
-			assert.deepEqual(inlineDecorations1, [
-				{
-					range: new Range(1, 2, 2, 2),
-					inlineClassName: 'i-dec3',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 2, 2, 2),
-					inlineClassName: 'a-dec3',
-					type: InlineDecorationType.After
-				},
-				{
-					range: new Range(1, 2, 3, 13),
-					inlineClassName: 'i-dec4',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(1, 2, 5, 8),
-					inlineClassName: 'i-dec5',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 1, 2, 1),
-					inlineClassName: 'i-dec6',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 1, 2, 1),
-					inlineClassName: 'b-dec6',
-					type: InlineDecorationType.Before
-				},
-				{
-					range: new Range(2, 1, 2, 1),
-					inlineClassName: 'a-dec6',
-					type: InlineDecorationType.After
-				},
-				{
-					range: new Range(2, 1, 2, 3),
-					inlineClassName: 'i-dec7',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 1, 2, 1),
-					inlineClassName: 'b-dec7',
-					type: InlineDecorationType.Before
-				},
-				{
-					range: new Range(2, 3, 2, 3),
-					inlineClassName: 'a-dec7',
-					type: InlineDecorationType.After
-				},
-				{
-					range: new Range(2, 1, 3, 13),
-					inlineClassName: 'i-dec8',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 1, 2, 1),
-					inlineClassName: 'b-dec8',
-					type: InlineDecorationType.Before
-				},
-				{
-					range: new Range(2, 1, 5, 8),
-					inlineClassName: 'i-dec9',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 1, 2, 1),
-					inlineClassName: 'b-dec9',
-					type: InlineDecorationType.Before
-				},
-				{
-					range: new Range(2, 3, 2, 5),
-					inlineClassName: 'i-dec10',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 3, 2, 3),
-					inlineClassName: 'b-dec10',
-					type: InlineDecorationType.Before
-				},
-				{
-					range: new Range(2, 5, 2, 5),
-					inlineClassName: 'a-dec10',
-					type: InlineDecorationType.After
-				},
-				{
-					range: new Range(2, 3, 3, 13),
-					inlineClassName: 'i-dec11',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 3, 2, 3),
-					inlineClassName: 'b-dec11',
-					type: InlineDecorationType.Before
-				},
-				{
-					range: new Range(2, 3, 5, 8),
-					inlineClassName: 'i-dec12',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 3, 2, 3),
-					inlineClassName: 'b-dec12',
-					type: InlineDecorationType.Before
-				},
+			assert.deepStrictEqual(inlineDecorations1, [
+				new InlineDecoration(new Range(1, 2, 2, 2), 'i-dec3', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 2, 2, 2), 'a-dec3', InlineDecorationType.After),
+				new InlineDecoration(new Range(1, 2, 3, 13), 'i-dec4', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(1, 2, 5, 8), 'i-dec5', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'i-dec6', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec6', InlineDecorationType.Before),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'a-dec6', InlineDecorationType.After),
+				new InlineDecoration(new Range(2, 1, 2, 3), 'i-dec7', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec7', InlineDecorationType.Before),
+				new InlineDecoration(new Range(2, 3, 2, 3), 'a-dec7', InlineDecorationType.After),
+				new InlineDecoration(new Range(2, 1, 3, 13), 'i-dec8', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec8', InlineDecorationType.Before),
+				new InlineDecoration(new Range(2, 1, 5, 8), 'i-dec9', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec9', InlineDecorationType.Before),
+				new InlineDecoration(new Range(2, 3, 2, 5), 'i-dec10', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 3, 2, 3), 'b-dec10', InlineDecorationType.Before),
+				new InlineDecoration(new Range(2, 5, 2, 5), 'a-dec10', InlineDecorationType.After),
+				new InlineDecoration(new Range(2, 3, 3, 13), 'i-dec11', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 3, 2, 3), 'b-dec11', InlineDecorationType.Before),
+				new InlineDecoration(new Range(2, 3, 5, 8), 'i-dec12', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 3, 2, 3), 'b-dec12', InlineDecorationType.Before),
 			]);
 
 			let inlineDecorations2 = viewModel.getViewLineRenderingData(
@@ -216,52 +132,16 @@ suite('ViewModelDecorations', () => {
 			).inlineDecorations;
 
 			// view line 3 (24 -> 36)
-			assert.deepEqual(inlineDecorations2, [
-				{
-					range: new Range(1, 2, 3, 13),
-					inlineClassName: 'i-dec4',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(3, 13, 3, 13),
-					inlineClassName: 'a-dec4',
-					type: InlineDecorationType.After
-				},
-				{
-					range: new Range(1, 2, 5, 8),
-					inlineClassName: 'i-dec5',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 1, 3, 13),
-					inlineClassName: 'i-dec8',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(3, 13, 3, 13),
-					inlineClassName: 'a-dec8',
-					type: InlineDecorationType.After
-				},
-				{
-					range: new Range(2, 1, 5, 8),
-					inlineClassName: 'i-dec9',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(2, 3, 3, 13),
-					inlineClassName: 'i-dec11',
-					type: InlineDecorationType.Regular
-				},
-				{
-					range: new Range(3, 13, 3, 13),
-					inlineClassName: 'a-dec11',
-					type: InlineDecorationType.After
-				},
-				{
-					range: new Range(2, 3, 5, 8),
-					inlineClassName: 'i-dec12',
-					type: InlineDecorationType.Regular
-				},
+			assert.deepStrictEqual(inlineDecorations2, [
+				new InlineDecoration(new Range(1, 2, 3, 13), 'i-dec4', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(3, 13, 3, 13), 'a-dec4', InlineDecorationType.After),
+				new InlineDecoration(new Range(1, 2, 5, 8), 'i-dec5', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 1, 3, 13), 'i-dec8', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(3, 13, 3, 13), 'a-dec8', InlineDecorationType.After),
+				new InlineDecoration(new Range(2, 1, 5, 8), 'i-dec9', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(2, 3, 3, 13), 'i-dec11', InlineDecorationType.Regular),
+				new InlineDecoration(new Range(3, 13, 3, 13), 'a-dec11', InlineDecorationType.After),
+				new InlineDecoration(new Range(2, 3, 5, 8), 'i-dec12', InlineDecorationType.Regular),
 			]);
 		});
 	});
@@ -275,11 +155,11 @@ suite('ViewModelDecorations', () => {
 			wordWrapColumn: 13
 		};
 		testViewModel(text, opts, (viewModel, model) => {
-			assert.equal(viewModel.getLineContent(1), 'hello world, ');
-			assert.equal(viewModel.getLineContent(2), 'this is a ');
-			assert.equal(viewModel.getLineContent(3), 'buffer that ');
-			assert.equal(viewModel.getLineContent(4), 'will be ');
-			assert.equal(viewModel.getLineContent(5), 'wrapped');
+			assert.strictEqual(viewModel.getLineContent(1), 'hello world, ');
+			assert.strictEqual(viewModel.getLineContent(2), 'this is a ');
+			assert.strictEqual(viewModel.getLineContent(3), 'buffer that ');
+			assert.strictEqual(viewModel.getLineContent(4), 'will be ');
+			assert.strictEqual(viewModel.getLineContent(5), 'wrapped');
 
 			model.changeDecorations((accessor) => {
 				accessor.addDecoration(
@@ -293,19 +173,19 @@ suite('ViewModelDecorations', () => {
 			let decorations = viewModel.getDecorationsInViewport(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
 			).filter(x => Boolean(x.options.beforeContentClassName));
-			assert.deepEqual(decorations, []);
+			assert.deepStrictEqual(decorations, []);
 
 			let inlineDecorations1 = viewModel.getViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				2
 			).inlineDecorations;
-			assert.deepEqual(inlineDecorations1, []);
+			assert.deepStrictEqual(inlineDecorations1, []);
 
 			let inlineDecorations2 = viewModel.getViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				3
 			).inlineDecorations;
-			assert.deepEqual(inlineDecorations2, []);
+			assert.deepStrictEqual(inlineDecorations2, []);
 		});
 	});
 
@@ -329,17 +209,9 @@ suite('ViewModelDecorations', () => {
 				new Range(1, 1, 1, 1),
 				1
 			).inlineDecorations;
-			assert.deepEqual(inlineDecorations, [
-				{
-					range: new Range(1, 1, 1, 1),
-					inlineClassName: 'before1',
-					type: InlineDecorationType.Before
-				},
-				{
-					range: new Range(1, 1, 1, 1),
-					inlineClassName: 'after1',
-					type: InlineDecorationType.After
-				}
+			assert.deepStrictEqual(inlineDecorations, [
+				new InlineDecoration(new Range(1, 1, 1, 1), 'before1', InlineDecorationType.Before),
+				new InlineDecoration(new Range(1, 1, 1, 1), 'after1', InlineDecorationType.After)
 			]);
 		});
 	});

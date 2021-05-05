@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
+import { splitLines } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
+import { ValidAnnotatedEditOperation } from 'vs/editor/common/model';
 
 export function getRandomInt(min: number, max: number): number {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -34,7 +35,7 @@ export function getRandomString(minLength: number, maxLength: number): string {
 export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnnotatedEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = chunk.split(/\r\n|\r|\n/);
+		let newLines = splitLines(chunk);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -64,7 +65,7 @@ export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnn
 export function generateSequentialInserts(chunks: string[], editCnt: number): ValidAnnotatedEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = chunk.split(/\r\n|\r|\n/);
+		let newLines = splitLines(chunk);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -96,7 +97,7 @@ export function generateSequentialInserts(chunks: string[], editCnt: number): Va
 export function generateRandomReplaces(chunks: string[], editCnt: number, searchStringLen: number, replaceStringLen: number): ValidAnnotatedEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = chunk.split(/\r\n|\r|\n/);
+		let newLines = splitLines(chunk);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -124,25 +125,6 @@ export function generateRandomReplaces(chunks: string[], editCnt: number, search
 	}
 
 	return ops;
-}
-
-export function createMockText(lineCount: number, minColumn: number, maxColumn: number) {
-	let fixedEOL = getRandomEOLSequence();
-	let lines: string[] = [];
-	for (let i = 0; i < lineCount; i++) {
-		if (i !== 0) {
-			lines.push(fixedEOL);
-		}
-		lines.push(getRandomString(minColumn, maxColumn));
-	}
-	return lines.join('');
-}
-
-export function createMockBuffer(str: string, bufferBuilder: ITextBufferBuilder): ITextBuffer {
-	bufferBuilder.acceptChunk(str);
-	let bufferFactory = bufferBuilder.finish();
-	let buffer = bufferFactory.create(DefaultEndOfLine.LF);
-	return buffer;
 }
 
 export function generateRandomChunkWithLF(minLength: number, maxLength: number): string {

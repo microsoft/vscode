@@ -23,6 +23,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
@@ -31,15 +33,22 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 	registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T;
 }
 
-class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
+export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected _createConfiguration(options: IEditorConstructionOptions): IConfiguration {
+	protected override _createConfiguration(options: Readonly<IEditorConstructionOptions>): IConfiguration {
 		return new TestConfiguration(options);
 	}
-	protected _createView(viewModel: ViewModel): [View, boolean] {
+	protected override _createView(viewModel: ViewModel): [View, boolean] {
 		// Never create a view
 		return [null! as View, false];
+	}
+	private _hasTextFocus = false;
+	public setHasTextFocus(hasTextFocus: boolean): void {
+		this._hasTextFocus = hasTextFocus;
+	}
+	public override hasTextFocus(): boolean {
+		return this._hasTextFocus;
 	}
 	//#endregion
 
@@ -52,7 +61,10 @@ class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 		this._contributions[id] = r;
 		return r;
 	}
-	public dispose() {
+}
+
+class TestCodeEditorWithAutoModelDisposal extends TestCodeEditor {
+	public override dispose() {
 		super.dispose();
 		if (this._modelData) {
 			this._modelData.model.dispose();
@@ -76,6 +88,11 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	 */
 	model?: ITextModel;
 	serviceCollection?: ServiceCollection;
+	/**
+	 * If the editor has text focus.
+	 * Defaults to true.
+	 */
+	hasTextFocus?: boolean;
 }
 
 export function withTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel) => void): void {
@@ -96,7 +113,7 @@ export function withTestCodeEditor(text: string | string[] | null, options: Test
 	editor.dispose();
 }
 
-export async function withAsyncTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel) => Promise<void>): Promise<void> {
+export async function withAsyncTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: IInstantiationService) => Promise<void>): Promise<void> {
 	// create a model if necessary and remember it in order to dispose it.
 	if (!options.model) {
 		if (typeof text === 'string') {
@@ -106,15 +123,20 @@ export async function withAsyncTestCodeEditor(text: string | string[] | null, op
 		}
 	}
 
-	const editor = createTestCodeEditor(options);
+	const [instantiationService, editor] = doCreateTestCodeEditor(options);
 	const viewModel = editor.getViewModel()!;
 	viewModel.setHasFocus(true);
-	await callback(<ITestCodeEditor>editor, editor.getViewModel()!);
+	await callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
 
 	editor.dispose();
 }
 
 export function createTestCodeEditor(options: TestCodeEditorCreationOptions): ITestCodeEditor {
+	const [, editor] = doCreateTestCodeEditor(options);
+	return editor;
+}
+
+function doCreateTestCodeEditor(options: TestCodeEditorCreationOptions): [IInstantiationService, ITestCodeEditor] {
 
 	const model = options.model;
 	delete options.model;
@@ -139,16 +161,23 @@ export function createTestCodeEditor(options: TestCodeEditorCreationOptions): IT
 	if (!services.has(IThemeService)) {
 		services.set(IThemeService, new TestThemeService());
 	}
+	if (!services.has(ITelemetryService)) {
+		services.set(ITelemetryService, NullTelemetryService);
+	}
 
 	const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 		contributions: []
 	};
 	const editor = instantiationService.createInstance(
-		TestCodeEditor,
+		TestCodeEditorWithAutoModelDisposal,
 		<HTMLElement><any>new TestEditorDomElement(),
 		options,
 		codeEditorWidgetOptions
 	);
+	if (typeof options.hasTextFocus === 'undefined') {
+		options.hasTextFocus = true;
+	}
+	editor.setHasTextFocus(options.hasTextFocus);
 	editor.setModel(model);
-	return <ITestCodeEditor>editor;
+	return [instantiationService, <ITestCodeEditor>editor];
 }

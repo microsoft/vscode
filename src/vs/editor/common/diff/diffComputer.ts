@@ -313,6 +313,13 @@ export class DiffComputer {
 
 		if (this.original.lines.length === 1 && this.original.lines[0].length === 0) {
 			// empty original => fast path
+			if (this.modified.lines.length === 1 && this.modified.lines[0].length === 0) {
+				return {
+					quitEarly: false,
+					changes: []
+				};
+			}
+
 			return {
 				quitEarly: false,
 				changes: [{

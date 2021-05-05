@@ -27,7 +27,7 @@ export default class TypingsStatus extends Disposable {
 			this._client.onDidEndInstallTypings(event => this.onEndInstallTypings(event.eventId)));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 
 		for (const timeout of this._acquiringTypings.values()) {
@@ -68,14 +68,14 @@ export class AtaProgressReporter extends Disposable {
 		this._register(client.onTypesInstallerInitializationFailed(_ => this.onTypesInstallerInitializationFailed()));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._promises.forEach(value => value());
 	}
 
 	private _onBegin(eventId: number): void {
 		const handle = setTimeout(() => this._onEndOrTimeout(eventId), typingsInstallTimeout);
-		const promise = new Promise(resolve => {
+		const promise = new Promise<void>(resolve => {
 			this._promises.set(eventId, () => {
 				clearTimeout(handle);
 				resolve();

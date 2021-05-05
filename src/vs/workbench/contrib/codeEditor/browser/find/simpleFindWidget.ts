@@ -12,12 +12,13 @@ import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, findCloseIcon } from 'vs/editor/contrib/find/findWidget';
+import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -68,7 +69,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
-			this.foundMatch = this.onInputChanged();
+			this.foundMatch = this._onInputChanged();
 			this.updateButtons(this.foundMatch);
 			this._delayedUpdateHistory();
 		});
@@ -94,7 +95,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
-			className: findPreviousMatchIcon.classNames,
+			icon: findPreviousMatchIcon,
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -102,7 +103,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
-			className: findNextMatchIcon.classNames,
+			icon: findNextMatchIcon,
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -110,7 +111,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
-			className: findCloseIcon.classNames,
+			icon: widgetClose,
 			onTrigger: () => {
 				this.hide();
 			}
@@ -137,25 +138,25 @@ export abstract class SimpleFindWidget extends Widget {
 		});
 
 		this._focusTracker = this._register(dom.trackFocus(this._innerDomNode));
-		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
-		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
+		this._register(this._focusTracker.onDidFocus(this._onFocusTrackerFocus.bind(this)));
+		this._register(this._focusTracker.onDidBlur(this._onFocusTrackerBlur.bind(this)));
 
 		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
-		this._register(this._findInputFocusTracker.onDidFocus(this.onFindInputFocusTrackerFocus.bind(this)));
-		this._register(this._findInputFocusTracker.onDidBlur(this.onFindInputFocusTrackerBlur.bind(this)));
+		this._register(this._findInputFocusTracker.onDidFocus(this._onFindInputFocusTrackerFocus.bind(this)));
+		this._register(this._findInputFocusTracker.onDidBlur(this._onFindInputFocusTrackerBlur.bind(this)));
 
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
 	}
 
-	protected abstract onInputChanged(): boolean;
+	protected abstract _onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
 	protected abstract findFirst(): void;
-	protected abstract onFocusTrackerFocus(): void;
-	protected abstract onFocusTrackerBlur(): void;
-	protected abstract onFindInputFocusTrackerFocus(): void;
-	protected abstract onFindInputFocusTrackerBlur(): void;
+	protected abstract _onFocusTrackerFocus(): void;
+	protected abstract _onFocusTrackerBlur(): void;
+	protected abstract _onFindInputFocusTrackerFocus(): void;
+	protected abstract _onFindInputFocusTrackerBlur(): void;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -186,7 +187,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput.style(inputStyles);
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		if (this._domNode && this._domNode.parentElement) {
@@ -212,8 +213,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
-			dom.addClass(this._innerDomNode, 'visible');
-			dom.addClass(this._innerDomNode, 'visible-transition');
+			this._innerDomNode.classList.add('visible', 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
 		}, 0);
@@ -227,21 +227,20 @@ export abstract class SimpleFindWidget extends Widget {
 		this._isVisible = true;
 
 		setTimeout(() => {
-			dom.addClass(this._innerDomNode, 'visible');
-			dom.addClass(this._innerDomNode, 'visible-transition');
+			this._innerDomNode.classList.add('visible', 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
-			dom.removeClass(this._innerDomNode, 'visible-transition');
+			this._innerDomNode.classList.remove('visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this.foundMatch);
-				dom.removeClass(this._innerDomNode, 'visible');
+				this._innerDomNode.classList.remove('visible');
 			}, 200);
 		}
 	}
@@ -287,6 +286,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
 	}
 });

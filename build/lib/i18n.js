@@ -237,14 +237,14 @@ XLF.parse = function (xlfString) {
                         }
                         let val = unit.target[0];
                         if (typeof val !== 'string') {
-                            val = val._;
+                            // We allow empty source values so support them for translations as well.
+                            val = val._ ? val._ : '';
                         }
-                        if (key && val) {
-                            messages[key] = decodeEntities(val);
+                        if (!key) {
+                            reject(new Error(`XLF parsing error: trans-unit ${JSON.stringify(unit, undefined, 0)} defined in file ${originalFilePath} is missing the ID attribute.`));
+                            return;
                         }
-                        else {
-                            reject(new Error(`XLF parsing error: XLIFF file ${originalFilePath} does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
-                        }
+                        messages[key] = decodeEntities(val);
                     });
                     files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
                 }
@@ -1032,7 +1032,7 @@ function createI18nFile(originalFilePath, messages) {
         contents: Buffer.from(content, 'utf8')
     });
 }
-const i18nPackVersion = "1.0.0";
+const i18nPackVersion = '1.0.0';
 function pullI18nPackFiles(apiHostname, username, password, language, resultingTranslationPaths) {
     return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, exports.externalExtensionsWithTranslations)
         .pipe(prepareI18nPackFiles(exports.externalExtensionsWithTranslations, resultingTranslationPaths, language.id === 'ps'));

@@ -128,7 +128,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		return ` (${kb.getLabel()})`;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}
@@ -213,7 +213,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .findOptionsWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-editor .findOptionsWidget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
 	}
 
 	const hcBorder = theme.getColor(contrastBorder);

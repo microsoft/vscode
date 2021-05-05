@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pad } from './strings';
 import { localize } from 'vs/nls';
 
 const minute = 60;
@@ -121,11 +120,11 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean): string {
 
 export function toLocalISOString(date: Date): string {
 	return date.getFullYear() +
-		'-' + pad(date.getMonth() + 1, 2) +
-		'-' + pad(date.getDate(), 2) +
-		'T' + pad(date.getHours(), 2) +
-		':' + pad(date.getMinutes(), 2) +
-		':' + pad(date.getSeconds(), 2) +
+		'-' + String(date.getMonth() + 1).padStart(2, '0') +
+		'-' + String(date.getDate()).padStart(2, '0') +
+		'T' + String(date.getHours()).padStart(2, '0') +
+		':' + String(date.getMinutes()).padStart(2, '0') +
+		':' + String(date.getSeconds()).padStart(2, '0') +
 		'.' + (date.getMilliseconds() / 1000).toFixed(3).slice(2, 5) +
 		'Z';
 }

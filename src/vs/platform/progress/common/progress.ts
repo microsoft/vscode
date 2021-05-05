@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
+import { DeferredPromise } from 'vs/base/common/async';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -51,7 +52,7 @@ export const enum ProgressLocation {
 export interface IProgressOptions {
 	readonly location: ProgressLocation | string;
 	readonly title?: string;
-	readonly source?: string;
+	readonly source?: string | { label: string; id: string; };
 	readonly total?: number;
 	readonly cancellable?: boolean;
 	readonly buttons?: string[];
@@ -59,8 +60,8 @@ export interface IProgressOptions {
 
 export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Notification;
-	readonly primaryActions?: ReadonlyArray<IAction>;
-	readonly secondaryActions?: ReadonlyArray<IAction>;
+	readonly primaryActions?: readonly IAction[];
+	readonly secondaryActions?: readonly IAction[];
 	readonly delay?: number;
 	readonly silent?: boolean;
 }
@@ -122,6 +123,42 @@ export interface IOperation {
 	token: CancellationToken;
 	stop(): void;
 }
+
+/**
+ * RAII-style progress instance that allows imperative reporting and hides
+ * once `dispose()` is called.
+ */
+export class UnmanagedProgress extends Disposable {
+	private readonly deferred = new DeferredPromise<void>();
+	private reporter?: IProgress<IProgressStep>;
+	private lastStep?: IProgressStep;
+
+	constructor(
+		options: IProgressOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+		@IProgressService progressService: IProgressService,
+	) {
+		super();
+		progressService.withProgress(options, reporter => {
+			this.reporter = reporter;
+			if (this.lastStep) {
+				reporter.report(this.lastStep);
+			}
+
+			return this.deferred.p;
+		});
+
+		this._register(toDisposable(() => this.deferred.complete()));
+	}
+
+	report(step: IProgressStep) {
+		if (this.reporter) {
+			this.reporter.report(step);
+		} else {
+			this.lastStep = step;
+		}
+	}
+}
+
 
 export class LongRunningOperation extends Disposable {
 	private currentOperationId = 0;

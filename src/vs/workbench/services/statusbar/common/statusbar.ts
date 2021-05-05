@@ -63,6 +63,11 @@ export interface IStatusbarEntry {
 	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
+
+	/**
+	 * Will enable a spinning icon in front of the text to indicate progress.
+	 */
+	readonly showProgress?: boolean;
 }
 
 export interface IStatusbarService {
@@ -110,6 +115,11 @@ export interface IStatusbarService {
 	 * Focuses the previous status bar entry. If none focused, focuses the last.
 	 */
 	focusPreviousEntry(): void;
+
+	/**
+	 *	Returns true if a status bar entry is focused.
+	 */
+	isEntryFocused(): boolean;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

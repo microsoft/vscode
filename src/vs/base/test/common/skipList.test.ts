@@ -12,45 +12,45 @@ import { binarySearch } from 'vs/base/common/arrays';
 suite('SkipList', function () {
 
 	function assertValues<V>(list: SkipList<any, V>, expected: V[]) {
-		assert.equal(list.size, expected.length);
-		assert.deepEqual([...list.values()], expected);
+		assert.strictEqual(list.size, expected.length);
+		assert.deepStrictEqual([...list.values()], expected);
 
 		let valuesFromEntries = [...list.entries()].map(entry => entry[1]);
-		assert.deepEqual(valuesFromEntries, expected);
+		assert.deepStrictEqual(valuesFromEntries, expected);
 
 		let valuesFromIter = [...list].map(entry => entry[1]);
-		assert.deepEqual(valuesFromIter, expected);
+		assert.deepStrictEqual(valuesFromIter, expected);
 
 		let i = 0;
 		list.forEach((value, _key, map) => {
 			assert.ok(map === list);
-			assert.deepEqual(value, expected[i++]);
+			assert.deepStrictEqual(value, expected[i++]);
 		});
 	}
 
 	function assertKeys<K>(list: SkipList<K, any>, expected: K[]) {
-		assert.equal(list.size, expected.length);
-		assert.deepEqual([...list.keys()], expected);
+		assert.strictEqual(list.size, expected.length);
+		assert.deepStrictEqual([...list.keys()], expected);
 
 		let keysFromEntries = [...list.entries()].map(entry => entry[0]);
-		assert.deepEqual(keysFromEntries, expected);
+		assert.deepStrictEqual(keysFromEntries, expected);
 
 		let keysFromIter = [...list].map(entry => entry[0]);
-		assert.deepEqual(keysFromIter, expected);
+		assert.deepStrictEqual(keysFromIter, expected);
 
 		let i = 0;
 		list.forEach((_value, key, map) => {
 			assert.ok(map === list);
-			assert.deepEqual(key, expected[i++]);
+			assert.deepStrictEqual(key, expected[i++]);
 		});
 	}
 
 	test('set/get/delete', function () {
 		let list = new SkipList<number, number>((a, b) => a - b);
 
-		assert.equal(list.get(3), undefined);
+		assert.strictEqual(list.get(3), undefined);
 		list.set(3, 1);
-		assert.equal(list.get(3), 1);
+		assert.strictEqual(list.get(3), 1);
 		assertValues(list, [1]);
 
 		list.set(3, 3);
@@ -58,17 +58,17 @@ suite('SkipList', function () {
 
 		list.set(1, 1);
 		list.set(4, 4);
-		assert.equal(list.get(3), 3);
-		assert.equal(list.get(1), 1);
-		assert.equal(list.get(4), 4);
+		assert.strictEqual(list.get(3), 3);
+		assert.strictEqual(list.get(1), 1);
+		assert.strictEqual(list.get(4), 4);
 		assertValues(list, [1, 3, 4]);
 
-		assert.equal(list.delete(17), false);
+		assert.strictEqual(list.delete(17), false);
 
-		assert.equal(list.delete(1), true);
-		assert.equal(list.get(1), undefined);
-		assert.equal(list.get(3), 3);
-		assert.equal(list.get(4), 4);
+		assert.strictEqual(list.delete(1), true);
+		assert.strictEqual(list.get(1), undefined);
+		assert.strictEqual(list.get(3), 3);
+		assert.strictEqual(list.get(4), 4);
 
 		assertValues(list, [3, 4]);
 	});
@@ -87,7 +87,7 @@ suite('SkipList', function () {
 		assertKeys(list, [3, 6, 7, 9, 12, 19, 21, 25]);
 
 		list.set(17, true);
-		assert.deepEqual(list.size, 9);
+		assert.deepStrictEqual(list.size, 9);
 		assertKeys(list, [3, 6, 7, 9, 12, 17, 19, 21, 25]);
 	});
 
@@ -141,8 +141,7 @@ suite('SkipList', function () {
 	}
 
 
-	test('perf', function () {
-		this.skip();
+	test.skip('perf', function () {
 
 		// data
 		const max = 2 ** 16;

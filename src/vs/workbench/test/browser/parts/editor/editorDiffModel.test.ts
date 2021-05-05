@@ -24,20 +24,21 @@ suite('Workbench editor model', () => {
 
 	test('TextDiffEditorModel', async () => {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): Promise<ITextModel> {
+			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');
-					return Promise.resolve(accessor.modelService.createModel(modelContent, languageSelection, resource));
+
+					return accessor.modelService.createModel(modelContent, languageSelection, resource);
 				}
 
-				return Promise.resolve(null!);
+				return null;
 			}
 		});
 
 		let input = instantiationService.createInstance(ResourceEditorInput, URI.from({ scheme: 'test', authority: null!, path: 'thePath' }), 'name', 'description', undefined);
 		let otherInput = instantiationService.createInstance(ResourceEditorInput, URI.from({ scheme: 'test', authority: null!, path: 'thePath' }), 'name2', 'description', undefined);
-		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
+		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 
 		let model = await diffInput.resolve() as TextDiffEditorModel;
 

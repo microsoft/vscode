@@ -37,9 +37,14 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			// Name & Extension(s)
 			if (name) {
 				classes.push(`${name}-name-file-icon`);
-				const dotSegments = name.split('.');
-				for (let i = 1; i < dotSegments.length; i++) {
-					classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				// Avoid doing an explosive combination of extensions for very long filenames
+				// (most file systems do not allow files > 255 length) with lots of `.` characters
+				// https://github.com/microsoft/vscode/issues/116199
+				if (name.length <= 255) {
+					const dotSegments = name.split('.');
+					for (let i = 1; i < dotSegments.length; i++) {
+						classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
@@ -52,6 +57,11 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 		}
 	}
 	return classes;
+}
+
+
+export function getIconClassesForModeId(modeId: string): string[] {
+	return ['file-icon', `${cssEscape(modeId)}-lang-file-icon`];
 }
 
 export function detectModeId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
@@ -88,6 +98,6 @@ export function detectModeId(modelService: IModelService, modeService: IModeServ
 	return modeService.getModeIdByFilepathOrFirstLine(resource);
 }
 
-export function cssEscape(val: string): string {
-	return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
+export function cssEscape(str: string): string {
+	return str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
 }

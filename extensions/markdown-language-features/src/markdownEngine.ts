@@ -17,6 +17,7 @@ const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 interface MarkdownItConfig {
 	readonly breaks: boolean;
 	readonly linkify: boolean;
+	readonly typographer: boolean;
 }
 
 class TokenCache {
@@ -52,6 +53,15 @@ class TokenCache {
 		this.cachedDocument = undefined;
 		this.tokens = undefined;
 	}
+}
+
+export interface RenderOutput {
+	html: string;
+	containingImages: { src: string }[];
+}
+
+interface RenderEnv {
+	containingImages: { src: string }[];
 }
 
 export class MarkdownEngine {
@@ -141,7 +151,7 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public async render(input: SkinnyTextDocument | string): Promise<string> {
+	public async render(input: SkinnyTextDocument | string): Promise<RenderOutput> {
 		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
 
@@ -149,10 +159,19 @@ export class MarkdownEngine {
 			? this.tokenizeString(input, engine)
 			: this.tokenizeDocument(input, config, engine);
 
-		return engine.renderer.render(tokens, {
+		const env: RenderEnv = {
+			containingImages: []
+		};
+
+		const html = engine.renderer.render(tokens, {
 			...(engine as any).options,
 			...config
-		}, {});
+		}, env);
+
+		return {
+			html,
+			containingImages: env.containingImages
+		};
 	}
 
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
@@ -169,7 +188,8 @@ export class MarkdownEngine {
 		const config = vscode.workspace.getConfiguration('markdown', resource);
 		return {
 			breaks: config.get<boolean>('preview.breaks', false),
-			linkify: config.get<boolean>('preview.linkify', true)
+			linkify: config.get<boolean>('preview.linkify', true),
+			typographer: config.get<boolean>('preview.typographer', false)
 		};
 	}
 
@@ -192,12 +212,13 @@ export class MarkdownEngine {
 
 	private addImageStabilizer(md: any): void {
 		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: RenderEnv, self: any) => {
 			const token = tokens[idx];
 			token.attrJoin('class', 'loading');
 
 			const src = token.attrGet('src');
 			if (src) {
+				env.containingImages?.push({ src });
 				const imgHash = hash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 			}
@@ -231,6 +252,13 @@ export class MarkdownEngine {
 					return normalizeLink(vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }).toString());
 				}
 
+				// Support file:// links
+				if (isOfScheme(Schemes.file, link)) {
+					// Ensure link is relative by prepending `/` so that it uses the <base> element URI
+					// when resolving the absolute URL
+					return normalizeLink('/' + link.replace(/^file:/, 'file'));
+				}
+
 				// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
 				if (!/^[a-z\-]+:/i.test(link)) {
 					// Use a fake scheme for parsing
@@ -241,12 +269,14 @@ export class MarkdownEngine {
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
 						if (root) {
-							const fileUri = vscode.Uri.joinPath(root.uri, uri.fsPath);
-							uri = fileUri.with({
-								scheme: uri.scheme,
+							const fileUri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
 								fragment: uri.fragment,
 								query: uri.query,
 							});
+
+							// Ensure fileUri is relative by prepending `/` so that it uses the <base> element URI
+							// when resolving the absolute URL
+							uri = vscode.Uri.parse('markdown-link:' + '/' + fileUri.toString(true).replace(/^\S+?:/, fileUri.scheme));
 						}
 					}
 
@@ -269,9 +299,7 @@ export class MarkdownEngine {
 	private addLinkValidator(md: any): void {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
-			// support file:// links
 			return validateLink(link)
-				|| isOfScheme(Schemes.file, link)
 				|| isOfScheme(Schemes.vscode, link)
 				|| isOfScheme(Schemes['vscode-insiders'], link)
 				|| /^data:image\/.*?;/.test(link);

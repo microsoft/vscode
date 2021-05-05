@@ -21,6 +21,7 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -47,7 +48,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		});
 	}
 
-	protected getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
+	protected _getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
 		const filteredViewEntries = this.doGetViewPickItems().filter(entry => {
 			if (!filter) {
 				return true;
@@ -146,9 +147,9 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		}
 
 		// Terminals
-		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
-			tab.terminalInstances.forEach((terminal, terminalIndex) => {
-				const label = localize('terminalTitle', "{0}: {1}", `${tabIndex + 1}.${terminalIndex + 1}`, terminal.title);
+		this.terminalService.terminalGroups.forEach((group, groupIndex) => {
+			group.terminalInstances.forEach((terminal, terminalIndex) => {
+				const label = localize('terminalTitle', "{0}: {1}", `${groupIndex + 1}.${terminalIndex + 1}`, terminal.title);
 				viewEntries.push({
 					label,
 					containerLabel: localize('terminals', "Terminal"),
@@ -188,8 +189,6 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 
 //#region Actions
 
-const viewCategory = { value: localize('view', "View"), original: 'View' };
-
 export class OpenViewPickerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openView';
@@ -198,7 +197,7 @@ export class OpenViewPickerAction extends Action2 {
 		super({
 			id: OpenViewPickerAction.ID,
 			title: { value: localize('openView', "Open View"), original: 'Open View' },
-			category: viewCategory,
+			category: CATEGORIES.View,
 			f1: true
 		});
 	}
@@ -221,7 +220,7 @@ export class QuickAccessViewPickerAction extends Action2 {
 		super({
 			id: QuickAccessViewPickerAction.ID,
 			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
-			category: viewCategory,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

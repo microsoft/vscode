@@ -30,7 +30,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 
 		// Ensure all links are provided
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
-		assert.equal(links.length, expected.length);
+		assert.strictEqual(links.length, expected.length);
 		const actual = links.map(e => ({
 			text: e.text,
 			range: e.range
@@ -42,7 +42,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 				end: { x: e.range[1][0], y: e.range[1][1] },
 			}
 		}));
-		assert.deepEqual(actual, expectedVerbose);
+		assert.deepStrictEqual(actual, expectedVerbose);
 	}
 
 	test('should link words as defined by wordSeparators', async () => {
@@ -79,4 +79,13 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 			{ range: [[5, 1], [7, 1]], text: 'bar' }
 		]);
 	});
+
+	test('should remove trailing colon in the link results', async () => {
+		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		await assertLink('foo:5:6: bar:0:32:', [
+			{ range: [[1, 1], [7, 1]], text: 'foo:5:6' },
+			{ range: [[10, 1], [17, 1]], text: 'bar:0:32' }
+		]);
+	});
+
 });

@@ -62,13 +62,13 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(1, 5, 1, 5)];
 
-			let expectedNextEditPoints: [number, number][] = [[4, 16], [6, 8], [10, 2], [20, 0]];
+			let expectedNextEditPoints: [number, number][] = [[4, 16], [6, 8], [10, 2], [10, 2]];
 			expectedNextEditPoints.forEach(([line, col]) => {
 				fetchEditPoint('next');
 				testSelection(editor.selection, col, line);
 			});
 
-			let expectedPrevEditPoints = [[10, 2], [6, 8], [4, 16], [0, 0]];
+			let expectedPrevEditPoints = [[6, 8], [4, 16], [4, 16]];
 			expectedPrevEditPoints.forEach(([line, col]) => {
 				fetchEditPoint('prev');
 				testSelection(editor.selection, col, line);
@@ -113,7 +113,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		});
 	});
 
-	test('Emmet Select Next/Prev item at boundary', function(): any {
+	test('Emmet Select Next/Prev item at boundary', function (): any {
 		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(4, 1, 4, 1)];
 
@@ -352,17 +352,16 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 });
 
 function testSelection(selection: Selection, startChar: number, startline: number, endChar?: number, endLine?: number) {
-
-	assert.equal(selection.anchor.line, startline);
-	assert.equal(selection.anchor.character, startChar);
+	assert.strictEqual(selection.anchor.line, startline);
+	assert.strictEqual(selection.anchor.character, startChar);
 	if (!endLine && endLine !== 0) {
-		assert.equal(selection.isSingleLine, true);
+		assert.strictEqual(selection.isSingleLine, true);
 	} else {
-		assert.equal(selection.active.line, endLine);
+		assert.strictEqual(selection.active.line, endLine);
 	}
 	if (!endChar && endChar !== 0) {
-		assert.equal(selection.isEmpty, true);
+		assert.strictEqual(selection.isEmpty, true);
 	} else {
-		assert.equal(selection.active.character, endChar);
+		assert.strictEqual(selection.active.character, endChar);
 	}
 }

@@ -33,6 +33,8 @@ import { FileReferences, OneReference, ReferencesModel } from '../referencesMode
 import { FuzzyScore } from 'vs/base/common/filters';
 import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 
 class DecorationsManager implements IDisposable {
@@ -207,7 +209,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private _previewNotAvailableMessage!: TextModel;
 	private _previewContainer!: HTMLElement;
 	private _messageContainer!: HTMLElement;
-	private _dim: dom.Dimension = { height: 0, width: 0 };
+	private _dim = new dom.Dimension(0, 0);
 
 	constructor(
 		editor: ICodeEditor,
@@ -219,6 +221,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
 		@ILabelService private readonly _uriLabel: ILabelService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true }, _instantiationService);
 
@@ -228,7 +231,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this.create();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.setModel(undefined);
 		this._callOnDispose.dispose();
 		this._disposeOnNewModel.dispose();
@@ -251,7 +254,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		});
 	}
 
-	show(where: IRange) {
+	override show(where: IRange) {
 		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
@@ -268,7 +271,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		return this._preview.hasTextFocus();
 	}
 
-	protected _onTitleClick(e: IMouseEvent): void {
+	protected override _onTitleClick(e: IMouseEvent): void {
 		if (this._preview && this._preview.getModel()) {
 			this._onDidSelectReference.fire({
 				element: this._getFocusedReference(),
@@ -317,11 +320,20 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider(),
 			openOnSingleClick: true,
-			openOnFocus: true,
+			selectionNavigation: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
 			}
 		};
+		if (this._defaultTreeKeyboardSupport) {
+			// the tree will consume `Escape` and prevent the widget from closing
+			this._callOnDispose.add(dom.addStandardDisposableListener(this._treeContainer, 'keydown', (e) => {
+				if (e.equals(KeyCode.Escape)) {
+					this._keybindingService.dispatchEvent(e, e.target);
+					e.stopPropagation();
+				}
+			}, true));
+		}
 		this._tree = this._instantiationService.createInstance(
 			ReferencesTree,
 			'ReferencesWidget',
@@ -386,15 +398,15 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		dom.hide(this._treeContainer);
 	}
 
-	protected _onWidth(width: number) {
+	protected override _onWidth(width: number) {
 		if (this._dim) {
 			this._doLayoutBody(this._dim.height, width);
 		}
 	}
 
-	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		super._doLayoutBody(heightInPixel, widthInPixel);
-		this._dim = { height: heightInPixel, width: widthInPixel };
+		this._dim = new dom.Dimension(widthInPixel, heightInPixel);
 		this.layoutData.heightInLines = this._viewZone ? this._viewZone.heightInLines : this.layoutData.heightInLines;
 		this._splitView.layout(widthInPixel);
 		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);

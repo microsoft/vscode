@@ -57,7 +57,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		super.updateOptions(this._overwriteOptions);
 	}
 
-	updateOptions(newOptions: IEditorOptions): void {
+	override updateOptions(newOptions: IEditorOptions): void {
 		objects.mixin(this._overwriteOptions, newOptions, true);
 		super.updateOptions(this._overwriteOptions);
 	}
@@ -82,7 +82,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IClipboardService clipboardService: IClipboardService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 	) {
-		super(domElement, parentEditor.getRawOptions(), clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, parentEditor.getRawOptions(), {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -102,7 +102,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		super.updateOptions(this._overwriteOptions);
 	}
 
-	updateOptions(newOptions: IEditorOptions): void {
+	override updateOptions(newOptions: IEditorOptions): void {
 		objects.mixin(this._overwriteOptions, newOptions, true);
 		super.updateOptions(this._overwriteOptions);
 	}

@@ -27,6 +27,7 @@ const $ = dom.$;
 
 export interface IInputOptions extends IInputBoxStyles {
 	readonly placeholder?: string;
+	readonly tooltip?: string;
 	readonly ariaLabel?: string;
 	readonly type?: string;
 	readonly validationOptions?: IInputValidationOptions;
@@ -95,6 +96,7 @@ export class InputBox extends Widget {
 	private options: IInputOptions;
 	private message: IMessage | null;
 	private placeholder: string;
+	private tooltip: string;
 	private ariaLabel: string;
 	private validation?: IInputValidator;
 	private state: 'idle' | 'open' | 'closed' = 'idle';
@@ -133,6 +135,7 @@ export class InputBox extends Widget {
 		mixin(this.options, defaultOpts, false);
 		this.message = null;
 		this.placeholder = this.options.placeholder || '';
+		this.tooltip = this.options.tooltip ?? (this.placeholder || '');
 		this.ariaLabel = this.options.ariaLabel || '';
 
 		this.inputBackground = this.options.inputBackground;
@@ -157,7 +160,7 @@ export class InputBox extends Widget {
 
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
-		let wrapper = dom.append(this.element, $('.wrapper'));
+		let wrapper = dom.append(this.element, $('.ibwrapper'));
 		this.input = dom.append(wrapper, $(tagName + '.input.empty'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
@@ -207,6 +210,10 @@ export class InputBox extends Widget {
 			this.setPlaceHolder(this.placeholder);
 		}
 
+		if (this.tooltip) {
+			this.setTooltip(this.tooltip);
+		}
+
 		this.oninput(this.input, () => this.onValueChange());
 		this.onblur(this.input, () => this.onBlur());
 		this.onfocus(this.input, () => this.onFocus());
@@ -235,7 +242,11 @@ export class InputBox extends Widget {
 	public setPlaceHolder(placeHolder: string): void {
 		this.placeholder = placeHolder;
 		this.input.setAttribute('placeholder', placeHolder);
-		this.input.title = placeHolder;
+	}
+
+	public setTooltip(tooltip: string): void {
+		this.tooltip = tooltip;
+		this.input.title = tooltip;
 	}
 
 	public setAriaLabel(label: string): void {
@@ -292,6 +303,9 @@ export class InputBox extends Widget {
 
 		if (range) {
 			this.input.setSelectionRange(range.start, range.end);
+			if (range.end === this.input.value.length) {
+				this.input.scrollLeft = this.input.scrollWidth;
+			}
 		}
 	}
 
@@ -398,7 +412,7 @@ export class InputBox extends Widget {
 		return !!this.validation && !this.validation(this.value);
 	}
 
-	public validate(): boolean {
+	public validate(): MessageType | undefined {
 		let errorMsg: IMessage | null = null;
 
 		if (this.validation) {
@@ -414,7 +428,7 @@ export class InputBox extends Widget {
 			}
 		}
 
-		return !errorMsg;
+		return errorMsg?.type;
 	}
 
 	public stylesForType(type: MessageType | undefined): { border: Color | undefined; background: Color | undefined; foreground: Color | undefined } {
@@ -596,7 +610,7 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._hideMessage();
 
 		this.message = null;

@@ -73,8 +73,18 @@
 	},
 	"gulp.autoDetect": "off",
 	"files.insertFinalNewline": true,
-	"[typescript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features"
+	"[plaintext]": {
+		"files.insertFinalNewline": false,
 	},
-	"typescript.tsc.autoDetect": "off"
+	"[typescript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.formatOnSave": true,
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.formatOnSave": true,
+	},
+	"typescript.tsc.autoDetect": "off",
+	"notebook.experimental.useMarkdownRenderer": true,
+	"testing.autoRun.mode": "rerun",
 }

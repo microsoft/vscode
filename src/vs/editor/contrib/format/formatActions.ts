@@ -202,7 +202,7 @@ class FormatOnPaste implements IEditorContribution {
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
-		this._instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, this.editor, range, FormattingMode.Silent, CancellationToken.None).catch(onUnexpectedError);
+		this._instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, this.editor, range, FormattingMode.Silent, Progress.None, CancellationToken.None).catch(onUnexpectedError);
 	}
 }
 
@@ -215,13 +215,12 @@ class FormatDocumentAction extends EditorAction {
 			alias: 'Format Document',
 			precondition: ContextKeyExpr.and(EditorContextKeys.notInCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentFormattingProvider),
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
 				weight: KeybindingWeight.EditorContrib
 			},
 			contextMenuOpts: {
-				when: EditorContextKeys.hasDocumentFormattingProvider,
 				group: '1_modification',
 				order: 1.3
 			}
@@ -249,12 +248,12 @@ class FormatSelectionAction extends EditorAction {
 			alias: 'Format Selection',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentSelectionFormattingProvider),
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F),
 				weight: KeybindingWeight.EditorContrib
 			},
 			contextMenuOpts: {
-				when: ContextKeyExpr.and(EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),
+				when: EditorContextKeys.hasNonEmptySelection,
 				group: '1_modification',
 				order: 1.31
 			}
@@ -267,14 +266,16 @@ class FormatSelectionAction extends EditorAction {
 		}
 		const instaService = accessor.get(IInstantiationService);
 		const model = editor.getModel();
-		let range: Range = editor.getSelection();
-		if (range.isEmpty()) {
-			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
-		}
+
+		const ranges = editor.getSelections().map(range => {
+			return range.isEmpty()
+				? new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber))
+				: range;
+		});
 
 		const progressService = accessor.get(IEditorProgressService);
 		await progressService.showWhile(
-			instaService.invokeFunction(formatDocumentRangesWithSelectedProvider, editor, range, FormattingMode.Explicit, CancellationToken.None),
+			instaService.invokeFunction(formatDocumentRangesWithSelectedProvider, editor, ranges, FormattingMode.Explicit, Progress.None, CancellationToken.None),
 			250
 		);
 	}

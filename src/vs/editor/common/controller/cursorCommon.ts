@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -14,7 +14,7 @@ import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
@@ -55,14 +55,6 @@ const autoCloseAlways = () => true;
 const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
-function appendEntry<K, V>(target: Map<K, V[]>, key: K, value: V): void {
-	if (target.has(key)) {
-		target.get(key)!.push(value);
-	} else {
-		target.set(key, [value]);
-	}
-}
-
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
@@ -70,6 +62,7 @@ export class CursorConfiguration {
 	public readonly tabSize: number;
 	public readonly indentSize: number;
 	public readonly insertSpaces: boolean;
+	public readonly stickyTabStops: boolean;
 	public readonly pageSize: number;
 	public readonly lineHeight: number;
 	public readonly useTabStops: boolean;
@@ -80,11 +73,11 @@ export class CursorConfiguration {
 	public readonly multiCursorPaste: 'spread' | 'full';
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
-	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
+	public readonly autoClosingDelete: EditorAutoClosingEditStrategy;
+	public readonly autoClosingOvertype: EditorAutoClosingEditStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: EditorAutoIndentStrategy;
-	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
-	public readonly autoClosingPairsClose2: Map<string, StandardAutoClosingPairConditional[]>;
+	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
@@ -100,6 +93,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.multiCursorPaste)
 			|| e.hasChanged(EditorOption.autoClosingBrackets)
 			|| e.hasChanged(EditorOption.autoClosingQuotes)
+			|| e.hasChanged(EditorOption.autoClosingDelete)
 			|| e.hasChanged(EditorOption.autoClosingOvertype)
 			|| e.hasChanged(EditorOption.autoSurround)
 			|| e.hasChanged(EditorOption.useTabStops)
@@ -122,6 +116,7 @@ export class CursorConfiguration {
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
+		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
 		this.useTabStops = options.get(EditorOption.useTabStops);
@@ -132,12 +127,11 @@ export class CursorConfiguration {
 		this.multiCursorPaste = options.get(EditorOption.multiCursorPaste);
 		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
 		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
+		this.autoClosingDelete = options.get(EditorOption.autoClosingDelete);
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
 
-		this.autoClosingPairsOpen2 = new Map<string, StandardAutoClosingPairConditional[]>();
-		this.autoClosingPairsClose2 = new Map<string, StandardAutoClosingPairConditional[]>();
 		this.surroundingPairs = {};
 		this._electricChars = null;
 
@@ -146,15 +140,7 @@ export class CursorConfiguration {
 			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
 		};
 
-		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
-		if (autoClosingPairs) {
-			for (const pair of autoClosingPairs) {
-				appendEntry(this.autoClosingPairsOpen2, pair.open.charAt(pair.open.length - 1), pair);
-				if (pair.close.length === 1) {
-					appendEntry(this.autoClosingPairsClose2, pair.close, pair);
-				}
-			}
-		}
+		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
 
 		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
 		if (surroundingPairs) {
@@ -184,15 +170,6 @@ export class CursorConfiguration {
 	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
 		try {
 			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
-		} catch (e) {
-			onUnexpectedError(e);
-			return null;
-		}
-	}
-
-	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): StandardAutoClosingPairConditional[] | null {
-		try {
-			return LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;
@@ -582,17 +559,17 @@ export class CursorColumns {
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevRenderTabStop(column: number, tabSize: number): number {
-		return column - 1 - (column - 1) % tabSize;
+		return Math.max(0, column - 1 - (column - 1) % tabSize);
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevIndentTabStop(column: number, indentSize: number): number {
-		return column - 1 - (column - 1) % indentSize;
+		return Math.max(0, column - 1 - (column - 1) % indentSize);
 	}
 }
 

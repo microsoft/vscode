@@ -7,13 +7,39 @@ import { windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { CodeEditorServiceImpl, GlobalStyleSheet } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
+
+	private readonly _editorIsOpen: IContextKey<boolean>;
+
+	constructor(
+		styleSheet: GlobalStyleSheet | null,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+	) {
+		super(styleSheet, themeService);
+		this.onCodeEditorAdd(() => this._checkContextKey());
+		this.onCodeEditorRemove(() => this._checkContextKey());
+		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);
+	}
+
+	private _checkContextKey(): void {
+		let hasCodeEditor = false;
+		for (const editor of this.listCodeEditors()) {
+			if (!editor.isSimpleWidget) {
+				hasCodeEditor = true;
+				break;
+			}
+		}
+		this._editorIsOpen.set(hasCodeEditor);
+	}
 
 	public getActiveCodeEditor(): ICodeEditor | null {
 		return null; // not supported in the standalone case

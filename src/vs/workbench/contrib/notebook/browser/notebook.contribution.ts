@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
@@ -16,47 +15,68 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { EditorInput, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellUri, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorOpenWith';
-import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NOTEBOOK_WORKING_COPY_TYPE_PREFIX, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
+import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
+import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
+import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorServiceImpl';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Event } from 'vs/base/common/event';
+import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
+import { IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
 // Editor Contribution
-
+import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
-import 'vs/workbench/contrib/notebook/browser/contrib/toc/tocProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
+import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
+import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/contributedStatusBarItemController';
+import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/executionStatusBarItemController';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
+import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
+import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
+import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
+
+
+// Diff Editor Contribution
+import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
-
-import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
-import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -71,7 +91,57 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-class NotebookEditorFactory implements IEditorInputFactory {
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(
+		NotebookTextDiffEditor,
+		NotebookTextDiffEditor.ID,
+		'Notebook Diff Editor'
+	),
+	[
+		new SyncDescriptor(NotebookDiffEditorInput)
+	]
+);
+
+class NotebookDiffEditorSerializer implements IEditorInputSerializer {
+	canSerialize(): boolean {
+		return true;
+	}
+
+	serialize(input: EditorInput): string {
+		assertType(input instanceof NotebookDiffEditorInput);
+		return JSON.stringify({
+			resource: input.resource,
+			originalResource: input.originalResource,
+			name: input.name,
+			originalName: input.originalName,
+			textDiffName: input.textDiffName,
+			viewType: input.viewType,
+		});
+	}
+
+	deserialize(instantiationService: IInstantiationService, raw: string) {
+		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number };
+		const data = <Data>parse(raw);
+		if (!data) {
+			return undefined;
+		}
+		const { resource, originalResource, name, originalName, textDiffName, viewType } = data;
+		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof originalName !== 'string' || typeof viewType !== 'string') {
+			return undefined;
+		}
+
+		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName,
+			textDiffName || nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", originalResource.toString(true), resource.toString(true)),
+			viewType);
+		return input;
+	}
+
+	static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+		return false;
+	}
+
+}
+class NotebookEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -79,71 +149,67 @@ class NotebookEditorFactory implements IEditorInputFactory {
 		assertType(input instanceof NotebookEditorInput);
 		return JSON.stringify({
 			resource: input.resource,
-			name: input.name,
+			name: input.getName(),
 			viewType: input.viewType,
 		});
 	}
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, name: string, viewType: string, group: number };
+		type Data = { resource: URI, viewType: string, group: number };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
 		}
-		const { resource, name, viewType } = data;
-		if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
+		const { resource, viewType } = data;
+		if (!data || !URI.isUri(resource) || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.create(instantiationService, resource, name, viewType);
+		const input = NotebookEditorInput.create(instantiationService, resource, viewType);
 		return input;
 	}
+}
 
-	static async createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<NotebookEditorInput> {
-		return instantiationService.invokeFunction(async accessor => {
-			const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+	NotebookEditorInput.ID,
+	NotebookEditorSerializer
+);
 
-			const backup = await backupFileService.resolve<NotebookDocumentBackupData>(resource);
-			if (!backup?.meta) {
-				throw new Error(`No backup found for Notebook editor: ${resource}`);
-			}
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerCustomEditorInputFactory(
+	Schemas.vscodeNotebook,
+	new class implements ICustomEditorInputFactory {
+		async createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<NotebookEditorInput> {
+			return instantiationService.invokeFunction(async accessor => {
+				const workingCopyBackupService = accessor.get<IWorkingCopyBackupService>(IWorkingCopyBackupService);
 
-			const input = NotebookEditorInput.create(instantiationService, resource, backup.meta.name, backup.meta.viewType, { startDirty: true });
-			return input;
-		});
-	}
+				const backup = await workingCopyBackupService.resolve<NotebookDocumentBackupData>({ resource, typeId: NO_TYPE_ID });
+				if (!backup?.meta) {
+					throw new Error(`No backup found for Notebook editor: ${resource}`);
+				}
 
-	static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
-		if (editorInput instanceof NotebookEditorInput) {
-			if (isEqual(editorInput.resource.with({ scheme: Schemas.vscodeNotebook }), backupResource)) {
-				return true;
-			}
+				const input = NotebookEditorInput.create(instantiationService, resource, backup.meta.viewType, { startDirty: true });
+				return input;
+			});
 		}
 
-		return false;
+		canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+			if (editorInput instanceof NotebookEditorInput) {
+				if (isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editorInput.resource.toString() }), backupResource)) {
+					return true;
+				}
+			}
+
+			return false;
+		}
 	}
-}
-
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
-	NotebookEditorInput.ID,
-	NotebookEditorFactory
 );
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerCustomEditorInputFactory(
-	Schemas.vscodeNotebook,
-	NotebookEditorFactory
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+	NotebookDiffEditorInput.ID,
+	NotebookDiffEditorSerializer
 );
-
-function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): NotebookProviderInfo | undefined {
-	return notebookService.getContributedNotebookProviders(uri)[0];
-}
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
-
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@INotebookService private readonly notebookService: INotebookService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 	) {
 		super();
@@ -153,152 +219,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				return getCellUndoRedoComparisonKey(uri);
 			}
 		}));
-
-		this._register(this.editorService.overrideOpenEditor({
-			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
-
-				const currentEditorForResource = group?.editors.find(editor => isEqual(editor.resource, resource));
-
-				const associatedEditors = distinct([
-					...this.getUserAssociatedNotebookEditors(resource),
-					...this.getContributedEditors(resource)
-				], editor => editor.id);
-
-				return associatedEditors.map(info => {
-					return {
-						label: info.displayName,
-						id: info.id,
-						active: currentEditorForResource instanceof NotebookEditorInput && currentEditorForResource.viewType === info.id,
-						detail: info.providerDisplayName
-					};
-				});
-			},
-			open: (editor, options, group) => {
-				return this.onEditorOpening2(editor, options, group);
-			}
-		}));
-
-		this._register(this.editorService.onDidVisibleEditorsChange(() => {
-			const visibleNotebookEditors = editorService.visibleEditorPanes
-				.filter(pane => (pane as unknown as { isNotebookEditor?: boolean }).isNotebookEditor)
-				.map(pane => pane.getControl() as INotebookEditor)
-				.filter(control => !!control)
-				.map(editor => editor.getId());
-
-			this.notebookService.updateVisibleNotebookEditor(visibleNotebookEditors);
-		}));
-
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			const activeEditorPane = editorService.activeEditorPane as { isNotebookEditor?: boolean } | undefined;
-			const notebookEditor = activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
-			if (notebookEditor) {
-				this.notebookService.updateActiveNotebookEditor(notebookEditor);
-			} else {
-				this.notebookService.updateActiveNotebookEditor(null);
-			}
-		}));
-	}
-
-	getUserAssociatedEditors(resource: URI) {
-		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
-
-		return coalesce(rawAssociations
-			.filter(association => CustomEditorInfo.selectorMatches(association, resource)));
-	}
-
-	getUserAssociatedNotebookEditors(resource: URI) {
-		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
-
-		return coalesce(rawAssociations
-			.filter(association => CustomEditorInfo.selectorMatches(association, resource))
-			.map(association => this.notebookService.getContributedNotebookProvider(association.viewType)));
-	}
-
-	getContributedEditors(resource: URI) {
-		return this.notebookService.getContributedNotebookProviders(resource);
-	}
-
-	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
-
-		let id = typeof options?.override === 'string' ? options.override : undefined;
-		if (id === undefined && originalInput.isUntitled()) {
-			return undefined;
-		}
-
-		if (!originalInput.resource) {
-			return undefined;
-		}
-
-		if (originalInput instanceof NotebookEditorInput) {
-			return undefined;
-		}
-
-		let notebookUri: URI = originalInput.resource;
-		let cellOptions: IResourceEditorInput | undefined;
-
-		const data = CellUri.parse(originalInput.resource);
-		if (data) {
-			notebookUri = data.notebook;
-			cellOptions = { resource: originalInput.resource, options };
-		}
-
-		if (id === undefined && originalInput instanceof ResourceEditorInput) {
-			const exitingNotebookEditor = <NotebookEditorInput | undefined>group.editors.find(editor => editor instanceof NotebookEditorInput && isEqual(editor.resource, notebookUri));
-			id = exitingNotebookEditor?.viewType;
-		}
-
-		if (id === undefined) {
-			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
-
-			if (existingEditors.length) {
-				return undefined;
-			}
-
-			const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
-			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
-
-			if (userAssociatedEditors.length && !notebookEditor.length) {
-				// user pick a non-notebook editor for this resource
-				return undefined;
-			}
-
-			// user might pick a notebook editor
-
-			const associatedEditors = distinct([
-				...this.getUserAssociatedNotebookEditors(notebookUri),
-				...(this.getContributedEditors(notebookUri).filter(editor => editor.priority === NotebookEditorPriority.default))
-			], editor => editor.id);
-
-			if (!associatedEditors.length) {
-				// there is no notebook editor contribution which is enabled by default
-				return undefined;
-			}
-		}
-
-		const infos = this.notebookService.getContributedNotebookProviders(notebookUri);
-		let info = infos.find(info => !id || info.id === id);
-
-		if (!info && id !== undefined) {
-			info = this.notebookService.getContributedNotebookProvider(id);
-		}
-
-		if (!info) {
-			return undefined;
-		}
-
-
-		/**
-		 * Scenario: we are reopening a file editor input which is pinned, we should open in a new editor tab.
-		 */
-		let index = undefined;
-		if (group.activeEditor === originalInput && isEqual(originalInput.resource, notebookUri)) {
-			const originalEditorIndex = group.getIndexOfEditor(originalInput);
-			index = group.isPinned(originalInput) ? originalEditorIndex + 1 : originalEditorIndex;
-		}
-
-		const notebookInput = NotebookEditorInput.create(this.instantiationService, notebookUri, originalInput.getName(), info.id);
-		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: false, index });
-		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 }
 
@@ -310,7 +230,6 @@ class CellContentProvider implements ITextModelContentProvider {
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
 		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
@@ -330,12 +249,8 @@ class CellContentProvider implements ITextModelContentProvider {
 		if (!data) {
 			return null;
 		}
-		const info = getFirstNotebookInfo(this._notebookService, data.notebook);
-		if (!info) {
-			return null;
-		}
 
-		const ref = await this._notebookModelResolverService.resolve(data.notebook, info.id);
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
 		for (const cell of ref.object.notebook.cells) {
@@ -344,7 +259,7 @@ class CellContentProvider implements ITextModelContentProvider {
 					create: (defaultEOL) => {
 						const newEOL = (defaultEOL === DefaultEndOfLine.CRLF ? '\r\n' : '\n');
 						(cell.textBuffer as ITextBuffer).setEOL(newEOL);
-						return cell.textBuffer as ITextBuffer;
+						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
 					},
 					getFirstLineText: (limit: number) => {
 						return cell.textBuffer.getLineContent(1).substr(0, limit);
@@ -371,12 +286,178 @@ class CellContentProvider implements ITextModelContentProvider {
 	}
 }
 
+class CellMetadataContentProvider implements ITextModelContentProvider {
+	private readonly _registration: IDisposable;
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+		@IModeService private readonly _modeService: IModeService,
+		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
+	) {
+		this._registration = textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, this);
+	}
+
+	dispose(): void {
+		this._registration.dispose();
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		const data = CellUri.parseCellMetadataUri(resource);
+		// const data = parseCellUri(resource);
+		if (!data) {
+			return null;
+		}
+
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
+		let result: ITextModel | null = null;
+
+		const mode = this._modeService.create('json');
+
+		for (const cell of ref.object.notebook.cells) {
+			if (cell.handle === data.handle) {
+				const metadataSource = getFormatedMetadataJSON(ref.object.notebook, cell.metadata || {}, cell.language);
+				result = this._modelService.createModel(
+					metadataSource,
+					mode,
+					resource
+				);
+				break;
+			}
+		}
+
+		if (result) {
+			const once = result.onWillDispose(() => {
+				once.dispose();
+				ref.dispose();
+			});
+		}
+
+		return result;
+	}
+}
+
+class RegisterSchemasContribution extends Disposable implements IWorkbenchContribution {
+	constructor() {
+		super();
+		this.registerMetadataSchemas();
+	}
+
+	private registerMetadataSchemas(): void {
+		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		const metadataSchema: IJSONSchema = {
+			properties: {
+				['language']: {
+					type: 'string',
+					description: 'The language for the cell'
+				},
+				['inputCollapsed']: {
+					type: 'boolean',
+					description: `Whether a code cell's editor is collapsed`
+				},
+				['outputCollapsed']: {
+					type: 'boolean',
+					description: `Whether a code cell's outputs are collapsed`
+				}
+			},
+			// patternProperties: allSettings.patternProperties,
+			additionalProperties: true,
+			allowTrailingCommas: true,
+			allowComments: true
+		};
+
+		jsonRegistry.registerSchema('vscode://schemas/notebook/cellmetadata', metadataSchema);
+	}
+}
+
+// makes sure that every dirty notebook gets an editor
+class NotebookFileTracker implements IWorkbenchContribution {
+
+	private readonly _dirtyListener: IDisposable;
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
+	) {
+
+		type E = IResolvedNotebookEditorModel;
+		this._dirtyListener = Event.debounce<E, E[]>(
+			this._notebookEditorModelService.onDidChangeDirty,
+			(last, current) => !last ? [current] : [...last, current],
+			100
+		)(this._openMissingDirtyNotebookEditors, this);
+	}
+
+	dispose(): void {
+		this._dirtyListener.dispose();
+	}
+
+	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
+		const result: IEditorInputWithOptions[] = [];
+		for (let model of models) {
+			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID })) {
+				result.push({
+					editor: NotebookEditorInput.create(this._instantiationService, model.resource, model.viewType),
+					options: { inactive: true, preserveFocus: true, pinned: true, override: EditorOverride.DISABLED }
+				});
+			}
+		}
+		if (result.length > 0) {
+			this._editorService.openEditors(result);
+		}
+	}
+}
+
+class NotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
+		@IExtensionService private readonly _extensionService: IExtensionService
+	) {
+		super();
+
+		this._installHandler();
+	}
+
+	private async _installHandler(): Promise<void> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+
+		this._register(this._workingCopyEditorService.registerHandler({
+			handles: workingCopy => typeof this.getViewType(workingCopy) === 'string',
+			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this.getViewType(workingCopy),
+			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this.getViewType(workingCopy)!)
+		}));
+	}
+
+	private getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
+		if (workingCopy.typeId.startsWith(NOTEBOOK_WORKING_COPY_TYPE_PREFIX)) {
+			return workingCopy.typeId.substr(NOTEBOOK_WORKING_COPY_TYPE_PREFIX.length);
+		}
+
+		return undefined;
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(CellMetadataContentProvider, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookFileTracker, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
 registerSingleton(INotebookService, NotebookService);
-registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
+registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
+registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, true);
+registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
+registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
+registerSingleton(INotebookKernelService, NotebookKernelService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -385,13 +466,40 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('notebookConfigurationTitle', "Notebook"),
 	type: 'object',
 	properties: {
-		'notebook.displayOrder': {
-			markdownDescription: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
+		[DisplayOrderKey]: {
+			description: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
 			type: ['array'],
 			items: {
 				type: 'string'
 			},
 			default: []
-		}
+		},
+		[CellToolbarLocKey]: {
+			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
+			type: 'object',
+			additionalProperties: {
+				markdownDescription: nls.localize('notebook.cellToolbarLocation.viewType', "Configure the cell toolbar position for for specific file types"),
+				type: 'string',
+				enum: ['left', 'right', 'hidden']
+			},
+			default: {
+				'default': 'right'
+			}
+		},
+		[ShowCellStatusBarKey]: {
+			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
+			type: 'boolean',
+			default: true
+		},
+		[NotebookTextDiffEditorPreview]: {
+			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
+			type: 'boolean',
+			default: true
+		},
+		[ExperimentalUseMarkdownRenderer]: {
+			description: nls.localize('notebook.experimental.useMarkdownRenderer.description', "Enable/disable using the new extensible markdown renderer."),
+			type: 'boolean',
+			default: true
+		},
 	}
 });

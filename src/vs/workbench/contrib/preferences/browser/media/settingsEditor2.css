@@ -43,7 +43,7 @@
 	position: absolute;
 	right: 35px;
 	top: 0px;
-	margin: 6px 0px;
+	margin: 4px 0px;
 }
 
 .settings-editor > .settings-header > .search-container > .settings-count-widget:empty {
@@ -51,12 +51,17 @@
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget {
-	margin: 6px 0px;
-	padding: 0px 8px;
-	border-radius: 2px;
+	display: flex;
+	align-items: center;
 	position: absolute;
-	right: 0px;
 	top: 0;
+	right: 0;
+	height: 100%;
+	width: 30px;
+}
+
+.settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
+	padding: 2px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
@@ -72,6 +77,7 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
 	opacity: 0.9;
+	border-radius: 0;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .last-synced-label {
@@ -124,6 +130,7 @@
 
 .settings-editor > .settings-body {
 	position: relative;
+	margin-top: 14px;
 }
 
 .settings-editor > .settings-body > .no-results-message {
@@ -176,9 +183,10 @@
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
 	position: absolute;
 	left: -22px;
-	top: 11px;
+	top: 8px;
 	bottom: 0px;
-	width: 26px;
+	width: 22px;
+	height: 22px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon,
@@ -191,8 +199,6 @@
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon {
 	opacity: 0;
 	transition: opacity .3s;
-	width: 22px;
-	height: 22px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -203,6 +209,7 @@
 	pointer-events: none;
 	z-index: 10;
 	position: absolute;
+	top: 1px; /* Leave room for the settings list focus outline above */
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list {
@@ -246,7 +253,6 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container {
-	margin-top: 14px;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
@@ -283,34 +289,19 @@
 	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 204px;
-	padding-right: 5px;
+	padding-left: 221px;
+	padding-right: 24px;
 	overflow: visible;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::before,
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::after,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::before,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::after {
-	content: ' ';
-	position: absolute;
-	left: 0px;
-	right: 0px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::before,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::before {
-	top: 0px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::after,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::after {
-	bottom: 0px;
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label,
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents {
+	outline-offset: -1px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents {
 	position: relative;
-	padding: 12px 15px 18px;
+	padding: 12px 14px 18px;
 	white-space: normal;
 }
 
@@ -334,7 +325,7 @@
 	border-left-style: solid;
 	left: 5px;
 	top: 15px;
-	bottom: 16px;
+	bottom: 18px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-contents.is-configured .setting-item-modified-indicator,
@@ -343,13 +334,11 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides {
-	opacity: 0.9;
 	font-style: italic;
 	margin-right: 4px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored {
-	opacity: 0.9;
 	font-style: italic;
 }
 
@@ -399,6 +388,20 @@
 	-webkit-user-select: text;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description {
+	display: flex;
+	font-weight: 600;
+	margin: 6px 0 12px 0;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span {
+	padding-right: 5px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span.codicon.codicon-workspace-untrusted {
+	color: var(--workspace-trust-state-untrusted-color) !important;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message {
 	display: none;
 }
@@ -438,12 +441,14 @@
 	margin: 0px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 	text-decoration: underline;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:hover
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:hover {
 	text-decoration: underline;
 }

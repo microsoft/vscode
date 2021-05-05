@@ -19,7 +19,9 @@ const unixLinks = [
 	'./foo',
 	'../foo',
 	'/foo/bar',
-	'foo/bar'
+	'/foo/bar+more',
+	'foo/bar',
+	'foo/bar+more',
 ];
 
 const windowsLinks = [
@@ -33,10 +35,12 @@ const windowsLinks = [
 	'~/foo',
 	'c:/foo/bar',
 	'c:\\foo\\bar',
+	'c:\\foo\\bar+more',
 	'c:\\foo/bar\\baz',
 	'foo/bar',
 	'foo/bar',
-	'foo\\bar'
+	'foo\\bar',
+	'foo\\bar+more',
 ];
 
 interface LinkFormatInfo {
@@ -85,7 +89,7 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 
 		// Ensure all links are provided
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
-		assert.equal(links.length, expected.length);
+		assert.strictEqual(links.length, expected.length);
 		const actual = links.map(e => ({
 			text: e.text,
 			range: e.range
@@ -97,7 +101,7 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 				end: { x: e.range[1][0], y: e.range[1][1] },
 			}
 		}));
-		assert.deepEqual(actual, expectedVerbose);
+		assert.deepStrictEqual(actual, expectedVerbose);
 	}
 
 	suite('Linux/macOS', () => {

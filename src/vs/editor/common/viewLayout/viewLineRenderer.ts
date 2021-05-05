@@ -14,7 +14,8 @@ export const enum RenderWhitespace {
 	None = 0,
 	Boundary = 1,
 	Selection = 2,
-	All = 3
+	Trailing = 3,
+	All = 4
 }
 
 export const enum LinePartMetadata {
@@ -113,7 +114,7 @@ export class RenderLineInput {
 		middotWidth: number,
 		wsmiddotWidth: number,
 		stopRenderingLineAfter: number,
-		renderWhitespace: 'none' | 'boundary' | 'selection' | 'all',
+		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
 		fontLigatures: boolean,
 		selectionsOnLine: LineRange[] | null
@@ -126,7 +127,7 @@ export class RenderLineInput {
 		this.containsRTL = containsRTL;
 		this.fauxIndentLength = fauxIndentLength;
 		this.lineTokens = lineTokens;
-		this.lineDecorations = lineDecorations;
+		this.lineDecorations = lineDecorations.sort(LineDecoration.compare);
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
 		this.spaceWidth = spaceWidth;
@@ -138,7 +139,9 @@ export class RenderLineInput {
 					? RenderWhitespace.Boundary
 					: renderWhitespace === 'selection'
 						? RenderWhitespace.Selection
-						: RenderWhitespace.None
+						: renderWhitespace === 'trailing'
+							? RenderWhitespace.Trailing
+							: RenderWhitespace.None
 		);
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
@@ -343,39 +346,48 @@ export class RenderLineOutput {
 export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 
-		let containsForeignElements = ForeignElementType.None;
-
-		// This is basically for IE's hit test to work
-		let content: string = '<span><span>\u00a0</span></span>';
-
 		if (input.lineDecorations.length > 0) {
 			// This line is empty, but it contains inline decorations
-			const beforeClassNames: string[] = [];
-			const afterClassNames: string[] = [];
-			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
-				const lineDecoration = input.lineDecorations[i];
-				if (lineDecoration.type === InlineDecorationType.Before) {
-					beforeClassNames.push(input.lineDecorations[i].className);
-					containsForeignElements |= ForeignElementType.Before;
-				}
-				if (lineDecoration.type === InlineDecorationType.After) {
-					afterClassNames.push(input.lineDecorations[i].className);
-					containsForeignElements |= ForeignElementType.After;
+			sb.appendASCIIString(`<span>`);
+
+			let beforeCount = 0;
+			let afterCount = 0;
+			let containsForeignElements = ForeignElementType.None;
+			for (const lineDecoration of input.lineDecorations) {
+				if (lineDecoration.type === InlineDecorationType.Before || lineDecoration.type === InlineDecorationType.After) {
+					sb.appendASCIIString(`<span class="`);
+					sb.appendASCIIString(lineDecoration.className);
+					sb.appendASCIIString(`"></span>`);
+
+					if (lineDecoration.type === InlineDecorationType.Before) {
+						containsForeignElements |= ForeignElementType.Before;
+						beforeCount++;
+					}
+					if (lineDecoration.type === InlineDecorationType.After) {
+						containsForeignElements |= ForeignElementType.After;
+						afterCount++;
+					}
 				}
 			}
 
-			if (containsForeignElements !== ForeignElementType.None) {
-				const beforeSpan = (beforeClassNames.length > 0 ? `<span class="${beforeClassNames.join(' ')}"></span>` : ``);
-				const afterSpan = (afterClassNames.length > 0 ? `<span class="${afterClassNames.join(' ')}"></span>` : ``);
-				content = `<span>${beforeSpan}${afterSpan}</span>`;
-			}
+			sb.appendASCIIString(`</span>`);
+
+			const characterMapping = new CharacterMapping(1, beforeCount + afterCount);
+			characterMapping.setPartData(0, beforeCount, 0, 0);
+
+			return new RenderLineOutput(
+				characterMapping,
+				false,
+				containsForeignElements
+			);
 		}
 
-		sb.appendASCIIString(content);
+		// completely empty line
+		sb.appendASCIIString('<span><span></span></span>');
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
 			false,
-			containsForeignElements
+			ForeignElementType.None
 		);
 	}
 
@@ -435,7 +447,11 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	}
 
 	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
-	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary || (input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine)) {
+	if (input.renderWhitespace === RenderWhitespace.All ||
+		input.renderWhitespace === RenderWhitespace.Boundary ||
+		(input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine) ||
+		input.renderWhitespace === RenderWhitespace.Trailing) {
+
 		tokens = _applyRenderWhitespace(input, lineContent, len, tokens);
 	}
 	let containsForeignElements = ForeignElementType.None;
@@ -514,7 +530,7 @@ const enum Constants {
 }
 
 /**
- * See https://github.com/Microsoft/vscode/issues/6885.
+ * See https://github.com/microsoft/vscode/issues/6885.
  * It appears that having very large spans causes very slow reading of character positions.
  * So here we try to avoid that.
  */
@@ -592,6 +608,7 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 	const useMonospaceOptimizations = input.useMonospaceOptimizations;
 	const selections = input.selectionsOnLine;
 	const onlyBoundary = (input.renderWhitespace === RenderWhitespace.Boundary);
+	const onlyTrailing = (input.renderWhitespace === RenderWhitespace.Trailing);
 	const generateLinePartForEachWhitespace = (input.renderSpaceWidth !== input.spaceWidth);
 
 	let result: LinePart[] = [], resultLen = 0;
@@ -600,10 +617,11 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
 	const tokensLength = tokens.length;
 
+	let lineIsEmptyOrWhitespace = false;
 	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 	let lastNonWhitespaceIndex: number;
 	if (firstNonWhitespaceIndex === -1) {
-		// The entire line is whitespace
+		lineIsEmptyOrWhitespace = true;
 		firstNonWhitespaceIndex = len;
 		lastNonWhitespaceIndex = len;
 	} else {
@@ -649,6 +667,11 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 		// If rendering whitespace on selection, check that the charIndex falls within a selection
 		if (isInWhitespace && selections) {
 			isInWhitespace = !!currentSelection && currentSelection.startOffset <= charIndex && currentSelection.endOffset > charIndex;
+		}
+
+		// If rendering only trailing whitespace, check that the charIndex points to trailing whitespace.
+		if (isInWhitespace && onlyTrailing) {
+			isInWhitespace = lineIsEmptyOrWhitespace || charIndex > lastNonWhitespaceIndex;
 		}
 
 		if (wasInWhitespace) {
@@ -930,7 +953,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						break;
 
 					case CharCode.Null:
-						sb.appendASCIIString('&#00;');
+						if (renderControlCharacters) {
+							// See https://unicode-table.com/en/blocks/control-pictures/
+							sb.write1(9216);
+						} else {
+							sb.appendASCIIString('&#00;');
+						}
 						break;
 
 					case CharCode.UTF8_BOM:
@@ -944,8 +972,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						if (strings.isFullWidthCharacter(charCode)) {
 							charWidth++;
 						}
+						// See https://unicode-table.com/en/blocks/control-pictures/
 						if (renderControlCharacters && charCode < 32) {
 							sb.write1(9216 + charCode);
+						} else if (renderControlCharacters && charCode === 127) {
+							// DEL
+							sb.write1(9249);
 						} else {
 							sb.write1(charCode);
 						}

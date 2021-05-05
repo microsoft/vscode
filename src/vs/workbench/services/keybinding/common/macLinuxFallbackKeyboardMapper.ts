@@ -8,7 +8,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 /**
@@ -46,7 +46,7 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 
 	private _scanCodeToKeyCode(scanCode: ScanCode): KeyCode {
 		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
-		if (immutableKeyCode !== -1) {
+		if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
 			return immutableKeyCode;
 		}
 

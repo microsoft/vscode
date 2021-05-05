@@ -16,9 +16,10 @@ const WEB_ROOT = '${workspaceFolder}';
 
 interface ServerReadyAction {
 	pattern: string;
-	action?: 'openExternally' | 'debugWithChrome';
+	action?: 'openExternally' | 'debugWithChrome' | 'startDebugging';
 	uriFormat?: string;
 	webRoot?: string;
+	name?: string;
 }
 
 class ServerReadyDetector extends vscode.Disposable {
@@ -146,18 +147,17 @@ class ServerReadyDetector extends vscode.Disposable {
 				break;
 
 			case 'debugWithChrome':
-				if (vscode.env.remoteName === 'wsl' || !!vscode.extensions.getExtension('msjsdiag.debugger-for-chrome')) {
-					vscode.debug.startDebugging(session.workspaceFolder, {
-						type: 'chrome',
-						name: 'Chrome Debug',
-						request: 'launch',
-						url: uri,
-						webRoot: args.webRoot || WEB_ROOT
-					}, session);
-				} else {
-					const errMsg = localize('server.ready.chrome.not.installed', "The action '{0}' requires the '{1}' extension.", 'debugWithChrome', 'Debugger for Chrome');
-					vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
-				}
+				vscode.debug.startDebugging(session.workspaceFolder, {
+					type: 'pwa-chrome',
+					name: 'Chrome Debug',
+					request: 'launch',
+					url: uri,
+					webRoot: args.webRoot || WEB_ROOT
+				});
+				break;
+
+			case 'startDebugging':
+				vscode.debug.startDebugging(session.workspaceFolder, args.name || 'unspecified');
 				break;
 
 			default:

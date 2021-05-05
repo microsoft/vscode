@@ -4,31 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { tmpdir } from 'os';
+import { promises } from 'fs';
+import { join } from 'vs/base/common/path';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
-import { mkdirp, rimraf, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
+import { rimraf, writeFileSync } from 'vs/base/node/pfs';
 
-suite('StateService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
-	const storageFile = path.join(parentDir, 'storage.json');
+flakySuite('StateService', () => {
 
-	teardown(async () => {
-		await rimraf(parentDir, RimRafMode.MOVE);
+	let testDir: string;
+
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'stateservice');
+
+		return promises.mkdir(testDir, { recursive: true });
 	});
 
-	test('Basics', async () => {
-		await mkdirp(parentDir);
+	teardown(() => {
+		return rimraf(testDir);
+	});
+
+	test('Basics', async function () {
+		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
 		let service = new FileStorage(storageFile, () => null);
 
 		service.setItem('some.key', 'some.value');
-		assert.equal(service.getItem('some.key'), 'some.value');
+		assert.strictEqual(service.getItem('some.key'), 'some.value');
 
 		service.removeItem('some.key');
-		assert.equal(service.getItem('some.key', 'some.default'), 'some.default');
+		assert.strictEqual(service.getItem('some.key', 'some.default'), 'some.default');
 
 		assert.ok(!service.getItem('some.unknonw.key'));
 
@@ -36,15 +43,43 @@ suite('StateService', () => {
 
 		service = new FileStorage(storageFile, () => null);
 
-		assert.equal(service.getItem('some.other.key'), 'some.other.value');
+		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
 
 		service.setItem('some.other.key', 'some.other.value');
-		assert.equal(service.getItem('some.other.key'), 'some.other.value');
+		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
 
 		service.setItem('some.undefined.key', undefined);
-		assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
+		assert.strictEqual(service.getItem('some.undefined.key', 'some.default'), 'some.default');
 
 		service.setItem('some.null.key', null);
-		assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
+		assert.strictEqual(service.getItem('some.null.key', 'some.default'), 'some.default');
+
+		service.setItems([
+			{ key: 'some.setItems.key1', data: 'some.value' },
+			{ key: 'some.setItems.key2', data: 0 },
+			{ key: 'some.setItems.key3', data: true },
+			{ key: 'some.setItems.key4', data: null },
+			{ key: 'some.setItems.key5', data: undefined }
+		]);
+
+		assert.strictEqual(service.getItem('some.setItems.key1'), 'some.value');
+		assert.strictEqual(service.getItem('some.setItems.key2'), 0);
+		assert.strictEqual(service.getItem('some.setItems.key3'), true);
+		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
+
+		service.setItems([
+			{ key: 'some.setItems.key1', data: undefined },
+			{ key: 'some.setItems.key2', data: undefined },
+			{ key: 'some.setItems.key3', data: undefined },
+			{ key: 'some.setItems.key4', data: null },
+			{ key: 'some.setItems.key5', data: undefined }
+		]);
+
+		assert.strictEqual(service.getItem('some.setItems.key1'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key2'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key3'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
 	});
 });

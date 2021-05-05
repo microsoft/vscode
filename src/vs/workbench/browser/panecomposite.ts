@@ -13,19 +13,18 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer } from './parts/views/viewPaneContainer';
+import { ViewPaneContainer, ViewsSubMenu } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
-import { ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { IAction, Separator } from 'vs/base/common/actions';
+import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
-export class PaneComposite extends Composite implements IPaneComposite {
+export abstract class PaneComposite extends Composite implements IPaneComposite {
 
-	private menuActions: ViewContainerMenuActions;
+	private viewPaneContainer?: ViewPaneContainer;
 
 	constructor(
 		id: string,
-		protected readonly viewPaneContainer: ViewPaneContainer,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -35,73 +34,103 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super(id, telemetryService, themeService, storageService);
-
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.getId(), MenuId.ViewContainerTitleContext));
-		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 	}
 
-	create(parent: HTMLElement): void {
+	override create(parent: HTMLElement): void {
+		this.viewPaneContainer = this._register(this.createViewPaneContainer(parent));
+		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 		this.viewPaneContainer.create(parent);
 	}
 
-	setVisible(visible: boolean): void {
+	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
-		this.viewPaneContainer.setVisible(visible);
+		this.viewPaneContainer?.setVisible(visible);
 	}
 
 	layout(dimension: Dimension): void {
-		this.viewPaneContainer.layout(dimension);
+		this.viewPaneContainer?.layout(dimension);
 	}
 
 	getOptimalWidth(): number {
-		return this.viewPaneContainer.getOptimalWidth();
+		return this.viewPaneContainer?.getOptimalWidth() ?? 0;
 	}
 
 	openView<T extends IView>(id: string, focus?: boolean): T | undefined {
-		return this.viewPaneContainer.openView(id, focus) as T;
+		return this.viewPaneContainer?.openView(id, focus) as T;
 	}
 
-	getViewPaneContainer(): ViewPaneContainer {
+	getViewPaneContainer(): ViewPaneContainer | undefined {
 		return this.viewPaneContainer;
 	}
 
-	getActionsContext(): unknown {
-		return this.getViewPaneContainer().getActionsContext();
+	override getActionsContext(): unknown {
+		return this.getViewPaneContainer()?.getActionsContext();
 	}
 
-	getContextMenuActions(): ReadonlyArray<IAction> {
+	override getContextMenuActions(): readonly IAction[] {
+		return this.viewPaneContainer?.menuActions?.getContextMenuActions() ?? [];
+	}
+
+	override getActions(): readonly IAction[] {
 		const result = [];
-		result.push(...this.menuActions.getContextMenuActions());
-
-		if (result.length) {
-			result.push(new Separator());
+		if (this.viewPaneContainer?.menuActions) {
+			result.push(...this.viewPaneContainer.menuActions.getPrimaryActions());
+			if (this.viewPaneContainer.isViewMergedWithContainer()) {
+				result.push(...this.viewPaneContainer.panes[0].menuActions.getPrimaryActions());
+			}
 		}
-
-		result.push(...this.viewPaneContainer.getContextMenuActions());
 		return result;
 	}
 
-	getActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer.getActions();
+	override getSecondaryActions(): readonly IAction[] {
+		if (!this.viewPaneContainer?.menuActions) {
+			return [];
+		}
+
+		const viewPaneActions = this.viewPaneContainer.isViewMergedWithContainer() ? this.viewPaneContainer.panes[0].menuActions.getSecondaryActions() : [];
+		let menuActions = this.viewPaneContainer.menuActions.getSecondaryActions();
+
+		const viewsSubmenuActionIndex = menuActions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu);
+		if (viewsSubmenuActionIndex !== -1) {
+			const viewsSubmenuAction = <SubmenuItemAction>menuActions[viewsSubmenuActionIndex];
+			if (viewsSubmenuAction.actions.some(({ enabled }) => enabled)) {
+				if (menuActions.length === 1 && viewPaneActions.length === 0) {
+					menuActions = viewsSubmenuAction.actions.slice();
+				} else if (viewsSubmenuActionIndex !== 0) {
+					menuActions = [viewsSubmenuAction, ...menuActions.slice(0, viewsSubmenuActionIndex), ...menuActions.slice(viewsSubmenuActionIndex + 1)];
+				}
+			} else {
+				// Remove views submenu if none of the actions are enabled
+				menuActions.splice(viewsSubmenuActionIndex, 1);
+			}
+		}
+
+		if (menuActions.length && viewPaneActions.length) {
+			return [
+				...menuActions,
+				new Separator(),
+				...viewPaneActions
+			];
+		}
+
+		return menuActions.length ? menuActions : viewPaneActions;
 	}
 
-	getSecondaryActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer.getSecondaryActions();
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+		return this.viewPaneContainer?.getActionViewItem(action);
 	}
 
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return this.viewPaneContainer.getActionViewItem(action);
+	override getTitle(): string {
+		return this.viewPaneContainer?.getTitle() ?? '';
 	}
 
-	getTitle(): string {
-		return this.viewPaneContainer.getTitle();
-	}
-
-	saveState(): void {
+	override saveState(): void {
 		super.saveState();
 	}
 
-	focus(): void {
-		this.viewPaneContainer.focus();
+	override focus(): void {
+		this.viewPaneContainer?.focus();
 	}
+
+	protected abstract createViewPaneContainer(parent: HTMLElement): ViewPaneContainer;
 }

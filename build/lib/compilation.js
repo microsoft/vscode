@@ -8,11 +8,8 @@ exports.watchTask = exports.compileTask = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");
-const bom = require("gulp-bom");
-const sourcemaps = require("gulp-sourcemaps");
-const tsb = require("gulp-tsb");
 const path = require("path");
-const monacodts = require("../monaco/api");
+const monacodts = require("./monaco-api");
 const nls = require("./nls");
 const reporter_1 = require("./reporter");
 const util = require("./util");
@@ -36,10 +33,13 @@ function getTypeScriptCompilerOptions(src) {
     return options;
 }
 function createCompile(src, build, emitError) {
+    const tsb = require('gulp-tsb');
+    const sourcemaps = require('gulp-sourcemaps');
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
     const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
     const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
     function pipeline(token) {
+        const bom = require('gulp-bom');
         const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
@@ -52,7 +52,7 @@ function createCompile(src, build, emitError) {
             .pipe(util.loadSourcemaps())
             .pipe(compilation(token))
             .pipe(noDeclarationsFilter)
-            .pipe(build ? nls() : es.through())
+            .pipe(build ? nls.nls() : es.through())
             .pipe(noDeclarationsFilter.restore)
             .pipe(sourcemaps.write('.', {
             addComment: false,

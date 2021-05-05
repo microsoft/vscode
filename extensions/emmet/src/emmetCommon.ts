@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { DefaultCompletionItemProvider } from './defaultCompletionProvider';
-import { expandEmmetAbbreviation, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from './abbreviationActions';
+import { expandEmmetAbbreviation, wrapWithAbbreviation } from './abbreviationActions';
 import { removeTag } from './removeTag';
 import { updateTag } from './updateTag';
 import { matchTag } from './matchTag';
@@ -17,18 +17,17 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath } from './util';
+import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, migrateEmmetExtensionsPath, getPathBaseName, getSyntaxes, getEmmetMode } from './util';
 import { reflectCssValue } from './reflectCssValue';
+import { addFileToParseCache, clearParseCache, removeFileFromParseCache } from './parseDocument';
 
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
+	migrateEmmetExtensionsPath();
 	registerCompletionProviders(context);
+	updateEmmetExtensionsPath();
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
 		wrapWithAbbreviation(args);
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapIndividualLinesWithAbbreviation', (args) => {
-		wrapIndividualLinesWithAbbreviation(args);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {
@@ -124,7 +123,9 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		return reflectCssValue();
 	}));
 
-	updateEmmetExtensionsPath();
+	context.subscriptions.push(vscode.commands.registerCommand('workbench.action.showEmmetCommands', () => {
+		vscode.commands.executeCommand('workbench.action.quickOpen', '>Emmet: ');
+	}));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
 		if (e.affectsConfiguration('emmet.includeLanguages')) {
@@ -132,6 +133,29 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		}
 		if (e.affectsConfiguration('emmet.extensionsPath')) {
 			updateEmmetExtensionsPath();
+		}
+	}));
+
+	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((e) => {
+		const basefileName: string = getPathBaseName(e.fileName);
+		if (basefileName.startsWith('snippets') && basefileName.endsWith('.json')) {
+			updateEmmetExtensionsPath(true);
+		}
+	}));
+
+	context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((e) => {
+		const emmetMode = getEmmetMode(e.languageId, []) ?? '';
+		const syntaxes = getSyntaxes();
+		if (syntaxes.markup.includes(emmetMode) || syntaxes.stylesheet.includes(emmetMode)) {
+			addFileToParseCache(e);
+		}
+	}));
+
+	context.subscriptions.push(vscode.workspace.onDidCloseTextDocument((e) => {
+		const emmetMode = getEmmetMode(e.languageId, []) ?? '';
+		const syntaxes = getSyntaxes();
+		if (syntaxes.markup.includes(emmetMode) || syntaxes.stylesheet.includes(emmetMode)) {
+			removeFileFromParseCache(e);
 		}
 	}));
 }
@@ -179,4 +203,6 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
+	completionProvidersMapping.clear();
+	clearParseCache();
 }

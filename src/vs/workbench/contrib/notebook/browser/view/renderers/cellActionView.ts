@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as DOM from 'vs/base/browser/dom';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class VerticalSeparator extends Action {
 	static readonly ID = 'vs.actions.verticalSeparator';
@@ -22,8 +26,8 @@ export class VerticalSeparator extends Action {
 }
 
 export class VerticalSeparatorViewItem extends BaseActionViewItem {
-	render(container: HTMLElement) {
-		DOM.addClass(container, 'verticalSeparator');
+	override render(container: HTMLElement) {
+		container.classList.add('verticalSeparator');
 		// const iconContainer = DOM.append(container, $('.verticalSeparator'));
 		// DOM.addClasses(iconContainer, 'codicon', 'codicon-chrome-minimize');
 	}
@@ -45,7 +49,7 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 
 		const isPrimary = isPrimaryGroup(group);
 		if (isPrimary) {
-			const to = Array.isArray<IAction>(target) ? target : target.primary;
+			const to = Array.isArray(target) ? target : target.primary;
 
 			if (to.length > 0) {
 				to.push(new VerticalSeparator());
@@ -55,7 +59,7 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 		}
 
 		if (!isPrimary || alwaysFillSecondary) {
-			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+			const to = Array.isArray(target) ? target : target.secondary;
 
 			if (to.length > 0) {
 				to.push(new Separator());
@@ -74,4 +78,20 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 		}
 	}
 	return disposables;
+}
+
+
+export class CodiconActionViewItem extends MenuEntryActionViewItem {
+	constructor(
+		_action: MenuItemAction,
+		keybindingService: IKeybindingService,
+		notificationService: INotificationService,
+	) {
+		super(_action, keybindingService, notificationService);
+	}
+	override updateLabel(): void {
+		if (this.options.label && this.label) {
+			DOM.reset(this.label, ...renderLabelWithIcons(this._commandAction.label ?? ''));
+		}
+	}
 }
