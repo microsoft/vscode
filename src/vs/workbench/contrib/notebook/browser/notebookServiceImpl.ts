@@ -100,11 +100,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					displayName: notebookContribution.displayName,
 					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),
-					providerExtensionId: extension.description.identifier.value,
-					providerDescription: extension.description.description,
 					providerDisplayName: extension.description.isBuiltin ? localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
-					providerExtensionLocation: extension.description.extensionLocation,
-					dynamicContribution: false,
 					exclusive: false
 				}));
 			}
@@ -494,11 +490,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 				id: viewType,
 				priority: ContributedEditorPriority.default,
 				selectors: [],
-				providerExtensionId: extensionData.id.value,
-				providerDescription: extensionData.description,
 				providerDisplayName: extensionData.id.value,
-				providerExtensionLocation: URI.revive(extensionData.location),
-				dynamicContribution: true,
 				exclusive: controller.viewOptions.exclusive
 			});
 
