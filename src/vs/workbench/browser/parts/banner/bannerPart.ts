@@ -114,7 +114,9 @@ export class BannerPart extends Part implements IBannerService {
 
 		// Message
 		const messageContainer = append(this.element, $('div.message-container'));
-		messageContainer.innerText = localize('restrictedModeMessage', "Restricted Mode has limited functionality. Trust this folder to enable advanced features.");
+		const message = localize('restrictedModeMessage', "Restricted Mode has limited functionality. Trust this folder to enable advanced features.");
+		messageContainer.innerText = message;
+		messageContainer.title = message;
 
 		// Message Actions
 		const messageActionsContainer = append(this.element, $('div.message-actions-container'));

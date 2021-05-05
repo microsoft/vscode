@@ -49,7 +49,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/browser/parts/banner/bannerPart';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -174,7 +173,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private workingCopyBackupService!: IWorkingCopyBackupService;
 	private notificationService!: INotificationService;
 	private themeService!: IThemeService;
-	private workspaceTrustManagementService!: IWorkspaceTrustManagementService;
 	private activityBarService!: IActivityBarService;
 	private statusBarService!: IStatusbarService;
 	private bannerService!: IBannerService;
@@ -256,7 +254,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
 		this.themeService = accessor.get(IThemeService);
 		this.extensionService = accessor.get(IExtensionService);
-		this.workspaceTrustManagementService = accessor.get(IWorkspaceTrustManagementService);
 		this.logService = accessor.get(ILogService);
 
 		// Parts
@@ -322,9 +319,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
-
-		// Workspace trust changes
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.workbenchGrid.setViewVisible(this.bannerPartView, !trusted)));
 	}
 
 	private onMenubarToggled(visible: boolean) {
@@ -1814,7 +1808,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 						type: 'leaf',
 						data: { type: Parts.BANNER_PART },
 						size: bannerHeight,
-						visible: !this.workspaceTrustManagementService.isWorkpaceTrusted()
+						visible: false
 					},
 					{
 						type: 'branch',
