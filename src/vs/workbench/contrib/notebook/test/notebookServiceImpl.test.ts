@@ -45,20 +45,16 @@ suite('NotebookProviderInfoStore', function () {
 			displayName: 'foo',
 			selectors: [{ filenamePattern: '*.foo' }],
 			priority: ContributedEditorPriority.default,
-			dynamicContribution: false,
 			exclusive: false,
 			providerDisplayName: 'foo',
-			providerExtensionLocation: null!
 		});
 		const barInfo = new NotebookProviderInfo({
 			id: 'bar',
 			displayName: 'bar',
 			selectors: [{ filenamePattern: '*.bar' }],
 			priority: ContributedEditorPriority.default,
-			dynamicContribution: false,
 			exclusive: false,
 			providerDisplayName: 'bar',
-			providerExtensionLocation: null!
 		});
 
 		store.add(fooInfo);
