@@ -1821,11 +1821,6 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/119949, Notebook (deprecated)
 
-	export namespace notebook {
-		/** @deprecated use NotebookController */
-		export function createNotebookCellExecutionTask(uri: Uri, index: number, kernelId: string): NotebookCellExecutionTask | undefined;
-	}
-
 	export interface NotebookFilter {
 		readonly viewType?: string;
 		readonly scheme?: string;
