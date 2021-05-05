@@ -6,7 +6,7 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IThemeSpecificColorCustomizations, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations, THEME_SEPARATOR_REGEX, THEME_ID_WILDCARD, THEME_ID_CLOSE_PAREN, THEME_ID_OPEN_PAREN } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -19,7 +19,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
-import { startsWith } from 'vs/base/common/strings';
 import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
@@ -358,7 +357,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.customColorMap = {};
 		this.overwriteCustomColors(colors);
 
-		const themeSpecificColors = colors[`[${this.settingsId}]`] as IColorCustomizations;
+		const themeSpecificColors = this.getThemeSpecificColors(colors) as IColorCustomizations;
 		if (types.isObject(themeSpecificColors)) {
 			this.overwriteCustomColors(themeSpecificColors);
 		}
@@ -385,7 +384,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.addCustomTokenColors(customTokenColors);
 
 		// append theme specific settings. Last rules will win.
-		const themeSpecificTokenColors = customTokenColors[`[${this.settingsId}]`] as ITokenColorCustomizations;
+		const themeSpecificTokenColors = this.getThemeSpecificColors(customTokenColors) as ITokenColorCustomizations;
 		if (types.isObject(themeSpecificTokenColors)) {
 			this.addCustomTokenColors(themeSpecificTokenColors);
 		}
@@ -401,7 +400,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 		if (experimental) { // apply deprecated settings first
 			this.readSemanticTokenRules(experimental);
-			const themeSpecificColors = experimental[`[${this.settingsId}]`] as IExperimentalSemanticTokenColorCustomizations;
+			const themeSpecificColors = this.getThemeSpecificColors(experimental) as IExperimentalSemanticTokenColorCustomizations;
 			if (types.isObject(themeSpecificColors)) {
 				this.readSemanticTokenRules(themeSpecificColors);
 			}
@@ -411,7 +410,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			if (semanticTokenColors.rules) {
 				this.readSemanticTokenRules(semanticTokenColors.rules);
 			}
-			const themeSpecificColors = semanticTokenColors[`[${this.settingsId}]`] as ISemanticTokenColorCustomizations;
+			const themeSpecificColors = this.getThemeSpecificColors(semanticTokenColors) as ISemanticTokenColorCustomizations;
 			if (types.isObject(themeSpecificColors)) {
 				if (themeSpecificColors.enabled !== undefined) {
 					this.customSemanticHighlighting = themeSpecificColors.enabled;
@@ -426,6 +425,40 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.textMateThemingRules = undefined;
 	}
 
+	private getThemeSpecificColors(colors: IThemeSpecificColorCustomizations): IThemeSpecificColorCustomizations | undefined {
+		let themeSpecificColors;
+		for (let key in colors) {
+			let subColors = colors[key];
+			if (types.isObject(subColors) && key.charAt(0) === THEME_ID_OPEN_PAREN && key.charAt(key.length - 1) === THEME_ID_CLOSE_PAREN) {
+				const settingsIdList = key.slice(1, -1).split(THEME_SEPARATOR_REGEX);
+				for (let id of settingsIdList) {
+					if (
+						id === this.settingsId
+						|| (id.slice(-3) === THEME_ID_WILDCARD && id.slice(0, 3) === THEME_ID_WILDCARD && this.settingsId.includes(id.slice(3, -3)))
+						|| (id.slice(-3) === THEME_ID_WILDCARD && this.settingsId.startsWith(id.slice(0, -3)))
+						|| (id.slice(0, 3) === THEME_ID_WILDCARD && this.settingsId.endsWith(id.slice(-3)))
+					) {
+						themeSpecificColors = themeSpecificColors || {} as IThemeSpecificColorCustomizations;
+						if (types.isObject(subColors)) {
+							let themeSpecificSubColors = subColors as Iterable<IThemeSpecificColorCustomizations>;
+							for (let subkey of themeSpecificSubColors) {
+								if (typeof subkey === 'string') {
+									let overrideColors = themeSpecificSubColors[subkey];
+									if (types.isArray(overrideColors) && types.isArray(themeSpecificColors[subkey])) {
+										let originalColors = themeSpecificColors[subkey] as ITextMateThemingRule[];
+										themeSpecificColors[subkey] = originalColors.concat(overrideColors);
+									} else if (overrideColors) {
+										themeSpecificColors[subkey] = overrideColors;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return themeSpecificColors;
+	}
 
 	private readSemanticTokenRules(tokenStylingRuleSection: ISemanticTokenRules) {
 		for (let key in tokenStylingRuleSection) {
@@ -635,7 +668,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 }
 
 function toCSSSelector(extensionId: string, path: string) {
-	if (startsWith(path, './')) {
+	if (path.startsWith('./')) {
 		path = path.substr(2);
 	}
 	let str = `${extensionId}-${path}`;

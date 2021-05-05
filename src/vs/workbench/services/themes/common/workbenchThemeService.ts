@@ -19,6 +19,11 @@ export const VS_HC_THEME = 'hc-black';
 
 export const HC_THEME_ID = 'Default High Contrast';
 
+export const THEME_ID_OPEN_PAREN = '[';
+export const THEME_ID_CLOSE_PAREN = ']';
+export const THEME_ID_WILDCARD = '...';
+export const THEME_SEPARATOR_REGEX = /\[\s*\]/;
+
 export enum ThemeSettings {
 	COLOR_THEME = 'workbench.colorTheme',
 	FILE_ICON_THEME = 'workbench.iconTheme',
@@ -106,6 +111,8 @@ export interface ISemanticTokenColorCustomizations {
 export interface IExperimentalSemanticTokenColorCustomizations {
 	[styleRuleOrThemeSettingsId: string]: ISemanticTokenRules | IExperimentalSemanticTokenColorCustomizations | undefined;
 }
+
+export type IThemeSpecificColorCustomizations = IColorCustomizations | ITokenColorCustomizations | IExperimentalSemanticTokenColorCustomizations | ISemanticTokenColorCustomizations | IColorCustomizations;
 
 export interface ISemanticTokenRules {
 	[selector: string]: string | ISemanticTokenColorizationSetting | undefined;
