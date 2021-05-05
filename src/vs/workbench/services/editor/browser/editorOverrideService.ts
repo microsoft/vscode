@@ -385,16 +385,25 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			}
 		});
 		const quickPickEntries: Array<IQuickPickItem | IQuickPickSeparator> = [];
-		const currentlyActiveLabel = localize('promptOpenWith.currentlyActive', "Currently Active");
-		const currentDefaultLabel = localize('promptOpenWith.currentDefault', "Current Default");
+		const currentlyActiveLabel = localize('promptOpenWith.currentlyActive', "Active");
+		const currentDefaultLabel = localize('promptOpenWith.currentDefault', "Default");
+		const currentDefaultAndActiveLabel = localize('promptOpenWith.currentDefaultAndActive', "Active and Default");
+		// Default order = setting -> highest priority -> text
+		let defaultViewType = defaultSetting;
+		if (!defaultViewType && contributionPoints.length > 2 && contributionPoints[1]?.editorInfo.priority !== ContributedEditorPriority.option) {
+			defaultViewType = contributionPoints[1]?.editorInfo.id;
+		}
+		if (!defaultViewType) {
+			defaultViewType = DEFAULT_EDITOR_ASSOCIATION.id;
+		}
 		// Get the matching contribtuions and call resolve whether they're active for the picker
 		contributionPoints.forEach(contribPoint => {
 			const isActive = currentEditor ? contribPoint.editorInfo.describes(currentEditor) : false;
-			const isDefault = contribPoint.editorInfo.id === defaultSetting || (!defaultSetting && priorityToRank(contribPoint.editorInfo.priority) >= priorityToRank(ContributedEditorPriority.builtin));
+			const isDefault = contribPoint.editorInfo.id === defaultViewType;
 			const quickPickEntry: IQuickPickItem = {
 				id: contribPoint.editorInfo.id,
 				label: contribPoint.editorInfo.label,
-				description: isActive ? currentlyActiveLabel : isDefault ? currentDefaultLabel : undefined,
+				description: isActive && isDefault ? currentDefaultAndActiveLabel : isActive ? currentlyActiveLabel : isDefault ? currentDefaultLabel : undefined,
 				detail: contribPoint.editorInfo.detail ?? contribPoint.editorInfo.priority,
 			};
 			quickPickEntries.push(quickPickEntry);
