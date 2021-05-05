@@ -32,7 +32,7 @@ export async function activate(ctx: {
 
 			// Insert styles into markdown preview shadow dom so that they are applied
 			for (const markdownStyleNode of document.getElementsByClassName('markdown-style')) {
-				context.element.appendChild(markdownStyleNode.cloneNode(true));
+				context.element.insertAdjacentElement('beforebegin', markdownStyleNode.cloneNode(true) as Element);
 			}
 		}
 	};

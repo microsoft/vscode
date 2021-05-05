@@ -894,7 +894,10 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 		}
 
 		const previewRoot = previewContainerNode.shadowRoot;
-		const previewNode = previewRoot?.getElementById('preview') as HTMLElement;
+		const previewNode = previewRoot?.getElementById('preview');
+		if (!previewNode) {
+			return;
+		}
 
 		// TODO: handle namespace
 		if (typeof content === 'string') {

@@ -436,11 +436,7 @@ class NotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchC
 	}
 
 	private getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
-		if (workingCopy.typeId.startsWith(NOTEBOOK_WORKING_COPY_TYPE_PREFIX)) {
-			return workingCopy.typeId.substr(NOTEBOOK_WORKING_COPY_TYPE_PREFIX.length);
-		}
-
-		return undefined;
+		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
 	}
 }
 

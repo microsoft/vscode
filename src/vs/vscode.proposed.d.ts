@@ -864,6 +864,8 @@ declare module 'vscode' {
 		onDidChangeName?: Event<string>;
 	}
 
+	//#endregion
+
 	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
 
 	export interface TerminalOptions {
@@ -1607,6 +1609,7 @@ declare module 'vscode' {
 		// todo@API qualify cell, ...NotebookCell...
 		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 
+		// todo@API use viewType instead of NotebookSelector
 		export function registerNotebookCellStatusBarItemProvider(selector: NotebookSelector, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
@@ -1820,11 +1823,6 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/119949, Notebook (deprecated)
-
-	export namespace notebook {
-		/** @deprecated use NotebookController */
-		export function createNotebookCellExecutionTask(uri: Uri, index: number, kernelId: string): NotebookCellExecutionTask | undefined;
-	}
 
 	export interface NotebookFilter {
 		readonly viewType?: string;
@@ -3112,7 +3110,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	// region https://github.com/microsoft/vscode/issues/119904 @eamodio
+	//#region https://github.com/microsoft/vscode/issues/119904 @eamodio
 
 	export interface SourceControlInputBox {
 

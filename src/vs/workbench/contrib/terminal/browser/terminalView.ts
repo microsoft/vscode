@@ -346,6 +346,11 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 				this.updateLabel();
 			}
 		}));
+		this._register(this._terminalService.onInstanceIconChanged(e => {
+			if (e === this._terminalService.getActiveInstance()) {
+				this.updateLabel();
+			}
+		}));
 	}
 
 	override updateLabel(): void {

@@ -647,7 +647,6 @@ export interface WebviewExtensionDescription {
 export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents;
-	readonly description?: string;
 }
 
 export enum WebviewEditorCapabilities {

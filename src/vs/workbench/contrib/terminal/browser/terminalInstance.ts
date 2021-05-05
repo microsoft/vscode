@@ -173,7 +173,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get areLinksReady(): boolean { return this._areLinksReady; }
 	get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	get exitCode(): number | undefined { return this._exitCode; }
-	get title(): string { return this._title; }
+
 	get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
@@ -182,6 +182,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
+	get title(): string { return this._getTitle(); }
 	get icon(): Codicon | undefined { return this._getIcon(); }
 
 	private readonly _onExit = new Emitter<number | undefined>();
@@ -198,6 +199,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get onLinksReady(): Event<ITerminalInstance> { return this._onLinksReady.event; }
 	private readonly _onTitleChanged = new Emitter<ITerminalInstance>();
 	get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
+	private readonly _onIconChanged = new Emitter<ITerminalInstance>();
+	get onIconChanged(): Event<ITerminalInstance> { return this._onIconChanged.event; }
 	private readonly _onData = new Emitter<string>();
 	get onData(): Event<string> { return this._onData.event; }
 	private readonly _onBinary = new Emitter<string>();
@@ -325,6 +328,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon);
 		}
 		return undefined;
+	}
+
+	private _getTitle(): string {
+		if (this.shellLaunchConfig.attachPersistentProcess?.title) {
+			return this.shellLaunchConfig.attachPersistentProcess.title;
+		}
+		return this._title;
 	}
 
 	addDisposable(disposable: IDisposable): void {
@@ -1779,7 +1789,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		if (result) {
 			this.shellLaunchConfig.icon = result.description;
-			this._onTitleChanged.fire(this);
+			this._onIconChanged.fire(this);
 		}
 	}
 
