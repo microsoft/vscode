@@ -110,6 +110,8 @@ export class TerminalService implements ITerminalService {
 	get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance | undefined>();
 	get onInstanceTitleChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceTitleChanged.event; }
+	private readonly _onInstanceIconChanged = new Emitter<ITerminalInstance | undefined>();
+	get onInstanceIconChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceIconChanged.event; }
 	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	private readonly _onInstancePrimaryStatusChanged = new Emitter<ITerminalInstance>();
@@ -300,6 +302,22 @@ export class TerminalService implements ITerminalService {
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
 		this.onInstanceProcessIdReady(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		this.onInstanceTitleChanged(instance => {
+			this._updateTitle(instance);
+			if (isRemote) {
+				this._updateRemoteState();
+			} else {
+				this._updateLocalState();
+			}
+		});
+		this.onInstanceIconChanged(instance => {
+			this._updateIcon(instance);
+			if (isRemote) {
+				this._updateRemoteState();
+			} else {
+				this._updateLocalState();
+			}
+		});
 	}
 
 	private _handleInstanceContextKeys(): void {
@@ -418,6 +436,24 @@ export class TerminalService implements ITerminalService {
 			};
 			this._remoteTerminalService.setTerminalLayoutInfo(state);
 		}
+	}
+
+	@debounce(500)
+	private _updateTitle(instance?: ITerminalInstance): void {
+		if (!instance?.persistentProcessId || !instance?.title) {
+			return;
+		}
+		this._localTerminalService!.updateTitle(instance.persistentProcessId, instance.title);
+		this._updateLocalState();
+	}
+
+	@debounce(500)
+	private _updateIcon(instance?: ITerminalInstance): void {
+		if (!instance?.persistentProcessId || !instance?.icon) {
+			return;
+		}
+		this._localTerminalService!.updateIcon(instance.persistentProcessId, instance.icon.id);
+		this._updateLocalState();
 	}
 
 	@debounce(500)
@@ -630,6 +666,7 @@ export class TerminalService implements ITerminalService {
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
+		instance.addDisposable(instance.onIconChanged(this._onInstanceIconChanged.fire, this._onInstanceIconChanged));
 		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		instance.addDisposable(instance.statusList.onDidChangePrimaryStatus(() => this._onInstancePrimaryStatusChanged.fire(instance)));
 		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));

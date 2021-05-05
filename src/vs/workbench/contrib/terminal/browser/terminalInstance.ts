@@ -198,6 +198,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get onLinksReady(): Event<ITerminalInstance> { return this._onLinksReady.event; }
 	private readonly _onTitleChanged = new Emitter<ITerminalInstance>();
 	get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
+	private readonly _onIconChanged = new Emitter<ITerminalInstance>();
+	get onIconChanged(): Event<ITerminalInstance> { return this._onIconChanged.event; }
 	private readonly _onData = new Emitter<string>();
 	get onData(): Event<string> { return this._onData.event; }
 	private readonly _onBinary = new Emitter<string>();
@@ -1779,7 +1781,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		if (result) {
 			this.shellLaunchConfig.icon = result.description;
-			this._onTitleChanged.fire(this);
+			this._onIconChanged.fire(this);
 		}
 	}
 

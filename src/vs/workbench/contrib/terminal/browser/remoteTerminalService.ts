@@ -189,6 +189,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		});
 	}
 
+	async updateTitle(id: number, title: string): Promise<void> {
+		await this._remoteTerminalChannel?.updateTitle(id, title);
+	}
+
+	async updateIcon(id: number, icon: string): Promise<void> {
+		await this._remoteTerminalChannel?.updateIcon(id, icon);
+	}
+
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
 	}

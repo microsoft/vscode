@@ -114,6 +114,14 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
+	async updateTitle(id: number, title: string): Promise<void> {
+		this._throwIfNoPty(id).setTitle(title);
+	}
+
+	async updateIcon(id: number, icon: string): Promise<void> {
+		this._throwIfNoPty(id).setIcon(icon);
+	}
+
 	async detachFromProcess(id: number): Promise<void> {
 		this._throwIfNoPty(id).detach();
 	}
@@ -290,9 +298,21 @@ export class PersistentTerminalProcess extends Disposable {
 	private _pid = -1;
 	private _cwd = '';
 
+	private _title: string = '';
+
 	get pid(): number { return this._pid; }
-	get title(): string { return this._terminalProcess.currentTitle; }
+	get title(): string {
+		return this._title || this._terminalProcess.currentTitle;
+	}
 	get icon(): string | undefined { return this._icon; }
+
+	setTitle(title: string): void {
+		this._title = title;
+	}
+
+	setIcon(icon: string): void {
+		this._icon = icon;
+	}
 
 	constructor(
 		private _persistentProcessId: number,
@@ -302,7 +322,7 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
 		private readonly _logService: ILogService,
-		private readonly _icon?: string
+		private _icon?: string
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);
