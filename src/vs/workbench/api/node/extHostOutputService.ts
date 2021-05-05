@@ -16,14 +16,13 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
-import { RotatingLogger } from 'spdlog';
+import { Logger } from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 
 class OutputAppender {
+	private appender: Logger;
 
-	private appender: RotatingLogger;
-
-	constructor(name: string, readonly file: string) {
+	constructor(readonly name: string, readonly file: string) {
 		this.appender = createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
 		this.appender.clearFormatters();
 	}
