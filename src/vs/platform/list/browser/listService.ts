@@ -1171,20 +1171,20 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 configurationRegistry.registerConfiguration({
-	'id': 'workbench',
-	'order': 7,
-	'title': localize('workbenchConfigurationTitle', "Workbench"),
-	'type': 'object',
-	'properties': {
+	id: 'workbench',
+	order: 7,
+	title: localize('workbenchConfigurationTitle', "Workbench"),
+	type: 'object',
+	properties: {
 		[multiSelectModifierSettingKey]: {
-			'type': 'string',
-			'enum': ['ctrlCmd', 'alt'],
-			'enumDescriptions': [
+			type: 'string',
+			enum: ['ctrlCmd', 'alt'],
+			enumDescriptions: [
 				localize('multiSelectModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
 				localize('multiSelectModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
-			'default': 'ctrlCmd',
-			'description': localize({
+			default: 'ctrlCmd',
+			description: localize({
 				key: 'multiSelectModifier',
 				comment: [
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
@@ -1193,25 +1193,25 @@ configurationRegistry.registerConfiguration({
 			}, "The modifier to be used to add an item in trees and lists to a multi-selection with the mouse (for example in the explorer, open editors and scm view). The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
 		},
 		[openModeSettingKey]: {
-			'type': 'string',
-			'enum': ['singleClick', 'doubleClick'],
-			'default': 'singleClick',
-			'description': localize({
+			type: 'string',
+			enum: ['singleClick', 'doubleClick'],
+			default: 'singleClick',
+			description: localize({
 				key: 'openModeModifier',
 				comment: ['`singleClick` and `doubleClick` refers to a value the setting can take and should not be localized.']
 			}, "Controls how to open items in trees and lists using the mouse (if supported). Note that some trees and lists might choose to ignore this setting if it is not applicable.")
 		},
 		[horizontalScrollingKey]: {
-			'type': 'boolean',
-			'default': false,
-			'description': localize('horizontalScrolling setting', "Controls whether lists and trees support horizontal scrolling in the workbench. Warning: turning on this setting has a performance implication.")
+			type: 'boolean',
+			default: false,
+			description: localize('horizontalScrolling setting', "Controls whether lists and trees support horizontal scrolling in the workbench. Warning: turning on this setting has a performance implication.")
 		},
 		[treeIndentKey]: {
-			'type': 'number',
-			'default': 8,
+			type: 'number',
+			default: 8,
 			minimum: 0,
 			maximum: 40,
-			'description': localize('tree indent setting', "Controls tree indentation in pixels.")
+			description: localize('tree indent setting', "Controls tree indentation in pixels.")
 		},
 		[treeRenderIndentGuidesKey]: {
 			type: 'string',
@@ -1225,19 +1225,19 @@ configurationRegistry.registerConfiguration({
 			description: localize('list smoothScrolling setting', "Controls whether lists and trees have smooth scrolling."),
 		},
 		[keyboardNavigationSettingKey]: {
-			'type': 'string',
-			'enum': ['simple', 'highlight', 'filter'],
-			'enumDescriptions': [
+			type: 'string',
+			enum: ['simple', 'highlight', 'filter'],
+			enumDescriptions: [
 				localize('keyboardNavigationSettingKey.simple', "Simple keyboard navigation focuses elements which match the keyboard input. Matching is done only on prefixes."),
 				localize('keyboardNavigationSettingKey.highlight', "Highlight keyboard navigation highlights elements which match the keyboard input. Further up and down navigation will traverse only the highlighted elements."),
 				localize('keyboardNavigationSettingKey.filter', "Filter keyboard navigation will filter out and hide all the elements which do not match the keyboard input.")
 			],
-			'default': 'highlight',
-			'description': localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees in the workbench. Can be simple, highlight and filter.")
+			default: 'highlight',
+			description: localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees in the workbench. Can be simple, highlight and filter.")
 		},
 		[automaticKeyboardNavigationSettingKey]: {
-			'type': 'boolean',
-			'default': true,
+			type: 'boolean',
+			default: true,
 			markdownDescription: localize('automatic keyboard navigation setting', "Controls whether keyboard navigation in lists and trees is automatically triggered simply by typing. If set to `false`, keyboard navigation is only triggered when executing the `list.toggleKeyboardNavigation` command, for which you can assign a keyboard shortcut.")
 		},
 		[treeExpandMode]: {
