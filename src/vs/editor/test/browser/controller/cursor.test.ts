@@ -6137,4 +6137,62 @@ suite('Undo stops', () => {
 			assert.strictEqual(model.getValue(), 'hello world\nhello world');
 		});
 	});
+
+	test('there is a single undo stop for consecutive whitespaces', () => {
+		let model = createTextModel(
+			[
+				''
+			].join('\n'),
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.type('a', 'keyboard');
+			viewModel.type('b', 'keyboard');
+			viewModel.type(' ', 'keyboard');
+			viewModel.type(' ', 'keyboard');
+			viewModel.type('c', 'keyboard');
+			viewModel.type('d', 'keyboard');
+
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab  cd', 'assert1');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab  ', 'assert2');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab', 'assert3');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '', 'assert4');
+		});
+	});
+
+	test('there is no undo stop after a single whitespace', () => {
+		let model = createTextModel(
+			[
+				''
+			].join('\n'),
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.type('a', 'keyboard');
+			viewModel.type('b', 'keyboard');
+			viewModel.type(' ', 'keyboard');
+			viewModel.type('c', 'keyboard');
+			viewModel.type('d', 'keyboard');
+
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab cd', 'assert1');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'ab', 'assert3');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), '', 'assert4');
+		});
+	});
 });
