@@ -331,9 +331,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _getTitle(): string {
-		if (this.shellLaunchConfig.name) {
-			return this.shellLaunchConfig.name;
-		} else if (this.shellLaunchConfig.attachPersistentProcess?.title) {
+		if (this.shellLaunchConfig.attachPersistentProcess?.title) {
 			return this.shellLaunchConfig.attachPersistentProcess.title;
 		}
 		return this._title;
