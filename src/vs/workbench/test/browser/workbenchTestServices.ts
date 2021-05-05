@@ -537,6 +537,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
 	setActivityBarHidden(_hidden: boolean): void { }
+	setBannerHidden(_hidden: boolean): void { }
 	isSideBarHidden(): boolean { return false; }
 	async setEditorHidden(_hidden: boolean): Promise<void> { }
 	async setSideBarHidden(_hidden: boolean): Promise<void> { }
