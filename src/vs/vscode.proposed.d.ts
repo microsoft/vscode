@@ -864,6 +864,8 @@ declare module 'vscode' {
 		onDidChangeName?: Event<string>;
 	}
 
+	//#endregion
+
 	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
 
 	export interface TerminalOptions {
@@ -3107,7 +3109,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	// region https://github.com/microsoft/vscode/issues/119904 @eamodio
+	//#region https://github.com/microsoft/vscode/issues/119904 @eamodio
 
 	export interface SourceControlInputBox {
 
