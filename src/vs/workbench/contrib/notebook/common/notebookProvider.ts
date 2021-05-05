@@ -16,11 +16,7 @@ export interface NotebookEditorDescriptor {
 	readonly displayName: string;
 	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
 	readonly priority: ContributedEditorPriority;
-	readonly providerExtensionId?: string;
-	readonly providerDescription?: string;
 	readonly providerDisplayName: string;
-	readonly providerExtensionLocation: URI;
-	readonly dynamicContribution: boolean;
 	readonly exclusive: boolean;
 }
 
@@ -31,11 +27,7 @@ export class NotebookProviderInfo {
 
 	readonly priority: ContributedEditorPriority;
 	// it's optional as the memento might not have it
-	readonly providerExtensionId?: string;
-	readonly providerDescription?: string;
 	readonly providerDisplayName: string;
-	readonly providerExtensionLocation: URI;
-	readonly dynamicContribution: boolean;
 	readonly exclusive: boolean;
 	private _selectors: NotebookSelector[];
 	get selectors() {
@@ -54,11 +46,7 @@ export class NotebookProviderInfo {
 			exclude: selector.excludeFileNamePattern || ''
 		})) || [];
 		this.priority = descriptor.priority;
-		this.providerExtensionId = descriptor.providerExtensionId;
-		this.providerDescription = descriptor.providerDescription;
 		this.providerDisplayName = descriptor.providerDisplayName;
-		this.providerExtensionLocation = descriptor.providerExtensionLocation;
-		this.dynamicContribution = descriptor.dynamicContribution;
 		this.exclusive = descriptor.exclusive;
 		this._options = {
 			transientCellMetadata: {},

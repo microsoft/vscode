@@ -843,4 +843,18 @@ export interface INotebookDecorationRenderOptions {
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
-export const NOTEBOOK_WORKING_COPY_TYPE_PREFIX = 'notebook/';
+export class NotebookWorkingCopyTypeIdentifier {
+
+	private static _prefix = 'notebook/';
+
+	static create(viewType: string): string {
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}/${viewType}`;
+	}
+
+	static parse(candidate: string): string | undefined {
+		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
+			return candidate.substr(NotebookWorkingCopyTypeIdentifier._prefix.length);
+		}
+		return undefined;
+	}
+}

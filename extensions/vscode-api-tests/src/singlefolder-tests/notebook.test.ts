@@ -851,13 +851,13 @@ suite('Notebook API tests', function () {
 		};
 
 		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		const editor = vscode.window.activeNotebookEditor!;
+		const editor = await vscode.window.showNotebookDocument(resource);
 		const cell = editor.document.cellAt(0);
 
 		await assertKernel(interruptableKernel.controller);
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			assert.ok(editor === vscode.window.activeNotebookEditor);
 			await vscode.commands.executeCommand('notebook.cell.execute');
 			await vscode.commands.executeCommand('notebook.cell.cancelExecution');
 			await event;
