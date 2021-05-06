@@ -491,9 +491,11 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 				for (const cell of event.data.cells) {
 					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
 
-					const cellContainer = document.getElementById(cell.cellId);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'hidden';
+					if (!cell.visible) {
+						const cellContainer = document.getElementById(cell.cellId);
+						if (cellContainer) {
+							cellContainer.style.visibility = 'hidden';
+						}
 					}
 				}
 
