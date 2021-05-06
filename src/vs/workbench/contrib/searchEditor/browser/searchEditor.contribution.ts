@@ -30,11 +30,9 @@ import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browse
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -72,43 +70,30 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 class SearchEditorContribution implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
 
-		this.editorService.overrideOpenEditor({
-			getEditorOverrides: (resource: URI) => {
-				return extname(resource) === SEARCH_EDITOR_EXT ? [{
-					id: SearchEditorInput.ID,
-					label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
-					detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-					active: isEqual(this.editorService.activeEditor?.resource, resource) && this.editorService.activeEditor instanceof SearchEditorInput
-				}] : [];
+		this.editorOverrideService.registerContributionPoint(
+			'*' + SEARCH_EDITOR_EXT,
+			{
+				id: SearchEditorInput.ID,
+				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
+				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+				describes: (editor) => isEqual(this.editorService.activeEditor?.resource, editor.resource) && this.editorService.activeEditor instanceof SearchEditorInput,
+				priority: ContributedEditorPriority.exclusive,
 			},
-			open: (editor, options, group) => {
-				const resource = editor.resource;
-				if (!resource) { return undefined; }
-
-				if (extname(resource) !== SEARCH_EDITOR_EXT) {
-					return undefined;
-				}
-
-				if (editor instanceof SearchEditorInput && group.contains(editor)) {
-					return undefined;
-				}
-
-				this.telemetryService.publicLog2('searchEditor/openSavedSearchEditor');
-
-				return {
-					override: (async () => {
-						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
-						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-						return editorService.openEditor(input, { ...options, override: EditorOverride.DISABLED }, group);
-					})()
-				};
+			{
+				singlePerResource: true,
+				canHandleDiff: false,
+				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
+			},
+			(resource, options, group) => {
+				return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
 			}
-		});
+		);
 	}
 }
 
@@ -122,21 +107,20 @@ type SerializedSearchEditor = { modelUri: string | undefined, dirty: boolean, co
 class SearchEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(input: SearchEditorInput) {
-		return !!input.config;
+		return !!input.tryReadConfigSync();
 	}
 
 	serialize(input: SearchEditorInput) {
 		if (input.isDisposed()) {
-			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.config, name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } as SerializedSearchEditor);
+			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.tryReadConfigSync(), name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } as SerializedSearchEditor);
 		}
 
 		let modelUri = undefined;
-		if (input.modelUri.path || input.modelUri.fragment) {
+		if (input.modelUri.path || input.modelUri.fragment && input.isDirty()) {
 			modelUri = input.modelUri.toString();
 		}
-		if (!modelUri) { return undefined; }
 
-		const config = input.config;
+		const config = input.tryReadConfigSync();
 		const dirty = input.isDirty();
 		const matchRanges = input.getMatchRanges();
 		const backingUri = input.backingUri;
@@ -149,17 +133,17 @@ class SearchEditorInputSerializer implements IEditorInputSerializer {
 		if (config && (config.query !== undefined)) {
 			if (modelUri) {
 				const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput,
-					{ config, modelUri: URI.parse(modelUri), backingUri: backingUri ? URI.parse(backingUri) : undefined });
+					{ from: 'model', modelUri: URI.parse(modelUri), config, backupOf: backingUri ? URI.parse(backingUri) : undefined });
 				input.setDirty(dirty);
 				input.setMatchRanges(matchRanges);
 				return input;
 			} else {
 				if (backingUri) {
 					return instantiationService.invokeFunction(getOrMakeSearchEditorInput,
-						{ config, backingUri: URI.parse(backingUri) });
+						{ from: 'existingFile', fileUri: URI.parse(backingUri) });
 				} else {
 					return instantiationService.invokeFunction(getOrMakeSearchEditorInput,
-						{ config, text: '' });
+						{ from: 'rawData', resultsContents: '', config });
 				}
 			}
 		}
@@ -562,7 +546,7 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 				return editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri);
 			},
 			createEditor: workingCopy => {
-				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { modelUri: workingCopy.resource, config: {} });
+				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
 				input.setDirty(true);
 
 				return input;

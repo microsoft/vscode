@@ -533,8 +533,8 @@ export class SearchEditor extends BaseTextEditor {
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
 		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.filesToInclude, config.filesToExclude, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
-		const { body } = await input.getModels();
-		this.modelService.updateModel(body, results.text);
+		const { resultsModel, configurationModel } = await input.getModels();
+		this.modelService.updateModel(resultsModel, results.text);
 
 		let warningMessage = '';
 
@@ -560,7 +560,7 @@ export class SearchEditor extends BaseTextEditor {
 			});
 		}
 
-		input.config = config;
+		configurationModel.updateConfig(config);
 
 		input.setDirty(!input.isUntitled());
 		input.setMatchRanges(results.matchRanges);
@@ -642,15 +642,15 @@ export class SearchEditor extends BaseTextEditor {
 		await super.setInput(newInput, options, context, token);
 		if (token.isCancellationRequested) { return; }
 
-		const { body, config } = await newInput.getModels();
+		const { configurationModel, resultsModel } = await newInput.getModels();
 		if (token.isCancellationRequested) { return; }
 
-		this.searchResultEditor.setModel(body);
+		this.searchResultEditor.setModel(resultsModel);
 		this.pauseSearching = true;
 
-		this.toggleRunAgainMessage(body.getLineCount() === 1 && body.getValue() === '' && config.query !== '');
+		this.toggleRunAgainMessage(resultsModel.getLineCount() === 1 && resultsModel.getValue() === '' && configurationModel.config.query !== '');
 
-		this.setSearchConfig(config);
+		this.setSearchConfig(configurationModel.config);
 
 		this.restoreViewState();
 
