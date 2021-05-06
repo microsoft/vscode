@@ -57,6 +57,11 @@
 		const configuration = await preloadGlobals.context.resolveConfiguration();
 		performance.mark('code/didWaitForWindowConfig');
 
+		// Signal DOM modifications are now OK
+		if (typeof options?.canModifyDOM === 'function') {
+			options.canModifyDOM(configuration);
+		}
+
 		// Developer settings
 		const {
 			forceDisableShowDevtoolsOnError,
@@ -78,11 +83,6 @@
 
 		// Enable ASAR support
 		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
-
-		// Signal DOM modifications are now OK
-		if (typeof options?.canModifyDOM === 'function') {
-			options.canModifyDOM(configuration);
-		}
 
 		// Get the nls configuration into the process.env as early as possible
 		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();

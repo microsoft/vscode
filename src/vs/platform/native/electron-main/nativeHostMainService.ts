@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme, screen, Display } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme, IPartsSplash } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { isMacintosh, isWindows, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
@@ -28,6 +28,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -50,7 +51,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) {
 		super();
 
@@ -245,6 +247,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				window.win.setSize(newWindowWidth, newWindowHeight);
 			}
 		}
+	}
+
+	async saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): Promise<void> {
+		this.themeMainService.saveWindowSplash(windowId, splash);
 	}
 
 	//#endregion
