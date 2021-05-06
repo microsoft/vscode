@@ -47,6 +47,10 @@ const terminalProfileSchema: IJSONSchema = {
 	}
 };
 
+const shellDeprecationMessageLinux = localize('terminal.integrated.shell.linux.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`');
+const shellDeprecationMessageOsx = localize('terminal.integrated.shell.osx.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`');
+const shellDeprecationMessageWindows = localize('terminal.integrated.shell.windows.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.windows#`', '`#terminal.integrated.defaultProfile.windows#`');
+
 export const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
 	order: 100,
@@ -90,21 +94,21 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: ['string', 'null'],
 			default: null,
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
+			markdownDeprecationMessage: shellDeprecationMessageLinux
 		},
 		[TerminalSettingId.ShellMacOs]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: ['string', 'null'],
 			default: null,
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
+			markdownDeprecationMessage: shellDeprecationMessageOsx
 		},
 		[TerminalSettingId.ShellWindows]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: ['string', 'null'],
 			default: null,
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
+			markdownDeprecationMessage: shellDeprecationMessageWindows
 		},
 		[TerminalSettingId.ShellArgsLinux]: {
 			restricted: true,
@@ -114,7 +118,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				type: 'string'
 			},
 			default: [],
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
+			markdownDeprecationMessage: shellDeprecationMessageLinux
 		},
 		[TerminalSettingId.ShellArgsMacOs]: {
 			restricted: true,
@@ -127,7 +131,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			// is the reason terminals on macOS typically run login shells by default which set up
 			// the environment. See http://unix.stackexchange.com/a/119675/115410
 			default: ['-l'],
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
+			markdownDeprecationMessage: shellDeprecationMessageOsx
 		},
 		[TerminalSettingId.ShellArgsWindows]: {
 			restricted: true,
@@ -146,7 +150,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			],
 			default: [],
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
+			markdownDeprecationMessage: shellDeprecationMessageWindows
 		},
 		[TerminalSettingId.ProfilesWindows]: {
 			restricted: true,
@@ -282,19 +286,19 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		[TerminalSettingId.DefaultProfileLinux]: {
-			description: localize('terminal.integrated.defaultProfile.linux', 'The default profile used on Linux. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			markdownDescription: localize('terminal.integrated.defaultProfile.linux', "The default profile used on Linux. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.linux#`', '`#terminal.integrated.shellArgs.linux#`'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
 		},
 		[TerminalSettingId.DefaultProfileMacOs]: {
-			description: localize('terminal.integrated.defaultProfile.osx', 'The default profile used on macOS. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			description: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
 		},
 		[TerminalSettingId.DefaultProfileWindows]: {
-			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.windows` and `terminal.integrated.shellArgs.windows`.'),
+			description: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
