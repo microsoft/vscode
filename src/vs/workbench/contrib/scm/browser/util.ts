@@ -44,7 +44,7 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, primaryGroup);
+		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, primaryGroup ? group => group === primaryGroup : undefined);
 
 		if (equals(cachedPrimary, primary, compareActions) && equals(cachedSecondary, secondary, compareActions)) {
 			disposable.dispose();

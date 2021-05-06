@@ -18,7 +18,7 @@
 	margin-top: 4px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item {
+.monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item©383 {
 	width: 24px;
 	height: 22px;
 	display: flex;
@@ -380,7 +380,7 @@
 	display: none;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item.menu-entry {
 	width: 24px;
 	height: 24px;
 	display: flex;

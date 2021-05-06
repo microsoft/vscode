@@ -549,7 +549,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		this.callStackItemStopped.set(session.state === State.Stopped);
 		this.sessionHasOneThread.set(session.getAllThreads().length === 1);
 		this.callStackSessionIsAttach.set(isSessionAttach(session));
-		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline'));
+		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, group => group === 'inline'));
 
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
@@ -609,7 +609,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		this.callStackItemStopped.set(thread.stopped);
 		const primary: IAction[] = [];
 		const result = { primary, secondary: [] };
-		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, 'inline'));
+		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, group => group === 'inline'));
 		data.actionBar.push(primary, { icon: true, label: false });
 	}
 

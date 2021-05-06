@@ -26,7 +26,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -48,7 +48,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CodiconActionViewItem, createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
+import { CodiconActionViewItem } from './cellActionView';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { syncing } from 'vs/platform/theme/common/iconRegistry';
@@ -125,7 +125,7 @@ abstract class AbstractCellRenderer {
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(menu, false);
+			const actions = this.getCellToolbarActions(menu);
 			toolbar.setActions(actions.primary, actions.secondary);
 		};
 
@@ -152,9 +152,6 @@ abstract class AbstractCellRenderer {
 		const toolbar = new ToolBar(container, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
-				if (action.id === VerticalSeparator.ID) {
-					return new VerticalSeparatorViewItem(undefined, action);
-				}
 				return createActionViewItem(this.instantiationService, action);
 			},
 			renderDropdownAsChildElement: true
@@ -167,19 +164,19 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	protected getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[] } {
+	protected getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, alwaysFillSecondaryActions, g => /^inline/.test(g));
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		return result;
 	}
 
 	protected setupCellToolbarActions(templateData: BaseCellRenderTemplate, disposables: DisposableStore): void {
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(templateData.titleMenu, true);
+			const actions = this.getCellToolbarActions(templateData.titleMenu);
 
 			const hadFocus = DOM.isAncestor(document.activeElement, templateData.toolbar.getElement());
 			templateData.toolbar.setActions(actions.primary, actions.secondary);
@@ -828,7 +825,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const runToolbar = this.createToolbar(runButtonContainer);
 		const runMenu = this.cellMenus.getCellExecuteMenu(contextKeyService);
 		const update = () => {
-			const actions = this.getCellToolbarActions(runMenu, false);
+			const actions = this.getCellToolbarActions(runMenu);
 			runToolbar.setActions(actions.primary, actions.secondary);
 		};
 		disposables.add(runMenu);
@@ -1201,7 +1198,7 @@ export class ListTopCellToolbar extends Disposable {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, alwaysFillSecondaryActions, g => /^inline/.test(g));
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		return result;
 	}
