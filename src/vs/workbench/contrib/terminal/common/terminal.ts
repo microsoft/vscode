@@ -474,7 +474,8 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration'
+	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration',
+	InheritEnv = 'terminal.integrated.inheritEnv'
 }
 
 export const enum TerminalCommandId {
