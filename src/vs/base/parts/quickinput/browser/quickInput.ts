@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/quickInput';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS, ItemActivation, QuickInputHideReason, IQuickInputHideEvent } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickDidAcceptEvent, NO_KEY_MODS, ItemActivation, QuickInputHideReason, IQuickInputHideEvent, IQuickPickWillAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
@@ -29,7 +29,6 @@ import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
 import { registerCodicon, Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { escape } from 'vs/base/common/strings';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { isString } from 'vs/base/common/types';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -359,7 +358,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		const validationMessage = this.validationMessage || this.noValidationMessage;
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
-			dom.reset(this.ui.message, ...renderLabelWithIcons(escape(validationMessage)));
+			dom.reset(this.ui.message, ...renderLabelWithIcons(validationMessage));
 		}
 		if (this._lastSeverity !== this.severity) {
 			this._lastSeverity = this.severity;
@@ -428,7 +427,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _ariaLabel: string | undefined;
 	private _placeholder: string | undefined;
 	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
-	private readonly onDidAcceptEmitter = this._register(new Emitter<IQuickPickAcceptEvent>());
+	private readonly onWillAcceptEmitter = this._register(new Emitter<IQuickPickWillAcceptEvent>());
+	private readonly onDidAcceptEmitter = this._register(new Emitter<IQuickPickDidAcceptEvent>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
 	private _items: Array<T | IQuickPickSeparator> = [];
 	private itemsUpdated = false;
@@ -473,8 +473,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	set value(value: string) {
-		this._value = value || '';
-		this.update();
+		if (this._value !== value) {
+			this._value = value || '';
+			this.update();
+			this.onDidChangeValueEmitter.fire(this._value);
+		}
 	}
 
 	filterValue = (value: string) => value;
@@ -499,6 +502,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	onDidChangeValue = this.onDidChangeValueEmitter.event;
 
+	onWillAccept = this.onWillAcceptEmitter.event;
 	onDidAccept = this.onDidAcceptEmitter.event;
 
 	onDidCustom = this.onDidCustomEmitter.event;
@@ -761,7 +765,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						if (this.activeItems[0]) {
 							this._selectedItems = [this.activeItems[0]];
 							this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-							this.onDidAcceptEmitter.fire({ inBackground: true });
+							this.handleAccept(true);
 						}
 
 						break;
@@ -784,7 +788,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					this._selectedItems = [this.activeItems[0]];
 					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
 				}
-				this.onDidAcceptEmitter.fire({ inBackground: false });
+				this.handleAccept(false);
 			}));
 			this.visibleDisposables.add(this.ui.onDidCustom(() => {
 				this.onDidCustomEmitter.fire();
@@ -812,7 +816,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this._selectedItems = selectedItems as T[];
 				this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
 				if (selectedItems.length) {
-					this.onDidAcceptEmitter.fire({ inBackground: event instanceof MouseEvent && event.button === 1 /* mouse middle click */ });
+					this.handleAccept(event instanceof MouseEvent && event.button === 1 /* mouse middle click */);
 				}
 			}));
 			this.visibleDisposables.add(this.ui.list.onChangedCheckedElements(checkedItems => {
@@ -830,6 +834,18 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.valueSelectionUpdated = true;
 		}
 		super.show(); // TODO: Why have show() bubble up while update() trickles down? (Could move setComboboxAccessibility() here.)
+	}
+
+	private handleAccept(inBackground: boolean): void {
+
+		// Figure out veto via `onWillAccept` event
+		let veto = false;
+		this.onWillAcceptEmitter.fire({ veto: () => veto = true });
+
+		// Continue with `onDidAccpet` if no veto
+		if (!veto) {
+			this.onDidAcceptEmitter.fire({ inBackground });
+		}
 	}
 
 	private registerQuickNavigation() {
@@ -876,7 +892,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				if (this.activeItems[0]) {
 					this._selectedItems = [this.activeItems[0]];
 					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-					this.onDidAcceptEmitter.fire({ inBackground: false });
+					this.handleAccept(false);
 				}
 				// Unset quick navigate after press. It is only valid once
 				// and should not result in any behaviour change afterwards

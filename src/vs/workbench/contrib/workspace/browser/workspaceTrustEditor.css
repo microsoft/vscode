@@ -6,13 +6,13 @@
 .monaco-icon-label.file-icon.workspacetrusteditor-name-file-icon.ext-file-icon.tab-label::before {
 	font-family: 'codicon';
 	content: '\eb53';
+	background-image: none;
+	font-size: 150%;
 }
 
 .workspace-trust-editor {
 	max-width: 1000px;
 	padding-top: 11px;
-	padding-left: 15px;
-	padding-right: 15px;
 	margin: auto;
 	height: calc(100% - 11px);
 }
@@ -74,6 +74,7 @@
 	user-select: text;
 	display: flex;
 	flex-direction: row;
+	flex-flow: wrap;
 	justify-content: space-evenly;
 }
 
@@ -179,26 +180,23 @@
 	padding: 5px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	margin: 4px 5px; /* allows button focus outline to be visible */
 	outline-offset: 2px !important;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown {
-	padding: 0 2px;
-}
-
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown .monaco-button {
-	margin-left: 1px;
-	margin-right: 1px;
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons > .monaco-button,
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons > .monaco-button-dropdown {
+	margin: 4px 5px; /* allows button focus outline to be visible */
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown .monaco-dropdown-button {
-	padding: 5px 0px;
+	padding: 5px;
 }
 
 .workspace-trust-limitations {
 	width: 50%;
 	max-width: 350px;
+	min-width: 250px;
+	flex: 1;
 }
 
 /** Settings */

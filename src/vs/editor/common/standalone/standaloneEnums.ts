@@ -289,7 +289,7 @@ export enum EditorOption {
 	wrappingIndent = 119,
 	wrappingStrategy = 120,
 	showDeprecated = 121,
-	inlineHints = 122,
+	inlayHints = 122,
 	editorClassName = 123,
 	pixelRatio = 124,
 	tabFocusMode = 125,
@@ -353,7 +353,7 @@ export enum IndentAction {
 	Outdent = 3
 }
 
-export enum InlineHintKind {
+export enum InlayHintKind {
 	Other = 0,
 	Type = 1,
 	Parameter = 2

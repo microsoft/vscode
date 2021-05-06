@@ -224,7 +224,10 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			} catch (backupError) {
 				error = backupError;
 			}
-		}, localize('backupBeforeShutdown', "Waiting for dirty editors to backup..."));
+		},
+			localize('backupBeforeShutdownMessage', "Backing up dirty editors is taking longer than expected..."),
+			localize('backupBeforeShutdownDetail', "Click 'Cancel' to stop waiting and to save or revert dirty editors.")
+		);
 
 		return { backups, error };
 	}
@@ -293,7 +296,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			if (result !== false) {
 				await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 			}
-		}, localize('saveBeforeShutdown', "Waiting for dirty editors to save..."));
+		}, localize('saveBeforeShutdown', "Saving dirty editors is taking longer than expected..."));
 	}
 
 	private doRevertAllBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[]): Promise<void> {
@@ -310,17 +313,18 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			// If we still have dirty working copies, revert those directly
 			// unless the revert operation was not successful (e.g. cancelled)
 			await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
-		}, localize('revertBeforeShutdown', "Waiting for dirty editors to revert..."));
+		}, localize('revertBeforeShutdown', "Reverting dirty editors is taking longer than expected..."));
 	}
 
-	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string): Promise<void> {
+	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		return this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			cancellable: true, // for issues such as https://github.com/microsoft/vscode/issues/112278
-			delay: 800, // delay notification so that it only appears when operation takes a long time
-			title
+			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
+			cancellable: true, 					// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
+			delay: 800, 						// delay notification so that it only appears when operation takes a long time
+			title,
+			detail
 		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));
 	}
 

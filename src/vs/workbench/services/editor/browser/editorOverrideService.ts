@@ -17,7 +17,6 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ContributedEditorInfo, ContributedEditorPriority, ContributionPointOptions, DEFAULT_EDITOR_ASSOCIATION, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorOverrideService, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -41,6 +40,7 @@ type ContributionPoints = Array<ContributionPoint>;
 export class EditorOverrideService extends Disposable implements IEditorOverrideService {
 	readonly _serviceBrand: undefined;
 
+	private static readonly configureDefaultID = 'promptOpenWith.configureDefault';
 	private _contributionPoints: Map<string | glob.IRelativePattern, ContributionPoints> = new Map<string | glob.IRelativePattern, ContributionPoints>();
 	private static readonly overrideCacheStorageID = 'editorOverrideService.cache';
 	private cache: Set<string> | undefined;
@@ -226,8 +226,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want built-in+ if no user defined setting is found, else we won't override
 		const possibleContributionPoints = contributionPoints.filter(contribPoint => priorityToRank(contribPoint.editorInfo.priority) >= priorityToRank(ContributedEditorPriority.builtin) && contribPoint.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
-		// If the user has a setting we use that, else choose the highest priority editor that is built-in+
-		const selectedViewType = associationsFromSetting[0]?.viewType || possibleContributionPoints[0]?.editorInfo.id;
+		// If the contribution is exclusive we use that, else use the user setting, else use the built-in+ contribution
+		const selectedViewType = possibleContributionPoints[0]?.editorInfo.priority === ContributedEditorPriority.exclusive ?
+			possibleContributionPoints[0]?.editorInfo.id :
+			associationsFromSetting[0]?.viewType || possibleContributionPoints[0]?.editorInfo.id;
 
 		let conflictingDefault = false;
 		if (associationsFromSetting.length === 0 && possibleContributionPoints.length > 1) {
@@ -367,11 +369,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		});
 	}
 
-	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup, alwaysUpdateSetting?: boolean) {
+	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup, showDefaultPicker?: boolean) {
 		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all contribution points
 		let contributionPoints = resource.scheme === Schemas.untitled ? distinct(flatten(Array.from(this._contributionPoints.values())), (contrib) => contrib.editorInfo.id) : this.findMatchingContributions(resource);
-
+		const defaultSetting = this.getAssociationsForResource(resource)[0]?.viewType;
 		// Not the most efficient way to do this, but we want to ensure the text editor is at the top of the quickpick
 		contributionPoints = contributionPoints.sort((a, b) => {
 			if (a.editorInfo.id === DEFAULT_EDITOR_ASSOCIATION.id) {
@@ -382,37 +384,43 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				return priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority);
 			}
 		});
-		const contribGroups: { defaults: Array<IQuickPickSeparator | IQuickPickItem>, optional: Array<IQuickPickSeparator | IQuickPickItem> } = {
-			defaults: [
-				{ type: 'separator', label: localize('editorOverride.picker.default', 'Defaults') }
-			],
-			optional: [
-				{ type: 'separator', label: localize('editorOverride.picker.optional', 'Optional') }
-			],
-		};
+		const quickPickEntries: Array<IQuickPickItem | IQuickPickSeparator> = [];
+		const currentlyActiveLabel = localize('promptOpenWith.currentlyActive', "Active");
+		const currentDefaultLabel = localize('promptOpenWith.currentDefault', "Default");
+		const currentDefaultAndActiveLabel = localize('promptOpenWith.currentDefaultAndActive', "Active and Default");
+		// Default order = setting -> highest priority -> text
+		let defaultViewType = defaultSetting;
+		if (!defaultViewType && contributionPoints.length > 2 && contributionPoints[1]?.editorInfo.priority !== ContributedEditorPriority.option) {
+			defaultViewType = contributionPoints[1]?.editorInfo.id;
+		}
+		if (!defaultViewType) {
+			defaultViewType = DEFAULT_EDITOR_ASSOCIATION.id;
+		}
 		// Get the matching contribtuions and call resolve whether they're active for the picker
 		contributionPoints.forEach(contribPoint => {
 			const isActive = currentEditor ? contribPoint.editorInfo.describes(currentEditor) : false;
-			const quickPickEntry = {
+			const isDefault = contribPoint.editorInfo.id === defaultViewType;
+			const quickPickEntry: IQuickPickItem = {
 				id: contribPoint.editorInfo.id,
 				label: contribPoint.editorInfo.label,
-				description: isActive ? localize('promptOpenWith.currentlyActive', "Currently Active") : undefined,
+				description: isActive && isDefault ? currentDefaultAndActiveLabel : isActive ? currentlyActiveLabel : isDefault ? currentDefaultLabel : undefined,
 				detail: contribPoint.editorInfo.detail ?? contribPoint.editorInfo.priority,
-				buttons: alwaysUpdateSetting ? [] : [{
-					iconClass: Codicon.gear.classNames,
-					tooltip: localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", extname(resource))
-				}],
 			};
-			if (contribPoint.editorInfo.priority === ContributedEditorPriority.option) {
-				contribGroups.optional.push(quickPickEntry);
-			} else {
-				contribGroups.defaults.push(quickPickEntry);
-			}
+			quickPickEntries.push(quickPickEntry);
 		});
-		return [...contribGroups.defaults, ...contribGroups.optional];
+		if (!showDefaultPicker) {
+			const separator: IQuickPickSeparator = { type: 'separator' };
+			quickPickEntries.push(separator);
+			const configureDefaultEntry = {
+				id: EditorOverrideService.configureDefaultID,
+				label: localize('promptOpenWith.configureDefault', "Configure default editor....")
+			};
+			quickPickEntries.push(configureDefaultEntry);
+		}
+		return quickPickEntries;
 	}
 
-	private async doPickEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup, alwaysUpdateSetting?: boolean): Promise<[IEditorOptions, IEditorGroup | undefined] | undefined> {
+	private async doPickEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup, showDefaultPicker?: boolean): Promise<[IEditorOptions, IEditorGroup | undefined] | undefined> {
 
 		type EditorOverridePick = {
 			readonly item: IQuickPickItem;
@@ -427,11 +435,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// Text editor has the lowest priority because we
-		const editorOverridePicks = this.mapContributionsToQuickPickEntry(resource, group, alwaysUpdateSetting);
+		const editorOverridePicks = this.mapContributionsToQuickPickEntry(resource, group, showDefaultPicker);
 
 		// Create editor override picker
 		const editorOverridePicker = this.quickInputService.createQuickPick<IQuickPickItem>();
-		const placeHolderMessage = alwaysUpdateSetting ?
+		const placeHolderMessage = showDefaultPicker ?
 			localize('prompOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", basename(resource)) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
 		editorOverridePicker.placeholder = placeHolderMessage;
@@ -456,7 +464,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				}
 
 				// If asked to always update the setting then update it even if the gear isn't clicked
-				if (alwaysUpdateSetting && result?.item.id) {
+				if (showDefaultPicker && result?.item.id) {
 					this.updateUserAssociations(`*${extname(resource)}`, result.item.id,);
 				}
 
@@ -484,6 +492,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// used (e.g. modifier keys, open in background) and create the
 		// options and group to use accordingly
 		if (picked) {
+
+			// If the user selected to configure default we trigger this picker again and tell it to show the default picker
+			if (picked.item.id === EditorOverrideService.configureDefaultID) {
+				return this.doPickEditorOverride(editor, options, group, true);
+			}
 
 			// Figure out target group
 			let targetGroup: IEditorGroup | undefined;

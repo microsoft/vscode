@@ -21,7 +21,7 @@
     "jsonc-parser": "2.2.1"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "contributes": {
     "semanticTokenTypes": [

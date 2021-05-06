@@ -26,7 +26,6 @@ export interface ICompleteTerminalConfiguration {
 	'terminal.integrated.env.windows': ISingleTerminalConfiguration<ITerminalEnvironment>;
 	'terminal.integrated.env.osx': ISingleTerminalConfiguration<ITerminalEnvironment>;
 	'terminal.integrated.env.linux': ISingleTerminalConfiguration<ITerminalEnvironment>;
-	'terminal.integrated.inheritEnv': boolean;
 	'terminal.integrated.cwd': string;
 	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
 }

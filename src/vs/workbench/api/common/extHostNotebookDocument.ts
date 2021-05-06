@@ -218,6 +218,7 @@ export class ExtHostNotebookDocument {
 	}
 
 	private _validateIndex(index: number): number {
+		index = index | 0;
 		if (index < 0) {
 			return 0;
 		} else if (index >= this._cells.length) {
@@ -228,13 +229,15 @@ export class ExtHostNotebookDocument {
 	}
 
 	private _validateRange(range: vscode.NotebookRange): vscode.NotebookRange {
-		if (range.start < 0) {
-			range = range.with({ start: 0 });
+		let start = range.start | 0;
+		let end = range.end | 0;
+		if (start < 0) {
+			start = 0;
 		}
-		if (range.end > this._cells.length) {
-			range = range.with({ end: this._cells.length });
+		if (end > this._cells.length) {
+			end = this._cells.length;
 		}
-		return range;
+		return range.with({ start, end });
 	}
 
 	private _getCells(range: vscode.NotebookRange): ExtHostCell[] {

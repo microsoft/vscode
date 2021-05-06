@@ -289,7 +289,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean; }): Promise<void>;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean, canDragAndDrop: boolean; }): Promise<void>;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem; }): Promise<void>;
 	$reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
@@ -398,8 +398,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
 	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
-	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
-	$emitInlineHintsEvent(eventHandle: number, event?: any): void;
+	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
+	$emitInlayHintsEvent(eventHandle: number, event?: any): void;
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
@@ -647,7 +647,6 @@ export interface WebviewExtensionDescription {
 export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents;
-	readonly description?: string;
 }
 
 export enum WebviewEditorCapabilities {
@@ -708,7 +707,7 @@ export interface WebviewMessageArrayBufferReference {
 export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewHandle, value: string): void;
 	$setOptions(handle: WebviewHandle, options: IWebviewOptions): void;
-	$postMessage(handle: WebviewHandle, value: any, ...buffers: VSBuffer[]): Promise<boolean>
+	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>
 }
 
 export interface MainThreadWebviewPanelsShape extends IDisposable {
@@ -1229,6 +1228,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]>;
+	$setParent(treeViewId: string, treeItemHandle: string[], newParentTreeItemHandle: string): Promise<void>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
@@ -1443,17 +1443,16 @@ export interface ISignatureHelpContextDto {
 	readonly activeSignatureHelp?: ISignatureHelpDto;
 }
 
-export interface IInlineHintDto {
+export interface IInlayHintDto {
 	text: string;
-	range: IRange;
-	kind: modes.InlineHintKind;
+	position: IPosition;
+	kind: modes.InlayHintKind;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
-	hoverMessage?: string;
 }
 
-export interface IInlineHintsDto {
-	hints: IInlineHintDto[]
+export interface IInlayHintsDto {
+	hints: IInlayHintDto[]
 }
 
 export interface ILocationDto {
@@ -1648,7 +1647,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
-	$provideInlineHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlineHintsDto | undefined>
+	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlayHintsDto | undefined>
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<ILinksListDto | undefined>;
 	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ILinkDto | undefined>;
 	$releaseDocumentLinks(handle: number, id: number): void;
@@ -1718,7 +1717,6 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
 	$getAvailableProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]>;
-	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
@@ -1956,7 +1954,7 @@ export interface ExtHostNotebookKernelsShape {
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void;
 	$executeCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
 	$cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
-	$acceptRendererMessage(handle: number, editorId: string, message: any): void;
+	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 }
 
 export interface ExtHostStorageShape {

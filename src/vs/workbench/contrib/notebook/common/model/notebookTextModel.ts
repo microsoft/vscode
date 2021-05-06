@@ -288,9 +288,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
-			const dirtyStateListener = mainCells[i].onDidChangeContent(() => {
-				this._increaseVersionIdForCellContentChange();
-				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
+			const dirtyStateListener = mainCells[i].onDidChangeContent((e) => {
+				this._bindCellContentHandler(mainCells[i], e);
 			});
 
 			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
@@ -298,6 +297,15 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._cells.splice(0, 0, ...mainCells);
 		this._alternativeVersionId = this._generateAlternativeId();
+	}
+
+	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language') {
+		this._increaseVersionId(e === 'content');
+		if (e === 'content') {
+			this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
+		} else {
+			this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._getCellIndexByHandle(cell.handle), language: cell.language, transient: false }, true);
+		}
 	}
 
 	private _generateAlternativeId() {
@@ -517,9 +525,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					cell.textModel.setValue(cellDto.source);
 				}
 			}
-			const dirtyStateListener = cell.onDidChangeContent(() => {
-				this._increaseVersionIdForCellContentChange();
-				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
+			const dirtyStateListener = cell.onDidChangeContent((e) => {
+				this._bindCellContentHandler(cell, e);
 			});
 			this._cellListeners.set(cell.handle, dirtyStateListener);
 			return cell;
@@ -553,11 +560,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			changes: diffs,
 			transient: false
 		}, synchronous);
-	}
-
-	private _increaseVersionIdForCellContentChange(): void {
-		this._versionId = this._versionId + 1;
-		this._alternativeVersionId = this._generateAlternativeId();
 	}
 
 	private _increaseVersionId(undoStackEmpty: boolean): void {
@@ -613,9 +615,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | undefined): void {
 		for (let i = 0; i < cells.length; i++) {
-			const dirtyStateListener = cells[i].onDidChangeContent(() => {
-				this._increaseVersionIdForCellContentChange();
-				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
+			const dirtyStateListener = cells[i].onDidChangeContent((e) => {
+				this._bindCellContentHandler(cells[i], e);
 			});
 
 			this._cellListeners.set(cells[i].handle, dirtyStateListener);
@@ -654,9 +655,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		for (let i = 0; i < cells.length; i++) {
-			const dirtyStateListener = cells[i].onDidChangeContent(() => {
-				this._increaseVersionIdForCellContentChange();
-				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
+			const dirtyStateListener = cells[i].onDidChangeContent((e) => {
+				this._bindCellContentHandler(cells[i], e);
 			});
 
 			this._cellListeners.set(cells[i].handle, dirtyStateListener);

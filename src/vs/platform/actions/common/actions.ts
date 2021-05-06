@@ -157,12 +157,12 @@ export class MenuId {
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly PanelTitle = new MenuId('PanelTitle');
-	static readonly TerminalContainerContext = new MenuId('TerminalContainerContext');
-	static readonly TerminalToolbarContext = new MenuId('TerminalToolbarContext');
-	static readonly TerminalTabsWidgetContext = new MenuId('TerminalTabsWidgetContext');
-	static readonly TerminalTabsWidgetEmptyContext = new MenuId('TerminalTabsWidgetEmptyContext');
-	static readonly TerminalSingleTabContext = new MenuId('TerminalSingleTabContext');
-	static readonly TerminalTabInlineActions = new MenuId('TerminalTabInlineActions');
+	static readonly TerminalInstanceContext = new MenuId('TerminalInstanceContext');
+	static readonly TerminalNewDropdownContext = new MenuId('TerminalNewDropdownContext');
+	static readonly TerminalTabContext = new MenuId('TerminalTabContext');
+	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
+	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
+	static readonly WebviewContext = new MenuId('WebviewContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -327,7 +327,7 @@ export class ExecuteCommandAction extends Action {
 		super(id, label);
 	}
 
-	override run(...args: any[]): Promise<any> {
+	override run(...args: any[]): Promise<void> {
 		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
@@ -418,7 +418,7 @@ export class MenuItemAction implements IAction {
 		// to bridge into the rendering world.
 	}
 
-	run(...args: any[]): Promise<any> {
+	run(...args: any[]): Promise<void> {
 		let runArgs: any[] = [];
 
 		if (this._options?.arg) {
@@ -526,7 +526,7 @@ export interface IAction2Options extends ICommandAction {
 
 export abstract class Action2 {
 	constructor(readonly desc: Readonly<IAction2Options>) { }
-	abstract run(accessor: ServicesAccessor, ...args: any[]): any;
+	abstract run(accessor: ServicesAccessor, ...args: any[]): void;
 }
 
 export function registerAction2(ctor: { new(): Action2 }): IDisposable {

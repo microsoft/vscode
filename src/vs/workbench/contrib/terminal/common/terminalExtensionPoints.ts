@@ -20,11 +20,11 @@ export interface ITerminalContributionService {
 export const ITerminalContributionService = createDecorator<ITerminalContributionService>('terminalContributionsService');
 
 export class TerminalContributionService implements ITerminalContributionService {
-	public readonly _serviceBrand = undefined;
+	declare _serviceBrand: undefined;
 
 	private _terminalTypes: ReadonlyArray<ITerminalTypeContribution> = [];
 
-	public get terminalTypes() {
+	get terminalTypes() {
 		return this._terminalTypes;
 	}
 

@@ -17,7 +17,7 @@ import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/work
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfile, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { detectAvailableProfiles } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 import type * as vscode from 'vscode';
@@ -122,7 +122,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
 	}
 
-	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
+	public async getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		return {
 			shell: this.getDefaultShell(useAutomationShell, configProvider),
@@ -134,7 +134,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	private _buildSafeConfigProvider(configProvider: ExtHostConfigProvider): SafeConfigProvider {
 		const config = configProvider.getConfiguration();
 		return (key: string) => {
-			const isWorkspaceConfigAllowed = config.get('terminal.integrated.allowWorkspaceConfiguration');
+			const isWorkspaceConfigAllowed = config.get(TerminalSettingId.AllowWorkspaceConfiguration);
 			if (isWorkspaceConfigAllowed) {
 				return config.get(key) as any;
 			}

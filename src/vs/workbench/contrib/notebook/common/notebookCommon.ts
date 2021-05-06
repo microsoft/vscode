@@ -61,12 +61,10 @@ export enum NotebookRunState {
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	custom: {},
-	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
 	custom?: { [key: string]: unknown };
-	trusted: boolean;
 	[key: string]: unknown;
 }
 
@@ -830,6 +828,7 @@ export interface INotebookCellStatusBarItemList {
 
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
+export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
@@ -845,4 +844,18 @@ export interface INotebookDecorationRenderOptions {
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
-export const NOTEBOOK_WORKING_COPY_TYPE_PREFIX = 'notebook/';
+export class NotebookWorkingCopyTypeIdentifier {
+
+	private static _prefix = 'notebook/';
+
+	static create(viewType: string): string {
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}/${viewType}`;
+	}
+
+	static parse(candidate: string): string | undefined {
+		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
+			return candidate.substr(NotebookWorkingCopyTypeIdentifier._prefix.length);
+		}
+		return undefined;
+	}
+}

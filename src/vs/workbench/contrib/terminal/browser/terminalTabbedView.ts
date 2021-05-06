@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
+import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
@@ -23,9 +23,8 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
 
 const $ = dom.$;
@@ -45,7 +44,7 @@ export class TerminalTabbedView extends Disposable {
 	private _parentElement: HTMLElement;
 	private _tabTreeContainer: HTMLElement;
 
-	private _tabsWidget: TerminalTabsWidget;
+	private _tabList: TerminalTabList;
 	private _findWidget: TerminalFindWidget;
 	private _sashDisposables: IDisposable[] | undefined;
 
@@ -77,7 +76,6 @@ export class TerminalTabbedView extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -90,12 +88,11 @@ export class TerminalTabbedView extends Disposable {
 		tabWidgetContainer.appendChild(this._terminalTabTree);
 		this._tabTreeContainer.appendChild(tabWidgetContainer);
 
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContainerContext, contextKeyService));
-		this._tabsWidgetMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetContext, contextKeyService));
-		this._tabsWidgetEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetEmptyContext, contextKeyService));
-		const inlineMenu = this._register(menuService.createMenu(MenuId.TerminalTabInlineActions, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
+		this._tabsWidgetMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
+		this._tabsWidgetEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
-		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree, inlineMenu));
+		this._register(this._tabList = this._instantiationService.createInstance(TerminalTabList, this._terminalTabTree));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
 		parentElement.appendChild(this._findWidget.getDomNode());
 
@@ -114,10 +111,10 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalTabsFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS.bindTo(contextKeyService);
 
 		_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated.tabs.enabled') ||
-				e.affectsConfiguration('terminal.integrated.tabs.hideCondition')) {
+			if (e.affectsConfiguration(TerminalSettingId.TabsEnabled) ||
+				e.affectsConfiguration(TerminalSettingId.TabsHideCondition)) {
 				this._refreshShowTabs();
-			} else if (e.affectsConfiguration('terminal.integrated.tabs.location')) {
+			} else if (e.affectsConfiguration(TerminalSettingId.TabsLocation)) {
 				this._tabTreeIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 0 : 1;
 				this._terminalContainerIndex = this._terminalService.configHelper.config.tabs.location === 'left' ? 1 : 0;
 				if (this._shouldShowTabs()) {
@@ -207,12 +204,12 @@ export class TerminalTabbedView extends Disposable {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
 		const additionalWidth = 30;
 		const statusIconWidth = instance.statusList.statuses.length > 0 ? STATUS_ICON_WIDTH : 0;
-		const splitAnnotationWidth = (this._terminalService.getTabForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
+		const splitAnnotationWidth = (this._terminalService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
 		return additionalWidth + splitAnnotationWidth + statusIconWidth;
 	}
 
 	private _handleOnDidSashChange(): void {
-		let widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
+		const widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
 		if (!this._width || widgetWidth <= 0) {
 			return;
 		}
@@ -240,7 +237,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._splitView.addView({
 			element: this._terminalContainer,
-			layout: width => this._terminalService.terminalTabs.forEach(tab => tab.layout(width, this._height || 0)),
+			layout: width => this._terminalService.terminalGroups.forEach(tab => tab.layout(width, this._height || 0)),
 			minimumSize: 120,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
@@ -255,7 +252,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabTreeContainer,
-			layout: width => this._tabsWidget.layout(this._height || 0, width),
+			layout: width => this._tabList.layout(this._height || 0, width),
 			minimumSize: MIN_TABS_WIDGET_WIDTH,
 			maximumSize: MAX_TABS_WIDGET_WIDTH,
 			onDidChange: () => Disposable.None,
@@ -268,13 +265,7 @@ export class TerminalTabbedView extends Disposable {
 		const hasText = this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH;
 		this._tabTreeContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		for (const instance of this._terminalService.terminalInstances) {
-			try {
-				this._tabsWidget.rerender(instance);
-			} catch (e) {
-				this._logService.warn('Exception when rerendering new tab widget', e);
-			}
-		}
+		this._tabList.rerender();
 	}
 
 	private _addSashListener() {
@@ -423,7 +414,7 @@ export class TerminalTabbedView extends Disposable {
 
 				const terminal = this._terminalService.getActiveInstance();
 				if (terminal) {
-					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType);
+					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType, terminal.isRemote);
 					terminal.sendText(preparedPath, false);
 					terminal.focus();
 				}
@@ -440,7 +431,7 @@ export class TerminalTabbedView extends Disposable {
 		if (parent === this._terminalContainer) {
 			menu = this._instanceMenu;
 		} else {
-			menu = this._tabsWidget.getFocus().length === 0 ? this._tabsWidgetEmptyMenu : this._tabsWidgetMenu;
+			menu = this._tabList.getFocus().length === 0 ? this._tabsWidgetEmptyMenu : this._tabsWidgetMenu;
 		}
 
 		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
@@ -461,29 +452,29 @@ export class TerminalTabbedView extends Disposable {
 	private _getTabActions(): Action[] {
 		return [
 			new Separator(),
-			this._configurationService.inspect('terminal.integrated.tabs.location').userValue === 'left' ?
+			this._configurationService.inspect(TerminalSettingId.TabsLocation).userValue === 'left' ?
 				new Action('moveRight', localize('moveTabsRight', "Move Tabs Right"), undefined, undefined, async () => {
-					this._configurationService.updateValue('terminal.integrated.tabs.location', 'right');
+					this._configurationService.updateValue(TerminalSettingId.TabsLocation, 'right');
 				}) :
 				new Action('moveLeft', localize('moveTabsLeft', "Move Tabs Left"), undefined, undefined, async () => {
-					this._configurationService.updateValue('terminal.integrated.tabs.location', 'left');
+					this._configurationService.updateValue(TerminalSettingId.TabsLocation, 'left');
 				}),
 			new Action('hideTabs', localize('hideTabs', "Hide Tabs"), undefined, undefined, async () => {
-				this._configurationService.updateValue('terminal.integrated.tabs.enabled', false);
+				this._configurationService.updateValue(TerminalSettingId.TabsEnabled, false);
 			})
 		];
 	}
 
-	public focusTabs(): void {
+	focusTabs(): void {
 		this._terminalTabsFocusContextKey.set(true);
-		const selected = this._tabsWidget.getSelection();
-		this._tabsWidget.domFocus();
+		const selected = this._tabList.getSelection();
+		this._tabList.domFocus();
 		if (selected) {
-			this._tabsWidget.setFocus(selected);
+			this._tabList.setFocus(selected);
 		}
 	}
 
-	public focusFindWidget() {
+	focusFindWidget() {
 		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
@@ -493,13 +484,13 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	public hideFindWidget() {
+	hideFindWidget() {
 		this._findWidgetVisible.reset();
 		this.focus();
 		this._findWidget!.hide();
 	}
 
-	public showFindWidget() {
+	showFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget!.show(activeInstance.selection);
@@ -508,10 +499,10 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	public getFindWidget(): TerminalFindWidget {
+	getFindWidget(): TerminalFindWidget {
 		return this._findWidget!;
 	}
-	public focus() {
+	focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
 			// be focused. So wait for connection to finish, then focus.

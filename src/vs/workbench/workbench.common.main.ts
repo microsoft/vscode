@@ -230,6 +230,7 @@ import 'vs/workbench/contrib/output/browser/outputView';
 // Terminal
 import 'vs/workbench/contrib/terminal/common/environmentVariable.contribution';
 import 'vs/workbench/contrib/terminal/common/terminalExtensionPoints.contribution';
+import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalView';
 
@@ -251,9 +252,6 @@ import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 
 // Keybindings Contributions
 import 'vs/workbench/contrib/keybindings/browser/keybindings.contribution';
-
-// Execution
-import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
 
 // Snippets
 import 'vs/workbench/contrib/snippets/browser/snippets.contribution';

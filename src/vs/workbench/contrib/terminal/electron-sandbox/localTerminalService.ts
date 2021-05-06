@@ -19,7 +19,7 @@ import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPt
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 
 export class LocalTerminalService extends Disposable implements ILocalTerminalService {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, LocalPty> = new Map();
 	private _isPtyHostUnresponsive: boolean = false;
@@ -97,8 +97,15 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			}));
 		}
 	}
+	async updateTitle(id: number, title: string): Promise<void> {
+		await this._localPtyService.updateTitle(id, title);
+	}
 
-	public async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
+	async updateIcon(id: number, icon: string): Promise<void> {
+		await this._localPtyService.updateIcon(id, icon);
+	}
+
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
@@ -106,7 +113,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return pty;
 	}
 
-	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
 			await this._localPtyService.attachToProcess(id);
 			const pty = this._instantiationService.createInstance(LocalPty, id, true);
@@ -118,23 +125,27 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return undefined;
 	}
 
-	public async listProcesses(): Promise<IProcessDetails[]> {
+	async listProcesses(): Promise<IProcessDetails[]> {
 		return this._localPtyService.listProcesses();
 	}
 
-	public async reduceConnectionGraceTime(): Promise<void> {
+	async reduceConnectionGraceTime(): Promise<void> {
 		this._localPtyService.reduceConnectionGraceTime();
 	}
 
-	public async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._localPtyService.getDefaultSystemShell(osOverride);
 	}
 
-	public async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._localPtyService.getShellEnvironment();
+	async getEnvironment(): Promise<IProcessEnvironment> {
+		return this._localPtyService.getEnvironment();
 	}
 
-	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
+	async getWslPath(original: string): Promise<string> {
+		return this._localPtyService.getWslPath(original);
+	}
+
+	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
 			tabs: layoutInfo ? layoutInfo.tabs : []
@@ -142,12 +153,11 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		await this._localPtyService.setTerminalLayoutInfo(args);
 	}
 
-	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
+	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
-		let result = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
-		return result;
+		return await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
 	}
 
 	private _getWorkspaceId(): string {
