@@ -13,12 +13,17 @@ $Zip = "$Repo\.build\win32-$Arch\archive\VSCode-win32-$Arch.zip"
 $LegacyServer = "$Root\vscode-reh-win32-$Arch"
 $Server = "$Root\vscode-server-win32-$Arch"
 $ServerZip = "$Repo\.build\vscode-server-win32-$Arch.zip"
+$LegacyWeb = "$Root\vscode-reh-web-win32-$Arch"
+$Web = "$Root\vscode-server-win32-$Arch-web"
+$WebZip = "$Repo\.build\vscode-server-win32-$Arch-web.zip"
 $Build = "$Root\VSCode-win32-$Arch"
 
 # Create server archive
 if ("$Arch" -ne "arm64") {
 	exec { xcopy $LegacyServer $Server /H /E /I }
 	exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $ServerZip $Server -r }
+	exec { xcopy $LegacyWeb $Web /H /E /I }
+	exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $WebZip $Web -r }
 }
 
 # get version
