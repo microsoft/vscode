@@ -72,9 +72,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			configurationService,
 			keybindingService
 		);
-		this._terminalService.onInstancesChanged(() => this._render());
-		this._terminalService.onInstanceTitleChanged(() => this._render());
-		this._terminalService.onInstanceIconChanged(() => this._render());
+		this._terminalService.onInstancesChanged(() => this.render());
+		this._terminalService.onInstanceTitleChanged(() => this.render());
+		this._terminalService.onInstanceIconChanged(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
@@ -148,11 +148,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
-		this._terminalService.onInstancePrimaryStatusChanged(() => this._render());
-		this._render();
+		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
+		this.render();
 	}
 
-	private _render(): void {
+	render(): void {
 		this.splice(0, this.length, this._terminalService.terminalInstances);
 	}
 }

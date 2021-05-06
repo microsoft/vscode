@@ -262,10 +262,10 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _rerenderTabs() {
-		const hasText = this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH;
+		const hasText = this._terminalTabTree.clientWidth > MIDPOINT_WIDGET_WIDTH;
 		this._tabTreeContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		this._tabList.rerender();
+		this._tabList.render();
 	}
 
 	private _addSashListener() {
