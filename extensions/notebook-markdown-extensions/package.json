@@ -15,7 +15,7 @@
     "Other"
   ],
   "capabilities": {
-    "virtualWorkspaces": false
+    "virtualWorkspaces": true
   },
   "contributes": {
     "notebookMarkupRenderers": [
