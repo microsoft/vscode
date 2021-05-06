@@ -407,7 +407,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	private _debugFlag: boolean = false;
+	private _debugFlag: boolean = true;
 	private _frameId = 0;
 	private _domFrameLog() {
 		DOM.scheduleAtNextAnimationFrame(() => {
