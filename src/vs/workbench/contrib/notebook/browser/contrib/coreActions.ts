@@ -237,15 +237,13 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 }
 
-const executeCellCondition = ContextKeyExpr.or(
-	ContextKeyExpr.and(
-		ContextKeyExpr.or(
-			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'idle'),
-			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'succeeded'),
-			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'failed'),
-		),
-		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0)),
-	NOTEBOOK_CELL_TYPE.isEqualTo('markdown'));
+const executeCellCondition = ContextKeyExpr.and(
+	ContextKeyExpr.or(
+		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'idle'),
+		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'succeeded'),
+		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'failed'),
+	),
+	ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0));
 
 const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0);
 
@@ -688,17 +686,8 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 		if (context.cell.metadata?.runState === NotebookCellExecutionState.Executing) {
 			return;
 		}
-		if (context.cell.cellKind === CellKind.Markdown) {
-			context.notebookEditor.focusNotebookCell(context.cell, 'container');
-			return;
-		} else {
-			return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
-		}
+		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
 	} else if (context.selectedCells) {
-		context.selectedCells.filter(cell => cell.cellKind === CellKind.Markdown).forEach(cell => {
-			cell.updateEditState(CellEditState.Preview, 'runCell');
-		});
-
 		return context.notebookEditor.executeNotebookCells(context.selectedCells);
 	}
 }
@@ -962,6 +951,13 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 	}
 });
 
+const quitEditCondition = ContextKeyExpr.and(
+	NOTEBOOK_EDITOR_FOCUSED,
+	InputFocusedContext,
+	EditorContextKeys.hoverVisible.toNegated(),
+	EditorContextKeys.hasNonEmptySelection.toNegated(),
+	EditorContextKeys.hasMultipleSelections.toNegated()
+);
 registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	constructor() {
 		super(
@@ -978,17 +974,21 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 					group: CELL_TITLE_CELL_GROUP_ID
 				},
 				icon: icons.stopEditIcon,
-				keybinding: {
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
-						InputFocusedContext,
-						EditorContextKeys.hoverVisible.toNegated(),
-						EditorContextKeys.hasNonEmptySelection.toNegated(),
-						EditorContextKeys.hasMultipleSelections.toNegated()
-					),
-					primary: KeyCode.Escape,
-					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
-				},
+				keybinding: [
+					{
+						when: quitEditCondition,
+						primary: KeyCode.Escape,
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
+					},
+					{
+						when: quitEditCondition,
+						primary: KeyMod.WinCtrl | KeyCode.Enter,
+						win: {
+							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+						},
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+					},
+				]
 			});
 	}
 
