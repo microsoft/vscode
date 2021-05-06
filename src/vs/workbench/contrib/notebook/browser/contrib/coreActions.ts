@@ -1510,7 +1510,7 @@ CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, a
 	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
 }[] => {
 	const notebookService = accessor.get<INotebookService>(INotebookService);
-	const contentProviders = notebookService.getContributedNotebookProviders();
+	const contentProviders = notebookService.getContributedNotebookTypes();
 	return contentProviders.map(provider => {
 		const filenamePatterns = provider.selectors.map(selector => {
 			if (typeof selector === 'string') {

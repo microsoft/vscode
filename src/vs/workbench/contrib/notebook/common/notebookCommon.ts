@@ -440,6 +440,15 @@ export interface NotebookDataDto {
 	readonly metadata: NotebookDocumentMetadata;
 }
 
+
+export interface INotebookContributionData {
+	providerDisplayName: string;
+	displayName: string;
+	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
+	exclusive: boolean;
+}
+
+
 export function getCellUndoRedoComparisonKey(uri: URI) {
 	const data = CellUri.parse(uri);
 	if (!data) {
