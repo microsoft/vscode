@@ -687,7 +687,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		}
 
 		for (let e: IActionableTestTreeElement | null = element; e instanceof TestItemTreeElement; e = e!.parent) {
-			return e.test.item.uri.toString() === this._filterToUri
+			return e.test.item.uri?.toString() === this._filterToUri
 				? FilterResult.Include
 				: FilterResult.Exclude;
 		}
@@ -735,7 +735,7 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 
 		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByLocation) {
 			if (a instanceof TestItemTreeElement && b instanceof TestItemTreeElement
-				&& a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
+				&& a.test.item.uri && b.test.item.uri && a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
 				const delta = a.test.item.range.startLineNumber - b.test.item.range.startLineNumber;
 				if (delta !== 0) {
 					return delta;
@@ -1013,7 +1013,8 @@ const getActionableElementActions = (
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
 	const contextOverlay = contextKeyService.createOverlay([
 		['view', Testing.ExplorerViewId],
-		[TestingContextKeys.testItemExtId.key, test?.item.extId]
+		[TestingContextKeys.testItemExtId.key, test?.item.extId],
+		[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
 	]);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 

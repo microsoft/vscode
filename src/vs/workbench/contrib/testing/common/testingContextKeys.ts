@@ -23,4 +23,8 @@ export namespace TestingContextKeys {
 		type: 'string',
 		description: localize('testing.testId', 'ID of the current test item, set when creating or opening menus on test items')
 	});
+	export const testItemHasUri = new RawContextKey<boolean>('testItemHasUri', false, {
+		type: 'string',
+		description: localize('testing.testItemHasUri', 'Boolean indicating whether the test item has a URI defined')
+	});
 }

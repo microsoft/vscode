@@ -537,6 +537,7 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 			f1: false,
 			menu: {
 				id: MenuId.TestItem,
+				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
 			},
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
@@ -568,6 +569,10 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	private async runForTest(accessor: ServicesAccessor, test: ITestItem, preserveFocus = true) {
+		if (!test.uri) {
+			return;
+		}
+
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
 		const editorService = accessor.get(IEditorService);
