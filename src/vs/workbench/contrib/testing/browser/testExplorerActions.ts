@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
 import { flatten } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
@@ -27,7 +26,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
@@ -60,71 +59,102 @@ const enum ActionOrder {
 	Refresh,
 }
 
-export class HideOrShowTestAction extends Action {
+export class HideTestAction extends Action2 {
 	constructor(
-		private readonly testId: string,
-		@ITestService private readonly testService: ITestService,
 	) {
-		super(
-			'testing.hideOrShowTest',
-			testService.excludeTests.value.has(testId) ? localize('unhideTest', 'Unhide Test') : localize('hideTest', 'Hide Test'),
-		);
+		super({
+			id: 'testing.hideTest',
+			title: localize('hideTest', 'Hide Test'),
+			f1: false,
+			menu: {
+				id: MenuId.TestItem,
+				when: TestingContextKeys.testItemIsHidden.isEqualTo(false)
+			},
+		});
 	}
 
-	/**
-	 * @override
-	 */
-	public override run() {
-		this.testService.setTestExcluded(this.testId);
+	public override run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]) {
+		const service = accessor.get(ITestService);
+		for (const element of elements) {
+			if (element instanceof TestItemTreeElement) {
+				service.setTestExcluded(element.test.item.extId, true);
+			}
+		}
 		return Promise.resolve();
 	}
 }
 
-export class DebugAction extends Action {
-	constructor(
-		private readonly tests: Iterable<TestIdWithSrc>,
-		isRunning: boolean,
-		@ITestService private readonly testService: ITestService
-	) {
-		super(
-			'testing.run',
-			localize('debug test', 'Debug Test'),
-			'test-action ' + ThemeIcon.asClassName(icons.testingDebugIcon),
-			/* enabled= */ !isRunning
-		);
+export class UnhideTestAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.unhideTest',
+			title: localize('unhideTest', 'Unhide Test'),
+			f1: false,
+			menu: {
+				id: MenuId.TestItem,
+				when: TestingContextKeys.testItemIsHidden.isEqualTo(true)
+			},
+		});
 	}
 
-	/**
-	 * @override
-	 */
-	public override run(): Promise<any> {
-		return this.testService.runTests({
-			tests: [...this.tests],
+	public override run(accessor: ServicesAccessor, ...elements: InternalTestItem[]) {
+		const service = accessor.get(ITestService);
+		for (const element of elements) {
+			if (element instanceof TestItemTreeElement) {
+				service.setTestExcluded(element.test.item.extId, false);
+			}
+		}
+		return Promise.resolve();
+	}
+}
+
+export class DebugAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.debug',
+			title: localize('debug test', 'Debug Test'),
+			icon: icons.testingDebugIcon,
+			f1: false,
+			menu: {
+				id: MenuId.TestItem,
+				group: 'inline',
+				order: ActionOrder.Debug,
+				when: TestingContextKeys.hasDebuggableTests.isEqualTo(true),
+			},
+		});
+	}
+
+	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+		return acessor.get(ITestService).runTests({
+			tests: [...Iterable.concatNested(elements.map(e => e.debuggable))],
 			debug: true,
 		});
 	}
 }
 
-export class RunAction extends Action {
-	constructor(
-		private readonly tests: Iterable<TestIdWithSrc>,
-		isRunning: boolean,
-		@ITestService private readonly testService: ITestService
-	) {
-		super(
-			'testing.run',
-			localize('run test', 'Run Test'),
-			'test-action ' + ThemeIcon.asClassName(icons.testingRunIcon),
-			/* enabled= */ !isRunning,
-		);
+
+export class RunAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.run',
+			title: localize('run test', 'Run Test'),
+			icon: icons.testingRunIcon,
+			f1: false,
+			menu: {
+				id: MenuId.TestItem,
+				group: 'inline',
+				order: ActionOrder.Run,
+				when: TestingContextKeys.hasRunnableTests.isEqualTo(true),
+			},
+		});
 	}
 
 	/**
 	 * @override
 	 */
-	public override run(): Promise<any> {
-		return this.testService.runTests({
-			tests: [...this.tests],
+	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+		return acessor.get(ITestService).runTests({
+			tests: [...Iterable.concatNested(elements.map(e => e.runnable))],
 			debug: false,
 		});
 	}
@@ -528,11 +558,10 @@ export class ClearTestResultsAction extends Action2 {
 	}
 }
 
-export class EditFocusedTest extends ViewAction<TestingExplorerView> {
+export class GoToTest extends Action2 {
 	constructor() {
 		super({
 			id: 'testing.editFocusedTest',
-			viewId: Testing.ExplorerViewId,
 			title: localize('testing.editFocusedTest', "Go to Test"),
 			f1: false,
 			menu: {
@@ -547,11 +576,46 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
-		if (test) {
-			await this.runForTest(accessor, test, preserveFocus);
-		} else {
-			await super.run(accessor);
+	public override async run(accessor: ServicesAccessor, element?: IActionableTestTreeElement, preserveFocus?: boolean) {
+		if (!element || !(element instanceof TestItemTreeElement) || !element.test.item.uri) {
+			return;
+		}
+
+		const commandService = accessor.get(ICommandService);
+		const fileService = accessor.get(IFileService);
+		const editorService = accessor.get(IEditorService);
+		const { range, uri, extId } = element.test.item;
+
+		accessor.get(ITestExplorerFilterState).reveal.value = [extId];
+
+		let isFile = true;
+		try {
+			if (!(await fileService.resolve(uri)).isFile) {
+				isFile = false;
+			}
+		} catch {
+			// ignored
+		}
+
+		if (!isFile) {
+			await commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
+			return;
+		}
+
+		const pane = await editorService.openEditor({
+			resource: uri,
+			options: {
+				selection: range
+					? { startColumn: range.startColumn, startLineNumber: range.startLineNumber }
+					: undefined,
+				preserveFocus: preserveFocus === true,
+			},
+		});
+
+		// if the user selected a failed test and now they didn't, hide the peek
+		const control = pane?.getControl();
+		if (isCodeEditor(control)) {
+			TestingOutputPeekController.get(control).removePeek();
 		}
 	}
 
