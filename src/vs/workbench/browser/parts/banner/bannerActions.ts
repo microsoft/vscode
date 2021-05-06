@@ -23,7 +23,7 @@ export class CloseBannerAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setBannerHidden(true);
+		accessor.get(IWorkbenchLayoutService).setBannerHidden(true, true);
 	}
 }
 

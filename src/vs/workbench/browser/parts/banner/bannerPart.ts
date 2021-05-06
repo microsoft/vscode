@@ -15,11 +15,12 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { Part } from 'vs/workbench/browser/part';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Action } from 'vs/base/common/actions';
-import { Link } from 'vs/platform/opener/browser/link';
+import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
 import { attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { editorInfoForeground, listActiveSelectionBackground, listActiveSelectionForeground, registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 import { CloseBannerAction } from 'vs/workbench/browser/parts/banner/bannerActions';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 
 // Icons
@@ -76,6 +77,12 @@ registerThemingParticipant((theme, collector) => {
 
 
 // Banner Part
+
+export interface IBannerOptions {
+	readonly icon: Codicon;
+	readonly message: MarkdownString;
+	readonly actions?: ILinkDescriptor[];
+}
 
 export const IBannerService = createDecorator<IBannerService>('bannerService');
 

@@ -201,7 +201,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private updateWorkbenchIndicators(trusted: boolean): void {
 		this.updateStatusbarEntry(trusted);
-		this.workbenchLayoutService.setBannerHidden(trusted);
+		this.workbenchLayoutService.setBannerHidden(trusted, false);
 	}
 
 	private registerListeners(): void {

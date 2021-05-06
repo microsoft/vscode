@@ -65,6 +65,8 @@ enum Storage {
 	SIDEBAR_HIDDEN = 'workbench.sidebar.hidden',
 	SIDEBAR_SIZE = 'workbench.sidebar.size',
 
+	BANNER_HIDDEN = 'workbench.banner.hidden',
+
 	PANEL_HIDDEN = 'workbench.panel.hidden',
 	PANEL_POSITION = 'workbench.panel.location',
 	PANEL_SIZE = 'workbench.panel.size',
@@ -175,7 +177,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private themeService!: IThemeService;
 	private activityBarService!: IActivityBarService;
 	private statusBarService!: IStatusbarService;
-	private bannerService!: IBannerService;
 	private logService!: ILogService;
 
 	protected readonly state = {
@@ -215,6 +216,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			lastNonMaximizedHeight: 300,
 			wasLastMaximized: false,
 			panelToRestore: undefined as string | undefined
+		},
+
+		banner: {
+			hidden: false,
 		},
 
 		statusBar: {
@@ -263,10 +268,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.viewletService = accessor.get(IViewletService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);
-		this.bannerService = accessor.get(IBannerService);
 		this.notificationService = accessor.get(INotificationService);
 		this.activityBarService = accessor.get(IActivityBarService);
 		this.statusBarService = accessor.get(IStatusbarService);
+		accessor.get(IBannerService);
 
 		// Listeners
 		this.registerLayoutListeners();
@@ -558,6 +563,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Panel size before maximized
 		this.state.panel.lastNonMaximizedHeight = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, StorageScope.GLOBAL, 300);
 		this.state.panel.lastNonMaximizedWidth = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, StorageScope.GLOBAL, 300);
+
+		// Banner visibility
+		this.state.banner.hidden = this.storageService.getBoolean(Storage.BANNER_HIDDEN, StorageScope.WORKSPACE, false);
 
 		// Statusbar visibility
 		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
@@ -963,6 +971,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					default:
 						return isWeb ? false : !this.state.fullscreen || this.state.menuBar.toggled;
 				}
+			case Parts.BANNER_PART:
+				return !this.state.banner.hidden;
 			case Parts.SIDEBAR_PART:
 				return !this.state.sideBar.hidden;
 			case Parts.PANEL_PART:
@@ -1363,7 +1373,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
-	setBannerHidden(hidden: boolean): void {
+	setBannerHidden(hidden: boolean, persist: boolean): void {
+		// Banner has been closed using the action
+		if (this.state.banner.hidden && !hidden) {
+			return;
+		}
+
+		// Close banner and persists state
+		if (hidden && persist) {
+			this.state.banner.hidden = hidden;
+			this.storageService.store(Storage.BANNER_HIDDEN, hidden, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+
 		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
 	}
 

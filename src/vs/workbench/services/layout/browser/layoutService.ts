@@ -166,7 +166,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Set the banner hidden or not
 	 */
-	setBannerHidden(hidden: boolean): void;
+	setBannerHidden(hidden: boolean, persist: boolean): void;
 
 	/**
 	 *
