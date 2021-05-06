@@ -9,6 +9,8 @@ import { parse } from 'vs/base/common/marshalling';
 import { isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { format } from 'vs/base/common/jsonFormatter';
+import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -77,6 +79,7 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -286,29 +289,52 @@ class CellContentProvider implements ITextModelContentProvider {
 	}
 }
 
-class CellMetadataContentProvider implements ITextModelContentProvider {
-	private readonly _registration: IDisposable;
+class CellInfoContentProvider {
+	private readonly _disposables: IDisposable[] = [];
 
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
-		this._registration = textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, this);
+		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, {
+			provideTextContent: this.provideMetadataTextContent.bind(this)
+		}));
+
+		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellOutput, {
+			provideTextContent: this.provideOutputTextContent.bind(this)
+		}));
+
+		this._disposables.push(this._labelService.registerFormatter({
+			scheme: Schemas.vscodeNotebookCellMetadata,
+			formatting: {
+				label: '${path} (metadata)',
+				separator: '/'
+			}
+		}));
+
+		this._disposables.push(this._labelService.registerFormatter({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			formatting: {
+				label: '${path} (output)',
+				separator: '/'
+			}
+		}));
 	}
 
 	dispose(): void {
-		this._registration.dispose();
+		this._disposables.forEach(d => d.dispose());
 	}
 
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing) {
 			return existing;
 		}
-		const data = CellUri.parseCellMetadataUri(resource);
-		// const data = parseCellUri(resource);
+
+		const data = CellUri.parseCellUri(resource, Schemas.vscodeNotebookCellMetadata);
 		if (!data) {
 			return null;
 		}
@@ -323,6 +349,46 @@ class CellMetadataContentProvider implements ITextModelContentProvider {
 				const metadataSource = getFormatedMetadataJSON(ref.object.notebook, cell.metadata || {}, cell.language);
 				result = this._modelService.createModel(
 					metadataSource,
+					mode,
+					resource
+				);
+				break;
+			}
+		}
+
+		if (result) {
+			const once = result.onWillDispose(() => {
+				once.dispose();
+				ref.dispose();
+			});
+		}
+
+		return result;
+	}
+
+	async provideOutputTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+
+		const data = CellUri.parseCellUri(resource, Schemas.vscodeNotebookCellOutput);
+		if (!data) {
+			return null;
+		}
+
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
+		let result: ITextModel | null = null;
+
+		const mode = this._modeService.create('json');
+
+		for (const cell of ref.object.notebook.cells) {
+			if (cell.handle === data.handle) {
+				const content = JSON.stringify(cell.outputs);
+				const edits = format(content, undefined, {});
+				const outputSource = applyEdits(content, edits);
+				result = this._modelService.createModel(
+					outputSource,
 					mode,
 					resource
 				);
@@ -443,7 +509,7 @@ class NotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchC
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellMetadataContentProvider, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookFileTracker, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);

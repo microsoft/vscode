@@ -55,7 +55,7 @@ export class OutputRenderer extends Disposable {
 		return { type: RenderOutputType.Mainframe };
 	}
 
-	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
+	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
 		if (!viewModel.model.outputs.length) {
 			return this.renderNoop(viewModel, container);
 		}
