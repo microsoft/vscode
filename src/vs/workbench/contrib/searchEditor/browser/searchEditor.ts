@@ -623,7 +623,9 @@ export class SearchEditor extends BaseTextEditor {
 		return this._input as SearchEditorInput;
 	}
 
+	private priorConfig: Partial<Readonly<SearchConfiguration>> | undefined;
 	setSearchConfig(config: Partial<Readonly<SearchConfiguration>>) {
+		this.priorConfig = config;
 		if (config.query !== undefined) { this.queryEditorWidget.setValue(config.query); }
 		if (config.isCaseSensitive !== undefined) { this.queryEditorWidget.searchInput.setCaseSensitive(config.isCaseSensitive); }
 		if (config.isRegexp !== undefined) { this.queryEditorWidget.searchInput.setRegex(config.isRegexp); }
@@ -651,6 +653,14 @@ export class SearchEditor extends BaseTextEditor {
 		this.toggleRunAgainMessage(resultsModel.getLineCount() === 1 && resultsModel.getValue() === '' && configurationModel.config.query !== '');
 
 		this.setSearchConfig(configurationModel.config);
+
+		this._register(configurationModel.onConfigDidUpdate(newConfig => {
+			if (newConfig !== this.priorConfig) {
+				this.pauseSearching = true;
+				this.setSearchConfig(newConfig);
+				this.pauseSearching = false;
+			}
+		}));
 
 		this.restoreViewState();
 
