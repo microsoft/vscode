@@ -84,6 +84,6 @@ export class ThemeMainService implements IThemeMainService {
 	}
 
 	getWindowSplash(): IPartsSplash | undefined {
-		return this.stateMainService.getItem('windowSplash');
+		return this.stateMainService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH);
 	}
 }

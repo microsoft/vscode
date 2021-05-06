@@ -9,8 +9,8 @@ import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { getThemeTypeSelector, IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import * as themes from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -66,38 +66,31 @@ export class PartsSplash {
 
 	private _savePartsSplash() {
 		const theme = this._themeService.getColorTheme();
-		const baseTheme = getThemeTypeSelector(theme.type);
-		const colorInfo = {
-			foreground: this._getThemeColor(theme, foreground),
-			background: Color.Format.CSS.formatHex(theme.getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(theme)),
-			editorBackground: this._getThemeColor(theme, editorBackground),
-			titleBarBackground: this._getThemeColor(theme, themes.TITLE_BAR_ACTIVE_BACKGROUND),
-			activityBarBackground: this._getThemeColor(theme, themes.ACTIVITY_BAR_BACKGROUND),
-			sideBarBackground: this._getThemeColor(theme, themes.SIDE_BAR_BACKGROUND),
-			statusBarBackground: this._getThemeColor(theme, themes.STATUS_BAR_BACKGROUND),
-			statusBarNoFolderBackground: this._getThemeColor(theme, themes.STATUS_BAR_NO_FOLDER_BACKGROUND),
-			windowBorder: this._getThemeColor(theme, themes.WINDOW_ACTIVE_BORDER) ?? this._getThemeColor(theme, themes.WINDOW_INACTIVE_BORDER)
-		};
-		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
-			sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
-			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-			titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.TITLEBAR_PART))) : 0,
-			activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART))) : 0,
-			sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.SIDEBAR_PART))) : 0,
-			statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.STATUSBAR_PART))) : 0,
-			windowBorder: this._layoutService.hasWindowBorder(),
-			windowBorderRadius: this._layoutService.getWindowBorderRadius()
-		};
-		this._nativeHostService.saveWindowSplash({
-			baseTheme,
-			colorInfo,
-			layoutInfo
-		});
-	}
 
-	private _getThemeColor(theme: IColorTheme, id: ColorIdentifier): string | undefined {
-		const color = theme.getColor(id);
-		return color ? color.toString() : undefined;
+		this._nativeHostService.saveWindowSplash({
+			baseTheme: getThemeTypeSelector(theme.type),
+			colorInfo: {
+				foreground: theme.getColor(foreground)?.toString(),
+				background: Color.Format.CSS.formatHex(theme.getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(theme)),
+				editorBackground: theme.getColor(editorBackground)?.toString(),
+				titleBarBackground: theme.getColor(themes.TITLE_BAR_ACTIVE_BACKGROUND)?.toString(),
+				activityBarBackground: theme.getColor(themes.ACTIVITY_BAR_BACKGROUND)?.toString(),
+				sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND)?.toString(),
+				statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND)?.toString(),
+				statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND)?.toString(),
+				windowBorder: theme.getColor(themes.WINDOW_ACTIVE_BORDER)?.toString() ?? theme.getColor(themes.WINDOW_INACTIVE_BORDER)?.toString()
+			},
+			layoutInfo: !this._shouldSaveLayoutInfo() ? undefined : {
+				sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
+				editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
+				titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.TITLEBAR_PART))) : 0,
+				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART))) : 0,
+				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.SIDEBAR_PART))) : 0,
+				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.STATUSBAR_PART))) : 0,
+				windowBorder: this._layoutService.hasWindowBorder(),
+				windowBorderRadius: this._layoutService.getWindowBorderRadius()
+			}
+		});
 	}
 
 	private _shouldSaveLayoutInfo(): boolean {
@@ -105,12 +98,12 @@ export class PartsSplash {
 	}
 
 	private _removePartsSplash(): void {
-		let element = document.getElementById(PartsSplash._splashElementId);
+		const element = document.getElementById(PartsSplash._splashElementId);
 		if (element) {
 			element.style.display = 'none';
 		}
 		// remove initial colors
-		let defaultStyles = document.head.getElementsByClassName('initialShellColors');
+		const defaultStyles = document.head.getElementsByClassName('initialShellColors');
 		if (defaultStyles.length) {
 			document.head.removeChild(defaultStyles[0]);
 		}
