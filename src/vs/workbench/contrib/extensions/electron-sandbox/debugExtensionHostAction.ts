@@ -10,7 +10,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { randomPort } from 'vs/base/node/ports';
+import { randomPort } from 'vs/base/common/ports';
 
 export class DebugExtensionHostAction extends Action {
 	static readonly ID = 'workbench.extensions.action.debugExtensionHost';
