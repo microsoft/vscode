@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/searchEditor';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { extname, isEqual, joinPath } from 'vs/base/common/resources';
@@ -17,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, IEditorInputFactoryRegistry, EditorExtensions, EditorResourceAccessor, IMoveResult } from 'vs/workbench/common/editor';
+import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -61,8 +60,6 @@ export class SearchEditorInput extends EditorInput {
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	private oldDecorationsIDs: string[] = [];
-
-	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	get resource() {
 		return this.backingUri || this.modelUri;
