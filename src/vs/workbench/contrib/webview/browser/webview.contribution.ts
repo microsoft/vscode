@@ -37,6 +37,7 @@ if (CutAction) {
 			id: CutAction.id,
 			title: nls.localize('cut', "Cut"),
 		},
+		order: 1,
 	});
 }
 
@@ -46,6 +47,7 @@ if (CopyAction) {
 			id: CopyAction.id,
 			title: nls.localize('copy', "Copy"),
 		},
+		order: 2,
 	});
 }
 
@@ -55,5 +57,6 @@ if (PasteAction) {
 			id: PasteAction.id,
 			title: nls.localize('paste', "Paste"),
 		},
+		order: 3,
 	});
 }
