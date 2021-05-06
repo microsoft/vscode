@@ -36,6 +36,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -75,6 +76,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super();
 
@@ -318,11 +320,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				// Handle deletes in opened editors depending on:
-				// - the user has not disabled the setting `closeOnFileDelete`
-				// - the file change is local
-				// - the input is  a file that is not resolved (we need to dispose because
-				//   we cannot restore otherwise since we do not have the contents)
-				if (this.closeOnFileDelete || !isExternal || (this.fileEditorInputFactory.isFileEditorInput(editor) && !editor.isResolved())) {
+				// - we close any editor when `closeOnFileDelete: true`
+				// - we close any editor when the delete occured from within VSCode
+				// - we close any editor without resolved working copy assuming that
+				//   this editor could not be opened after the file is gone
+				if (this.closeOnFileDelete || !isExternal || !this.workingCopyService.has(resource)) {
 
 					// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 					// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
