@@ -217,8 +217,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: editorCommon.IConfiguration;
 
-	protected readonly _contributions: { [key: string]: editorCommon.IEditorContribution; };
-	protected readonly _actions: { [key: string]: editorCommon.IEditorAction; };
+	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
+	protected _actions: { [key: string]: editorCommon.IEditorAction; };
 
 	// --- Members logically associated to a model
 	protected _modelData: ModelData | null;
@@ -232,8 +232,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _focusTracker: CodeEditorWidgetFocusTracker;
 
-	private readonly _contentWidgets: { [key: string]: IContentWidgetData; };
-	private readonly _overlayWidgets: { [key: string]: IOverlayWidgetData; };
+	private _contentWidgets: { [key: string]: IContentWidgetData; };
+	private _overlayWidgets: { [key: string]: IOverlayWidgetData; };
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -356,6 +356,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const contributionId = keys[i];
 			this._contributions[contributionId].dispose();
 		}
+		this._contributions = {};
+		this._actions = {};
+		this._contentWidgets = {};
+		this._overlayWidgets = {};
 
 		this._removeDecorationTypes();
 		this._postDetachModelCleanup(this._detachModel());
