@@ -367,7 +367,9 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
-	private async selectStep(id: string | undefined, toggleIfAlreadySelected = true, delayFocus = true) {
+	private async selectStep(id: string | undefined, delayFocus = true) {
+		if (id && this.editorInput.selectedStep === id) { return; }
+
 		this.stepDisposables.clear();
 		clearNode(this.stepMediaComponent);
 
@@ -379,10 +381,7 @@ export class GettingStartedPage extends EditorPane {
 				node.setAttribute('aria-expanded', 'false');
 			});
 			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
-			if (this.editorInput.selectedStep === id && toggleIfAlreadySelected) {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'toggleStepCompletion2', argument: id });
-				this.toggleStepCompletion(id);
-			}
+
 			stepElement.style.height = ``;
 			stepElement.style.height = `${stepElement.scrollHeight}px`;
 
@@ -938,7 +937,7 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent);
 
 		const toExpand = category.content.steps.find(step => !step.done) ?? category.content.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id, false);
+		this.selectStep(selectedStep ?? toExpand.id);
 
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
@@ -983,7 +982,7 @@ export class GettingStartedPage extends EditorPane {
 			if (allSteps) {
 				const toFind = this.editorInput.selectedStep ?? this.previousSelection;
 				const selectedIndex = allSteps.findIndex(step => step.id === toFind);
-				if (allSteps[selectedIndex + 1]?.id) { this.selectStep(allSteps[selectedIndex + 1]?.id, true, false); }
+				if (allSteps[selectedIndex + 1]?.id) { this.selectStep(allSteps[selectedIndex + 1]?.id, false); }
 			}
 		} else {
 			(document.activeElement?.nextElementSibling as HTMLElement)?.focus?.();
@@ -996,7 +995,7 @@ export class GettingStartedPage extends EditorPane {
 			if (allSteps) {
 				const toFind = this.editorInput.selectedStep ?? this.previousSelection;
 				const selectedIndex = allSteps.findIndex(step => step.id === toFind);
-				if (allSteps[selectedIndex - 1]?.id) { this.selectStep(allSteps[selectedIndex - 1]?.id, true, false); }
+				if (allSteps[selectedIndex - 1]?.id) { this.selectStep(allSteps[selectedIndex - 1]?.id, false); }
 			}
 		} else {
 			(document.activeElement?.previousElementSibling as HTMLElement)?.focus?.();
