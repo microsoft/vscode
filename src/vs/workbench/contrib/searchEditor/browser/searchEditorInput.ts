@@ -135,7 +135,10 @@ export class SearchEditorInput extends EditorInput {
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
 			this._onDidChangeLabel.fire();
-			this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => this._onDidChangeLabel.fire()));
+			this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => {
+				this._onDidChangeLabel.fire();
+				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = this._cachedConfigurationModel?.config;
+			}));
 			return data;
 		});
 	}
