@@ -345,7 +345,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 
 		const handle = this.notificationService.prompt(Severity.Warning,
-			localize('editorOverride.conflictingDefaults', 'Multiple editors want to be your default editor for this resource.'),
+			localize('editorOverride.conflictingDefaults', 'There are multiple default editors available for the resource.'),
 			[{
 				label: localize('editorOverride.configureDefault', 'Configure Default'),
 				run: async () => {
@@ -424,7 +424,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			quickPickEntries.push(separator);
 			const configureDefaultEntry = {
 				id: EditorOverrideService.configureDefaultID,
-				label: localize('promptOpenWith.configureDefault', "Configure default editor....")
+				label: localize('promptOpenWith.configureDefault', "Configure default editor for '{0}'...", `*${extname(resource)}`),
 			};
 			quickPickEntries.push(configureDefaultEntry);
 		}
@@ -451,7 +451,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// Create editor override picker
 		const editorOverridePicker = this.quickInputService.createQuickPick<IQuickPickItem>();
 		const placeHolderMessage = showDefaultPicker ?
-			localize('prompOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", basename(resource)) :
+			localize('prompOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
 		editorOverridePicker.placeholder = placeHolderMessage;
 		editorOverridePicker.canAcceptInBackground = true;
