@@ -6,6 +6,7 @@
 'use strict';
 
 import * as fs from 'fs';
+import * as url from 'url';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
@@ -188,17 +189,33 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	console.log('Uploading blobs to Azure storage...');
+	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY']!, `${storageAccount}.blob.core.chinacloudapi.cn`)
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
-	await uploadBlob(blobService, quality, blobName, filePath, fileName);
+	// mooncake is fussy and far away, this is needed!
+	blobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+
+	console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
+
+	await retry(() => Promise.all([
+		uploadBlob(blobService, quality, blobName, filePath, fileName),
+		uploadBlob(mooncakeBlobService, quality, blobName, filePath, fileName)
+	]));
 
 	console.log('Blobs successfully uploaded.');
+
+	// TODO: Understand if blobName and blobPath are the same and replace blobPath with blobName if so.
+	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
+	const blobPath = url.parse(assetUrl).path;
+	const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
 
 	const asset: Asset = {
 		platform,
 		type,
-		url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
+		url: assetUrl,
 		hash: sha1hash,
+		mooncakeUrl,
 		sha256hash,
 		size
 	};
@@ -213,6 +230,8 @@ async function main(): Promise<void> {
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const scripts = client.database('builds').container(quality).scripts;
 	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
+
+	console.log(`  Done ✔️`);
 }
 
 main().then(() => {
