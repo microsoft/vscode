@@ -225,8 +225,8 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 				error = backupError;
 			}
 		},
-			localize('backupBeforeShutdownMessage', "Waiting for dirty editors to backup..."),
-			localize('backupBeforeShutdownDetail', "Click 'Cancel' skip backups and save or revert dirty editors.")
+			localize('backupBeforeShutdownMessage', "Backing up dirty editors is taking longer than expected..."),
+			localize('backupBeforeShutdownDetail', "Click 'Cancel' to stop waiting and to save or revert dirty editors.")
 		);
 
 		return { backups, error };
@@ -296,7 +296,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			if (result !== false) {
 				await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 			}
-		}, localize('saveBeforeShutdown', "Waiting for dirty editors to save..."));
+		}, localize('saveBeforeShutdown', "Saving dirty editors is taking longer than expected..."));
 	}
 
 	private doRevertAllBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[]): Promise<void> {
@@ -313,7 +313,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			// If we still have dirty working copies, revert those directly
 			// unless the revert operation was not successful (e.g. cancelled)
 			await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
-		}, localize('revertBeforeShutdown', "Waiting for dirty editors to revert..."));
+		}, localize('revertBeforeShutdown', "Reverting dirty editors is taking longer than expected..."));
 	}
 
 	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {

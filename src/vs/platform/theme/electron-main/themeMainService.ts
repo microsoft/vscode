@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BrowserWindow, nativeTheme } from 'electron';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IPartsSplash } from 'vs/platform/windows/common/windows';
 
 const DEFAULT_BG_LIGHT = '#FFFFFF';
 const DEFAULT_BG_DARK = '#1E1E1E';
@@ -14,47 +15,25 @@ const DEFAULT_BG_HC_BLACK = '#000000';
 
 const THEME_STORAGE_KEY = 'theme';
 const THEME_BG_STORAGE_KEY = 'themeBackground';
+const THEME_WINDOW_SPLASH = 'windowSplash';
 
 export const IThemeMainService = createDecorator<IThemeMainService>('themeMainService');
 
 export interface IThemeMainService {
+
 	readonly _serviceBrand: undefined;
 
 	getBackgroundColor(): string;
-}
 
-interface ThemeData {
-	baseTheme: string;
-	background: string;
+	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void;
+	getWindowSplash(): IPartsSplash | undefined;
 }
 
 export class ThemeMainService implements IThemeMainService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IStateMainService private stateMainService: IStateMainService) {
-		ipcMain.on('vscode:changeColorTheme', (e: Event, windowId: number, broadcast: string) => {
-			// Theme changes
-			if (typeof broadcast === 'string') {
-				const themeData = JSON.parse(broadcast) as ThemeData;
-				this.storeBackgroundColor(themeData);
-				this.updateBackgroundColor(windowId, themeData);
-			}
-		});
-	}
-
-	private storeBackgroundColor(data: ThemeData): void {
-		this.stateMainService.setItem(THEME_STORAGE_KEY, data.baseTheme);
-		this.stateMainService.setItem(THEME_BG_STORAGE_KEY, data.background);
-	}
-
-	private updateBackgroundColor(windowId: number, data: ThemeData): void {
-		BrowserWindow.getAllWindows().forEach(window => {
-			if (window.id === windowId) {
-				window.setBackgroundColor(data.background);
-			}
-		});
-	}
+	constructor(@IStateMainService private stateMainService: IStateMainService) { }
 
 	getBackgroundColor(): string {
 		if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
@@ -78,5 +57,33 @@ export class ThemeMainService implements IThemeMainService {
 		}
 
 		return background;
+	}
+
+	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void {
+
+		// Update in storage
+		this.stateMainService.setItems([
+			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
+			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
+			{ key: THEME_WINDOW_SPLASH, data: splash }
+		]);
+
+		// Update in opened windows
+		if (typeof windowId === 'number') {
+			this.updateBackgroundColor(windowId, splash);
+		}
+	}
+
+	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
+		for (const window of BrowserWindow.getAllWindows()) {
+			if (window.id === windowId) {
+				window.setBackgroundColor(splash.colorInfo.background);
+				break;
+			}
+		}
+	}
+
+	getWindowSplash(): IPartsSplash | undefined {
+		return this.stateMainService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH);
 	}
 }
