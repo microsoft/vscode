@@ -466,6 +466,9 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	focusTabs(): void {
+		if (!this._shouldShowTabs()) {
+			return;
+		}
 		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabList.getSelection();
 		this._tabList.domFocus();
