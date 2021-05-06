@@ -116,7 +116,7 @@ export interface IAuthenticationContribution {
 export interface IWalkthroughStep {
 	readonly id: string;
 	readonly title: string;
-	readonly description: string;
+	readonly description: string | undefined;
 	readonly media:
 	| { path: string | { dark: string, light: string, hc: string }, altText: string }
 	| { path: string, },

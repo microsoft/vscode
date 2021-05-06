@@ -364,7 +364,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
 			},
 				(walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
-					const description = parseDescription(step.description);
+					const description = parseDescription(step.description || '');
 					const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
 					if (buttonDescription) {
 						description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
