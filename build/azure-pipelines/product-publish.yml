@@ -58,6 +58,7 @@ steps:
         if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
         if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
       )
+      Write-Host "Stages to check: $stages"
 
       # Get the timeline and see if it says the other stage completed
       $timeline = Invoke-RestMethod "$($env:BUILDS_API_URL)timeline?api-version=6.0" -Headers @{
@@ -72,13 +73,16 @@ steps:
 
         if($didStageFail) {
           $failedStages += $stage
+        } else {
+          Write-Host "'$stage' did not fail."
         }
       }
 
       if ($failedStages.Length) {
         throw "Failed stages: $($failedStages -join ', '). This stage will now fail so that it is easier to retry failed jobs."
       }
-
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Determine if stage should succeed
 
   - pwsh: |
