@@ -566,6 +566,18 @@ export async function createWebviewManager(host) {
 		host.onMessage('content', async (_event, data) => {
 			const currentUpdateId = ++updateId;
 
+			try {
+				await workerReady;
+			} catch (e) {
+				console.error(`Webview fatal error: ${e}`);
+				host.postMessage('fatal-error', { message: e + '' });
+				return;
+			}
+
+			if (currentUpdateId !== updateId) {
+				return;
+			}
+
 			const options = data.options;
 			const newDocument = toContentHtml(data);
 
@@ -620,19 +632,7 @@ export async function createWebviewManager(host) {
 			/**
 			 * @param {Document} contentDocument
 			 */
-			async function onFrameLoaded(contentDocument) {
-				try {
-					await workerReady;
-				} catch (e) {
-					console.error(`Webview fatal error: ${e}`);
-					host.postMessage('fatal-error', { message: e + '' });
-					return;
-				}
-
-				if (currentUpdateId !== updateId) {
-					return;
-				}
-
+			function onFrameLoaded(contentDocument) {
 				// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 				setTimeout(() => {
 					contentDocument.open();
