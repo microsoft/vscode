@@ -578,20 +578,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 							white-space: pre-wrap;
 						}
 
-						.latex-block {
-							display: block;
-						}
-
-						.latex {
-							vertical-align: middle;
-							display: inline-block;
-						}
-
-						.latex img,
-						.latex-block img {
-							filter: brightness(0) invert(0)
-						}
-
 						dragging {
 							background-color: var(--vscode-editor-background);
 						}
@@ -653,15 +639,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						filter: brightness(0) invert(1)
 					}
 
-					#container > div.nb-symbolHighlight > div {
+					#container > div.nb-symbolHighlight {
 						background-color: var(--vscode-notebook-symbolHighlightBackground);
 					}
 
-					#container > div.nb-cellDeleted > div {
+					#container > div.nb-cellDeleted {
 						background-color: var(--vscode-diffEditor-removedTextBackground);
 					}
 
-					#container > div.nb-cellAdded > div {
+					#container > div.nb-cellAdded {
 						background-color: var(--vscode-diffEditor-insertedTextBackground);
 					}
 

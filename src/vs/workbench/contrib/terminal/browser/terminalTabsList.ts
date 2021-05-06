@@ -74,6 +74,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		);
 		this._terminalService.onInstancesChanged(() => this._render());
 		this._terminalService.onInstanceTitleChanged(() => this._render());
+		this._terminalService.onInstanceIconChanged(() => this._render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);

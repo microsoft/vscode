@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.57.0",
-  "distro": "295947422e138a150d3fe7de5c2347039fea9540",
+  "distro": "d3cfa681c1f9296c862ef9cb9e69a064cbfb3f91",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -14,7 +14,7 @@
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
     "compile": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile",
-    "watch": "npm-run-all -lp watch-client watch-extensions watch-extension-media",
+    "watch": "npm-run-all -lp watch-client watch-extensions",
     "watchd": "deemon yarn watch",
     "watch-webd": "deemon yarn watch-web",
     "kill-watchd": "deemon --kill yarn watch",
@@ -24,12 +24,9 @@
     "watch-client": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-client",
     "watch-clientd": "deemon yarn watch-client",
     "kill-watch-clientd": "deemon --kill yarn watch-client",
-    "watch-extensions": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-extensions",
-    "watch-extension-media": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-extension-media",
+    "watch-extensions": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-extensions watch-extension-media",
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
-    "watch-extension-mediad": "deemon yarn watch-extension-media",
-    "kill-watch-extension-mediad": "deemon --kill yarn watch-extension-media",
     "mocha": "mocha test/unit/node/all.js --delay",
     "precommit": "node build/hygiene.js",
     "gulp": "node --max_old_space_size=8192 ./node_modules/gulp/bin/gulp.js",

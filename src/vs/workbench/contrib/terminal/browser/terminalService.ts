@@ -110,6 +110,8 @@ export class TerminalService implements ITerminalService {
 	get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance | undefined>();
 	get onInstanceTitleChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceTitleChanged.event; }
+	private readonly _onInstanceIconChanged = new Emitter<ITerminalInstance | undefined>();
+	get onInstanceIconChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceIconChanged.event; }
 	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	private readonly _onInstancePrimaryStatusChanged = new Emitter<ITerminalInstance>();
@@ -294,12 +296,18 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _attachProcessLayoutListeners(isRemote: boolean): void {
-		this.onActiveTabChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-		this.onActiveInstanceChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-		this.onInstancesChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		this.onActiveTabChanged(() => this._saveState(isRemote));
+		this.onActiveInstanceChanged(() => this._saveState(isRemote));
+		this.onInstancesChanged(() => this._saveState(isRemote));
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
-		this.onInstanceProcessIdReady(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		this.onInstanceProcessIdReady(() => this._saveState(isRemote));
+		this.onInstanceTitleChanged(instance => {
+			this._updateTitle(instance);
+		});
+		this.onInstanceIconChanged(instance => {
+			this._updateIcon(instance);
+		});
 	}
 
 	private _handleInstanceContextKeys(): void {
@@ -411,21 +419,32 @@ export class TerminalService implements ITerminalService {
 	}
 
 	@debounce(500)
-	private _updateRemoteState(): void {
-		if (!!this._environmentService.remoteAuthority) {
-			const state: ITerminalsLayoutInfoById = {
-				tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveGroup()))
-			};
-			this._remoteTerminalService.setTerminalLayoutInfo(state);
-		}
-	}
-
-	@debounce(500)
-	private _updateLocalState(): void {
+	private _saveState(isRemote?: boolean): void {
+		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveGroup()))
 		};
-		this._localTerminalService!.setTerminalLayoutInfo(state);
+		offProcService!.setTerminalLayoutInfo(state);
+	}
+
+	@debounce(500)
+	private _updateTitle(instance?: ITerminalInstance): void {
+		const isRemote = !!this._environmentService.remoteAuthority;
+		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+		if (!instance || !instance.persistentProcessId || !instance.title) {
+			return;
+		}
+		offProcService?.updateTitle(instance.persistentProcessId, instance.title);
+	}
+
+	@debounce(500)
+	private _updateIcon(instance?: ITerminalInstance): void {
+		const isRemote = !!this._environmentService.remoteAuthority;
+		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+		if (!instance || !instance.persistentProcessId || !instance.icon) {
+			return;
+		}
+		offProcService?.updateIcon(instance.persistentProcessId, instance.icon.id);
 	}
 
 	private _removeTab(group: ITerminalGroup): void {
@@ -630,13 +649,14 @@ export class TerminalService implements ITerminalService {
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
+		instance.addDisposable(instance.onIconChanged(this._onInstanceIconChanged.fire, this._onInstanceIconChanged));
 		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		instance.addDisposable(instance.statusList.onDidChangePrimaryStatus(() => this._onInstancePrimaryStatusChanged.fire(instance)));
 		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => {
 			this._onInstanceDimensionsChanged.fire(instance);
 			if (this.configHelper.config.enablePersistentSessions && this.isProcessSupportRegistered) {
-				!!this._environmentService.remoteAuthority ? this._updateRemoteState() : this._updateLocalState();
+				this._saveState(!!this._environmentService.remoteAuthority);
 			}
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
