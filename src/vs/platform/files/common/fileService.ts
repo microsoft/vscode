@@ -20,6 +20,7 @@ import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cance
 import { Schemas } from 'vs/base/common/network';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { Iterable } from 'vs/base/common/iterator';
+import { isWindows } from 'vs/base/common/platform';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -313,6 +314,9 @@ export class FileService extends Disposable implements IFileService {
 		// validate overwrite
 		if (!options?.overwrite && await this.exists(resource)) {
 			throw new FileOperationError(localize('fileExists', "Unable to create file '{0}' that already exists when overwrite flag is not set", this.resourceForError(resource)), FileOperationResult.FILE_MODIFIED_SINCE, options);
+		}
+		if (isWindows && resource.fsPath.endsWith('.')) {
+			throw new FileOperationError(localize('fileNameEndsWithPeriodError', "Unable to create file '{0}' that ends with a '.'", this.resourceForError(resource)), FileOperationResult.FILE_OTHER_ERROR, options);
 		}
 	}
 
