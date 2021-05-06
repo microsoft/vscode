@@ -75,12 +75,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private set currentTrustState(trusted: boolean) {
 		if (this._isWorkspaceTrusted === trusted) { return; }
-		this._isWorkspaceTrusted = trusted;
 
-		// Invoke all workspace trust transition participants
-		this._trustTransitionManager.participate(trusted).then(() => {
-			this._onDidChangeTrust.fire(trusted);
-		});
+		this._isWorkspaceTrusted = trusted;
+		this._onDidChangeTrust.fire(trusted);
 	}
 
 	private registerListeners(): void {
@@ -90,8 +87,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			if (changeEvent.key === this.storageKey) {
 				this._trustStateInfo = this.loadTrustInfo();
 				this._onDidChangeTrustedFolders.fire();
-
-				this.currentTrustState = this.calculateWorkspaceTrust();
 			}
 		}));
 	}
@@ -122,8 +117,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return result;
 	}
 
-	private saveTrustInfo(): void {
+	private async saveTrustInfo(): Promise<void> {
 		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		await this.transitionWorkspace();
 	}
 
 	private calculateWorkspaceTrust(): boolean {
@@ -169,11 +165,20 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return workspaceUris;
 	}
 
+	private async transitionWorkspace(): Promise<void> {
+		const trusted = this.calculateWorkspaceTrust();
+		if (this.isWorkpaceTrusted() === trusted) { return; }
+
+		// Invoke all workspace trust transition participants
+		await this._trustTransitionManager.participate(trusted);
+		this.currentTrustState = trusted;
+	}
+
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
 		return this._trustTransitionManager.addWorkspaceTrustTransitionParticipant(participant);
 	}
 
-	public getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
+	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
 		let resultState = false;
 		let maxLength = -1;
 
@@ -193,7 +198,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return { trusted: resultState, uri: resultUri };
 	}
 
-	setUrisTrust(uris: URI[], trusted: boolean): void {
+	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
 		let changed = false;
 
 		for (const uri of uris) {
@@ -213,7 +218,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		if (changed) {
-			this.saveTrustInfo();
+			await this.saveTrustInfo();
 		}
 	}
 
@@ -271,16 +276,16 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 	}
 
-	setWorkspaceTrust(trusted: boolean): void {
+	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		const workspaceFolders = this.getWorkspaceUris();
-		this.setUrisTrust(workspaceFolders, trusted);
+		await this.setUrisTrust(workspaceFolders, trusted);
 	}
 
 	getTrustedFolders(): URI[] {
 		return this._trustStateInfo.uriTrustInfo.map(info => info.uri);
 	}
 
-	setTrustedFolders(folders: URI[]): void {
+	async setTrustedFolders(folders: URI[]): Promise<void> {
 		this._trustStateInfo.uriTrustInfo = [];
 		for (const folder of folders) {
 			this._trustStateInfo.uriTrustInfo.push({
@@ -289,7 +294,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			});
 		}
 
-		this.saveTrustInfo();
+		await this.saveTrustInfo();
 	}
 }
 
@@ -329,7 +334,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	private onTrustStateChanged(trusted: boolean): void {
 		this.trusted = trusted;
-		this.resolveRequest(trusted);
 	}
 
 	private resolveRequest(trusted?: boolean): void {
@@ -350,13 +354,14 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 	}
 
-	completeRequest(trusted?: boolean): void {
+	async completeRequest(trusted?: boolean): Promise<void> {
 		if (trusted === undefined || trusted === this.trusted) {
 			this.resolveRequest(trusted);
 			return;
 		}
 
-		this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
+		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
+		this.resolveRequest(trusted);
 	}
 
 	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {

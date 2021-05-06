@@ -23,6 +23,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 	constructor(trusted: boolean = true) {
 		this.trusted = trusted;
 	}
+
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
 		throw new Error('Method not implemented.');
 	}
@@ -39,11 +40,11 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	setTrustedFolders(folders: URI[]): void {
+	setTrustedFolders(folders: URI[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
-	setUrisTrust(uris: URI[], trusted: boolean): void {
+	setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -82,7 +83,7 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 		throw new Error('Method not implemented.');
 	}
 
-	completeRequest(trusted?: boolean): void {
+	async completeRequest(trusted?: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 

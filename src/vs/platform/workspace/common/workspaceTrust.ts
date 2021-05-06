@@ -46,11 +46,11 @@ export interface IWorkspaceTrustManagementService {
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): void;
 	canSetWorkspaceTrust(): boolean;
-	setWorkspaceTrust(trusted: boolean): void;
+	setWorkspaceTrust(trusted: boolean): Promise<void>;
 	getUriTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
-	setUrisTrust(folders: URI[], trusted: boolean): void;
+	setUrisTrust(folders: URI[], trusted: boolean): Promise<void>;
 	getTrustedFolders(): URI[];
-	setTrustedFolders(folders: URI[]): void;
+	setTrustedFolders(folders: URI[]): Promise<void>;
 }
 
 export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
@@ -61,7 +61,7 @@ export interface IWorkspaceTrustRequestService {
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 
 	cancelRequest(): void;
-	completeRequest(trusted?: boolean): void;
+	completeRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 }
 
