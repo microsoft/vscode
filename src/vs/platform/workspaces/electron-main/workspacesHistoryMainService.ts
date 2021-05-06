@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { coalesce } from 'vs/base/common/arrays';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { app, JumpListCategory, JumpListItem } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
@@ -62,7 +62,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
 
 	constructor(
-		@IStateService private readonly stateService: IStateService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
@@ -291,7 +291,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.recentlyOpenedStorageKey);
+		const storedRecents = this.stateMainService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.recentlyOpenedStorageKey);
 
 		return restoreRecentlyOpened(storedRecents, this.logService);
 	}
@@ -299,7 +299,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
 		const serialized = toStoreData(recent);
 
-		this.stateService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
+		this.stateMainService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 
 	updateWindowsJumpList(): void {

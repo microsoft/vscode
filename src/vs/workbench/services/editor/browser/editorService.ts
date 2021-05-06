@@ -318,9 +318,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				// Handle deletes in opened editors depending on:
-				// - the user has not disabled the setting closeOnFileDelete
+				// - the user has not disabled the setting `closeOnFileDelete`
 				// - the file change is local
-				// - the input is  a file that is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
+				// - the input is  a file that is not resolved (we need to dispose because
+				//   we cannot restore otherwise since we do not have the contents)
 				if (this.closeOnFileDelete || !isExternal || (this.fileEditorInputFactory.isFileEditorInput(editor) && !editor.isResolved())) {
 
 					// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
