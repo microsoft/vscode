@@ -321,7 +321,7 @@ minimist@^1.2.5:
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.5.tgz#67d66014b66a6a8aaa0c083c5fd58df4e4e97602"
   integrity sha512-FM9nNUYrRBAELZQT3xeZQ7fmMOBg6nWNmJKTcgsJeaLstP/UODVpGsr5OhXhhXg6f+qtJ8uiZ+PUxkDWcgIXLw==
 
-mkdirp@^0.5.1:
+mkdirp@^0.5.5:
   version "0.5.5"
   resolved "https://registry.yarnpkg.com/mkdirp/-/mkdirp-0.5.5.tgz#d91cefd62d1436ca0f41620e251288d420099def"
   integrity sha512-NKmAlESf6jMGym1++R0Ra7wvhV+wFW63FaSOFPwRahvea0gMUcGUhVeAg/0BC0wiv9ih5NYPB1Wn1UEI1/L+xQ==
@@ -441,13 +441,13 @@ socks@^2.3.3:
     ip "^1.1.5"
     smart-buffer "^4.1.0"
 
-spdlog@^0.11.1:
-  version "0.11.1"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.11.1.tgz#29721b31018a5fe6a3ce2531f9d8d43e0bd6b825"
-  integrity sha512-M+sg9/Tnr0lrfnW2/hqgpoc4Z8Jzq7W8NUn35iiSslj+1uj1pgutI60MCpulDP2QyFzOpC8VsJmYD6Fub7wHoA==
+spdlog@0.13.1:
+  version "0.13.1"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.1.tgz#bb33c7e4b4b11925962a6048f0cf24379803a5b8"
+  integrity sha512-pgOmpBTRaWCm0oEoN2pyeGGYbLk4hcw2R2TU0nkz6m1++e/SBw1xWKzofe7sneFBC3xudhqmQkjm+doFXQtq2w==
   dependencies:
     bindings "^1.5.0"
-    mkdirp "^0.5.1"
+    mkdirp "^0.5.5"
     nan "^2.14.0"
 
 string_decoder@~0.10.x:
