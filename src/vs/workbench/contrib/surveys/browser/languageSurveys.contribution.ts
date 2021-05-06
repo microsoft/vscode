@@ -20,6 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 class LanguageSurvey extends Disposable {
 
@@ -131,21 +132,32 @@ class LanguageSurvey extends Disposable {
 class LanguageSurveysContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextFileService textFileService: ITextFileService,
-		@IOpenerService openerService: IOpenerService,
-		@IProductService productService: IProductService,
-		@IModeService modeService: IModeService
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService,
+		@IModeService private readonly modeService: IModeService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
-		if (!productService.surveys) {
+		this.handleSurveys();
+	}
+
+	private async handleSurveys() {
+		if (!this.productService.surveys) {
 			return;
 		}
 
-		productService.surveys
+		// Make sure to wait for installed extensions
+		// being registered to show notifications
+		// properly (https://github.com/microsoft/vscode/issues/121216)
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		// Handle surveys
+		this.productService.surveys
 			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability)
-			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modeService, textFileService, openerService, productService));
+			.map(surveyData => new LanguageSurvey(surveyData, this.storageService, this.notificationService, this.telemetryService, this.modeService, this.textFileService, this.openerService, this.productService));
 	}
 }
 

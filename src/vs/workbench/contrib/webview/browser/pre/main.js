@@ -23,7 +23,6 @@ const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
 
 const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
-const isUsingWebviewTag = searchParams.has('isUsingWebviewTag');
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -188,37 +187,6 @@ function getVsCodeApiScript(allowMultipleAPIAcquire, useParentPostMessage, state
 			delete window.parent;
 			delete window.top;
 			delete window.frameElement;
-
-			if (!${isUsingWebviewTag}) {
-				// Try to block webviews from cancelling unloads.
-				// This blocking is not perfect but should block common patterns
-				(function() {
-					const createUnloadEventProxy = (e) => {
-						return new Proxy(e, {
-							set: (target, prop, receiver) => {
-								if (prop === 'returnValue') {
-									// Don't allow setting return value to block window unload
-									return;
-								}
-								target[prop] = value;
-							}
-						});
-					};
-
-					Object.defineProperty(window, 'onbeforeunload', { value: null, writable: false });
-
-					const originalAddEventListener = window.addEventListener.bind(window);
-					window.addEventListener = (type, listener, ...args) => {
-						if (type === 'beforeunload') {
-							return originalAddEventListener(type, (e) => {
-								return createUnloadEventProxy(listener);
-							}, ...args);
-						} else {
-							return originalAddEventListener(type, listener, ...args);
-						}
-					}
-				})();
-			}
 		`;
 }
 
@@ -400,7 +368,7 @@ export async function createWebviewManager(host) {
 		// make sure we block the browser from dispatching it. Instead VS Code
 		// handles these events and will dispatch a copy/paste back to the webview
 		// if needed
-		if (isUndoRedo(e)) {
+		if (isUndoRedo(e) || isPrint(e)) {
 			e.preventDefault();
 		} else if (isCopyPasteOrCut(e)) {
 			if (host.onElectron) {
@@ -454,6 +422,15 @@ export async function createWebviewManager(host) {
 	function isUndoRedo(e) {
 		const hasMeta = e.ctrlKey || e.metaKey;
 		return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
+	}
+
+	/**
+	 * @param {KeyboardEvent} e
+	 * @return {boolean}
+	 */
+	function isPrint(e) {
+		const hasMeta = e.ctrlKey || e.metaKey;
+		return hasMeta && e.key.toLowerCase() === 'p';
 	}
 
 	let isHandlingScroll = false;
@@ -761,7 +738,13 @@ export async function createWebviewManager(host) {
 				newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
 				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 				newFrame.contentWindow.addEventListener('keyup', handleInnerUp);
-				newFrame.contentWindow.addEventListener('contextmenu', e => e.preventDefault());
+				newFrame.contentWindow.addEventListener('contextmenu', e => {
+					e.preventDefault();
+					host.postMessage('did-context-menu', {
+						clientX: e.clientX,
+						clientY: e.clientY,
+					});
+				});
 
 				if (host.onIframeLoaded) {
 					host.onIframeLoaded(newFrame);

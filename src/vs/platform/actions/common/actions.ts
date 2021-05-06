@@ -157,11 +157,12 @@ export class MenuId {
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly PanelTitle = new MenuId('PanelTitle');
-	static readonly TerminalContainerContext = new MenuId('TerminalContainerContext');
-	static readonly TerminalToolbarContext = new MenuId('TerminalToolbarContext');
-	static readonly TerminalTabsWidgetContext = new MenuId('TerminalTabsWidgetContext');
-	static readonly TerminalTabsWidgetEmptyContext = new MenuId('TerminalTabsWidgetEmptyContext');
-	static readonly TerminalSingleTabContext = new MenuId('TerminalSingleTabContext');
+	static readonly TerminalInstanceContext = new MenuId('TerminalInstanceContext');
+	static readonly TerminalNewDropdownContext = new MenuId('TerminalNewDropdownContext');
+	static readonly TerminalTabContext = new MenuId('TerminalTabContext');
+	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
+	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
+	static readonly WebviewContext = new MenuId('WebviewContext');
 
 	readonly id: number;
 	readonly _debugName: string;

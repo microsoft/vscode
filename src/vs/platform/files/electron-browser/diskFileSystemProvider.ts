@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { isWindows } from 'vs/base/common/platform';
+import { basename } from 'vs/base/common/path';
 import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileDeleteOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -26,11 +29,17 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 		return this._capabilities;
 	}
 
-	protected override doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
+	protected override async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
 		if (!opts.useTrash) {
 			return super.doDelete(filePath, opts);
 		}
 
-		return this.nativeHostService.moveItemToTrash(filePath);
+		try {
+			await this.nativeHostService.moveItemToTrash(filePath);
+		} catch (error) {
+			this.logService.error(error);
+
+			throw new Error(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)));
+		}
 	}
 }

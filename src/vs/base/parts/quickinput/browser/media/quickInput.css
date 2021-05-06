@@ -276,3 +276,14 @@
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
 	display: flex;
 }
+
+/* focused items in quick pick */
+.quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator,
+.quick-input-list .monaco-list-row.focused .quick-input-list-rows .quick-input-list-row .codicon,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .codicon {
+	color: inherit
+}
+.quick-input-list .monaco-list-row.focused .monaco-keybinding-key {
+	background: none;
+}

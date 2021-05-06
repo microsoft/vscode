@@ -48,7 +48,7 @@ class InstallAction extends Action2 {
 			id: 'workbench.action.installCommandLine',
 			title: {
 				value: nls.localize('install', "Install '{0}' command in PATH", product.applicationName),
-				original: `Shell Command: Install \'${product.applicationName}\' command in PATH`
+				original: `Install \'${product.applicationName}\' command in PATH`
 			},
 			category,
 			f1: true,
@@ -132,7 +132,7 @@ class UninstallAction extends Action2 {
 			id: 'workbench.action.uninstallCommandLine',
 			title: {
 				value: nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName),
-				original: `Shell Command: Uninstall \'${product.applicationName}\' command from PATH`
+				original: `Uninstall \'${product.applicationName}\' command from PATH`
 			},
 			category,
 			f1: true,

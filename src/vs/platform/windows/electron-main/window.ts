@@ -424,6 +424,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
 		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.onWindowError(WindowError.LOAD, errorDescription));
 
+		// Prevent windows/iframes from blocking the unload
+		// through DOM events. We have our own logic for
+		// unloading a window that should not be confused
+		// with the DOM way.
+		// (https://github.com/microsoft/vscode/issues/122736)
+		this._win.webContents.on('will-prevent-unload', event => {
+			event.preventDefault();
+		});
+
 		// Window close
 		this._win.on('closed', () => {
 			this._onDidClose.fire();
@@ -797,6 +806,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Update window related properties
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
+		configuration.partsSplash = this.themeMainService.getWindowSplash();
 
 		// Update with latest perf marks
 		mark('code/willOpenNewWindow');

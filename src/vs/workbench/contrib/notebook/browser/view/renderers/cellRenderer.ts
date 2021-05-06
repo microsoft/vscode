@@ -117,6 +117,7 @@ abstract class AbstractCellRenderer {
 				return undefined;
 			}
 		});
+		disposables.add(toolbar);
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
@@ -827,6 +828,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			const actions = this.getCellToolbarActions(runMenu, false);
 			runToolbar.setActions(actions.primary, actions.secondary);
 		};
+		disposables.add(runMenu);
 		disposables.add(runMenu.onDidChange(() => {
 			update();
 		}));

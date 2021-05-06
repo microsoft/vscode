@@ -96,7 +96,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const scrollableContent = $('.workspace-trust-editor-body');
 		this.bodyScrollBar = this._register(new DomScrollableElement(scrollableContent, {
 			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Visible,
+			vertical: ScrollbarVisibility.Auto,
 		}));
 
 		append(this.rootElement, this.bodyScrollBar.getDomNode());
@@ -114,7 +114,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			const foregroundColor = theme.getColor(foreground);
 			if (foregroundColor) {
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.3));
-				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 0px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
+				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 4px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
 			}
 		}));
 	}
@@ -269,10 +269,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 			this.useWorkspaceLanguage() ? localize('trustedWorkspace', "In a trusted workspace") : localize('trustedFolder', "In a Trusted Folder"),
 			this.useWorkspaceLanguage() ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") : localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:"));
 		this.renderLimitationsListElement(trustedContainer, [
-			localize('trustedTasks', "Tasks will be allowed to run"),
-			localize('trustedDebugging', "Debugging will be enabled"),
-			localize('trustedSettings', "All workspace settings will be applied"),
-			localize('trustedExtensions', "All extensions will be enabled")
+			localize('trustedTasks', "Tasks are allowed to run"),
+			localize('trustedDebugging', "Debugging is enabled"),
+			localize('trustedSettings', "All workspace settings are applied"),
+			localize('trustedExtensions', "All extensions are enabled")
 		], checkListIcon.classNamesArray);
 
 		const untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted'));
@@ -281,10 +281,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 			this.useWorkspaceLanguage() ? localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:") : localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:"));
 
 		this.renderLimitationsListElement(untrustedContainer, [
-			localize('untrustedTasks', "Tasks will be disabled"),
-			localize('untrustedDebugging', "Debugging will be disabled"),
-			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) will not be applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust will not be applied"),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
+			localize('untrustedTasks', "Tasks are disabled"),
+			localize('untrustedDebugging', "Debugging is disabled"),
+			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) are not applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
+			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
 		], xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
@@ -333,7 +333,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			if (!uris) {
 				this.workspaceTrustManagementService.setWorkspaceTrust(true);
 			} else {
-				this.workspaceTrustManagementService.setFoldersTrust(uris, true);
+				this.workspaceTrustManagementService.setUrisTrust(uris, true);
 			}
 		};
 
