@@ -328,6 +328,7 @@ export interface IMarkdownCellInitialization {
 	cellHandle: number;
 	content: string;
 	offset: number;
+	visible: boolean;
 }
 
 export interface IInitializeMarkdownMessage {
@@ -411,7 +412,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	readonly markdownPreviewMapping = new Map<string, IMarkdownCellInitialization & { visible: boolean }>();
+	readonly markdownPreviewMapping = new Map<string, IMarkdownCellInitialization>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -1182,11 +1183,7 @@ var requirejs = (function() {
 
 		const mdCells = [...this.markdownPreviewMapping.values()];
 		this.markdownPreviewMapping.clear();
-		for (const cell of mdCells) {
-			if (cell.visible) {
-				this.createMarkdownPreview(cell);
-			}
-		}
+		this.initializeMarkdown(mdCells);
 	}
 
 	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
@@ -1414,7 +1411,7 @@ var requirejs = (function() {
 
 		this._sendMessageToWebview({
 			type: 'initializeMarkdownPreview',
-			cells: cells,
+			cells,
 		});
 
 		await p;
