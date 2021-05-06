@@ -234,14 +234,14 @@ function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, ot
 }
 
 /** @returns `true` if the string is starts with a lowercase letter. Otherwise, `false`. */
-function isLower(string: string) {
+function startsWithLower(string: string) {
 	const character = string.charAt(0);
 
 	return (character.toLocaleUpperCase() !== character) ? true : false;
 }
 
 /** @returns `true` if the string starts with an uppercase letter. Otherwise, `false`. */
-function isUpper(string: string) {
+function startsWithUpper(string: string) {
 	const character = string.charAt(0);
 
 	return (character.toLocaleLowerCase() !== character) ? true : false;
@@ -258,10 +258,10 @@ function isUpper(string: string) {
  * ```
  */
 function compareCaseLowerFirst(one: string, other: string): number {
-	if (isLower(one) && isUpper(other)) {
+	if (startsWithLower(one) && startsWithUpper(other)) {
 		return -1;
 	}
-	return (isUpper(one) && isLower(other)) ? 1 : 0;
+	return (startsWithUpper(one) && startsWithLower(other)) ? 1 : 0;
 }
 
 /**
@@ -275,10 +275,10 @@ function compareCaseLowerFirst(one: string, other: string): number {
  * ```
  */
 function compareCaseUpperFirst(one: string, other: string): number {
-	if (isUpper(one) && isLower(other)) {
+	if (startsWithUpper(one) && startsWithLower(other)) {
 		return -1;
 	}
-	return (isLower(one) && isUpper(other)) ? 1 : 0;
+	return (startsWithLower(one) && startsWithUpper(other)) ? 1 : 0;
 }
 
 function comparePathComponents(one: string, other: string, caseSensitive = false): number {
