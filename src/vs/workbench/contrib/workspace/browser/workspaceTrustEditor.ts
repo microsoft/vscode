@@ -269,10 +269,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 			this.useWorkspaceLanguage() ? localize('trustedWorkspace', "In a trusted workspace") : localize('trustedFolder', "In a Trusted Folder"),
 			this.useWorkspaceLanguage() ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") : localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:"));
 		this.renderLimitationsListElement(trustedContainer, [
-			localize('trustedTasks', "Tasks will be allowed to run"),
-			localize('trustedDebugging', "Debugging will be enabled"),
-			localize('trustedSettings', "All workspace settings will be applied"),
-			localize('trustedExtensions', "All extensions will be enabled")
+			localize('trustedTasks', "Tasks are allowed to run"),
+			localize('trustedDebugging', "Debugging is enabled"),
+			localize('trustedSettings', "All workspace settings are applied"),
+			localize('trustedExtensions', "All extensions are enabled")
 		], checkListIcon.classNamesArray);
 
 		const untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted'));
@@ -281,10 +281,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 			this.useWorkspaceLanguage() ? localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:") : localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:"));
 
 		this.renderLimitationsListElement(untrustedContainer, [
-			localize('untrustedTasks', "Tasks will be disabled"),
-			localize('untrustedDebugging', "Debugging will be disabled"),
-			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) will not be applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust will not be applied"),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
+			localize('untrustedTasks', "Tasks are disabled"),
+			localize('untrustedDebugging', "Debugging is disabled"),
+			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) are not applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
+			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
 		], xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
