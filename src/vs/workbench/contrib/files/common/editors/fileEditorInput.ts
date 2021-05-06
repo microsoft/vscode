@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, isTextEditorPane } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, isTextEditorPane, decorateFileEditorLabel } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
@@ -188,6 +187,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private decorateLabel(label: string): string {
 		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
 		const readonly = this.isReadonly();
+
 		return decorateFileEditorLabel(label, { orphaned: !!orphaned, readonly });
 	}
 
@@ -393,20 +393,4 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		dispose(this.cachedTextFileModelReference);
 		this.cachedTextFileModelReference = undefined;
 	}
-}
-
-export function decorateFileEditorLabel(label: string, state: { orphaned: boolean, readonly: boolean }): string {
-	if (state.orphaned && state.readonly) {
-		return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-	}
-
-	if (state.orphaned) {
-		return localize('orphanedFile', "{0} (deleted)", label);
-	}
-
-	if (state.readonly) {
-		return localize('readonlyFile', "{0} (read-only)", label);
-	}
-
-	return label;
 }
