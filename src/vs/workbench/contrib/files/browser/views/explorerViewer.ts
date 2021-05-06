@@ -691,7 +691,6 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				// 'default'
 				compareFileNames = compareFileNamesDefault;
 				compareFileExtensions = compareFileExtensionsDefault;
-
 		}
 
 		// Sort Directories
