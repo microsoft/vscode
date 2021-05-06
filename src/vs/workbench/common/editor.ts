@@ -69,6 +69,11 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
 /**
+ * Workspace Trust Required editor id.
+ */
+export const WORKSPACE_TRUST_REQUIRED_FILE_EDITOR_ID = 'workbench.editors.files.workspaceTrustRequiredEditor';
+
+/**
  * The editor pane is the container for workbench editors.
  */
 export interface IEditorPane extends IComposite {
@@ -463,6 +468,11 @@ export interface IEditorInput extends IDisposable {
 	resolve(): Promise<IEditorModel | null>;
 
 	/**
+	 * Returns if the input requires trust or not.
+	 */
+	requiresTrust(): Promise<boolean>;
+
+	/**
 	 * Returns if this input is readonly or not.
 	 */
 	isReadonly(): boolean;
@@ -600,6 +610,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 			}
 		*/
 		return { typeId: this.typeId };
+	}
+
+	async requiresTrust(): Promise<boolean> {
+		return false;
 	}
 
 	isReadonly(): boolean {

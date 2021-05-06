@@ -7,7 +7,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorRegistry, IEditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorRegistry, IEditorDescriptor, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,6 +15,15 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/workspaceTrustRequiredEditor';
+import { localize } from 'vs/nls';
+
+const WORKSPACE_TRUST_REQUIRED_EDITOR_DESCRIPTOR = EditorDescriptor.create(
+	WorkspaceTrustRequiredEditor,
+	WorkspaceTrustRequiredEditor.ID,
+	localize('trustRequiredEditor', "Workspace Trust Required"),
+);
 
 export interface IOpenEditorResult {
 	readonly editorPane: EditorPane;
@@ -48,15 +57,29 @@ export class EditorControl extends Disposable {
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		super();
 	}
 
 	async openEditor(editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<IOpenEditorResult> {
+		const requiresTrust = await editor.requiresTrust();
+		const blockedByTrust = requiresTrust && !this.workspaceTrustService.isWorkpaceTrusted();
+
+		if (requiresTrust) {
+			const disposable = this.workspaceTrustService.onDidChangeTrust(() => {
+				if (this._activeEditorPane?.input === editor) {
+					this.openEditor(editor, options, context);
+				}
+
+				disposable.dispose();
+			});
+		}
+
+		const descriptor = blockedByTrust ? WORKSPACE_TRUST_REQUIRED_EDITOR_DESCRIPTOR : Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 
 		// Editor pane
-		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 		if (!descriptor) {
 			throw new Error(`No editor descriptor found for input id ${editor.typeId}`);
 		}
