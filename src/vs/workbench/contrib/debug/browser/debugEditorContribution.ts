@@ -58,13 +58,13 @@ export const debugInlineForeground = registerColor('debugInline.decorationForegr
 	dark: '#ffffff80',
 	light: '#00000080',
 	hc: '#ffffff80'
-}, nls.localize('debug.inline.decorationForeground', "Color for the inline debug text."));
+}, nls.localize('debugInline.decorationForeground', "Color for the debug inline value text."));
 
 export const debugInlineBackground = registerColor('debugInline.decorationBackground', {
 	dark: '#ffc80033',
 	light: '#ffc80033',
 	hc: '#ffc80033'
-}, nls.localize('debug.inline.decorationBackground', "Color for the inline debug background."));
+}, nls.localize('debugInline.decorationBackground', "Color for the debug inline value background."));
 
 
 
