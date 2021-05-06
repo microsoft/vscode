@@ -85,11 +85,3 @@ steps:
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Determine if stage should succeed
-
-  - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      exec { node build/azure-pipelines/common/releaseBuild.js }
-    condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], true), and(in(variables['VSCODE_QUALITY'], 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))))
-    displayName: Release build

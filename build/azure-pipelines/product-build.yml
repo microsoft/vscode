@@ -318,3 +318,15 @@ stages:
           displayName: Publish Build
           steps:
             - template: product-publish.yml
+
+    - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+      - stage: Release
+        dependsOn:
+          - Publish
+        pool:
+          vmImage: "Ubuntu-18.04"
+        jobs:
+          - job: ReleaseBuild
+            displayName: Release Build
+            steps:
+              - template: release.yml
