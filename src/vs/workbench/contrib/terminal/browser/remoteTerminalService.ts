@@ -13,6 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -40,7 +41,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
 
@@ -203,6 +205,15 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 
 	async getEnvironment(): Promise<IProcessEnvironment> {
 		return this._remoteTerminalChannel?.getEnvironment() || {};
+	}
+
+	async getShellEnvironment(): Promise<IProcessEnvironment | undefined> {
+		const connection = this._remoteAgentService.getConnection();
+		if (!connection) {
+			return undefined;
+		}
+		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
+		return resolverResult.options?.extensionHostEnv as any;
 	}
 
 	async getWslPath(original: string): Promise<string> {

@@ -98,6 +98,7 @@ export interface IOffProcessTerminalService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getWslPath(original: string): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
+	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	updateTitle(id: number, title: string): Promise<void>;
 	updateIcon(id: number, icon: string): Promise<void>;

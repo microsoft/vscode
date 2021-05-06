@@ -141,6 +141,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.getEnvironment();
 	}
 
+	async getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._shellEnvironmentService.getShellEnv();
+	}
+
 	async getWslPath(original: string): Promise<string> {
 		return this._localPtyService.getWslPath(original);
 	}
