@@ -1674,21 +1674,6 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(event!.target!.resource.fsPath, resource.fsPath);
 	});
 
-	/* https://github.com/microsoft/vscode/issues/117426 */
-	(isWindows /* windows: cannot end a file/folder name with a '.' */ ? test : test.skip)('createFile (Windows cannot end a file/folder with ".")', async () => {
-		const resource = URI.file(join(testDir, 'test.'));
-
-		let e: Error;
-		try {
-			await service.canCreateFile(resource);
-		} catch (err) {
-			e = err;
-		}
-
-		assert.ok(e!);
-	});
-
-
 	test('writeFile - default', async () => {
 		return testWriteFile();
 	});
