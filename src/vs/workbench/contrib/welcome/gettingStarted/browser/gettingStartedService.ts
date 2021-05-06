@@ -371,7 +371,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						};
 					} else {
 						const altText = (step.media as any).altText;
-						if (!altText) {
+						if (altText === undefined) {
 							console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
 						}
 						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
