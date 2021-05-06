@@ -33,6 +33,14 @@ export class LinkedList<E> {
 	}
 
 	clear(): void {
+		let node = this._first;
+		while (node !== Node.Undefined) {
+			const next = node.next;
+			node.prev = Node.Undefined;
+			node.next = Node.Undefined;
+			node = next;
+		}
+
 		this._first = Node.Undefined;
 		this._last = Node.Undefined;
 		this._size = 0;
