@@ -55,6 +55,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Link } from 'vs/platform/opener/browser/link';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Schemas } from 'vs/base/common/network';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -97,6 +99,7 @@ export class SearchEditor extends BaseTextEditor {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IOpenerService readonly openerService: IOpenerService,
 		@IEditorProgressService readonly progressService: IEditorProgressService,
 		@ITextResourceConfigurationService textResourceService: ITextResourceConfigurationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -595,6 +598,17 @@ export class SearchEditor extends BaseTextEditor {
 				DOM.append(messageBox, document.createTextNode(node));
 			} else {
 				const link = this.instantiationService.createInstance(Link, node);
+				link.setHandler(async href => {
+					const parsed = URI.parse(href, true);
+					if (parsed.scheme === Schemas.command) {
+						const result = await this.commandService.executeCommand(parsed.path);
+						if ((result as any)?.triggerSearch) {
+							this.triggerSearch();
+						}
+					} else {
+						this.openerService.open(parsed);
+					}
+				});
 				DOM.append(messageBox, link.el);
 				this.messageDisposables.add(link);
 				this.messageDisposables.add(attachLinkStyler(link, this.themeService));

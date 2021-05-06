@@ -31,6 +31,8 @@ export class Link extends Disposable {
 		textLinkForeground: Color.fromHex('#006AB1')
 	};
 
+	private handler: (href: string) => void;
+
 	constructor(
 		link: ILinkDescriptor,
 		@IOpenerService openerService: IOpenerService
@@ -50,15 +52,22 @@ export class Link extends Disposable {
 			.event;
 		const onOpen = Event.any<EventLike>(onClick, onEnterPress);
 
+		this.handler = (href) => openerService.open(href, { allowCommands: true });
+		this._register({ dispose: () => this.handler = undefined! });
+
 		this._register(onOpen(e => {
 			EventHelper.stop(e, true);
 			if (!this.disabled) {
-				openerService.open(link.href, { allowCommands: true });
+				this.handler(link.href);
 			}
 		}));
 
 		this.disabled = false;
 		this.applyStyles();
+	}
+
+	setHandler(handler: (href: string) => void) {
+		this.handler = handler;
 	}
 
 	style(styles: ILinkStyles): void {

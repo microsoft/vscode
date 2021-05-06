@@ -19,6 +19,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
+import { Schemas } from 'vs/base/common/network';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -35,6 +36,7 @@ import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -159,6 +161,7 @@ export class SearchView extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -1660,6 +1663,17 @@ export class SearchView extends ViewPane {
 				dom.append(span, document.createTextNode(node));
 			} else {
 				const link = this.instantiationService.createInstance(Link, node);
+				link.setHandler(async href => {
+					const parsed = URI.parse(href, true);
+					if (parsed.scheme === Schemas.command) {
+						const result = await this.commandService.executeCommand(parsed.path);
+						if ((result as any)?.triggerSearch) {
+							this.triggerQueryChange();
+						}
+					} else {
+						this.openerService.open(parsed);
+					}
+				});
 				dom.append(span, link.el);
 				this.messageDisposables.add(link);
 				this.messageDisposables.add(attachLinkStyler(link, this.themeService));
