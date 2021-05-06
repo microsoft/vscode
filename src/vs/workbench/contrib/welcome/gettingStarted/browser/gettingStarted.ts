@@ -58,6 +58,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -129,6 +130,7 @@ export class GettingStartedPage extends EditorPane {
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
@@ -347,9 +349,14 @@ export class GettingStartedPage extends EditorPane {
 	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
-				const bytes = await this.fileService.readFile(path);
-				const markdown = bytes.value.toString();
-				return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+				try {
+					const bytes = await this.fileService.readFile(path);
+					const markdown = bytes.value.toString();
+					return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+				} catch (e) {
+					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
+					return '';
+				}
 			})());
 		}
 		return assertIsDefined(this.mdCache.get(path));
