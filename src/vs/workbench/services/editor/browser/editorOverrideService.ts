@@ -162,7 +162,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 	getAssociationsForResource(resource: URI): EditorAssociations {
 		const associations = this.getAllUserAssociations();
-		return associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
+		const matchingAssociations = associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
+		const allContributions: ContributionPoints = this._allContributions;
+		// Ensure that the settings are valid contribution points
+		return matchingAssociations.filter(association => allContributions.find(c => c.editorInfo.id === association.filenamePattern));
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
@@ -180,6 +183,13 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			associations = rawAssociations;
 		}
 		return associations;
+	}
+
+	/**
+	 * Returns all contributions as an array. Possible to contain duplicates
+	 */
+	private get _allContributions(): ContributionPoints {
+		return flatten(Array.from(this._contributionPoints.values()));
 	}
 
 	updateUserAssociations(globPattern: string, editorID: string): void {
@@ -225,7 +235,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 		if (override) {
 			// Specific overried passed in doesn't have to match the reosurce, it can be anything
-			const contributionPoints = flatten(Array.from(this._contributionPoints.values()));
+			const contributionPoints = this._allContributions;
 			return {
 				contributionPoint: findMatchingContribPoint(contributionPoints, override),
 				conflictingDefault: false
@@ -383,7 +393,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup, showDefaultPicker?: boolean) {
 		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all contribution points
-		let contributionPoints = resource.scheme === Schemas.untitled ? distinct(flatten(Array.from(this._contributionPoints.values())), (contrib) => contrib.editorInfo.id) : this.findMatchingContributions(resource);
+		let contributionPoints = resource.scheme === Schemas.untitled ? distinct(this._allContributions) : this.findMatchingContributions(resource);
 		const defaultSetting = this.getAssociationsForResource(resource)[0]?.viewType;
 		// Not the most efficient way to do this, but we want to ensure the text editor is at the top of the quickpick
 		contributionPoints = contributionPoints.sort((a, b) => {
