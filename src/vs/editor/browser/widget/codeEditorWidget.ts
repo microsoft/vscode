@@ -307,6 +307,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			contributions = EditorExtensionsRegistry.getEditorContributions();
 		}
 		for (const desc of contributions) {
+			if (this._contributions[desc.id]) {
+				onUnexpectedError(new Error(`Cannot have two contributions with the same id`));
+				continue;
+			}
 			try {
 				const contribution = this._instantiationService.createInstance(desc.ctor, this);
 				this._contributions[desc.id] = contribution;
@@ -316,6 +320,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
+			if (this._actions[action.id]) {
+				onUnexpectedError(new Error(`Cannot have two actions with the same id`));
+				return;
+			}
 			const internalAction = new InternalEditorAction(
 				action.id,
 				action.label,
