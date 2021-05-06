@@ -64,13 +64,21 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
 			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
 			quickAccessEntry.highlights = { label: highlights };
-			quickAccessEntry.trigger = () => {
-				if (ContributedTask.is(task)) {
-					this.taskService.customize(task, undefined, true);
-				} else if (CustomTask.is(task)) {
-					this.taskService.openConfig(task);
+			quickAccessEntry.trigger = (index) => {
+				if ((index === 1) && (quickAccessEntry.buttons?.length === 2)) {
+					const key = (task && !isString(task)) ? task.getRecentlyUsedKey() : undefined;
+					if (key) {
+						this.taskService.removeRecentlyUsedTask(key);
+					}
+					return TriggerAction.REFRESH_PICKER;
+				} else {
+					if (ContributedTask.is(task)) {
+						this.taskService.customize(task, undefined, true);
+					} else if (CustomTask.is(task)) {
+						this.taskService.openConfig(task);
+					}
+					return TriggerAction.CLOSE_PICKER;
 				}
-				return TriggerAction.CLOSE_PICKER;
 			};
 			quickAccessEntry.accept = async () => {
 				if (isString(task)) {
