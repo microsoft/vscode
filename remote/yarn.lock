@@ -441,10 +441,10 @@ socks@^2.3.3:
     ip "^1.1.5"
     smart-buffer "^4.1.0"
 
-spdlog@0.13.1:
-  version "0.13.1"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.1.tgz#bb33c7e4b4b11925962a6048f0cf24379803a5b8"
-  integrity sha512-pgOmpBTRaWCm0oEoN2pyeGGYbLk4hcw2R2TU0nkz6m1++e/SBw1xWKzofe7sneFBC3xudhqmQkjm+doFXQtq2w==
+spdlog@^0.13.0:
+  version "0.13.3"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.3.tgz#8e11c1a24f5a47c7e6651b30659ed70f74d91a0c"
+  integrity sha512-eCG0MzQMnzei31gso8HDgaypeHTd/woAwxwsEEBEmY+tt4hkDGA/3YJgsS4z6BY+ps4JY7NzvmFUhOOdQL7Xgw==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^0.5.5"
