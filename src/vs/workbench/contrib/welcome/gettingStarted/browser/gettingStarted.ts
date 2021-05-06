@@ -411,7 +411,7 @@ export class GettingStartedPage extends EditorPane {
 
 				const media = stepToExpand.media;
 
-				const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.base] }, undefined));
+				const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root] }, undefined));
 				webview.mountTo(this.stepMediaComponent);
 				webview.html = await this.renderMarkdown(media.path, media.base);
 
