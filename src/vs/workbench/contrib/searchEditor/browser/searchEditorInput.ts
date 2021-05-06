@@ -27,7 +27,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 
 export type SearchConfiguration = {
@@ -64,6 +64,8 @@ export class SearchEditorInput extends EditorInput {
 	get resource() {
 		return this.backingUri || this.modelUri;
 	}
+
+	public ongoingSearchOperation: Promise<ISearchComplete> | undefined;
 
 	public model: SearchEditorModel;
 	private _cachedResultsModel: ITextModel | undefined;
