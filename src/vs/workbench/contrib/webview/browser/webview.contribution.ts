@@ -5,6 +5,8 @@
 
 import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
+import * as nls from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 
@@ -28,3 +30,30 @@ overrideCommandForWebview(SelectAllCommand, webview => webview.selectAll());
 overrideCommandForWebview(CopyAction, webview => webview.copy());
 overrideCommandForWebview(PasteAction, webview => webview.paste());
 overrideCommandForWebview(CutAction, webview => webview.cut());
+
+if (CutAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: CutAction.id,
+			title: nls.localize('cut', "Cut"),
+		},
+	});
+}
+
+if (CopyAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: CopyAction.id,
+			title: nls.localize('copy', "Copy"),
+		},
+	});
+}
+
+if (PasteAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: PasteAction.id,
+			title: nls.localize('paste', "Paste"),
+		},
+	});
+}

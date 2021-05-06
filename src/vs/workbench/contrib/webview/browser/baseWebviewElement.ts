@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -11,6 +12,10 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -98,6 +103,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _telemetryService: ITelemetryService;
 	private readonly _tunnelService: ITunnelService;
 	protected readonly _environmentService: IWorkbenchEnvironmentService;
+	private _contextKeyService: IContextKeyService | undefined;
 
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 
@@ -108,9 +114,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		public extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		services: {
+			contextMenuService: IContextMenuService,
 			environmentService: IWorkbenchEnvironmentService,
 			fileService: IFileService,
 			logService: ILogService,
+			menuService: IMenuService,
 			notificationService: INotificationService,
 			remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 			requestService: IRequestService,
@@ -210,6 +218,29 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleKeyEvent('keyup', data);
 		}));
 
+		this._register(this.on('did-context-menu', (data: { clientX: number, clientY: number }) => {
+			if (!this.element) {
+				return;
+			}
+			if (!this._contextKeyService) {
+				return;
+			}
+			const elementBox = this.element.getBoundingClientRect();
+			services.contextMenuService.showContextMenu({
+				getActions: () => {
+					const result: IAction[] = [];
+					const menu = services.menuService.createMenu(MenuId.WebviewContext, this._contextKeyService!);
+					createAndFillInContextMenuActions(menu, undefined, result);
+					menu.dispose();
+					return result;
+				},
+				getAnchor: () => ({
+					x: elementBox.x + data.clientX,
+					y: elementBox.y + data.clientY
+				})
+			});
+		}));
+
 		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, ifNoneMatch?: string }) => {
 			const rawPath = entry.path;
 			const uri = URI.parse(rawPath.replace(/^\/([\w\-]+)(\/{1,2})/, (_: string, scheme: string, sep: string) => {
@@ -244,6 +275,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._resourceLoadingCts.dispose(true);
 
 		super.dispose();
+	}
+
+	setContextKeyService(contextKeyService: IContextKeyService) {
+		this._contextKeyService = contextKeyService;
 	}
 
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());

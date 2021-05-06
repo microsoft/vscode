@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -33,12 +35,14 @@ export class ElectronIframeWebview extends IFrameWebview {
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		webviewThemeDataProvider: WebviewThemeDataProvider,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITunnelService tunnelService: ITunnelService,
 		@IFileService fileService: IFileService,
 		@IRequestService requestService: IRequestService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IMenuService menuService: IMenuService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
@@ -46,7 +50,8 @@ export class ElectronIframeWebview extends IFrameWebview {
 		@INativeHostService nativeHostService: INativeHostService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
-			configurationService, fileService, logService, notificationService, _remoteAuthorityResolverService, requestService, telemetryService, tunnelService, environmentService);
+			contextMenuService,
+			configurationService, fileService, logService, menuService, notificationService, _remoteAuthorityResolverService, requestService, telemetryService, tunnelService, environmentService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 

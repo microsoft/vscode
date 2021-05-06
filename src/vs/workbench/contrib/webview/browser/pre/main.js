@@ -729,7 +729,13 @@ export async function createWebviewManager(host) {
 				newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
 				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 				newFrame.contentWindow.addEventListener('keyup', handleInnerUp);
-				newFrame.contentWindow.addEventListener('contextmenu', e => e.preventDefault());
+				newFrame.contentWindow.addEventListener('contextmenu', e => {
+					e.preventDefault();
+					host.postMessage('did-context-menu', {
+						clientX: e.clientX,
+						clientY: e.clientY,
+					});
+				});
 
 				if (host.onIframeLoaded) {
 					host.onIframeLoaded(newFrame);

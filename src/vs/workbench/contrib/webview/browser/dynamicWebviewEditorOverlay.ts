@@ -105,6 +105,8 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			this._findWidgetEnabled?.reset();
 			this._findWidgetEnabled = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED.bindTo(contextKeyService);
 			this._findWidgetEnabled.set(!!this.options.enableFindWidget);
+
+			this._webview.value?.setContextKeyService(this._scopedContextKeyService.value);
 		}
 	}
 
@@ -149,6 +151,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;
 			webview.state = this._state;
+
+			if (this._scopedContextKeyService.value) {
+				this._webview.value.setContextKeyService(this._scopedContextKeyService.value);
+			}
 
 			if (this._html) {
 				webview.html = this._html;
@@ -293,5 +299,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 	windowDidDragEnd() {
 		this._webview.value?.windowDidDragEnd();
+	}
+
+	setContextKeyService(contextKeyService: IContextKeyService) {
+		this._webview.value?.setContextKeyService(contextKeyService);
 	}
 }
