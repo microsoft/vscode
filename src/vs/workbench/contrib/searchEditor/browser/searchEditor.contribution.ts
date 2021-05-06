@@ -83,7 +83,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
 				describes: (editor) => isEqual(this.editorService.activeEditor?.resource, editor.resource) && this.editorService.activeEditor instanceof SearchEditorInput,
-				priority: ContributedEditorPriority.exclusive,
+				priority: ContributedEditorPriority.default,
 			},
 			{
 				singlePerResource: true,
