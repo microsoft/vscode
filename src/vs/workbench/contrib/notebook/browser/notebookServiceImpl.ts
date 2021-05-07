@@ -304,13 +304,15 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _markdownRenderersInfos = new Set<INotebookMarkupRendererInfo>();
 	private readonly _models = new ResourceMap<ModelData>();
 
-	private readonly _onDidCreateNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 	private readonly _onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+	private readonly _onWillRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 
-	readonly onDidCreateNotebookDocument = this._onDidCreateNotebookDocument.event;
+	readonly onWillAddNotebookDocument = this._onWillAddNotebookDocument.event;
 	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
 	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
+	readonly onWillRemoveNotebookDocument = this._onWillRemoveNotebookDocument.event;
 
 	private readonly _onWillRemoveViewType = this._register(new Emitter<string>());
 	readonly onWillRemoveViewType = this._onWillRemoveViewType.event;
@@ -561,7 +563,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
 		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
-		this._onDidCreateNotebookDocument.fire(notebookModel);
+		this._onWillAddNotebookDocument.fire(notebookModel);
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		return notebookModel;
 	}
@@ -581,6 +583,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	private _onWillDisposeDocument(model: INotebookTextModel): void {
 		const modelData = this._models.get(model.uri);
 		if (modelData) {
+			this._onWillRemoveNotebookDocument.fire(modelData.model);
 			this._models.delete(model.uri);
 			modelData.dispose();
 			this._onDidRemoveNotebookDocument.fire(modelData.model);

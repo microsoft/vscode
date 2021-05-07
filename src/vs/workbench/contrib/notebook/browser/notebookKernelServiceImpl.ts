@@ -74,7 +74,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		// auto associate kernels to new notebook documents, also emit event when
 		// a notebook has been closed (but don't update the memento)
 		this._disposables.add(_notebookService.onDidAddNotebookDocument(this._tryAutoBindNotebook, this));
-		this._disposables.add(_notebookService.onDidRemoveNotebookDocument(notebook => {
+		this._disposables.add(_notebookService.onWillRemoveNotebookDocument(notebook => {
 			const kernelId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
 			if (kernelId) {
 				this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: kernelId, newKernel: undefined });
