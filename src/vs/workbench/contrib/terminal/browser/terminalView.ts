@@ -21,7 +21,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ITerminalProfile, TerminalCommandId, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfile, ITerminalProfileResolverService, TerminalCommandId, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -67,7 +67,8 @@ export class TerminalViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._terminalService.onDidRegisterProcessSupport(() => {
@@ -89,7 +90,6 @@ export class TerminalViewPane extends ViewPane {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		});
-
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
 		this._register(this._terminalService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
@@ -209,9 +209,11 @@ export class TerminalViewPane extends ViewPane {
 		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
 
+		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
 		for (const p of profiles) {
-			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
-			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			const suffix = p.profileName === defaultProfileName ? nls.localize('defaultTerminalSuffix', " (Default)") : '';
+			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName + suffix, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName + suffix, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
 		for (const contributed of this._terminalContributionService.terminalTypes) {

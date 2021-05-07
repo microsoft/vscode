@@ -91,6 +91,9 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
 	readonly _serviceBrand: undefined;
+
+	readonly defaultProfileName: string | undefined;
+
 	/**
 	 * Resolves the icon of a shell launch config if this will use the default profile
 	 */
@@ -257,6 +260,7 @@ export interface IBeforeProcessDataEvent {
 export interface ITerminalProfile {
 	profileName: string;
 	path: string;
+	isDefault: boolean;
 	isAutoDetected?: boolean;
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
@@ -269,8 +273,7 @@ export const enum ProfileSource {
 	Pwsh = 'PowerShell'
 }
 
-export interface ITerminalExecutable {
-	path: string | string[];
+export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
@@ -278,13 +281,12 @@ export interface ITerminalExecutable {
 	env?: ITerminalEnvironment;
 }
 
-export interface ITerminalProfileSource {
+export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
+	path: string | string[];
+}
+
+export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
-	isAutoDetected?: boolean;
-	overrideName?: boolean;
-	args?: string | string[] | undefined;
-	icon?: string;
-	env?: ITerminalEnvironment;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
