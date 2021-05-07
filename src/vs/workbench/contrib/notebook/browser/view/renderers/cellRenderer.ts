@@ -56,12 +56,14 @@ import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/re
 
 const $ = DOM.$;
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
+export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel> {
 	private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		super();
+
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()).lineHeight;
 	}
@@ -96,7 +98,7 @@ abstract class AbstractCellRenderer {
 		private readonly notificationService: INotificationService,
 		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		language: string,
-		protected readonly dndController: CellDragAndDropController
+		protected dndController: CellDragAndDropController | undefined,
 	) {
 		this.editorOptions = new CellEditorOptions(configurationService, language);
 		this.cellMenus = this.instantiationService.createInstance(CellMenus);
@@ -104,6 +106,7 @@ abstract class AbstractCellRenderer {
 
 	dispose() {
 		this.editorOptions.dispose();
+		this.dndController = undefined;
 	}
 
 	protected createBetweenCellToolbar(container: HTMLElement, disposables: DisposableStore, contextKeyService: IContextKeyService): ToolBar {
@@ -376,7 +379,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		};
 
 		if (!this.useRenderer) {
-			this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
+			this.dndController?.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
 		}
 
 		this.commonRenderTemplate(templateData);
@@ -764,7 +767,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			toJSON: () => { return {}; }
 		};
 
-		this.dndController.registerDragHandle(templateData, rootContainer, dragHandle, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
+		this.dndController?.registerDragHandle(templateData, rootContainer, dragHandle, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
 		disposables.add(this.addDoubleClickCollapseHandler(templateData));
 		disposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {

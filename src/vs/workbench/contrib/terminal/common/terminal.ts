@@ -343,21 +343,21 @@ export interface ITerminalProcessManager extends IDisposable {
 
 export const enum ProcessState {
 	// The process has not been initialized yet.
-	Uninitialized,
+	Uninitialized = 1,
 	// The process is currently launching, the process is marked as launching
 	// for a short duration after being created and is helpful to indicate
 	// whether the process died as a result of bad shell and args.
-	Launching,
+	Launching = 2,
 	// The process is running normally.
-	Running,
+	Running = 3,
 	// The process was killed during launch, likely as a result of bad shell and
 	// args.
-	KilledDuringLaunch,
+	KilledDuringLaunch = 4,
 	// The process was killed by the user (the event originated from VS Code).
-	KilledByUser,
+	KilledByUser = 5,
 	// The process was killed by itself, for example the shell crashed or `exit`
 	// was run.
-	KilledByProcess
+	KilledByProcess = 6
 }
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
@@ -474,7 +474,8 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration'
+	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration',
+	InheritEnv = 'terminal.integrated.inheritEnv'
 }
 
 export const enum TerminalCommandId {

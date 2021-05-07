@@ -75,13 +75,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onInstancesChanged(() => this.render());
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
-		this._terminalService.onActiveInstanceChanged(e => {
-			if (e) {
-				const i = this._terminalService.terminalInstances.indexOf(e);
-				this.setSelection([i]);
-				this.reveal(i);
-			}
-		});
 
 		this.onMouseDblClick(async () => {
 			if (this.getFocus().length === 0) {
@@ -121,13 +114,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		this.onDidChangeSelection(e => {
 			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-			if (this._terminalTabsSingleSelectedContextKey) {
-				const instance = e.elements[0];
-				if (!instance) {
-					return;
-				}
-				this._terminalService.setActiveInstance(instance);
-			}
 		});
 
 		this.onDidChangeFocus(e => {

@@ -117,7 +117,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 			return undefined;
 		}
 
-		const provider = this._notebookService.getContributedNotebookProvider(this.viewType!);
+		const provider = this._notebookService.getContributedNotebookType(this.viewType!);
 
 		if (!provider) {
 			return undefined;
@@ -158,7 +158,7 @@ ${patterns}
 	// called when users rename a notebook document
 	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._modifiedTextModel) {
-			const contributedNotebookProviders = this._notebookService.getContributedNotebookProviders(target);
+			const contributedNotebookProviders = this._notebookService.getContributedNotebookTypes(target);
 
 			if (contributedNotebookProviders.find(provider => provider.id === this._modifiedTextModel!.object.viewType)) {
 				return this._move(group, target);

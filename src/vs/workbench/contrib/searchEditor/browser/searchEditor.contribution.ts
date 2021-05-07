@@ -69,7 +69,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 //#region Startup Contribution
 class SearchEditorContribution implements IWorkbenchContribution {
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
 		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
@@ -82,8 +81,8 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				id: SearchEditorInput.ID,
 				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				describes: (editor) => isEqual(this.editorService.activeEditor?.resource, editor.resource) && this.editorService.activeEditor instanceof SearchEditorInput,
-				priority: ContributedEditorPriority.exclusive,
+				describes: (editor) => editor instanceof SearchEditorInput,
+				priority: ContributedEditorPriority.default,
 			},
 			{
 				singlePerResource: true,

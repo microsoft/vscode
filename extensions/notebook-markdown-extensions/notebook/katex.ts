@@ -10,8 +10,16 @@ const link = document.createElement('link');
 link.rel = 'stylesheet';
 link.classList.add('markdown-style');
 link.href = styleHref;
-
 document.head.append(link);
+
+const style = document.createElement('style');
+style.classList.add('markdown-style');
+style.textContent = `
+	.katex-error {
+		color: var(--vscode-editorError-foreground);
+	}
+`;
+document.head.append(style);
 
 const katex = require('@iktakahiro/markdown-it-katex');
 

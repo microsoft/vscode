@@ -49,7 +49,7 @@ import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contri
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseLinkedText } from 'vs/base/common/linkedText';
@@ -461,6 +461,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchModel.cancelSearch(true);
 
 		const startInput = this.getInput();
+		if (!startInput) { return; }
 
 		this.searchHistoryDelayer.trigger(() => {
 			this.queryEditorWidget.searchInput.onSearchSubmit();
@@ -510,19 +511,30 @@ export class SearchEditor extends BaseTextEditor {
 
 		this.searchOperation.start(500);
 		this.ongoingOperations++;
-		const exit = await this.searchModel.search(query).finally(() => {
+
+		const { configurationModel } = await startInput.getModels();
+		configurationModel.updateConfig(config);
+
+		startInput.ongoingSearchOperation = this.searchModel.search(query).finally(() => {
 			this.ongoingOperations--;
 			if (this.ongoingOperations === 0) {
 				this.searchOperation.stop();
 			}
 		});
 
+		const searchOperation = await startInput.ongoingSearchOperation;
+		this.onSearchComplete(searchOperation, config, startInput);
+	}
+
+	private async onSearchComplete(searchOperation: ISearchComplete, startConfig: SearchConfiguration, startInput: SearchEditorInput) {
 		const input = this.getInput();
 		if (!input ||
 			input !== startInput ||
-			JSON.stringify(config) !== JSON.stringify(this.readConfigFromWidget())) {
+			JSON.stringify(startConfig) !== JSON.stringify(this.readConfigFromWidget())) {
 			return;
 		}
+
+		input.ongoingSearchOperation = undefined;
 
 		const sortOrder = this.searchConfig.sortOrder;
 		if (sortOrder === SearchSortOrder.Modified) {
@@ -532,18 +544,18 @@ export class SearchEditor extends BaseTextEditor {
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.filesToInclude, config.filesToExclude, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
-		const { resultsModel, configurationModel } = await input.getModels();
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
+		const { resultsModel } = await input.getModels();
 		this.modelService.updateModel(resultsModel, results.text);
 
 		let warningMessage = '';
 
-		if (exit && exit.limitHit) {
+		if (searchOperation && searchOperation.limitHit) {
 			warningMessage += localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.");
 		}
 
-		if (exit && exit.messages) {
-			for (const message of exit.messages) {
+		if (searchOperation && searchOperation.messages) {
+			for (const message of searchOperation.messages) {
 				if (message.type === TextSearchCompleteMessageType.Information) {
 					this.addMessage(message.text);
 				}
@@ -559,8 +571,6 @@ export class SearchEditor extends BaseTextEditor {
 				type: MessageType.WARNING
 			});
 		}
-
-		configurationModel.updateConfig(config);
 
 		input.setDirty(!input.isUntitled());
 		input.setMatchRanges(results.matchRanges);
@@ -623,7 +633,9 @@ export class SearchEditor extends BaseTextEditor {
 		return this._input as SearchEditorInput;
 	}
 
+	private priorConfig: Partial<Readonly<SearchConfiguration>> | undefined;
 	setSearchConfig(config: Partial<Readonly<SearchConfiguration>>) {
+		this.priorConfig = config;
 		if (config.query !== undefined) { this.queryEditorWidget.setValue(config.query); }
 		if (config.isCaseSensitive !== undefined) { this.queryEditorWidget.searchInput.setCaseSensitive(config.isCaseSensitive); }
 		if (config.isRegexp !== undefined) { this.queryEditorWidget.searchInput.setRegex(config.isRegexp); }
@@ -648,9 +660,17 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor.setModel(resultsModel);
 		this.pauseSearching = true;
 
-		this.toggleRunAgainMessage(resultsModel.getLineCount() === 1 && resultsModel.getValue() === '' && configurationModel.config.query !== '');
+		this.toggleRunAgainMessage(!newInput.ongoingSearchOperation && resultsModel.getLineCount() === 1 && resultsModel.getValue() === '' && configurationModel.config.query !== '');
 
 		this.setSearchConfig(configurationModel.config);
+
+		this._register(configurationModel.onConfigDidUpdate(newConfig => {
+			if (newConfig !== this.priorConfig) {
+				this.pauseSearching = true;
+				this.setSearchConfig(newConfig);
+				this.pauseSearching = false;
+			}
+		}));
 
 		this.restoreViewState();
 
@@ -659,6 +679,13 @@ export class SearchEditor extends BaseTextEditor {
 		}
 
 		this.pauseSearching = false;
+
+		if (newInput.ongoingSearchOperation) {
+			const existingConfig = this.readConfigFromWidget();
+			newInput.ongoingSearchOperation.then(complete => {
+				this.onSearchComplete(complete, existingConfig, newInput);
+			});
+		}
 	}
 
 	private toggleIncludesExcludes(_shouldShow?: boolean): void {

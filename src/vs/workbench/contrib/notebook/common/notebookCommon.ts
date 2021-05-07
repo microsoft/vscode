@@ -440,6 +440,15 @@ export interface NotebookDataDto {
 	readonly metadata: NotebookDocumentMetadata;
 }
 
+
+export interface INotebookContributionData {
+	providerDisplayName: string;
+	displayName: string;
+	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
+	exclusive: boolean;
+}
+
+
 export function getCellUndoRedoComparisonKey(uri: URI) {
 	const data = CellUri.parse(uri);
 	if (!data) {
@@ -481,15 +490,33 @@ export namespace CellUri {
 		};
 	}
 
-	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
+	export function parseCellMetadataUri(metadata: URI) {
+		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
+			return undefined;
+		}
+		const match = _regex.exec(metadata.fragment);
+		if (!match) {
+			return undefined;
+		}
+		const handle = Number(match[1]);
+		return {
+			handle,
+			notebook: metadata.with({
+				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+				fragment: null
+			})
+		};
+	}
+
+	export function generateCellUri(notebook: URI, handle: number, scheme: string): URI {
 		return notebook.with({
-			scheme: Schemas.vscodeNotebookCellMetadata,
+			scheme: scheme,
 			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
-	export function parseCellMetadataUri(metadata: URI) {
-		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
+	export function parseCellUri(metadata: URI, scheme: string) {
+		if (metadata.scheme !== scheme) {
 			return undefined;
 		}
 		const match = _regex.exec(metadata.fragment);

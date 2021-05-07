@@ -1886,15 +1886,13 @@ declare module 'vscode' {
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
-	export interface NotebookDocumentContentOptions {
-		/**
-		 * Not ready for production or development use yet.
-		 */
-		viewOptions?: {
-			displayName: string;
-			filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern; })[];
-			exclusive?: boolean;
-		};
+	/**
+	 * todo@API Not ready for production or development use yet.
+	 */
+	export interface NotebookRegistrationData {
+		displayName: string;
+		filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern; })[];
+		exclusive?: boolean;
 	}
 
 	export namespace notebook {
@@ -1902,6 +1900,12 @@ declare module 'vscode' {
 		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
 		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
 		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions): Disposable;
+
+		// SPECIAL overload with _NotebookRegistrationData
+		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions, registrationData?: NotebookRegistrationData): Disposable;
+
+		// SPECIAL overload with _NotebookRegistrationData
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions, registration?: NotebookRegistrationData): Disposable;
 	}
 
 	//#endregion

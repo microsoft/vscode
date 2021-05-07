@@ -27,7 +27,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 
 export type SearchConfiguration = {
@@ -64,6 +64,8 @@ export class SearchEditorInput extends EditorInput {
 	get resource() {
 		return this.backingUri || this.modelUri;
 	}
+
+	public ongoingSearchOperation: Promise<ISearchComplete> | undefined;
 
 	public model: SearchEditorModel;
 	private _cachedResultsModel: ITextModel | undefined;
@@ -135,7 +137,10 @@ export class SearchEditorInput extends EditorInput {
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
 			this._onDidChangeLabel.fire();
-			this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => this._onDidChangeLabel.fire()));
+			this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => {
+				this._onDidChangeLabel.fire();
+				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = this._cachedConfigurationModel?.config;
+			}));
 			return data;
 		});
 	}

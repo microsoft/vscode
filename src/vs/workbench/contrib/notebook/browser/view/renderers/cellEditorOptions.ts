@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -20,7 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 
-export class CellEditorOptions {
+export class CellEditorOptions extends Disposable {
 
 	private static fixedEditorOptions: IEditorOptions = {
 		scrollBeyondLastLine: false,
@@ -45,25 +45,22 @@ export class CellEditorOptions {
 
 	private _value: IEditorOptions;
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
-	private disposable: IDisposable;
-
 	private readonly _onDidChange = new Emitter<IEditorOptions>();
 	readonly onDidChange: Event<IEditorOptions> = this._onDidChange.event;
 
 	constructor(readonly configurationService: IConfigurationService, language: string) {
-
-		this.disposable = configurationService.onDidChangeConfiguration(e => {
+		super();
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook') || e.affectsConfiguration(ShowCellStatusBarKey)) {
 				this._value = computeEditorOptions();
 				this._onDidChange.fire(this.value);
 			}
-		});
+		}));
 
-		EditorTopPaddingChangeEvent(() => {
+		this._register(EditorTopPaddingChangeEvent(() => {
 			this._value = computeEditorOptions();
 			this._onDidChange.fire(this.value);
-
-		});
+		}));
 
 		const computeEditorOptions = () => {
 			const showCellStatusBar = configurationService.getValue<boolean>(ShowCellStatusBarKey);
@@ -91,9 +88,9 @@ export class CellEditorOptions {
 		this._value = computeEditorOptions();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._onDidChange.dispose();
-		this.disposable.dispose();
+		super.dispose();
 	}
 
 	get value(): IEditorOptions {

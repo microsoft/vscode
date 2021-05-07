@@ -324,10 +324,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _getIcon(): Codicon | undefined {
 		if (this.shellLaunchConfig.icon) {
 			return iconRegistry.get(this.shellLaunchConfig.icon);
-		} else if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
+		}
+		if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
 			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon);
 		}
-		return Codicon.terminal;
+		if (this._processManager.processState >= ProcessState.Launching) {
+			return Codicon.terminal;
+		}
+		return undefined;
 	}
 
 	private _getTitle(): string {

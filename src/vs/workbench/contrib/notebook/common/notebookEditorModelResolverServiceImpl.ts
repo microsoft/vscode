@@ -166,7 +166,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 				viewType = existingViewType;
 			} else {
 				await this._extensionService.whenInstalledExtensionsRegistered();
-				const providers = this._notebookService.getContributedNotebookProviders(resource);
+				const providers = this._notebookService.getContributedNotebookTypes(resource);
 				const exclusiveProvider = providers.find(provider => provider.exclusive);
 				viewType = exclusiveProvider?.id || providers[0]?.id;
 			}

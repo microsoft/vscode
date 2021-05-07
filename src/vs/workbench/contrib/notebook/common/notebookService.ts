@@ -8,19 +8,17 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookRendererInfo, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkupRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, NotebookDataDto, TransientOptions, IOrderedMimeType, IOutputDto, INotebookMarkupRendererInfo, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IRelativePattern } from 'vs/base/common/glob';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface INotebookContentProvider {
-	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: TransientOptions;
 
 	open(uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
@@ -82,8 +80,9 @@ export interface INotebookService {
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];
 
-	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
-	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
+	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable;
+	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined;
+	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;

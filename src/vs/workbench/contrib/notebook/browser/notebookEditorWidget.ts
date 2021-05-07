@@ -207,6 +207,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _webview: BackLayerWebView<ICommonCellInfo> | null = null;
 	private _webviewResolvePromise: Promise<BackLayerWebView<ICommonCellInfo> | null> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
+	private _listDelegate: NotebookCellListDelegate | null = null;
 	private _list!: INotebookCellList;
 	private _listViewInfoAccessor!: ListViewInfoAccessor;
 	private _dndController: CellDragAndDropController | null = null;
@@ -345,7 +346,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._memento = new Memento(NOTEBOOK_EDITOR_ID, storageService);
 
-		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
+		this._outputRenderer = this._register(new OutputRenderer(this, this.instantiationService));
 		this._scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -565,12 +566,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.instantiationService.createInstance(MarkdownCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService, { useRenderer: this.useRenderer }),
 		];
 
+		renderers.forEach(renderer => {
+			this._register(renderer);
+		});
+
+		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate);
+		this._register(this._listDelegate);
+
 		this._list = this.instantiationService.createInstance(
 			NotebookCellList,
 			'NotebookCellList',
 			this._overlayContainer,
 			this._body,
-			this.instantiationService.createInstance(NotebookCellListDelegate),
+			this._listDelegate,
 			renderers,
 			this.scopedContextKeyService,
 			{
@@ -1282,10 +1290,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			await this._webview!.initializeMarkdown(requests
-				.map(request => ({ cellId: request[0].id, cellHandle: request[0].handle, content: request[0].getText(), offset: request[1] })));
+			await this._webview!.initializeMarkdown(requests.map(request => ({
+				cellId: request[0].id,
+				cellHandle: request[0].handle,
+				content: request[0].getText(),
+				offset: request[1],
+				visible: false,
+			})));
 		} else {
-			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markdown).slice(0, 5).map(cell => ({ cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000 }));
+			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markdown).slice(0, 5).map(cell => ({ cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false }));
 			await this._webview!.initializeMarkdown(initRequests);
 
 			// no cached view state so we are rendering the first viewport
@@ -1716,13 +1729,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 		const { selected } = this.notebookKernelService.getMatchingKernel(this.viewModel.notebookDocument);
-		if (!selected || !selected.preloadUris.length) {
-			return;
-		}
 		if (!this._webview?.isResolved()) {
 			await this._resolveWebview();
 		}
-		this._webview?.updateKernelPreloads([selected.localResourceRoot], selected.preloadUris);
+		this._webview?.updateKernelPreloads(selected);
 	}
 
 	get activeKernel() {
@@ -1752,7 +1762,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#endregion
 
 	//#region Cell operations/layout API
-	private _pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
+	private _pendingLayouts: WeakMap<ICellViewModel, IDisposable> | null = new WeakMap<ICellViewModel, IDisposable>();
 	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
 		this._debug('layout cell', cell.handle, height);
 		const viewIndex = this._list.getViewIndex(cell);
@@ -1769,8 +1779,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._list.updateElementHeight2(cell, height);
 		};
 
-		if (this._pendingLayouts.has(cell)) {
-			this._pendingLayouts.get(cell)!.dispose();
+		if (this._pendingLayouts?.has(cell)) {
+			this._pendingLayouts?.get(cell)!.dispose();
 		}
 
 		let r: () => void;
@@ -1783,13 +1793,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return;
 			}
 
-			this._pendingLayouts.delete(cell);
+			this._pendingLayouts?.delete(cell);
 
 			relayout(cell, height);
 			r();
 		});
 
-		this._pendingLayouts.set(cell, toDisposable(() => {
+		this._pendingLayouts?.set(cell, toDisposable(() => {
 			layoutDisposable.dispose();
 			r();
 		}));
@@ -1877,7 +1887,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return false;
 		}
 
-		if (this._pendingLayouts.has(cell)) {
+		if (this._pendingLayouts?.has(cell)) {
 			this._pendingLayouts.get(cell)!.dispose();
 		}
 
@@ -2137,7 +2147,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
-		await this._webview.showMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop, cell.contentHash);
+		await this._webview.showMarkdownPreview({
+			cellHandle: cell.handle,
+			cellId: cell.id,
+			content: cell.getText(),
+			offset: cellTop,
+			visible: true,
+		});
 	}
 
 	async unhideMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {
@@ -2438,6 +2454,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();
+
+		// unref
+		this._webview = null;
+		this._webviewResolvePromise = null;
+		this._webviewTransparentCover = null;
+		this._dndController = null;
+		this._listTopCellToolbar = null;
+		this._eventDispatcher = undefined;
+		this._notebookViewModel = undefined;
+		this._cellContextKeyManager = null;
+		this._renderedEditors.clear();
+		this._pendingLayouts = null;
+		this._listDelegate = null;
+
 		super.dispose();
 	}
 
