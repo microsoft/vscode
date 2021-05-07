@@ -96,6 +96,7 @@ export interface IOffProcessTerminalService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getWslPath(original: string): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
@@ -165,7 +166,9 @@ export interface IPtyService {
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string): Promise<void>
 	updateIcon(id: number, icon: string): Promise<void>
+
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
@@ -446,6 +449,17 @@ export interface ITerminalDimensions {
 	 * The rows of the terminal.
 	 */
 	rows: number;
+}
+
+export interface ITerminalProfile {
+	profileName: string;
+	path: string;
+	isDefault: boolean;
+	isAutoDetected?: boolean;
+	args?: string | string[] | undefined;
+	env?: ITerminalEnvironment;
+	overrideName?: boolean;
+	icon?: string;
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {

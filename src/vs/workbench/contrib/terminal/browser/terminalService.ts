@@ -19,7 +19,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -27,7 +27,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_COUNT, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -345,6 +345,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _detectProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
+		const offProcService = this._getPrimaryOffProcService();
+		if (!offProcService) {
+			return this._availableProfiles || [];
+		}
+		const profiles = await offProcService?.getProfiles();
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		// Wait for the remoteAuthority to be ready (and listening for events) before firing
 		// the event to spawn the ext host process
@@ -420,31 +425,31 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _saveState(isRemote?: boolean): void {
-		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveGroup()))
 		};
-		offProcService!.setTerminalLayoutInfo(state);
+		this._getPrimaryOffProcService()?.setTerminalLayoutInfo(state);
 	}
 
 	@debounce(500)
 	private _updateTitle(instance?: ITerminalInstance): void {
-		const isRemote = !!this._environmentService.remoteAuthority;
-		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
 		if (!instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
-		offProcService?.updateTitle(instance.persistentProcessId, instance.title);
+		this._getPrimaryOffProcService()?.updateTitle(instance.persistentProcessId, instance.title);
 	}
 
 	@debounce(500)
 	private _updateIcon(instance?: ITerminalInstance): void {
-		const isRemote = !!this._environmentService.remoteAuthority;
-		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
 		if (!instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		offProcService?.updateIcon(instance.persistentProcessId, instance.icon.id);
+		this._getPrimaryOffProcService()?.updateIcon(instance.persistentProcessId, instance.icon.id);
+	}
+
+	private _getPrimaryOffProcService(): IOffProcessTerminalService | undefined {
+		const isRemote = !!this._environmentService.remoteAuthority;
+		return isRemote ? this._remoteTerminalService : this._localTerminalService;
 	}
 
 	private _removeTab(group: ITerminalGroup): void {

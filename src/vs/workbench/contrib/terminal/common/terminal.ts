@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -255,17 +255,6 @@ export interface IBeforeProcessDataEvent {
 	 * to the terminal.
 	 */
 	data: string;
-}
-
-export interface ITerminalProfile {
-	profileName: string;
-	path: string;
-	isDefault: boolean;
-	isAutoDetected?: boolean;
-	args?: string | string[] | undefined;
-	env?: ITerminalEnvironment;
-	overrideName?: boolean;
-	icon?: string;
 }
 
 export const enum ProfileSource {
