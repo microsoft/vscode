@@ -22,7 +22,7 @@ export const HC_THEME_ID = 'Default High Contrast';
 export const THEME_ID_OPEN_PAREN = '[';
 export const THEME_ID_CLOSE_PAREN = ']';
 export const THEME_ID_WILDCARD = '...';
-export const THEME_SEPARATOR_REGEX = /\[\s*\]/;
+export const THEME_ID_REGEX = /(?<=\[).+?(?=\])/g;
 
 export enum ThemeSettings {
 	COLOR_THEME = 'workbench.colorTheme',
