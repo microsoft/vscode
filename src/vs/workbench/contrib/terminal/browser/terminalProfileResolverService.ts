@@ -62,13 +62,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	@debounce(200)
 	private async _refreshDefaultProfileName() {
-		console.log('updating defaultprofilename');
 		if (this._primaryBackendOs) {
 			this._defaultProfileName = (await this.getDefaultProfile({
 				remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
 				os: this._primaryBackendOs
 			}))?.profileName;
-			console.log('  set', this._defaultProfileName);
 		}
 	}
 
