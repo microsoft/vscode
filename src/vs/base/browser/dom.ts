@@ -347,16 +347,7 @@ export function getClientArea(element: HTMLElement): Dimension {
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
 	if (platform.isIOS && window.visualViewport) {
-		const width = window.visualViewport.width;
-		const height = window.visualViewport.height - (
-			browser.isStandalone
-				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
-				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
-				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
-				? (20 + 4) // + 4px for body margin
-				: 0
-		);
-		return new Dimension(width, height);
+		return new Dimension(window.visualViewport.width, window.visualViewport.height);
 	}
 
 	// Try innerWidth / innerHeight
