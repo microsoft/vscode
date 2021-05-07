@@ -48,7 +48,7 @@ import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
-import { IBannerService } from 'vs/workbench/browser/parts/banner/bannerPart';
+import { IBannerService } from 'vs/workbench/services/banner/common/bannerService';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -64,8 +64,6 @@ export enum Settings {
 enum Storage {
 	SIDEBAR_HIDDEN = 'workbench.sidebar.hidden',
 	SIDEBAR_SIZE = 'workbench.sidebar.size',
-
-	BANNER_HIDDEN = 'workbench.banner.hidden',
 
 	PANEL_HIDDEN = 'workbench.panel.hidden',
 	PANEL_POSITION = 'workbench.panel.location',
@@ -563,9 +561,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Panel size before maximized
 		this.state.panel.lastNonMaximizedHeight = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, StorageScope.GLOBAL, 300);
 		this.state.panel.lastNonMaximizedWidth = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, StorageScope.GLOBAL, 300);
-
-		// Banner visibility
-		this.state.banner.hidden = this.storageService.getBoolean(Storage.BANNER_HIDDEN, StorageScope.WORKSPACE, false);
 
 		// Statusbar visibility
 		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
@@ -1373,21 +1368,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
-	setBannerHidden(hidden: boolean, persist: boolean): void {
-		// Banner has been closed using the action
-		if (this.state.banner.hidden && !hidden) {
-			return;
-		}
-
-		// Close banner and persists state
-		if (hidden && persist) {
-			this.state.banner.hidden = hidden;
-			this.storageService.store(Storage.BANNER_HIDDEN, hidden, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		}
-
-		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
-	}
-
 	setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.editor.hidden = hidden;
 
@@ -1828,8 +1808,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					{
 						type: 'leaf',
 						data: { type: Parts.BANNER_PART },
-						size: bannerHeight,
-						visible: false
+						size: bannerHeight
 					},
 					{
 						type: 'branch',

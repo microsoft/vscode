@@ -40,9 +40,9 @@ import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/pla
 import { Schemas } from 'vs/base/common/network';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IBannerService } from 'vs/workbench/services/banner/common/bannerService';
 
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 
@@ -64,8 +64,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IBannerService private readonly bannerService: IBannerService,
 		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
@@ -216,7 +216,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private updateWorkbenchIndicators(trusted: boolean): void {
 		this.updateStatusbarEntry(trusted);
-		this.workbenchLayoutService.setBannerHidden(trusted, false);
+		this.bannerService.setBannerVisibility(!trusted);
 	}
 
 	private registerListeners(): void {

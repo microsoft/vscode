@@ -164,11 +164,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	setActivityBarHidden(hidden: boolean): void;
 
 	/**
-	 * Set the banner hidden or not
-	 */
-	setBannerHidden(hidden: boolean, persist: boolean): void;
-
-	/**
 	 *
 	 * Set editor area hidden or not
 	 */

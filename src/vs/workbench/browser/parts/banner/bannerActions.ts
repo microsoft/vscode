@@ -7,8 +7,8 @@ import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IBannerService } from 'vs/workbench/services/banner/common/bannerService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-
 
 export class CloseBannerAction extends Action2 {
 
@@ -23,7 +23,7 @@ export class CloseBannerAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setBannerHidden(true, true);
+		accessor.get(IBannerService).setBannerVisibility(false);
 	}
 }
 

@@ -9,7 +9,7 @@ import { $, append } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
@@ -19,8 +19,10 @@ import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
 import { attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { editorInfoForeground, listActiveSelectionBackground, listActiveSelectionForeground, registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
-import { CloseBannerAction } from 'vs/workbench/browser/parts/banner/bannerActions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { Emitter } from 'vs/base/common/event';
+import { IBannerService } from 'vs/workbench/services/banner/common/bannerService';
+import { CloseBannerAction } from 'vs/workbench/browser/parts/banner/bannerActions';
 
 
 // Icons
@@ -84,12 +86,6 @@ export interface IBannerOptions {
 	readonly actions?: ILinkDescriptor[];
 }
 
-export const IBannerService = createDecorator<IBannerService>('bannerService');
-
-export interface IBannerService {
-	readonly _serviceBrand: undefined;
-}
-
 export class BannerPart extends Part implements IBannerService {
 	declare readonly _serviceBrand: undefined;
 
@@ -97,10 +93,23 @@ export class BannerPart extends Part implements IBannerService {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = 26;
-	readonly maximumHeight: number = 26;
+
+	get minimumHeight(): number {
+		return this.visible ? 26 : 0;
+	}
+
+
+	get maximumHeight(): number {
+		return this.visible ? 26 : 0;
+	}
+
+	private _onDidChangeSize = new Emitter<{ width: number; height: number; } | undefined>();
+
+	override get onDidChange() { return this._onDidChangeSize.event; }
 
 	//#endregion
+
+	private visible = false;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -144,6 +153,14 @@ export class BannerPart extends Part implements IBannerService {
 		actionBar.push(closeAction, { icon: true, label: false });
 
 		return this.element;
+	}
+
+	setBannerVisibility(visible: boolean): void {
+		if (visible !== this.visible) {
+			this.visible = visible;
+
+			this._onDidChangeSize.fire(undefined);
+		}
 	}
 
 	toJSON(): object {
