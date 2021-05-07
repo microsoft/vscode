@@ -205,4 +205,27 @@ suite('NotebookKernel', function () {
 			kernel.createNotebookCellExecutionTask(cell1);
 		});
 	});
+
+	test('interrupt handler, cancellation', async function () {
+
+		let interruptCallCount = 0;
+		let tokenCancelCount = 0;
+
+		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
+		kernel.interruptHandler = () => { interruptCallCount += 1; };
+		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+
+		const cell1 = notebook.apiNotebook.cellAt(0);
+
+		const task = kernel.createNotebookCellExecutionTask(cell1);
+		task.token.onCancellationRequested(() => tokenCancelCount += 1);
+
+		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+		assert.strictEqual(interruptCallCount, 1);
+		assert.strictEqual(tokenCancelCount, 1);
+
+		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+		assert.strictEqual(interruptCallCount, 2);
+		assert.strictEqual(tokenCancelCount, 1);
+	});
 });
