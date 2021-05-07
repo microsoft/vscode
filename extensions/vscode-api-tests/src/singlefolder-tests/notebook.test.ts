@@ -1017,7 +1017,7 @@ suite('Notebook API tests', function () {
 	});
 
 
-	test('#106657. Opening a notebook from markers view is broken ', async function () {
+	test.skip('#106657. Opening a notebook from markers view is broken ', async function () {
 
 		const document = await openRandomNotebookDocument();
 		const [cell] = document.getCells();
@@ -1025,8 +1025,8 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor, undefined);
 
 		// opening a cell-uri opens a notebook editor
-		await vscode.commands.executeCommand('vscode.open', cell.document.uri, vscode.ViewColumn.Active);
-		// await vscode.window.showTextDocument(cell.document, { viewColumn: vscode.ViewColumn.Active });
+		await vscode.window.showTextDocument(cell.document, { viewColumn: vscode.ViewColumn.Active });
+		// await vscode.commands.executeCommand('vscode.open', cell.document.uri, vscode.ViewColumn.Active);
 
 		assert.strictEqual(!!vscode.window.activeNotebookEditor, true);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.uri.toString(), document.uri.toString());
