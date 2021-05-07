@@ -33,7 +33,7 @@ const TAB_HEIGHT = 22;
 export const MIN_TABS_WIDGET_WIDTH = 46;
 export const DEFAULT_TABS_WIDGET_WIDTH = 80;
 export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
-export const THRESHOLD_ACTIONBAR_WIDTH = 79;
+export const THRESHOLD_ACTIONBAR_WIDTH = 105;
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
