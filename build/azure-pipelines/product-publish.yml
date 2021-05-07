@@ -29,17 +29,18 @@ steps:
         return
       }
 
-      $env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
+      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
       $VERSION = node -p "require('./package.json').version"
       Write-Host "Creating build with version: $VERSION"
       exec { node build/azure-pipelines/common/createBuild.js $VERSION }
     displayName: Create build
 
   - pwsh: |
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      $env:AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)"
-      $env:AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)"
-      $env:AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)"
+      $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
+      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
+      $env:AZURE_STORAGE_ACCESS_KEY = "$(ticino-storage-key)"
+      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
+      $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(vscode-mooncake-storage-key)"
       build/azure-pipelines/product-publish.ps1
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
@@ -84,20 +85,3 @@ steps:
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Determine if stage should succeed
-
-  - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
-      $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(vscode-mooncake-storage-key)"
-      exec { node build/azure-pipelines/common/sync-mooncake.js $env:VSCODE_QUALITY }
-    displayName: Sync Mooncake
-
-  - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-
-      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-      exec { node build/azure-pipelines/common/releaseBuild.js }
-    condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], true), and(in(variables['VSCODE_QUALITY'], 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))))
-    displayName: Release build

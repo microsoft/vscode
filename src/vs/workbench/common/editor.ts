@@ -748,22 +748,6 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	isResolved(): boolean;
 }
 
-export function decorateFileEditorLabel(label: string, state: { orphaned: boolean, readonly: boolean }): string {
-	if (state.orphaned && state.readonly) {
-		return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-	}
-
-	if (state.orphaned) {
-		return localize('orphanedFile', "{0} (deleted)", label);
-	}
-
-	if (state.readonly) {
-		return localize('readonlyFile', "{0} (read-only)", label);
-	}
-
-	return label;
-}
-
 /**
  * Side by side editor inputs that have a primary and secondary side.
  */

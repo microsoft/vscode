@@ -69,6 +69,7 @@
 
 .test-explorer .test-explorer-messages {
 	padding: 0 12px 8px;
+	font-variant-numeric: tabular-nums;
 }
 
 .monaco-workbench

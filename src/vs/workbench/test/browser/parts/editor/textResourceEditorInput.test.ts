@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
@@ -26,12 +26,12 @@ suite('Resource text editors', () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
 		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
 
-		const input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, resource, 'The Name', 'The Description', undefined);
+		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined);
 
 		const model = await input.resolve();
 
 		assert.ok(model);
-		assert.strictEqual(snapshotToString(((model as ResourceEditorModel).createSnapshot()!)), 'function test() {}');
+		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'function test() {}');
 	});
 
 	test('custom mode', async () => {
@@ -42,7 +42,7 @@ suite('Resource text editors', () => {
 		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
 		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
 
-		const input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, resource, 'The Name', 'The Description', 'resource-input-test');
+		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', 'resource-input-test');
 
 		const model = await input.resolve();
 		assert.ok(model);

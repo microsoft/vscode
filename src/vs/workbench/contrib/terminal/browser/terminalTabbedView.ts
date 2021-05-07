@@ -262,10 +262,10 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _rerenderTabs() {
-		const hasText = this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH;
+		const hasText = this._terminalTabTree.clientWidth > MIDPOINT_WIDGET_WIDTH;
 		this._tabTreeContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		this._tabList.rerender();
+		this._tabList.render();
 	}
 
 	private _addSashListener() {
@@ -466,6 +466,9 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	focusTabs(): void {
+		if (!this._shouldShowTabs()) {
+			return;
+		}
 		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabList.getSelection();
 		this._tabList.domFocus();
@@ -502,6 +505,7 @@ export class TerminalTabbedView extends Disposable {
 	getFindWidget(): TerminalFindWidget {
 		return this._findWidget!;
 	}
+
 	focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can

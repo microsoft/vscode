@@ -9,16 +9,14 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Schemas } from 'vs/base/common/network';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
@@ -33,19 +31,17 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 	}
 }
 
-export class DefaultPreferencesEditorInput extends ResourceEditorInput {
+export class DefaultPreferencesEditorInput extends TextResourceEditorInput {
 	static override readonly ID = 'workbench.editorinputs.defaultpreferences';
 	constructor(
 		defaultSettingsResource: URI,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@ILabelService labelService: ILabelService
 	) {
-		super(defaultSettingsResource, nls.localize('settingsEditorName', "Default Settings"), '', undefined, textModelResolverService, textFileService, editorService, editorGroupService, fileService, labelService, filesConfigurationService);
+		super(defaultSettingsResource, nls.localize('settingsEditorName', "Default Settings"), '', undefined, textModelResolverService, textFileService, editorService, fileService, labelService);
 	}
 
 	override get typeId(): string {

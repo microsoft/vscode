@@ -25,7 +25,7 @@ import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/vie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -156,8 +156,8 @@ export class OutputViewPane extends ViewPane {
 		this.editorPromise = null;
 	}
 
-	private createInput(channel: IOutputChannel): ResourceEditorInput {
-		return this.instantiationService.createInstance(ResourceEditorInput, channel.uri, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), undefined);
+	private createInput(channel: IOutputChannel): TextResourceEditorInput {
+		return this.instantiationService.createInstance(TextResourceEditorInput, channel.uri, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), undefined);
 	}
 
 }

@@ -66,6 +66,8 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
+	readonly onDidChangeOrphaned = Event.None;
+
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
@@ -95,7 +97,12 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
+
 	isReadonly(): boolean {
+		return false;
+	}
+
+	isOrphaned(): boolean {
 		return false;
 	}
 

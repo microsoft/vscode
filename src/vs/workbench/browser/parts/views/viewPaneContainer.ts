@@ -38,6 +38,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
@@ -407,6 +408,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		options.orientation = this.orientation;
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
+		this._register(this.paneview.onScroll(e => this.onPaneScroll(e)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 
 		this._menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
@@ -1062,6 +1064,12 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			return this.visibleViewsCountFromCache === 1;
 		}
 		return true;
+	}
+
+	private onPaneScroll(e: ScrollEvent) {
+		for (const pane of this.panes) {
+			pane.onRootScroll();
+		}
 	}
 
 	override dispose(): void {

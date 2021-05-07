@@ -26,8 +26,6 @@ declare class ResizeObserver {
 	disconnect(): void;
 }
 
-declare const __outputNodePadding__: number;
-declare const __outputNodeLeftPadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -36,7 +34,12 @@ interface EmitterLike<T> {
 	event: Event<T>;
 }
 
-async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
+interface PreloadStyles {
+	readonly outputNodePadding: number;
+	readonly outputNodeLeftPadding: number;
+}
+
+async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any, markdownDeps: any) {
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -182,8 +185,8 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 						if (observedElementInfo.output) {
 							let height = 0;
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
-								height = entry.contentRect.height + __outputNodePadding__ * 2;
+								entry.target.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+								height = entry.contentRect.height + style.outputNodePadding * 2;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -657,12 +660,12 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.update(outputId, clientHeight + __outputNodePadding__ * 2, {
+						dimensionUpdater.update(outputId, clientHeight + style.outputNodePadding * 2, {
 							isOutput: true,
 							init: true,
 						});
 
-						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
+						outputNode.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
 					} else {
 						dimensionUpdater.update(outputId, outputNode.clientHeight, {
 							isOutput: true,
@@ -1010,10 +1013,7 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 	}();
 }
 
-export function preloadsScriptStr(styleValues: {
-	outputNodePadding: number;
-	outputNodeLeftPadding: number;
-}, markdownRenderer: {
+export function preloadsScriptStr(styleValues: PreloadStyles, markdownRenderer: {
 	entrypoint: string,
 	dependencies: Array<{ entrypoint: string }>,
 }) {
@@ -1021,9 +1021,10 @@ export function preloadsScriptStr(styleValues: {
 		dependencies: markdownRenderer.dependencies,
 	};
 
-	return `
-	import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
-	(${webviewPreloads})(markdownRendererModule, JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}")))`
-		.replace(/__outputNodePadding__/g, `${styleValues.outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${styleValues.outputNodeLeftPadding}`);
+	return `import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
+		(${webviewPreloads})(
+			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
+			markdownRendererModule,
+			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}"))
+		)`;
 }

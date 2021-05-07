@@ -5,6 +5,7 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
+const url = require("url");
 const crypto = require("crypto");
 const azure = require("azure-storage");
 const mime = require("mime");
@@ -153,14 +154,27 @@ async function main() {
         console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
         return;
     }
-    console.log('Uploading blobs to Azure storage...');
-    await uploadBlob(blobService, quality, blobName, filePath, fileName);
+    const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY'], `${storageAccount}.blob.core.chinacloudapi.cn`)
+        .withFilter(new azure.ExponentialRetryPolicyFilter(20));
+    // mooncake is fussy and far away, this is needed!
+    blobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+    mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+    console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
+    await (0, retry_1.retry)(() => Promise.all([
+        uploadBlob(blobService, quality, blobName, filePath, fileName),
+        uploadBlob(mooncakeBlobService, quality, blobName, filePath, fileName)
+    ]));
     console.log('Blobs successfully uploaded.');
+    // TODO: Understand if blobName and blobPath are the same and replace blobPath with blobName if so.
+    const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
+    const blobPath = url.parse(assetUrl).path;
+    const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
     const asset = {
         platform,
         type,
-        url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
+        url: assetUrl,
         hash: sha1hash,
+        mooncakeUrl,
         sha256hash,
         size
     };
@@ -172,6 +186,7 @@ async function main() {
     const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
     const scripts = client.database('builds').container(quality).scripts;
     await (0, retry_1.retry)(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
+    console.log(`  Done ✔️`);
 }
 main().then(() => {
     console.log('Asset successfully created');

@@ -1280,7 +1280,7 @@ var requirejs = (function() {
 			return this.createMarkdownPreview(initialization);
 		}
 
-		const sameContent = initialization.content !== entry.content;
+		const sameContent = initialization.content === entry.content;
 		if (!sameContent || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkdownPreview',

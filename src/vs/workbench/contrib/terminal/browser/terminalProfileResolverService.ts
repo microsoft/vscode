@@ -75,6 +75,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
 		shellLaunchConfig.icon = this._verifyIcon(shellLaunchConfig.icon) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
+
+		// Resolve useShellEnvironment based on the setting if it's not set
+		if (shellLaunchConfig.useShellEnvironment === undefined) {
+			shellLaunchConfig.useShellEnvironment = this._configurationService.getValue(TerminalSettingId.InheritEnv);
+		}
 	}
 
 	private _verifyIcon(iconId?: string): string | undefined {
@@ -109,6 +114,12 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			}
 		}
 
+		// If either shell or shellArgs are specified, they will take priority for now until we
+		// allow users to migrate, see https://github.com/microsoft/vscode/issues/123171
+		if (this.getSafeConfigValue('shell', options.os) || this.getSafeConfigValue('shellArgs', options.os, false)) {
+			return this._getFallbackDefaultProfile(options);
+		}
+
 		// Return the real default profile if it exists and is valid
 		const defaultProfile = await this._getRealDefaultProfile(false, options.os);
 		if (defaultProfile) {
@@ -137,18 +148,18 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	private async _getFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		let executable: string;
-		let args: string | string[] | undefined;
 		const shellSetting = this.getSafeConfigValue('shell', options.os);
 		if (this._isValidShell(shellSetting)) {
 			executable = shellSetting;
-			const shellArgsSetting = this.getSafeConfigValue('shellArgs', options.os);
-			if (this._isValidShellArgs(shellArgsSetting, options.os)) {
-				args = shellArgsSetting;
-			}
 		} else {
 			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
 		}
 
+		let args: string | string[] | undefined;
+		const shellArgsSetting = this.getSafeConfigValue('shellArgs', options.os);
+		if (this._isValidShellArgs(shellArgsSetting, options.os)) {
+			args = shellArgsSetting;
+		}
 		if (args === undefined) {
 			if (options.os === OperatingSystem.Macintosh && args === undefined) {
 				// macOS should launch a login shell by default
@@ -276,21 +287,21 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	// TODO: Remove when workspace trust is enabled
-	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined {
-		return this.getSafeConfigValueFullKey(`terminal.integrated.${key}.${this._getOsKey(os)}`);
+	getSafeConfigValue(key: string, os: OperatingSystem, useDefaultValue: boolean = true): unknown | undefined {
+		return this.getSafeConfigValueFullKey(`terminal.integrated.${key}.${this._getOsKey(os)}`, useDefaultValue);
 	}
-	getSafeConfigValueFullKey(key: string): unknown | undefined {
+	getSafeConfigValueFullKey(key: string, useDefaultValue: boolean = true): unknown | undefined {
 		const isWorkspaceConfigAllowed = this._configurationService.getValue(TerminalSettingId.AllowWorkspaceConfiguration);
 		if (isWorkspaceConfigAllowed) {
 			return this._configurationService.getValue(key);
 		} else {
 			const config = this._configurationService.inspect(key);
-			const value = config.user?.value || config.default?.value;
+			const value = config.user?.value || (useDefaultValue ? config.default?.value : undefined);
 			// Clone if needed to allow extensibility
 			if (Array.isArray(value)) {
 				return value.slice();
 			}
-			if (typeof value === 'object') {
+			if (value !== null && typeof value === 'object') {
 				return { ...value };
 			}
 			return value;

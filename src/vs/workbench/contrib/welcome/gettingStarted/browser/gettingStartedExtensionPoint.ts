@@ -46,7 +46,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					description: localize('walkthroughs.steps', "Steps to complete as part of this walkthrough."),
 					items: {
 						type: 'object',
-						required: ['id', 'title', 'description', 'media'],
+						required: ['id', 'title', 'media'],
 						defaultSnippets: [{
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',

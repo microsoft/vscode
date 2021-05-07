@@ -12,7 +12,7 @@ import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResour
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { UntitledHintContribution } from 'vs/workbench/browser/parts/editor/untitledHint';
@@ -64,7 +64,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-// Register String Editor
+// Register Resource Text Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		TextResourceEditor,
@@ -73,7 +73,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	),
 	[
 		new SyncDescriptor(UntitledTextEditorInput),
-		new SyncDescriptor(ResourceEditorInput)
+		new SyncDescriptor(TextResourceEditorInput)
 	]
 );
 

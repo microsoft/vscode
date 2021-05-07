@@ -4771,7 +4771,7 @@ declare namespace monaco.editor {
 		getRawOptions(): IEditorOptions;
 		/**
 		 * Get value of the current model attached to this editor.
-		 * @see `ITextModel.getValue`
+		 * @see {@link ITextModel.getValue}
 		 */
 		getValue(options?: {
 			preserveBOM: boolean;
@@ -4779,7 +4779,7 @@ declare namespace monaco.editor {
 		}): string;
 		/**
 		 * Set the value of the current model attached to this editor.
-		 * @see `ITextModel.setValue`
+		 * @see {@link ITextModel.setValue}
 		 */
 		setValue(newValue: string): void;
 		/**
@@ -4861,7 +4861,7 @@ declare namespace monaco.editor {
 		getLineDecorations(lineNumber: number): IModelDecoration[] | null;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
-		 * @see `ITextModel.deltaDecorations`
+		 * @see {@link ITextModel.deltaDecorations}
 		 */
 		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 		/**
@@ -4966,7 +4966,7 @@ declare namespace monaco.editor {
 	 */
 	export interface IDiffEditor extends IEditor {
 		/**
-		 * @see ICodeEditor.getDomNode
+		 * @see {@link ICodeEditor.getDomNode}
 		 */
 		getDomNode(): HTMLElement;
 		/**

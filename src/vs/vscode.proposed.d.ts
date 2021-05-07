@@ -2569,7 +2569,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or directory.
 		 */
-		uri: Uri;
+		uri?: Uri;
 
 		/**
 		 * Display name describing the test item.
@@ -2592,7 +2592,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or directory.
 		 */
-		readonly uri: Uri;
+		readonly uri?: Uri;
 
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
@@ -2824,7 +2824,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or file.
 		 */
-		readonly uri: Uri;
+		readonly uri?: Uri;
 
 		/**
 		 * Display name describing the test case.
