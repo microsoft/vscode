@@ -1111,7 +1111,7 @@ function getOffsetBeforeLastEmojiComponent(offset: number, str: string): number 
 	offset -= getUTF16Length(codePoint);
 
 	// Skip modifiers
-	while ((isEmojiModifier(codePoint) || codePoint === emojiVariantSelector || codePoint === enclosingKeyCap)) {
+	while ((isEmojiModifier(codePoint) || codePoint === CodePoint.emojiVariantSelector || codePoint === CodePoint.enclosingKeyCap)) {
 		if (offset === 0) {
 			// Cannot skip modifier, no preceding emoji base.
 			return undefined;
@@ -1131,7 +1131,7 @@ function getOffsetBeforeLastEmojiComponent(offset: number, str: string): number 
 		// In theory, we should check if that ZWJ actually combines multiple emojis
 		// to prevent deleting ZWJs in situations we didn't account for.
 		const optionalZwjCodePoint = getPrevCodePoint(str, offset);
-		if (optionalZwjCodePoint === zwjCodePoint) {
+		if (optionalZwjCodePoint === CodePoint.zwj) {
 			offset -= getUTF16Length(optionalZwjCodePoint);
 		}
 	}
@@ -1143,17 +1143,20 @@ function getUTF16Length(codePoint: number) {
 	return codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1;
 }
 
-const zwjCodePoint = 0x200D;
 function isEmojiModifier(codePoint: number): boolean {
 	return 0x1F3FB <= codePoint && codePoint <= 0x1F3FF;
 }
 
-/**
- * Variation Selector-16 (VS16)
-*/
-const emojiVariantSelector = 0xFE0F;
+const enum CodePoint {
+	zwj = 0x200D,
 
-/**
- * Combining Enclosing Keycap
- */
-const enclosingKeyCap = 0x20E3;
+	/**
+	 * Variation Selector-16 (VS16)
+	*/
+	emojiVariantSelector = 0xFE0F,
+
+	/**
+	 * Combining Enclosing Keycap
+	 */
+	enclosingKeyCap = 0x20E3,
+}
