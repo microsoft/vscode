@@ -32,11 +32,14 @@
     "commands": [
       {
         "command": "github.provide-token",
-        "title": "GitHub: Manually Provide Token"
+        "title": "Manually Provide Token",
+        "category": "GitHub"
       },
       {
         "command": "github-enterprise.provide-token",
-        "title": "GitHub Enterprise: Manually Provide Token"
+        "title": "Manually Provide Token",
+        "category": "GitHub Enterprise"
+
       }
     ],
     "menus": {
