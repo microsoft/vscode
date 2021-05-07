@@ -7,7 +7,6 @@ import { timeout } from 'vs/base/common/async';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/path';
 import { isMacintosh, isWeb, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -18,7 +17,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -41,7 +40,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
+
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -758,67 +757,7 @@ export class TerminalService implements ITerminalService {
 		return !res.confirmed;
 	}
 
-	preparePathForTerminalAsync(originalPath: string, executable: string, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> {
-		return new Promise<string>(c => {
-			if (!executable) {
-				c(originalPath);
-				return;
-			}
 
-			const hasSpace = originalPath.indexOf(' ') !== -1;
-			const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
-
-			const pathBasename = basename(executable, '.exe');
-			const isPowerShell = pathBasename === 'pwsh' ||
-				title === 'pwsh' ||
-				pathBasename === 'powershell' ||
-				title === 'powershell';
-
-			if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
-				c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
-				return;
-			}
-
-			if (hasParens && isPowerShell) {
-				c(`& '${originalPath}'`);
-				return;
-			}
-
-			if (isWindows) {
-				// 17063 is the build number where wsl path was introduced.
-				// Update Windows uriPath to be executed in WSL.
-				if (shellType !== undefined) {
-					if (shellType === WindowsShellType.GitBash) {
-						c(originalPath.replace(/\\/g, '/'));
-					}
-					else if (shellType === WindowsShellType.Wsl) {
-						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
-						c(offProcService?.getWslPath(originalPath) || originalPath);
-					}
-
-					else if (hasSpace) {
-						c('"' + originalPath + '"');
-					} else {
-						c(originalPath);
-					}
-				} else {
-					const lowerExecutable = executable.toLowerCase();
-					if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
-						c(offProcService?.getWslPath(originalPath) || originalPath);
-					} else if (hasSpace) {
-						c('"' + originalPath + '"');
-					} else {
-						c(originalPath);
-					}
-				}
-
-				return;
-			}
-
-			c(escapeNonWindowsPath(originalPath));
-		});
-	}
 
 	private async _getPlatformKey(): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
