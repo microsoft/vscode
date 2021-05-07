@@ -155,13 +155,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return [...this._documents.values()];
 	}
 
-	lookupNotebookDocument(uri: URI): ExtHostNotebookDocument | undefined {
-		return this._documents.get(uri);
-	}
-
-	private _getNotebookDocument(uri: URI): ExtHostNotebookDocument {
+	getNotebookDocument(uri: URI, relaxed: true): ExtHostNotebookDocument | undefined;
+	getNotebookDocument(uri: URI): ExtHostNotebookDocument;
+	getNotebookDocument(uri: URI, relaxed?: true): ExtHostNotebookDocument | undefined {
 		const result = this._documents.get(uri);
-		if (!result) {
+		if (!result && !relaxed) {
 			throw new Error(`NO notebook document for '${uri}'`);
 		}
 		return result;
@@ -399,14 +397,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	async $saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean> {
-		const document = this._getNotebookDocument(URI.revive(uri));
+		const document = this.getNotebookDocument(URI.revive(uri));
 		const { provider } = this._getProviderData(viewType);
 		await provider.saveNotebook(document.apiNotebook, token);
 		return true;
 	}
 
 	async $saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean> {
-		const document = this._getNotebookDocument(URI.revive(uri));
+		const document = this.getNotebookDocument(URI.revive(uri));
 		const { provider } = this._getProviderData(viewType);
 		await provider.saveNotebookAs(URI.revive(target), document.apiNotebook, token);
 		return true;
@@ -415,7 +413,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private _backupIdPool: number = 0;
 
 	async $backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string> {
-		const document = this._getNotebookDocument(URI.revive(uri));
+		const document = this.getNotebookDocument(URI.revive(uri));
 		const provider = this._getProviderData(viewType);
 
 		const storagePath = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
@@ -428,17 +426,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	$acceptModelChanged(uri: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void {
-		const document = this._getNotebookDocument(URI.revive(uri));
+		const document = this.getNotebookDocument(URI.revive(uri));
 		document.acceptModelChanged(event, isDirty);
 	}
 
 	$acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {
-		const document = this._getNotebookDocument(URI.revive(uri));
+		const document = this.getNotebookDocument(URI.revive(uri));
 		document.acceptModelChanged({ rawEvents: [], versionId: document.apiNotebook.version }, isDirty);
 	}
 
 	$acceptModelSaved(uri: UriComponents): void {
-		const document = this._getNotebookDocument(URI.revive(uri));
+		const document = this.getNotebookDocument(URI.revive(uri));
 		this._onDidSaveNotebookDocument.fire(document.apiNotebook);
 	}
 
@@ -485,7 +483,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	$acceptDocumentPropertiesChanged(uri: UriComponents, data: INotebookDocumentPropertiesChangeData): void {
 		this.logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uri.path, data);
-		const document = this._getNotebookDocument(URI.revive(uri));
+		const document = this.getNotebookDocument(URI.revive(uri));
 		document.acceptDocumentPropertiesChanged(data);
 		if (data.metadata) {
 			this._onDidChangeNotebookDocumentMetadata.fire({ document: document.apiNotebook });
@@ -644,23 +642,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.apiEditor);
 		}
 	}
-	createNotebookCellExecution(docUri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
-		const document = this.lookupNotebookDocument(docUri);
-		if (!document) {
-			throw new Error(`Invalid uri: ${docUri} `);
-		}
 
-		const cell = document.getCellFromIndex(index);
-		if (!cell) {
-			throw new Error(`Invalid cell index: ${docUri}, ${index} `);
-		}
+	createNotebookCellExecution(cell: ExtHostCell): vscode.NotebookCellExecutionTask | undefined {
 
 		// TODO@roblou also validate kernelId, once kernel has moved from editor to document
 		if (this._activeExecutions.has(cell.uri)) {
 			throw new Error(`duplicate execution for ${cell.uri}`);
 		}
 
-		const execution = new NotebookCellExecutionTask(docUri, document, cell, this._notebookDocumentsProxy);
+		const execution = new NotebookCellExecutionTask(cell.notebook, cell, this._notebookDocumentsProxy);
 		this._activeExecutions.set(cell.uri, execution);
 		const listener = execution.onDidChangeState(() => {
 			if (execution.state === NotebookCellExecutionTaskState.Resolved) {
@@ -694,7 +684,6 @@ class NotebookCellExecutionTask extends Disposable {
 	private _executionOrder: number | undefined;
 
 	constructor(
-		private readonly _uri: vscode.Uri,
 		private readonly _document: ExtHostNotebookDocument,
 		private readonly _cell: ExtHostCell,
 		private readonly _proxy: MainThreadNotebookDocumentsShape) {
@@ -718,7 +707,7 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private async applyEdits(edits: IImmediateCellEditOperation[]): Promise<void> {
-		return this._proxy.$applyEdits(this._uri, edits, false);
+		return this._proxy.$applyEdits(this._document.uri, edits, false);
 	}
 
 	private verifyStateForOutput() {

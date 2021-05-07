@@ -153,14 +153,21 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			createNotebookCellExecutionTask(cell) {
+				if (cell.index < 0) {
+					throw new Error('CANNOT execute cell that has been REMOVED from notebook');
+				}
 				if (isDisposed) {
 					throw new Error('notebook controller is DISPOSED');
 				}
 				if (!associatedNotebooks.has(cell.notebook.uri)) {
 					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
 				}
-				//todo@jrieken
-				return that._extHostNotebook.createNotebookCellExecution(cell.notebook.uri, cell.index, data.id)!;
+				const notebook = that._extHostNotebook.getNotebookDocument(cell.notebook.uri);
+				const cellObj = notebook.getCellFromApiCell(cell);
+				if (!cellObj) {
+					throw new Error('invalid cell');
+				}
+				return that._extHostNotebook.createNotebookCellExecution(cellObj)!;
 			},
 			dispose: () => {
 				if (!isDisposed) {
@@ -200,7 +207,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const obj = this._kernelData.get(handle);
 		if (obj) {
 			// update data structure
-			const notebook = this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!;
+			const notebook = this._extHostNotebook.getNotebookDocument(URI.revive(uri))!;
 			if (value) {
 				obj.associatedNotebooks.set(notebook.uri, true);
 			} else {
@@ -220,11 +227,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			// extension can dispose kernels in the meantime
 			return;
 		}
-		const document = this._extHostNotebook.lookupNotebookDocument(URI.revive(uri));
-		if (!document) {
-			throw new Error('MISSING notebook');
-		}
-
+		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
 		const cells: vscode.NotebookCell[] = [];
 		for (let cellHandle of handles) {
 			const cell = document.getCell(cellHandle);
@@ -247,10 +250,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			// extension can dispose kernels in the meantime
 			return;
 		}
-		const document = this._extHostNotebook.lookupNotebookDocument(URI.revive(uri));
-		if (!document) {
-			throw new Error('MISSING notebook');
-		}
+		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
 		if (obj.controller.interruptHandler) {
 			await obj.controller.interruptHandler.call(obj.controller, document.apiNotebook);
 		}
