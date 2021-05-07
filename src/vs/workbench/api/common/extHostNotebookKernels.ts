@@ -19,6 +19,7 @@ import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/ex
 import { CellEditType, IImmediateCellEditOperation, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NotebookCellExecutionState } from 'vs/workbench/api/common/extHostTypes';
+import { asArray } from 'vs/base/common/arrays';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
@@ -367,12 +368,14 @@ class NotebookCellExecutionTask extends Disposable {
 		this.applyEdits([edit]);
 	}
 
-	private cellIndexToHandle(cellIndex: number | undefined): number | undefined {
-		const cell = typeof cellIndex === 'number' ? this._document.getCellFromIndex(cellIndex) : this._cell;
-		if (!cell) {
-			return;
+	private cellIndexToHandle(cellIndex: number | undefined): number {
+		if (typeof cellIndex !== 'number') {
+			return this._cell.handle;
 		}
-
+		const cell = this._document.getCellFromIndex(cellIndex);
+		if (!cell) {
+			throw new Error('INVALID cell index');
+		}
 		return cell.handle;
 	}
 
@@ -427,34 +430,26 @@ class NotebookCellExecutionTask extends Disposable {
 			async appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
 				that.verifyStateForOutput();
 				const handle = that.cellIndexToHandle(cellIndex);
-				if (typeof handle !== 'number') {
-					return;
-				}
-
-				outputs = Array.isArray(outputs) ? outputs : [outputs];
+				outputs = asArray(outputs);
 				return that.applyEditSoon({ editType: CellEditType.Output, handle, append: true, outputs: outputs.map(extHostTypeConverters.NotebookCellOutput.from) });
 			},
 
 			async replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
 				that.verifyStateForOutput();
 				const handle = that.cellIndexToHandle(cellIndex);
-				if (typeof handle !== 'number') {
-					return;
-				}
-
-				outputs = Array.isArray(outputs) ? outputs : [outputs];
+				outputs = asArray(outputs);
 				return that.applyEditSoon({ editType: CellEditType.Output, handle, outputs: outputs.map(extHostTypeConverters.NotebookCellOutput.from) });
 			},
 
 			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
 				that.verifyStateForOutput();
-				items = Array.isArray(items) ? items : [items];
+				items = asArray(items);
 				return that.applyEditSoon({ editType: CellEditType.OutputItems, append: true, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId });
 			},
 
 			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
 				that.verifyStateForOutput();
-				items = Array.isArray(items) ? items : [items];
+				items = asArray(items);
 				return that.applyEditSoon({ editType: CellEditType.OutputItems, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId });
 			},
 
