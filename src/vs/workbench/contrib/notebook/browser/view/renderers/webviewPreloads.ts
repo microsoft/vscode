@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath, IMarkdownCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringified and injected into
@@ -491,22 +491,12 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
-				for (const cell of event.data.cells) {
-					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
-
-					if (!cell.visible) {
-						const cellContainer = document.getElementById(cell.cellId);
-						if (cellContainer) {
-							cellContainer.style.visibility = 'hidden';
-						}
-					}
-				}
-
+				ensureMarkdownPreviewCells(event.data.cells);
 				dimensionUpdater.updateImmediately();
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
-				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
+				ensureMarkdownPreviewCells([event.data.cell]);
 				break;
 			case 'showMarkdownPreview':
 				{
@@ -516,9 +506,8 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 					if (cellContainer) {
 						cellContainer.style.visibility = 'visible';
 						cellContainer.style.top = `${data.top}px`;
+						updateMarkdownPreview(cellContainer, data.id, data.content);
 					}
-
-					updateMarkdownPreview(data.id, data.content);
 				}
 				break;
 			case 'hideMarkdownPreviews':
@@ -537,8 +526,8 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 						const cellContainer = document.getElementById(id);
 						if (cellContainer) {
 							cellContainer.style.visibility = 'visible';
+							updateMarkdownPreview(cellContainer, id, undefined);
 						}
-						updateMarkdownPreview(id, undefined);
 					}
 				}
 				break;
@@ -873,9 +862,24 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 		previewNode.id = 'preview';
 		previewRoot.appendChild(previewNode);
 
-		updateMarkdownPreview(cellId, content);
+		updateMarkdownPreview(cellContainer, cellId, content);
 
 		resizeObserver.observe(cellContainer, cellId, false);
+
+		return cellContainer;
+	}
+
+	function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]) {
+		for (const cell of update) {
+			let container = document.getElementById(cell.cellId);
+			if (container) {
+				updateMarkdownPreview(container, cell.cellId, cell.content);
+			} else {
+				container = createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+			}
+
+			container.style.visibility = cell.visible ? 'visible' : 'hidden';
+		}
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -892,12 +896,7 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 	let hasPostedRenderedMathTelemetry = false;
 	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/g;
 
-	function updateMarkdownPreview(cellId: string, content: string | undefined) {
-		const previewContainerNode = document.getElementById(cellId);
-		if (!previewContainerNode) {
-			return;
-		}
-
+	function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
 		const previewRoot = previewContainerNode.shadowRoot;
 		const previewNode = previewRoot?.getElementById('preview');
 		if (!previewNode) {
@@ -1026,5 +1025,5 @@ export function preloadsScriptStr(styleValues: PreloadStyles, markdownRenderer: 
 			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
 			markdownRendererModule,
 			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}"))
-		)`;
+		)\n//# sourceURL=notebookWebviewPreloads.js\n`;
 }
