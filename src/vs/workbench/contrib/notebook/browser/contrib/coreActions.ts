@@ -417,7 +417,7 @@ registerAction2(class CancelExecuteCell extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		if (context.cell) {
+		if (context.ui && context.cell) {
 			return context.notebookEditor.cancelNotebookCells(Iterable.single(context.cell));
 		} else if (context.selectedCells) {
 			return context.notebookEditor.cancelNotebookCells(context.selectedCells);
@@ -682,7 +682,7 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 		}
 	}
 
-	if (context.cell) {
+	if (context.ui && context.cell) {
 		if (context.cell.metadata?.runState === NotebookCellExecutionState.Executing) {
 			return;
 		}
