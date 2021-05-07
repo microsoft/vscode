@@ -20,12 +20,14 @@ steps:
     displayName: Install dependencies
 
   - download: current
-    patterns: '**/artifacts_processed.txt'
+    patterns: '**/artifacts_processed_*.txt'
+    displayName: Download all artifacts_processed text files
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
 
-      if (Test-Path "$(Pipeline.Workspace)/artifacts_processed/artifacts_processed.txt") {
+      if (Test-Path "$(Pipeline.Workspace)/artifacts_processed_*/artifacts_processed_*.txt") {
+        Write-Host "Artifacts already processed so a build must have already been created."
         return
       }
 
@@ -33,7 +35,7 @@ steps:
       $VERSION = node -p "require('./package.json').version"
       Write-Host "Creating build with version: $VERSION"
       exec { node build/azure-pipelines/common/createBuild.js $VERSION }
-    displayName: Create build
+    displayName: Create build if it hasn't been created before
 
   - pwsh: |
       $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
@@ -46,9 +48,9 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Process artifacts
 
-  - publish: $(Pipeline.Workspace)/artifacts_processed/artifacts_processed.txt
+  - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
     artifact: artifacts_processed
-    displayName: Publish what artifacts were published
+    displayName: Publish what artifacts were published for this stage attempt
 
   - pwsh: |
       $ErrorActionPreference = 'Stop'

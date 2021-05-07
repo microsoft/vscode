@@ -1,7 +1,8 @@
 . build/azure-pipelines/win32/exec.ps1
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$ARTIFACT_PROCESSED_FILE_PATH = "$env:PIPELINE_WORKSPACE/artifacts_processed/artifacts_processed.txt"
+$ARTIFACT_PROCESSED_WILDCARD_PATH = "$env:PIPELINE_WORKSPACE/artifacts_processed_*/artifacts_processed_*"
+$ARTIFACT_PROCESSED_FILE_PATH = "$env:PIPELINE_WORKSPACE/artifacts_processed_$env:SYSTEM_STAGEATTEMPT/artifacts_processed_$env:SYSTEM_STAGEATTEMPT.txt"
 
 function Get-PipelineArtifact {
 	param($Name = '*')
@@ -23,11 +24,18 @@ function Get-PipelineArtifact {
 # This set will keep track of which artifacts have already been processed
 $set = [System.Collections.Generic.HashSet[string]]::new()
 
-if (Test-Path $ARTIFACT_PROCESSED_FILE_PATH) {
-	Get-Content $ARTIFACT_PROCESSED_FILE_PATH | ForEach-Object {
-		$set.Add($_) | Out-Null
-		Write-Host "Already processed artifact: $_"
-	}
+if (Test-Path $ARTIFACT_PROCESSED_WILDCARD_PATH) {
+	# Grab the latest artifact_processed text file and load all assets already processed from that.
+	# This means that the latest artifact_processed_*.txt file has all of the contents of the previous ones.
+	# Note: The kusto-like syntax only works in PS7+ and only in scripts, not at the REPL.
+	Get-ChildItem $ARTIFACT_PROCESSED_WILDCARD_PATH
+		| Sort-Object
+		| Select-Object -Last 1
+		| Get-Content
+		| ForEach-Object {
+			$set.Add($_) | Out-Null
+			Write-Host "Already processed artifact: $_"
+		}
 } else {
 	New-Item -Path $ARTIFACT_PROCESSED_FILE_PATH -Force | Out-Null
 }
