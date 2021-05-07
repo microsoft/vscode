@@ -232,6 +232,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected readonly _onDidStateChange: Emitter<TaskEvent>;
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
+	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
+	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -556,6 +558,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
 		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
 			this._taskSystemInfos.set(key, info);
+			this._onDidChangeTaskSystemInfo.fire();
 		}
 	}
 

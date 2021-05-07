@@ -1021,11 +1021,37 @@ declare module 'vscode' {
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
+
+		/**
+		 * The index of this cell in its {@link NotebookDocument.cellAt containing notebook}. The
+		 * index is updated when a cell is moved within its notebook. The index is `-1`
+		 * when the cell has been removed from its notebook.
+		 */
 		readonly index: number;
+
+		/**
+		 * The {@link NotebookDocument notebook} that contains this cell.
+		 */
 		readonly notebook: NotebookDocument;
+
+		/**
+		 * The kind of this cell.
+		 */
 		readonly kind: NotebookCellKind;
+
+		/**
+		 * The {@link TextDocument text} of this cell, represented as text document.
+		 */
 		readonly document: TextDocument;
+
+		/**
+		 * The metadata of this cell.
+		 */
 		readonly metadata: NotebookCellMetadata
+
+		/**
+		 * The outputs of this cell.
+		 */
 		readonly outputs: ReadonlyArray<NotebookCellOutput>;
 
 		// todo@API maybe just executionSummary or lastExecutionSummary?
