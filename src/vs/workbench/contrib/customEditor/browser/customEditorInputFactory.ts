@@ -5,13 +5,17 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICustomEditorInputFactory, IEditorInput } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { SerializedWebviewOptions, DeserializedWebview, reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputSerializer, restoreWebviewContentOptions, restoreWebviewOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyBackupMeta, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { Schemas } from 'vs/base/common/network';
 
 export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
@@ -36,13 +40,11 @@ interface SerializedCustomEditor extends SerializedWebview {
 	readonly backupId?: string;
 }
 
-
 interface DeserializedCustomEditor extends DeserializedWebview {
 	readonly editorResource: URI;
 	readonly dirty: boolean;
 	readonly backupId?: string;
 }
-
 
 export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 
@@ -104,41 +106,46 @@ function reviveWebview(webviewService: IWebviewService, data: { id: string, stat
 	return webview;
 }
 
-export const customEditorInputFactory = new class implements ICustomEditorInputFactory {
-	public createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput> {
-		return instantiationService.invokeFunction(async accessor => {
-			const webviewService = accessor.get<IWebviewService>(IWebviewService);
-			const workingCopyBackupService = accessor.get<IWorkingCopyBackupService>(IWorkingCopyBackupService);
+export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
 
-			const backup = await workingCopyBackupService.resolve<CustomDocumentBackupData>({ resource, typeId: NO_TYPE_ID });
-			if (!backup?.meta) {
-				throw new Error(`No backup found for custom editor: ${resource}`);
-			}
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
+		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
+		@IWebviewService private readonly _webviewService: IWebviewService,
+		@ICustomEditorService _customEditorService: ICustomEditorService // DO NOT REMOVE (needed on startup to register overrides properly)
+	) {
+		super();
 
-			const backupData = backup.meta;
-			const id = backupData.webview.id;
-			const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
-			const webview = reviveWebview(webviewService, {
-				id,
-				webviewOptions: restoreWebviewOptions(backupData.webview.options),
-				contentOptions: restoreWebviewContentOptions(backupData.webview.options),
-				state: backupData.webview.state,
-				extension,
-			});
-
-			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { backupId: backupData.backupId });
-			editor.updateGroup(0);
-			return editor;
-		});
+		this._installHandler();
 	}
 
-	public canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
-		if (editorInput instanceof CustomEditorInput) {
-			if (editorInput.resource.path === backupResource.path && backupResource.authority === editorInput.viewType) {
-				return true;
-			}
-		}
+	private async _installHandler(): Promise<void> {
+		this._register(this._workingCopyEditorService.registerHandler({
+			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeCustomEditor,
+			isOpen: (workingCopy, editor) => editor instanceof CustomEditorInput && editor.resource.path === workingCopy.resource.path && workingCopy.resource.authority === editor.viewType,
+			createEditor: async workingCopy => {
+				const backup = await this._workingCopyBackupService.resolve<CustomDocumentBackupData>(workingCopy);
+				if (!backup?.meta) {
+					throw new Error(`No backup found for custom editor: ${workingCopy.resource}`);
+				}
 
-		return false;
+				const backupData = backup.meta;
+				const id = backupData.webview.id;
+				const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
+				const webview = reviveWebview(this._webviewService, {
+					id,
+					webviewOptions: restoreWebviewOptions(backupData.webview.options),
+					contentOptions: restoreWebviewContentOptions(backupData.webview.options),
+					state: backupData.webview.state,
+					extension,
+				});
+
+				const editor = this._instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { backupId: backupData.backupId });
+				editor.updateGroup(0);
+				return editor;
+			}
+		}));
 	}
-};
+}
+
