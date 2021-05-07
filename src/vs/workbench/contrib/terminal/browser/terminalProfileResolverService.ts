@@ -142,7 +142,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		// If automation shell is allowed, prefer that
 		if (options.allowAutomationShell) {
-			const automationShellProfile = this._getAutomationShellProfile(options);
+			const automationShellProfile = this._getUnresolvedAutomationShellProfile(options);
 			if (automationShellProfile) {
 				return automationShellProfile;
 			}
@@ -150,8 +150,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// If either shell or shellArgs are specified, they will take priority for now until we
 		// allow users to migrate, see https://github.com/microsoft/vscode/issues/123171
-		if (this.getSafeConfigValue('shell', options.os) || this.getSafeConfigValue('shellArgs', options.os, false)) {
-			return this._getUnresolvedFallbackDefaultProfile(options);
+		const shellSettingProfile = await this._getUnresolvedShellSettingDefaultProfile(options);
+		if (shellSettingProfile) {
+			return shellSettingProfile;
 		}
 
 		// Return the real default profile if it exists and is valid
@@ -173,12 +174,13 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return undefined;
 	}
 
-	private async _getUnresolvedFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
-		let executable: string;
-		const shellSetting = this.getSafeConfigValue('shell', options.os);
-		if (this._isValidShell(shellSetting)) {
-			executable = shellSetting;
-		} else {
+	private async _getUnresolvedShellSettingDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile | undefined> {
+		let executable = this.getSafeConfigValue('shell', options.os) as string | null;
+		if (!this._isValidShell(executable) && !this.getSafeConfigValue('shellArgs', options.os, false)) {
+			return undefined;
+		}
+
+		if (!executable || !this._isValidShell(executable)) {
 			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
 		}
 
@@ -208,7 +210,37 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		};
 	}
 
-	private _getAutomationShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
+	private async _getUnresolvedFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
+		const executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
+
+		// Try select an existing profile to fallback to, based on the default system shell
+		const existingProfile = this._terminalService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
+		if (existingProfile) {
+			return existingProfile;
+		}
+
+		// Finally fallback to a generated profile
+		let args: string | string[] | undefined;
+		if (options.os === OperatingSystem.Macintosh && args === undefined) {
+			// macOS should launch a login shell by default
+			args = ['--login'];
+		} else {
+			// Resolve undefined to []
+			args = [];
+		}
+
+		const icon = this._guessProfileIcon(executable);
+
+		return {
+			profileName: generatedProfileName,
+			path: executable,
+			args,
+			icon,
+			isDefault: false
+		};
+	}
+
+	private _getUnresolvedAutomationShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
 		const automationShell = this.getSafeConfigValue('automationShell', options.os);
 		if (!automationShell || typeof automationShell !== 'string') {
 			return undefined;
