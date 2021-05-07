@@ -26,14 +26,14 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorsOrder, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Iterable } from 'vs/base/common/iterator';
-import { assertType } from 'vs/base/common/types';
+import { flatten } from 'vs/base/common/arrays';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -205,6 +205,73 @@ export abstract class NotebookAction extends Action2 {
 	}
 }
 
+// todo@rebornix, replace NotebookAction with this
+export abstract class NotebookMultiCellAction<T> extends Action2 {
+	constructor(desc: IAction2Options) {
+		if (desc.f1 !== false) {
+			desc.f1 = false;
+			const f1Menu = {
+				id: MenuId.CommandPalette,
+				when: NOTEBOOK_IS_ACTIVE_EDITOR
+			};
+
+			if (!desc.menu) {
+				desc.menu = [];
+			} else if (!Array.isArray(desc.menu)) {
+				desc.menu = [desc.menu];
+			}
+
+			desc.menu = [
+				...desc.menu,
+				f1Menu
+			];
+		}
+
+		desc.category = NOTEBOOK_ACTIONS_CATEGORY;
+
+		super(desc);
+	}
+
+	abstract parseArgs(accessor: ServicesAccessor, ...args: any[]): T | undefined;
+	abstract runWithContext(accessor: ServicesAccessor, context: T): Promise<void>;
+
+	protected isNotebookActionContext(context?: unknown): context is INotebookActionContext {
+		return !!context && !!(context as INotebookActionContext).notebookEditor;
+	}
+	private isEditorContext(context?: unknown): boolean {
+		return !!context && (context as IEditorCommandsContext).groupId !== undefined;
+	}
+	protected getEditorFromArgsOrActivePane(accessor: ServicesAccessor, context?: UriComponents): IActiveNotebookEditor | undefined {
+		const editorFromUri = getContextFromUri(accessor, context)?.notebookEditor;
+
+		if (editorFromUri) {
+			return editorFromUri;
+		}
+
+		const editor = getNotebookEditorFromEditorPane(accessor.get(IEditorService).activeEditorPane);
+		if (!editor || !editor.hasModel()) {
+			return;
+		}
+
+		return editor;
+	}
+
+	async run(accessor: ServicesAccessor, ...additionalArgs: any[]): Promise<void> {
+		const context = additionalArgs[0];
+		const isFromCellToolbar = this.isNotebookActionContext(context);
+		const isFromEditorToolbar = this.isEditorContext(context);
+		const from = isFromCellToolbar ? 'cellToolbar' : (isFromEditorToolbar ? 'editorToolbar' : 'other');
+		const parsedArgs = this.parseArgs(accessor, ...additionalArgs);
+		if (!parsedArgs) {
+			return;
+		}
+
+		const telemetryService = accessor.get(ITelemetryService);
+		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+		return this.runWithContext(accessor, parsedArgs);
+	}
+}
+
 export abstract class NotebookCellAction<T = INotebookCellActionContext> extends NotebookAction {
 	protected isCellActionContext(context?: unknown): context is INotebookCellActionContext {
 		return !!context && !!(context as INotebookCellActionContext).notebookEditor && !!(context as INotebookCellActionContext).cell;
@@ -247,7 +314,98 @@ const executeCellCondition = ContextKeyExpr.and(
 
 const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0);
 
-registerAction2(class ExecuteCell extends NotebookAction {
+interface IMultiCellArgs {
+	ranges: ICellRange[];
+	document?: URI;
+}
+
+function isMultiCellArgs(arg: unknown): arg is IMultiCellArgs {
+	if (arg === undefined) {
+		return false;
+	}
+	const ranges = (arg as IMultiCellArgs).ranges;
+	if (!ranges) {
+		return false;
+	}
+
+	if (!Array.isArray(ranges) || ranges.some(range => !isICellRange(range))) {
+		return false;
+	}
+
+	if ((arg as IMultiCellArgs).document) {
+		const uri = URI.revive((arg as IMultiCellArgs).document);
+
+		if (!uri) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function isNotebookActionContext(context?: unknown): context is INotebookActionContext {
+	return !!context && !!(context as INotebookActionContext).notebookEditor;
+}
+
+function getEditorFromArgsOrActivePane(accessor: ServicesAccessor, context?: UriComponents): IActiveNotebookEditor | undefined {
+	const editorFromUri = getContextFromUri(accessor, context)?.notebookEditor;
+
+	if (editorFromUri) {
+		return editorFromUri;
+	}
+
+	const editor = getNotebookEditorFromEditorPane(accessor.get(IEditorService).activeEditorPane);
+	if (!editor || !editor.hasModel()) {
+		return;
+	}
+
+	return editor;
+}
+
+function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args: any[]) {
+	const firstArg = args[0];
+	if (isNotebookActionContext(firstArg)) {
+		// from UI
+		return firstArg;
+	}
+
+	// then it's from keybindings or commands
+	// todo@rebornix assertType
+	if (isMultiCellArgs(firstArg)) {
+		const editor = getEditorFromArgsOrActivePane(accessor, firstArg.document);
+		if (!editor) {
+			return;
+		}
+
+		const ranges = firstArg.ranges;
+		const selectedCells = flatten(ranges.map(range => editor.viewModel.getCells(range).slice(0)));
+		return {
+			notebookEditor: editor,
+			selectedCells
+		};
+	}
+
+	// handle legacy arguments
+	if (isICellRange(firstArg)) {
+		// cellRange, document
+		const secondArg = args[1];
+		const editor = getEditorFromArgsOrActivePane(accessor, secondArg);
+		if (!editor) {
+			return;
+		}
+
+		return {
+			notebookEditor: editor,
+			selectedCells: editor.viewModel.getCells(firstArg)
+		};
+	}
+
+	// let's just execute the active cell
+	const context = getContextFromActiveEditor(accessor.get(IEditorService));
+	return context;
+}
+
+registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_COMMAND_ID,
@@ -270,25 +428,35 @@ registerAction2(class ExecuteCell extends NotebookAction {
 				description: localize('notebookActions.execute', "Execute Cell"),
 				args: [
 					{
-						name: 'range',
-						description: 'The cell range',
+						name: 'options',
+						description: 'The cell range options',
 						schema: {
 							'type': 'object',
-							'required': ['start', 'end'],
+							'required': ['ranges'],
 							'properties': {
-								'start': {
-									'type': 'number'
+								'ranges': {
+									'type': 'array',
+									items: [
+										{
+											'type': 'object',
+											'required': ['start', 'end'],
+											'properties': {
+												'start': {
+													'type': 'number'
+												},
+												'end': {
+													'type': 'number'
+												}
+											}
+										}
+									]
 								},
-								'end': {
-									'type': 'number'
+								'document': {
+									'type': 'object',
+									'description': 'The document uri',
 								}
 							}
 						}
-					},
-					{
-						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
 					}
 				]
 			},
@@ -296,38 +464,8 @@ registerAction2(class ExecuteCell extends NotebookAction {
 		});
 	}
 
-	override getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): INotebookActionContext | undefined {
-		if (!context) {
-			return super.getEditorContextFromArgsOrActive(accessor, context, ...additionalArgs);
-		}
-
-		assertType(isICellRange(context), 'ICellRange');
-
-		if (additionalArgs.length && additionalArgs[0]) {
-			const uri = URI.revive(additionalArgs[0]);
-			assertType(URI.isUri(uri), 'URI');
-
-			const widget = getWidgetFromUri(accessor, uri);
-			if (widget) {
-				return {
-					notebookEditor: widget,
-					selectedCells: widget.viewModel.getCells(context)
-				};
-			} else {
-				throw new Error(`There is no editor opened for resource ${uri}`);
-			}
-		}
-
-		const activeEditorContext = super.getEditorContextFromArgsOrActive(accessor);
-
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.length) {
-			return;
-		}
-
-		return {
-			notebookEditor: activeEditorContext.notebookEditor,
-			selectedCells: activeEditorContext.notebookEditor.viewModel.getCells(context as ICellRange)
-		};
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
@@ -340,7 +478,7 @@ const cellCancelCondition = ContextKeyExpr.or(
 	ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'pending'),
 );
 
-registerAction2(class CancelExecuteCell extends NotebookAction {
+registerAction2(class CancelExecuteCell extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
 			id: CANCEL_CELL_COMMAND_ID,
@@ -356,64 +494,43 @@ registerAction2(class CancelExecuteCell extends NotebookAction {
 				description: localize('notebookActions.cancel', "Stop Cell Execution"),
 				args: [
 					{
-						name: 'range',
-						description: 'The cell range',
+						name: 'options',
+						description: 'The cell range options',
 						schema: {
 							'type': 'object',
-							'required': ['start', 'end'],
+							'required': ['ranges'],
 							'properties': {
-								'start': {
-									'type': 'number'
+								'ranges': {
+									'type': 'array',
+									items: [
+										{
+											'type': 'object',
+											'required': ['start', 'end'],
+											'properties': {
+												'start': {
+													'type': 'number'
+												},
+												'end': {
+													'type': 'number'
+												}
+											}
+										}
+									]
 								},
-								'end': {
-									'type': 'number'
+								'document': {
+									'type': 'object',
+									'description': 'The document uri',
 								}
 							}
 						}
-					},
-					{
-						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
 					}
 				]
 			},
 		});
 	}
 
-	override getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): INotebookActionContext | undefined {
-		if (!context) {
-			return super.getEditorContextFromArgsOrActive(accessor, context, ...additionalArgs);
-		}
-
-		if (typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
-			return;
-		}
-
-		if (additionalArgs.length && additionalArgs[0]) {
-			const uri = URI.revive(additionalArgs[0]);
-
-			if (uri) {
-				const widget = getWidgetFromUri(accessor, uri);
-				if (widget) {
-					return {
-						notebookEditor: widget,
-						selectedCells: widget.viewModel.getCells(context as ICellRange)
-					};
-				}
-			}
-		}
-
-		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
-
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.length) {
-			return;
-		}
-
-		return {
-			notebookEditor: activeEditorContext.notebookEditor,
-			selectedCells: activeEditorContext.notebookEditor.viewModel.getCells(context as ICellRange)
-		};
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {

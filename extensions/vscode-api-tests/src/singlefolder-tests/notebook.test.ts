@@ -674,6 +674,36 @@ suite('Notebook API tests', function () {
 		});
 	});
 
+	test('cell execute command takes arguments ICellRange[]', async () => {
+		const resource = await createRandomNotebookFile();
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		vscode.commands.executeCommand('notebook.cell.execute', { ranges: [{ start: 0, end: 1 }, { start: 1, end: 2 }] });
+		let firstCellExecuted = false;
+		let secondCellExecuted = false;
+		let resolve: () => void;
+		const p = new Promise<void>(r => resolve = r);
+		const listener = vscode.notebook.onDidChangeCellOutputs(e => {
+			e.cells.forEach(cell => {
+				if (cell.index === 0) {
+					firstCellExecuted = true;
+				}
+
+				if (cell.index === 1) {
+					secondCellExecuted = true;
+				}
+			});
+
+			if (firstCellExecuted && secondCellExecuted) {
+				resolve();
+			}
+		});
+
+		await p;
+		listener.dispose();
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
 	test('document execute command takes arguments', async () => {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
