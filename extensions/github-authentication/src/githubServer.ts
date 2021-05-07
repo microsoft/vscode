@@ -305,7 +305,7 @@ export class GitHubServer {
 
 			/* __GDPR__
 				"ghe-session" : {
-					"version": { }
+					"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('ghe-session', {
