@@ -32,6 +32,9 @@ function buildTestSafeConfigProvider(config: ITestTerminalConfig): SafeConfigPro
 			case 'terminal.integrated.profiles.linux': return config.profiles.linux as any;
 			case 'terminal.integrated.profiles.osx': return config.profiles.osx as any;
 			case 'terminal.integrated.profiles.windows': return config.profiles.windows as any;
+			case 'terminal.integrated.defaultProfile.linux': return Object.keys(config.profiles.linux)?.[0];
+			case 'terminal.integrated.defaultProfile.osx': return Object.keys(config.profiles.osx)?.[0];
+			case 'terminal.integrated.defaultProfile.windows': return Object.keys(config.profiles.windows)?.[0];
 			case 'terminal.integrated.useWslProfiles': return config.useWslProfiles;
 			default: throw new Error('Unexpected config key');
 		}
