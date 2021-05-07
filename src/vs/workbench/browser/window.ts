@@ -50,7 +50,13 @@ export class BrowserWindow extends Disposable {
 
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => this.onWindowResize()));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			this.onWindowResize();
+			if (isIOS) {
+				// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
+				window.scrollTo(0, 0);
+			}
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.layoutService.container, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
@@ -74,7 +80,6 @@ export class BrowserWindow extends Disposable {
 
 	private onWindowResize(): void {
 		this.logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
-
 		this.layoutService.layout();
 	}
 
