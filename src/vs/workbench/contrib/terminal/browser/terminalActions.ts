@@ -1507,7 +1507,13 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			getSelectedInstances(accessor)?.forEach(instance => instance.dispose(true));
+			const selectedInstances = getSelectedInstances(accessor);
+			if (!selectedInstances) {
+				return;
+			}
+			for (const instance of selectedInstances) {
+				instance.dispose(true);
+			}
 			const terminalService = accessor.get(ITerminalService);
 			if (terminalService.terminalInstances.length > 0) {
 				terminalService.focusTabs();
