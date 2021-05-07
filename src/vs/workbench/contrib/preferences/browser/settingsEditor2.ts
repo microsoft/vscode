@@ -54,7 +54,6 @@ import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSyn
 import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { isIPad } from 'vs/base/browser/browser';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -339,8 +338,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private _setOptions(options: SettingsEditorOptions): void {
-		if (options.focusSearch && !isIPad) {
-			// isIPad - #122044
+		if (options.focusSearch && !platform.isIOS) {
+			// isIOS - #122044
 			this.focusSearch();
 		}
 
@@ -380,7 +379,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	override focus(): void {
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
-			if (!isIPad) {
+			if (!platform.isIOS) {
 				// #122044
 				this.focusSearch();
 			}
