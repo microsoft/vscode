@@ -82,6 +82,7 @@ import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
+import { Schemas } from 'vs/base/common/network';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -1635,7 +1636,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (workspaceFolder) {
 					return this.getTaskSystemInfo(workspaceFolder.uri.scheme);
 				} else if (this._taskSystemInfos.size > 0) {
-					return this._taskSystemInfos.values().next().value;
+					const infos = Array.from(this._taskSystemInfos.entries());
+					const notFile = infos.filter(info => info[0] !== Schemas.file);
+					if (notFile.length > 0) {
+						return notFile[0][1];
+					}
+					return infos[0][1];
 				} else {
 					return undefined;
 				}
