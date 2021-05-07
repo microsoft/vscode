@@ -199,6 +199,8 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.minimap = { enabled: false };
 		options.renderValidationDecorations = 'editable';
 		options.padding = undefined;
+		options.readOnly = true;
+		options.domReadOnly = true;
 
 		const outputConfig = this.configurationService.getValue<any>('[Log]');
 		if (outputConfig) {
