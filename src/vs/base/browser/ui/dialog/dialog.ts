@@ -218,6 +218,10 @@ export class Dialog extends Disposable {
 			this._register(domEvent(window, 'keydown', true)((e: KeyboardEvent) => {
 				const evt = new StandardKeyboardEvent(e);
 
+				if (evt.equals(KeyMod.Alt)) {
+					evt.preventDefault();
+				}
+
 				if (evt.equals(KeyCode.Enter)) {
 
 					// Enter in input field should OK the dialog
