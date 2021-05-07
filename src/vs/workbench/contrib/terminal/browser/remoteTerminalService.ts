@@ -13,15 +13,16 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemoteTerminalService extends Disposable implements IRemoteTerminalService {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, RemotePty> = new Map();
 	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
@@ -40,7 +41,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
 
@@ -126,7 +128,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	public async createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -147,6 +149,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		};
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
+			configuration,
 			activeWorkspaceRootUri,
 			shouldPersist,
 			cols,
@@ -157,7 +160,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return pty;
 	}
 
-	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -173,7 +176,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	public async listProcesses(): Promise<IRemoteTerminalAttachTarget[]> {
+	async listProcesses(): Promise<IRemoteTerminalAttachTarget[]> {
 		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
 		return terms.map(termDto => {
 			return <IRemoteTerminalAttachTarget>{
@@ -188,15 +191,40 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		});
 	}
 
-	public async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+	async updateTitle(id: number, title: string): Promise<void> {
+		await this._remoteTerminalChannel?.updateTitle(id, title);
+	}
+
+	async updateIcon(id: number, icon: string): Promise<void> {
+		await this._remoteTerminalChannel?.updateIcon(id, icon);
+	}
+
+	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
 	}
 
-	public async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._remoteTerminalChannel?.getShellEnvironment() || {};
+	async getEnvironment(): Promise<IProcessEnvironment> {
+		return this._remoteTerminalChannel?.getEnvironment() || {};
 	}
 
-	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
+	async getShellEnvironment(): Promise<IProcessEnvironment | undefined> {
+		const connection = this._remoteAgentService.getConnection();
+		if (!connection) {
+			return undefined;
+		}
+		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
+		return resolverResult.options?.extensionHostEnv as any;
+	}
+
+	async getWslPath(original: string): Promise<string> {
+		const env = await this._remoteAgentService.getEnvironment();
+		if (env?.os !== OperatingSystem.Windows) {
+			return original;
+		}
+		return this._remoteTerminalChannel?.getWslPath(original) || original;
+	}
+
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call setActiveInstanceId when there is no remote`);
 		}
@@ -204,14 +232,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
 	}
 
-	public async reduceConnectionGraceTime(): Promise<void> {
+	async reduceConnectionGraceTime(): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error('Cannot reduce grace time when there is no remote');
 		}
 		return this._remoteTerminalChannel.reduceConnectionGraceTime();
 	}
 
-	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
+	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
 		}

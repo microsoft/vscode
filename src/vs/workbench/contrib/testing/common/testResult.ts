@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, RunTestsRequest, TestIdPath, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 
 export interface ITestResult {
@@ -62,6 +62,21 @@ export interface ITestResult {
 	 */
 	toJSON(): ISerializedTestResults | undefined;
 }
+
+export const getPathForTestInResult = (test: TestResultItem, results: ITestResult): TestIdPath => {
+	const path = [test];
+	while (true) {
+		const parentId = path[0].parent;
+		const parent = parentId && results.getStateById(parentId);
+		if (!parent) {
+			break;
+		}
+
+		path.unshift(parent);
+	}
+
+	return path.map(t => t.item.extId);
+};
 
 /**
  * Count of the number of tests in each run state.

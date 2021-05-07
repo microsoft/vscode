@@ -10,7 +10,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -487,7 +487,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('debug.saveBeforeStart.nonUntitledEditorsInActiveGroup', "Save all editors in the active group except untitled ones before starting a debug session."),
 				nls.localize('debug.saveBeforeStart.none', "Don't save any editors before starting a debug session."),
 			],
-			default: 'allEditorsInActiveGroup'
+			default: 'allEditorsInActiveGroup',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		}
 	}
 });

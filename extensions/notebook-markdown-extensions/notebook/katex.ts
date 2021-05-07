@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as markdownIt from 'markdown-it';
 
-declare const extendMarkdownIt: undefined | (
-	(f: (md: markdownIt.MarkdownIt) => void) => void
-);
-
-const styleHref = (document.currentScript as any).src.replace(/katex.js$/, 'katex.min.css');
+const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
 const link = document.createElement('link');
 link.rel = 'stylesheet';
 link.classList.add('markdown-style');
 link.href = styleHref;
-
 document.head.append(link);
 
-(function () {
-	const katex = require('@iktakahiro/markdown-it-katex');
-	if (typeof extendMarkdownIt !== 'undefined') {
-
-		extendMarkdownIt((md: markdownIt.MarkdownIt) => {
-			md.use(katex);
-		});
+const style = document.createElement('style');
+style.classList.add('markdown-style');
+style.textContent = `
+	.katex-error {
+		color: var(--vscode-editorError-foreground);
 	}
-}());
+`;
+document.head.append(style);
+
+const katex = require('@iktakahiro/markdown-it-katex');
+
+export function extendMarkdownIt(md: markdownIt.MarkdownIt) {
+	return md.use(katex);
+}

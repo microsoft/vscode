@@ -143,17 +143,17 @@ export class HoverWidget extends Widget {
 
 		const mouseTrackerTargets = [...this._target.targetElements];
 		let hideOnHover: boolean;
-		if (options.hideOnHover === undefined) {
-			if (options.actions && options.actions.length > 0) {
-				// If there are actions, require hover so they can be accessed
-				hideOnHover = false;
-			} else {
+		if (options.actions && options.actions.length > 0) {
+			// If there are actions, require hover so they can be accessed
+			hideOnHover = false;
+		} else {
+			if (options.hideOnHover === undefined) {
 				// Defaults to true when string, false when markdown as it may contain links
 				hideOnHover = typeof options.text === 'string';
+			} else {
+				// It's set explicitly
+				hideOnHover = options.hideOnHover;
 			}
-		} else {
-			// It's set explicitly
-			hideOnHover = options.hideOnHover;
 		}
 		if (!hideOnHover) {
 			mouseTrackerTargets.push(this._hover.containerDomNode);

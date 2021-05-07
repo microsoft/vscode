@@ -8,7 +8,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -50,7 +50,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				throw new Error(`Unable to resolve inMemory resource ${key}`);
 			}
 
-			return this.instantiationService.createInstance(ResourceEditorModel, resource);
+			return this.instantiationService.createInstance(TextResourceEditorModel, resource);
 		}
 
 		// Untitled Schema: go through untitled text service
@@ -67,7 +67,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		if (this.providers.has(resource.scheme)) {
 			await this.resolveTextModelContent(key);
 
-			return this.instantiationService.createInstance(ResourceEditorModel, resource);
+			return this.instantiationService.createInstance(TextResourceEditorModel, resource);
 		}
 
 		// Either unknown schema, or not yet registered, try to activate

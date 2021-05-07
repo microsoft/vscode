@@ -7,12 +7,17 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface INotebookKernelBindEvent {
 	notebook: URI;
 	oldKernel: string | undefined;
 	newKernel: string | undefined;
+}
+
+export interface INotebookKernelMatchResult {
+	readonly selected: INotebookKernel | undefined;
+	readonly all: INotebookKernel[];
 }
 
 export interface INotebookTextModelLike { uri: URI; viewType: string; }
@@ -29,20 +34,20 @@ export interface INotebookKernelService {
 
 	registerKernel(kernel: INotebookKernel): IDisposable;
 
-	getNotebookKernels(notebook: INotebookTextModelLike): { bound: INotebookKernel | undefined, all: INotebookKernel[] }
+	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 
 	/**
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */
-	updateNotebookInstanceKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel | undefined): void;
+	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
 
 	/**
 	 * Bind a notebook type to a kernel.
 	 * @param viewType
 	 * @param kernel
 	 */
-	updateNotebookTypeKernelBinding(viewType: string, kernel: INotebookKernel): void;
+	selectKernelForNotebookType(kernel: INotebookKernel, viewType: string): void;
 
 	/**
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference

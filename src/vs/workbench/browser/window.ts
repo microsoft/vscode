@@ -12,6 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
@@ -49,7 +50,13 @@ export class BrowserWindow extends Disposable {
 
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => this.onWindowResize()));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			this.onWindowResize();
+			if (isIOS) {
+				// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
+				window.scrollTo(0, 0);
+			}
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.layoutService.container, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
@@ -73,7 +80,6 @@ export class BrowserWindow extends Disposable {
 
 	private onWindowResize(): void {
 		this.logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
-
 		this.layoutService.layout();
 	}
 
@@ -140,9 +146,13 @@ export class BrowserWindow extends Disposable {
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					const opened = windowOpenNoOpener(href);
 					if (!opened) {
-						const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser prevented opening of a new tab or window. You must give permission to continue."), [localize('continue', "Continue"), localize('cancel', "Cancel")], { cancelId: 1, detail: href });
+						const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+							[localize('open', "Open"), localize('learnMore', "Learn More"), localize('cancel', "Cancel")], { cancelId: 2, detail: href });
 						if (showResult.choice === 0) {
 							windowOpenNoOpener(href);
+						}
+						if (showResult.choice === 1) {
+							await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
 						}
 					}
 				} else {

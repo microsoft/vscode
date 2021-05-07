@@ -11,7 +11,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
-import { whenTextEditorClosed } from 'vs/workbench/browser/editor';
+import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IModifierKeyStatus, ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
@@ -315,7 +315,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					(async () => {
 
 						// Wait for the resources to be closed in the text editor...
-						await this.instantiationService.invokeFunction(accessor => whenTextEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
+						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
 
 						// ...before deleting the wait marker file
 						await this.fileService.del(waitMarkerFileURI);
@@ -388,7 +388,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		const opened = await this.workspaceProvider.open(workspace, options);
 		if (!opened) {
-			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "Opening a new workspace tab or window has been prevented by the browser. You must give permission to continue."), [localize('continue', "Continue"), localize('cancel', "Cancel")], { cancelId: 1 });
+			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 2 });
 			if (showResult.choice === 0) {
 				await this.workspaceProvider.open(workspace, options);
 			}

@@ -326,10 +326,10 @@ const newCommands: ApiCommand[] = [
 	),
 	// --- inline hints
 	new ApiCommand(
-		'vscode.executeInlineHintProvider', '_executeInlineHintProvider', 'Execute inline hints provider',
+		'vscode.executeInlayHintProvider', '_executeInlayHintProvider', 'Execute inline hints provider',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
-		new ApiCommandResult<modes.InlineHint[], vscode.InlineHint[]>('A promise that resolves to an array of InlineHint objects', result => {
-			return result.map(typeConverters.InlineHint.to);
+		new ApiCommandResult<modes.InlayHint[], vscode.InlayHint[]>('A promise that resolves to an array of Inlay objects', result => {
+			return result.map(typeConverters.InlayHint.to);
 		})
 	),
 	// --- notebooks

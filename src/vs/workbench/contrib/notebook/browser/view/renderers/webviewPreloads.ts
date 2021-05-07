@@ -6,10 +6,10 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
-// function. Imports are not allowed. This is stringifies and injected into
+// function. Imports are not allowed. This is stringified and injected into
 // the webview.
 
 declare module globalThis {
@@ -26,8 +26,6 @@ declare class ResizeObserver {
 	disconnect(): void;
 }
 
-declare const __outputNodePadding__: number;
-declare const __outputNodeLeftPadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -36,7 +34,12 @@ interface EmitterLike<T> {
 	event: Event<T>;
 }
 
-function webviewPreloads() {
+interface PreloadStyles {
+	readonly outputNodePadding: number;
+	readonly outputNodeLeftPadding: number;
+}
+
+async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any, markdownDeps: any) {
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -182,8 +185,8 @@ function webviewPreloads() {
 						if (observedElementInfo.output) {
 							let height = 0;
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
-								height = entry.contentRect.height + __outputNodePadding__ * 2;
+								entry.target.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+								height = entry.contentRect.height + style.outputNodePadding * 2;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -409,46 +412,35 @@ function webviewPreloads() {
 		metadata: unknown;
 	}
 
-	interface ICreateMarkdownInfo {
-		readonly content: string;
-		readonly element: HTMLElement;
-	}
-
 	interface IDestroyCellInfo {
 		outputId: string;
 	}
 
-	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
-	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
-	const onDidCreateMarkdown = createEmitter<[string | undefined /* namespace */, ICreateMarkdownInfo]>();
-	const onDidReceiveMessage = createEmitter<[string, unknown]>();
+	const onWillDestroyOutput = createEmitter<'all' | { rendererId: string, info: IDestroyCellInfo }>();
+	const onDidCreateOutput = createEmitter<{ rendererId: string, info: ICreateCellInfo }>();
+	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
+	const acquireNotebookRendererApi = <T>(id: string) => ({
+		setState(newState: T) {
+			vscode.setState({ ...vscode.getState(), [id]: newState });
+		},
+		getState(): T | undefined {
+			const state = vscode.getState();
+			return typeof state === 'object' && state ? state[id] as T : undefined;
+		},
+		onWillDestroyOutput: mapEmitter(onWillDestroyOutput, (evt) => {
+			if (evt === 'all') {
+				return undefined;
+			}
+			return evt.rendererId === id ? evt.info : dontEmit;
+		}),
+		onDidCreateOutput: mapEmitter(onDidCreateOutput, ({ rendererId, info }) => rendererId === id ? info : dontEmit),
+	});
 
-	(window as any).acquireNotebookRendererApi = <T>(namespace: string) => {
-		if (!namespace || typeof namespace !== 'string') {
-			throw new Error(`acquireNotebookRendererApi should be called your renderer type as a string, got: ${namespace}.`);
-		}
-
-		return {
-			postMessage(message: unknown) {
-				postNotebookMessage<ICustomRendererMessage>('customRendererMessage', {
-					rendererId: namespace,
-					message,
-				});
-			},
-			setState(newState: T) {
-				vscode.setState({ ...vscode.getState(), [namespace]: newState });
-			},
-			getState(): T | undefined {
-				const state = vscode.getState();
-				return typeof state === 'object' && state ? state[namespace] as T : undefined;
-			},
-			onDidReceiveMessage: mapEmitter(onDidReceiveMessage, ([ns, data]) => ns === namespace ? data : dontEmit),
-			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
-			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
-			onDidCreateMarkdown: mapEmitter(onDidCreateMarkdown, ([ns, data]) => data),
-		};
+	const kernelPreloadGlobals = {
+		acquireVsCodeApi,
+		onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
+		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
 	};
 
 	const enum PreloadState {
@@ -502,9 +494,11 @@ function webviewPreloads() {
 				for (const cell of event.data.cells) {
 					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
 
-					const cellContainer = document.getElementById(cell.cellId);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'hidden';
+					if (!cell.visible) {
+						const cellContainer = document.getElementById(cell.cellId);
+						if (cellContainer) {
+							cellContainer.style.visibility = 'hidden';
+						}
 					}
 				}
 
@@ -645,28 +639,16 @@ function webviewPreloads() {
 						cellOutputContainer.appendChild(outputContainer);
 						outputContainer.appendChild(outputNode);
 					} else {
-						const { metadata, mimeType, value } = content;
-						onDidCreateOutput.fire([data.apiNamespace, {
-							element: outputNode,
-							outputId,
-							mime: content.mimeType,
-							value: content.value,
-							metadata: content.metadata,
-
-							get mimeType() {
-								console.warn(`event.mimeType is deprecated, use 'mime' instead`);
-								return mimeType;
-							},
-
-							get output() {
-								console.warn(`event.output is deprecated, use properties directly instead`);
-								return {
-									metadata: { [mimeType]: metadata },
-									data: { [mimeType]: value },
-									outputId,
-								};
-							},
-						} as ICreateCellInfo]);
+						onDidCreateOutput.fire({
+							rendererId: data.rendererId!,
+							info: {
+								element: outputNode,
+								outputId,
+								mime: content.mimeType,
+								value: content.value,
+								metadata: content.metadata,
+							}
+						});
 						cellOutputContainer.appendChild(outputContainer);
 						outputContainer.appendChild(outputNode);
 					}
@@ -678,12 +660,12 @@ function webviewPreloads() {
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.update(outputId, clientHeight + __outputNodePadding__ * 2, {
+						dimensionUpdater.update(outputId, clientHeight + style.outputNodePadding * 2, {
 							isOutput: true,
 							init: true,
 						});
 
-						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
+						outputNode.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
 					} else {
 						dimensionUpdater.update(outputId, outputNode.clientHeight, {
 							isOutput: true,
@@ -722,7 +704,7 @@ function webviewPreloads() {
 				}
 			case 'clear':
 				queuedOuputActions.clear(); // stop all loading outputs
-				onWillDestroyOutput.fire([undefined, undefined]);
+				onWillDestroyOutput.fire('all');
 				document.getElementById('container')!.innerText = '';
 
 				focusTrackers.forEach(ft => {
@@ -730,14 +712,20 @@ function webviewPreloads() {
 				});
 				focusTrackers.clear();
 				break;
-			case 'clearOutput':
+			case 'clearOutput': {
 				const output = document.getElementById(event.data.outputId);
-				queuedOuputActions.delete(event.data.outputId); // stop any in-progress rendering
+				const { rendererId, outputId } = event.data;
+
+				queuedOuputActions.delete(outputId); // stop any in-progress rendering
 				if (output && output.parentNode) {
-					onWillDestroyOutput.fire([event.data.apiNamespace, { outputId: event.data.outputId }]);
+					if (rendererId) {
+						onWillDestroyOutput.fire({ rendererId, info: { outputId } });
+					}
 					output.parentNode.removeChild(output);
 				}
+
 				break;
+			}
 			case 'hideOutput':
 				enqueueOutputAction(event.data, ({ outputId }) => {
 					const container = document.getElementById(outputId)?.parentElement?.parentElement;
@@ -771,9 +759,12 @@ function webviewPreloads() {
 				}
 			case 'preload':
 				const resources = event.data.resources;
-				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
 				let queue: Promise<PreloadResult> = Promise.resolve({ state: PreloadState.Ok });
-				for (const { uri, originalUri } of resources) {
+				for (const { uri, originalUri, source } of resources) {
+					const globals = source === 'kernel'
+						? kernelPreloadGlobals
+						: { acquireNotebookRendererApi: () => acquireNotebookRendererApi(source.rendererId) };
+
 					// create the promise so that the scripts download in parallel, but
 					// only invoke them in series within the queue
 					const promise = runScript(uri, originalUri, globals);
@@ -799,11 +790,15 @@ function webviewPreloads() {
 				}
 
 				break;
-			case 'customRendererMessage':
-				onDidReceiveMessage.fire([event.data.rendererId, event.data.message]);
+			case 'customKernelMessage':
+				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
 		}
 	});
+
+	const markdownRenderer: {
+		renderMarkup: (context: { element: HTMLElement, content: string }) => void,
+	} = await markdownRendererModule.activate(markdownDeps);
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
@@ -904,19 +899,22 @@ function webviewPreloads() {
 		}
 
 		const previewRoot = previewContainerNode.shadowRoot;
-		const previewNode = previewRoot?.getElementById('preview') as HTMLElement;
+		const previewNode = previewRoot?.getElementById('preview');
+		if (!previewNode) {
+			return;
+		}
 
 		// TODO: handle namespace
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');
-				previewContainerNode.innerText = '';
+				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+				markdownRenderer.renderMarkup({
 					element: previewNode,
 					content: content
-				}]);
+				});
 
 				if (!hasPostedRenderedMathTelemetry) {
 					const hasRenderedMath = previewNode.querySelector('.katex');
@@ -1015,11 +1013,18 @@ function webviewPreloads() {
 	}();
 }
 
-export function preloadsScriptStr(values: {
-	outputNodePadding: number;
-	outputNodeLeftPadding: number;
+export function preloadsScriptStr(styleValues: PreloadStyles, markdownRenderer: {
+	entrypoint: string,
+	dependencies: Array<{ entrypoint: string }>,
 }) {
-	return `(${webviewPreloads})()`
-		.replace(/__outputNodePadding__/g, `${values.outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`);
+	const markdownCtx = {
+		dependencies: markdownRenderer.dependencies,
+	};
+
+	return `import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
+		(${webviewPreloads})(
+			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
+			markdownRendererModule,
+			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}"))
+		)`;
 }

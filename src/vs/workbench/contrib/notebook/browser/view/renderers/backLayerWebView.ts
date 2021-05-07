@@ -28,7 +28,7 @@ import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEd
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
@@ -205,7 +205,7 @@ export interface ICreationRequestMessage {
 	left: number;
 	requiredPreloads: ReadonlyArray<IPreloadResource>;
 	readonly initiallyHidden?: boolean;
-	apiNamespace?: string | undefined;
+	rendererId?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
@@ -234,7 +234,7 @@ export interface IClearOutputRequestMessage {
 	cellId: string;
 	outputId: string;
 	cellUri: string;
-	apiNamespace: string | undefined;
+	rendererId: string | undefined;
 }
 
 export interface IHideOutputMessage {
@@ -263,15 +263,17 @@ export interface IAckOutputHeightMessage {
 	height: number;
 }
 
+export type PreloadSource = 'kernel' | { rendererId: string };
+
 export interface IPreloadResource {
 	originalUri: string;
 	uri: string;
+	source: PreloadSource;
 }
 
 export interface IUpdatePreloadResourceMessage {
 	type: 'preload';
 	resources: IPreloadResource[];
-	source: 'renderer' | 'kernel';
 }
 
 export interface IUpdateDecorationsMessage {
@@ -281,9 +283,8 @@ export interface IUpdateDecorationsMessage {
 	removedClassNames: string[];
 }
 
-export interface ICustomRendererMessage extends BaseToWebviewMessage {
-	type: 'customRendererMessage';
-	rendererId: string;
+export interface ICustomKernelMessage extends BaseToWebviewMessage {
+	type: 'customKernelMessage';
 	message: unknown;
 }
 
@@ -322,9 +323,17 @@ export interface IUpdateSelectedMarkdownPreviews {
 	readonly selectedCellIds: readonly string[]
 }
 
+export interface IMarkdownCellInitialization {
+	cellId: string;
+	cellHandle: number;
+	content: string;
+	offset: number;
+	visible: boolean;
+}
+
 export interface IInitializeMarkdownMessage {
 	type: 'initializeMarkdownPreview';
-	cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>;
+	cells: ReadonlyArray<IMarkdownCellInitialization>;
 }
 
 export type FromWebviewMessage =
@@ -337,7 +346,7 @@ export type FromWebviewMessage =
 	| IWheelMessage
 	| IScrollAckMessage
 	| IBlurOutputMessage
-	| ICustomRendererMessage
+	| ICustomKernelMessage
 	| IClickedDataUrlMessage
 	| IClickMarkdownPreviewMessage
 	| IContextMenuMarkdownPreviewMessage
@@ -365,7 +374,7 @@ export type ToWebviewMessage =
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
 	| IUpdateDecorationsMessage
-	| ICustomRendererMessage
+	| ICustomKernelMessage
 	| ICreateMarkdownMessage
 	| IDeleteMarkdownMessage
 	| IShowMarkdownMessage
@@ -393,7 +402,6 @@ function html(strings: TemplateStringsArray, ...values: any[]): string {
 
 export interface INotebookWebviewMessage {
 	message: unknown;
-	forRenderer?: string;
 }
 
 export interface IResolvedBackLayerWebview {
@@ -404,18 +412,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	readonly markdownPreviewMapping = new Map<string, { contentHash: number, visible: boolean }>();
+	readonly markdownPreviewMapping = new Map<string, IMarkdownCellInitialization>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
-	kernelRootsCache: URI[] = [];
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	private _loaded!: Promise<void>;
 	private _initalized?: Promise<void>;
 	private _disposed = false;
+	private _currentKernel?: INotebookKernel;
 
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
@@ -449,7 +456,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.position = 'absolute';
 	}
 	private generateContent(coreDependencies: string, baseUrl: string) {
-		const markdownRenderersSrc = this.getMarkdownRendererScripts();
+		const markupRenderer = this.getMarkdownRenderer();
 		const outputWidth = `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`;
 		const outputMarginLeft = `${this.options.leftMargin + this.options.runGutter}px`;
 		return html`
@@ -493,7 +500,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 						h1 {
 							font-size: 26px;
-							padding-bottom: 8px;
 							line-height: 31px;
 							margin: 0;
 							margin-bottom: 13px;
@@ -581,20 +587,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 							white-space: pre-wrap;
 						}
 
-						.latex-block {
-							display: block;
-						}
-
-						.latex {
-							vertical-align: middle;
-							display: inline-block;
-						}
-
-						.latex img,
-						.latex-block img {
-							filter: brightness(0) invert(0)
-						}
-
 						dragging {
 							background-color: var(--vscode-editor-background);
 						}
@@ -656,15 +648,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						filter: brightness(0) invert(1)
 					}
 
-					#container > div.nb-symbolHighlight > div {
+					#container > div.nb-symbolHighlight {
 						background-color: var(--vscode-notebook-symbolHighlightBackground);
 					}
 
-					#container > div.nb-cellDeleted > div {
+					#container > div.nb-cellDeleted {
 						background-color: var(--vscode-diffEditor-removedTextBackground);
 					}
 
-					#container > div.nb-cellAdded > div {
+					#container > div.nb-cellAdded {
 						background-color: var(--vscode-diffEditor-insertedTextBackground);
 					}
 
@@ -718,39 +710,49 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr({
+				<script type="module">${preloadsScriptStr({
 			outputNodePadding: this.options.outputNodePadding,
 			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
+		}, {
+			entrypoint: markupRenderer[0].entrypoint,
+			dependencies: markupRenderer[0].dependencies,
 		})}</script>
-				${markdownRenderersSrc}
 			</body>
 		</html>`;
 	}
 
-	private getMarkdownRendererScripts() {
-		const markdownRenderers = this.notebookService.getMarkdownRendererInfo();
+	private getMarkdownRenderer(): Array<{ entrypoint: string, dependencies: Array<{ entrypoint: string }> }> {
+		const allRenderers = this.notebookService.getMarkupRendererInfo();
 
-		return markdownRenderers
-			.sort((a, b) => {
-				// prefer built-in extension
-				if (a.extensionIsBuiltin) {
-					return b.extensionIsBuiltin ? 0 : -1;
+		const topLevelMarkdownRenderers = allRenderers
+			.filter(renderer => !renderer.dependsOn)
+			.filter(renderer => renderer.mimeTypes?.includes('text/markdown'));
+
+		const subRenderers = new Map<string, Array<{ entrypoint: string }>>();
+		for (const renderer of allRenderers) {
+			if (renderer.dependsOn) {
+				if (!subRenderers.has(renderer.dependsOn)) {
+					subRenderers.set(renderer.dependsOn, []);
 				}
-				return b.extensionIsBuiltin ? 1 : -1;
-			})
-			.map(renderer => {
-				return asWebviewUri(this.environmentService, this.id, renderer.entrypoint);
-			})
-			.map(src => `<script src="${src}"></script>`)
-			.join('\n');
+				const entryPoint = asWebviewUri(this.environmentService, this.id, renderer.entrypoint);
+				subRenderers.get(renderer.dependsOn)!.push({ entrypoint: entryPoint.toString(true) });
+			}
+		}
+
+		return topLevelMarkdownRenderers.map((renderer) => {
+			const src = asWebviewUri(this.environmentService, this.id, renderer.entrypoint);
+			return {
+				entrypoint: src.toString(),
+				dependencies: subRenderers.get(renderer.id) || [],
+			};
+		});
 	}
 
-	postRendererMessage(rendererId: string, message: any) {
+	postKernelMessage(message: any) {
 		this._sendMessageToWebview({
 			__vscode_notebook_message: true,
-			type: 'customRendererMessage',
+			type: 'customKernelMessage',
 			message,
-			rendererId
 		});
 	}
 
@@ -814,6 +816,11 @@ var requirejs = (function() {
 				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
 				this._initialize(htmlContent);
 				resolveFunc!();
+			}, error => {
+				// the fetch request is rejected
+				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
+				this._initialize(htmlContent);
+				resolveFunc!();
 			});
 		}
 
@@ -844,26 +851,6 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onDidReload(() => {
-			if (this._disposed) {
-				return;
-			}
-
-			let renderers = new Set<INotebookRendererInfo>();
-			for (const inset of this.insetMapping.values()) {
-				if (inset.renderer) {
-					renderers.add(inset.renderer);
-				}
-			}
-
-			this._preloadsCache.clear();
-			this.updateRendererPreloads(renderers);
-
-			for (const [output, inset] of this.insetMapping.entries()) {
-				this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
-			}
-		}));
-
 		this._register(this.webview.onMessage((message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
 			if (this._disposed) {
@@ -871,11 +858,13 @@ var requirejs = (function() {
 			}
 
 			if (!data.__vscode_notebook_message) {
-				this._onMessage.fire({ message: data });
 				return;
 			}
 
 			switch (data.type) {
+				case 'initialized':
+					this.initializeWebViewState();
+					break;
 				case 'dimension':
 					{
 						for (const update of data.updates) {
@@ -975,9 +964,9 @@ var requirejs = (function() {
 						this._onDidClickDataLink(data);
 						break;
 					}
-				case 'customRendererMessage':
+				case 'customKernelMessage':
 					{
-						this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+						this._onMessage.fire({ message: data.message });
 						break;
 					}
 				case 'clickMarkdownPreview':
@@ -1139,7 +1128,7 @@ var requirejs = (function() {
 
 		this.localResourceRootsCache = [
 			...this.notebookService.getNotebookProviderResourceRoots(),
-			...this.notebookService.getMarkdownRendererInfo().map(x => dirname(x.entrypoint)),
+			...this.notebookService.getMarkupRendererInfo().map(x => dirname(x.entrypoint)),
 			...workspaceFolders,
 			rootPath,
 		];
@@ -1153,24 +1142,34 @@ var requirejs = (function() {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache,
-			alwaysFetchFromRemote: true
+			useRootAuthority: true
 		}, undefined);
-
-		let resolveFunc: () => void;
-		this._loaded = new Promise<void>((resolve, reject) => {
-			resolveFunc = resolve;
-		});
-
-		const dispose = webview.onMessage((message) => {
-			const data: FromWebviewMessage = message.message;
-			if (data.__vscode_notebook_message && data.type === 'initialized') {
-				resolveFunc();
-				dispose.dispose();
-			}
-		});
 
 		webview.html = content;
 		return webview;
+	}
+
+	private initializeWebViewState() {
+		const renderers = new Set<INotebookRendererInfo>();
+		for (const inset of this.insetMapping.values()) {
+			if (inset.renderer) {
+				renderers.add(inset.renderer);
+			}
+		}
+
+		this._preloadsCache.clear();
+		if (this._currentKernel) {
+			this._updatePreloadsFromKernel(this._currentKernel);
+		}
+		this.updateRendererPreloads(renderers);
+
+		for (const [output, inset] of this.insetMapping.entries()) {
+			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
+		}
+
+		const mdCells = [...this.markdownPreviewMapping.values()];
+		this.markdownPreviewMapping.clear();
+		this.initializeMarkdown(mdCells);
 	}
 
 	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
@@ -1246,56 +1245,56 @@ var requirejs = (function() {
 		});
 	}
 
-	private async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentHash: number) {
+	private async createMarkdownPreview(initialization: IMarkdownCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
 
-		if (this.markdownPreviewMapping.has(cellId)) {
+		if (this.markdownPreviewMapping.has(initialization.cellId)) {
 			console.error('Trying to create markdown preview that already exists');
 			return;
 		}
 
-		const initialTop = cellTop;
-		this.markdownPreviewMapping.set(cellId, { contentHash, visible: true });
+		const initialTop = initialization.offset;
+		this.markdownPreviewMapping.set(initialization.cellId, {
+			...initialization,
+			visible: true
+		});
 
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
-			id: cellId,
-			handle: cellHandle,
-			content: content,
+			id: initialization.cellId,
+			handle: initialization.cellHandle,
+			content: initialization.content,
 			top: initialTop,
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentHash: number) {
+	async showMarkdownPreview(initialization: IMarkdownCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
 
-		if (!this.markdownPreviewMapping.has(cellId)) {
-			return this.createMarkdownPreview(cellId, cellHandle, content, cellTop, contentHash);
-		}
-
-		const entry = this.markdownPreviewMapping.get(cellId);
+		const entry = this.markdownPreviewMapping.get(initialization.cellId);
 		if (!entry) {
-			console.error('Try to show a preview that does not exist');
-			return;
+			return this.createMarkdownPreview(initialization);
 		}
 
-		if (entry.contentHash !== contentHash || !entry.visible) {
+		const sameContent = initialization.content === entry.content;
+		if (!sameContent || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkdownPreview',
-				id: cellId,
-				handle: cellHandle,
+				id: initialization.cellId,
+				handle: initialization.cellHandle,
 				// If the content has not changed, we still want to make sure the
 				// preview is visible but don't need to send anything over
-				content: entry.contentHash === contentHash ? undefined : content,
-				top: cellTop
+				content: sameContent ? undefined : initialization.content,
+				top: initialization.offset
 			});
 		}
 
-		entry.contentHash = contentHash;
+		entry.content = initialization.content;
+		entry.offset = initialization.offset;
 		entry.visible = true;
 	}
 
@@ -1378,9 +1377,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async initializeMarkdown(cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>) {
-		await this._loaded;
-
+	async initializeMarkdown(cells: ReadonlyArray<IMarkdownCellInitialization>) {
 		if (this._disposed) {
 			return;
 		}
@@ -1395,12 +1392,12 @@ var requirejs = (function() {
 		});
 
 		for (const cell of cells) {
-			this.markdownPreviewMapping.set(cell.cellId, { contentHash: 0, visible: false });
+			this.markdownPreviewMapping.set(cell.cellId, { ...cell, visible: false });
 		}
 
 		this._sendMessageToWebview({
 			type: 'initializeMarkdownPreview',
-			cells: cells,
+			cells,
 		});
 
 		await p;
@@ -1445,7 +1442,7 @@ var requirejs = (function() {
 			message = {
 				...messageBase,
 				outputId: output.outputId,
-				apiNamespace: content.renderer.id,
+				rendererId: content.renderer.id,
 				requiredPreloads: await this.updateRendererPreloads([content.renderer]),
 				content: {
 					type: RenderOutputType.Extension,
@@ -1487,7 +1484,7 @@ var requirejs = (function() {
 
 			this._sendMessageToWebview({
 				type: 'clearOutput',
-				apiNamespace: outputCache.cachedCreation.apiNamespace,
+				rendererId: outputCache.cachedCreation.rendererId,
 				cellUri: outputCache.cellInfo.cellUri.toString(),
 				outputId: id,
 				cellId: outputCache.cellInfo.cellId
@@ -1561,20 +1558,29 @@ var requirejs = (function() {
 
 	}
 
-	async updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
-		if (this._disposed) {
+	async updateKernelPreloads(kernel: INotebookKernel | undefined) {
+		if (this._disposed || kernel === this._currentKernel) {
 			return;
 		}
 
-		await this._loaded;
+		const previousKernel = this._currentKernel;
+		this._currentKernel = kernel;
 
+		if (previousKernel && previousKernel.preloadUris.length > 0) {
+			this.webview?.reload(); // preloads will be restored after reload
+		} else if (kernel) {
+			this._updatePreloadsFromKernel(kernel);
+		}
+	}
+
+	private _updatePreloadsFromKernel(kernel: INotebookKernel) {
 		const resources: IPreloadResource[] = [];
-		for (const preload of preloads) {
+		for (const preload of kernel.preloadUris) {
 			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
 				? preload : asWebviewUri(this.environmentService, this.id, preload);
 
 			if (!this._preloadsCache.has(uri.toString())) {
-				resources.push({ uri: uri.toString(), originalUri: preload.toString() });
+				resources.push({ uri: uri.toString(), originalUri: preload.toString(), source: 'kernel' });
 				this._preloadsCache.add(uri.toString());
 			}
 		}
@@ -1583,16 +1589,13 @@ var requirejs = (function() {
 			return;
 		}
 
-		this.kernelRootsCache = [...extensionLocations, ...this.kernelRootsCache];
-		this._updatePreloads(resources, 'kernel');
+		this._updatePreloads(resources);
 	}
 
 	async updateRendererPreloads(renderers: Iterable<INotebookRendererInfo>) {
 		if (this._disposed) {
 			return [];
 		}
-
-		await this._loaded;
 
 		const requiredPreloads: IPreloadResource[] = [];
 		const resources: IPreloadResource[] = [];
@@ -1601,7 +1604,12 @@ var requirejs = (function() {
 			extensionLocations.push(rendererInfo.extensionLocation);
 			for (const preload of [rendererInfo.entrypoint, ...rendererInfo.preloads]) {
 				const uri = asWebviewUri(this.environmentService, this.id, preload);
-				const resource: IPreloadResource = { uri: uri.toString(), originalUri: preload.toString() };
+				const resource: IPreloadResource = {
+					uri: uri.toString(),
+					originalUri: preload.toString(),
+					source: { rendererId: rendererInfo.id },
+				};
+
 				requiredPreloads.push(resource);
 
 				if (!this._preloadsCache.has(uri.toString())) {
@@ -1616,23 +1624,26 @@ var requirejs = (function() {
 		}
 
 		this.rendererRootsCache = extensionLocations;
-		this._updatePreloads(resources, 'renderer');
+		this._updatePreloads(resources);
 		return requiredPreloads;
 	}
 
-	private _updatePreloads(resources: IPreloadResource[], source: 'renderer' | 'kernel') {
+	private _updatePreloads(resources: IPreloadResource[]) {
 		if (!this.webview) {
 			return;
 		}
 
-		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
+		const mixedResourceRoots = [
+			...(this.localResourceRootsCache || []),
+			...this.rendererRootsCache,
+			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
+		];
 
 		this.webview.localResourcesRoot = mixedResourceRoots;
 
 		this._sendMessageToWebview({
 			type: 'preload',
 			resources: resources,
-			source: source
 		});
 	}
 

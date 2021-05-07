@@ -68,7 +68,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		return super.provide(picker, token);
 	}
 
-	protected getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
+	protected _getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
 		const query = prepareQuery(filter);
 
 		// Filtering

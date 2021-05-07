@@ -15,7 +15,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class ContributedStatusBarItemController extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.statusBar';
+	static id: string = 'workbench.notebook.statusBar.contributed';
 
 	private readonly _visibleCells = new Map<number, CellStatusBarHelper>();
 
@@ -91,7 +91,10 @@ class CellStatusBarHelper extends Disposable {
 	}
 
 	private _updateSoon(): void {
-		this._updateThrottler.queue(() => this._update());
+		// Wait a tick to make sure that the event is fired to the EH before triggering status bar providers
+		setTimeout(() => {
+			this._updateThrottler.queue(() => this._update());
+		}, 0);
 	}
 
 	private async _update() {

@@ -19,6 +19,14 @@ export interface ICellRange {
 }
 
 
+export function isICellRange(candidate: any): candidate is ICellRange {
+	if (!candidate || typeof candidate !== 'object') {
+		return false;
+	}
+	return typeof (<ICellRange>candidate).start === 'number'
+		&& typeof (<ICellRange>candidate).end === 'number';
+}
+
 export function cellIndexesToRanges(indexes: number[]) {
 	indexes.sort((a, b) => a - b);
 	const first = indexes.shift();

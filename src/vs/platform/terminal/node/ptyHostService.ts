@@ -13,6 +13,7 @@ import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 enum Constants {
 	MaxRestarts = 5
@@ -36,6 +37,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _proxy: IPtyService;
 
 	private _restartCount = 0;
+	private _isResponsive = true;
 	private _isDisposed = false;
 
 	private _heartbeatFirstTimeout?: NodeJS.Timeout;
@@ -69,7 +71,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -101,6 +104,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		// Handle exit
 		this._register(client.onDidProcessExit(e => {
+			/* __GDPR__
+				"ptyHost/exit" : {}
+			*/
+			this._telemetryService.publicLog('ptyHost/exit');
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
@@ -115,6 +122,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		// Setup logging
 		const logChannel = client.getChannel(TerminalIpcChannels.Log);
+		LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
 		this._register(this._logService.onDidChangeLogLevel(() => {
 			LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
 		}));
@@ -145,6 +153,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 		clearTimeout(timeout);
 		lastPtyId = Math.max(lastPtyId, id);
 		return id;
+	}
+	updateTitle(id: number, title: string): Promise<void> {
+		return this._proxy.updateTitle(id, title);
+	}
+	updateIcon(id: number, icon: string): Promise<void> {
+		return this._proxy.updateIcon(id, icon);
 	}
 	attachToProcess(id: number): Promise<void> {
 		return this._proxy.attachToProcess(id);
@@ -192,8 +206,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._proxy.getShellEnvironment();
+	getEnvironment(): Promise<IProcessEnvironment> {
+		return this._proxy.getEnvironment();
+	}
+	getWslPath(original: string): Promise<string> {
+		return this._proxy.getWslPath(original);
 	}
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
@@ -204,6 +221,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	async restartPtyHost(): Promise<void> {
+		/* __GDPR__
+			"ptyHost/restart" : {}
+		*/
+		this._telemetryService.publicLog('ptyHost/restart');
+		this._isResponsive = true;
 		this._disposePtyHost();
 		[this._client, this._proxy] = this._startPtyHost();
 	}
@@ -218,6 +240,13 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _handleHeartbeat() {
 		this._clearHeartbeatTimeouts();
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
+		if (!this._isResponsive) {
+			/* __GDPR__
+				"ptyHost/responsive" : {}
+			*/
+			this._telemetryService.publicLog('ptyHost/responsive');
+			this._isResponsive = true;
+		}
 		this._onPtyHostResponsive.fire();
 	}
 
@@ -230,12 +259,23 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _handleHeartbeatSecondTimeout() {
 		this._logService.error(`No ptyHost heartbeat after ${(HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier + HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier) / 1000} seconds`);
 		this._heartbeatSecondTimeout = undefined;
+		if (this._isResponsive) {
+			/* __GDPR__
+				"ptyHost/responsive" : {}
+			*/
+			this._telemetryService.publicLog('ptyHost/unresponsive');
+			this._isResponsive = false;
+		}
 		this._onPtyHostUnresponsive.fire();
 	}
 
 	private _handleUnresponsiveCreateProcess() {
 		this._clearHeartbeatTimeouts();
 		this._logService.error(`No ptyHost response to createProcess after ${HeartbeatConstants.CreateProcessTimeout / 1000} seconds`);
+		/* __GDPR__
+			"ptyHost/responsive" : {}
+		*/
+		this._telemetryService.publicLog('ptyHost/responsive');
 		this._onPtyHostUnresponsive.fire();
 	}
 

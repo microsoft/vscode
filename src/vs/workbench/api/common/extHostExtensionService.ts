@@ -17,7 +17,7 @@ import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/co
 import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtensionActivationError, checkProposedApiEnabled, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
+import { MissingExtensionDependency, checkProposedApiEnabled, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
@@ -160,8 +160,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._initData.resolvedExtensions,
 			this._initData.hostExtensions,
 			{
-				onExtensionActivationError: (extensionId: ExtensionIdentifier, error: ExtensionActivationError): void => {
-					this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, error);
+				onExtensionActivationError: (extensionId: ExtensionIdentifier, error: Error, missingExtensionDependency: MissingExtensionDependency | null): void => {
+					this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, errors.transformErrorForSerialization(error), missingExtensionDependency);
 				},
 
 				actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
@@ -654,10 +654,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		try {
+			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
 			performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
 			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
-			this._disposables.add(await this._extHostTunnelService.setTunnelExtensionFunctions(resolver));
 
 			// Split merged API result into separate authority/options
 			const authority: ResolvedAuthority = {

@@ -38,6 +38,7 @@ import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/pla
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
+import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { trustedForegroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
@@ -46,8 +47,7 @@ import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } f
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 
-const untrustedIcon = registerCodicon('workspace-untrusted-icon', Codicon.workspaceUntrusted);
-const trustedIcon = registerCodicon('workspace-trusted-icon', Codicon.workspaceTrusted);
+const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
 const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
 const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
@@ -96,7 +96,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const scrollableContent = $('.workspace-trust-editor-body');
 		this.bodyScrollBar = this._register(new DomScrollableElement(scrollableContent, {
 			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Visible,
+			vertical: ScrollbarVisibility.Auto,
 		}));
 
 		append(this.rootElement, this.bodyScrollBar.getDomNode());
@@ -104,16 +104,17 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.createAffectedFeaturesElement(scrollableContent);
 		this.createConfigurationElement(scrollableContent);
 
-		this._register(attachStylerCallback(this.themeService, { trustedForegroundColor, untrustedForegroundColor }, colors => {
-			this.rootElement.style.setProperty('--workspace-trust-state-trusted-color', colors.trustedForegroundColor?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-state-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
+		this._register(attachStylerCallback(this.themeService, { ACTIVITY_BAR_BADGE_BACKGROUND, trustedForegroundColor, untrustedForegroundColor }, colors => {
+			this.rootElement.style.setProperty('--workspace-trust-trusted-color', colors.trustedForegroundColor?.toString() || '');
+			this.rootElement.style.setProperty('--workspace-trust-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
+			this.rootElement.style.setProperty('--workspace-trust-selected-state-color', colors.ACTIVITY_BAR_BADGE_BACKGROUND?.toString() || '');
 		}));
 
 		this._register(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 			const foregroundColor = theme.getColor(foreground);
 			if (foregroundColor) {
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.3));
-				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 0px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
+				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 4px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
 			}
 		}));
 	}
@@ -129,7 +130,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private registerListeners(): void {
 		this._register(this.extensionWorkbenchService.onChange(() => this.render()));
-		this._register(this.configurationService.onDidChangeUntrustdSettings(() => this.render()));
+		this._register(this.configurationService.onDidChangeRestrictedSettings(() => this.render()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this.render()));
 	}
@@ -142,12 +143,17 @@ export class WorkspaceTrustEditor extends EditorPane {
 		return 'workspace-trust-header workspace-trust-untrusted';
 	}
 
+	private useWorkspaceLanguage(): boolean {
+		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceService.getWorkspace()));
+	}
+
 	private getHeaderTitleText(trusted: boolean): string {
+
 		if (trusted) {
-			return localize('trustedHeader', "This workspace is trusted");
+			return this.useWorkspaceLanguage() ? localize('trustedHeaderWorkspace', "You trust this workspace") : localize('trustedHeaderFolder', "You trust this folder");
 		}
 
-		return localize('untrustedHeader', "This workspace is not trusted");
+		return this.useWorkspaceLanguage() ? localize('untrustedHeaderWorkspace', "You are in restricted mode") : localize('untrustedHeaderFolder', "You are in Restricted Mode");
 	}
 
 	private getHeaderDescriptionText(trusted: boolean): string {
@@ -155,15 +161,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 			return localize('trustedDescription', "All features are enabled because trust has been granted to the workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
 		}
 
-		return localize('untrustedDescription', "{0} is in a restricted mode optimized for browsing code safely. [Learn more](https://aka.ms/vscode-workspace-trust).", product.nameShort);
+		return localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing. [Learn more](https://aka.ms/vscode-workspace-trust).", product.nameShort);
 	}
 
 	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
-		if (trusted) {
-			return trustedIcon.classNamesArray;
-		}
-
-		return untrustedIcon.classNamesArray;
+		return shieldIcon.classNamesArray;
 	}
 
 	private rendering = false;
@@ -203,7 +205,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.headerContainer.className = this.getHeaderContainerClass(isWorkspaceTrusted);
 
 		// Settings
-		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.unTrustedSettings.default).length;
+		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.restrictedSettings.default).length;
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
@@ -263,113 +265,123 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private renderAffectedFeatures(numSettings: number, numExtensions: number): void {
 		clearNode(this.affectedFeaturesContainer);
 		const trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted'));
-		this.renderLimitationsHeaderElement(trustedContainer, localize('trustedWorkspace', "Trusted Workspace"), this.getHeaderTitleIconClassNames(true));
+		this.renderLimitationsHeaderElement(trustedContainer,
+			this.useWorkspaceLanguage() ? localize('trustedWorkspace', "In a trusted workspace") : localize('trustedFolder', "In a Trusted Folder"),
+			this.useWorkspaceLanguage() ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") : localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:"));
 		this.renderLimitationsListElement(trustedContainer, [
-			localize('trustedTasks', "Tasks will be allowed to run"),
-			localize('trustedDebugging', "Debugging will be enabled"),
-			localize('trustedSettings', "All workspace settings will be applied"),
-			localize('trustedExtensions', "All extensions will be enabled")
+			localize('trustedTasks', "Tasks are allowed to run"),
+			localize('trustedDebugging', "Debugging is enabled"),
+			localize('trustedSettings', "All workspace settings are applied"),
+			localize('trustedExtensions', "All extensions are enabled")
 		], checkListIcon.classNamesArray);
 
 		const untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted'));
-		this.renderLimitationsHeaderElement(untrustedContainer, localize('untrustedWorkspace', "Restricted Mode"), this.getHeaderTitleIconClassNames(false));
+		this.renderLimitationsHeaderElement(untrustedContainer,
+			localize('untrustedWorkspace', "In Restricted Mode"),
+			this.useWorkspaceLanguage() ? localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:") : localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:"));
 
 		this.renderLimitationsListElement(untrustedContainer, [
-			localize('untrustedTasks', "Tasks will be disabled"),
-			localize('untrustedDebugging', "Debugging will be disabled"),
-			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) will not be applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust will not be applied."),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or limit functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
+			localize('untrustedTasks', "Tasks are disabled"),
+			localize('untrustedDebugging', "Debugging is disabled"),
+			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) are not applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
+			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
 		], xListIcon.classNamesArray);
 
-		this.addTrustButtonToElement(trustedContainer);
-		this.addUntrustedTextToElement(untrustedContainer);
+		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+				this.addDontTrustButtonToElement(untrustedContainer);
+			} else {
+				this.addTrustedTextToElement(untrustedContainer);
+			}
+		} else {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+				this.addTrustButtonToElement(trustedContainer);
+			}
+		}
+	}
+
+	private createButton(parent: HTMLElement, action: Action, enabled?: boolean): void {
+		const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
+		const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
+		const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
+
+		const button =
+			action instanceof ChoiceAction && action.menu?.length ?
+				buttonBar.addButtonWithDropdown({
+					title: true,
+					actions: action.menu ?? [],
+					contextMenuProvider: this.contextMenuService
+				}) :
+				buttonBar.addButton();
+
+		button.label = action.label;
+		button.enabled = enabled !== undefined ? enabled : action.enabled;
+
+		this.rerenderDisposables.add(button.onDidClick(e => {
+			if (e) {
+				EventHelper.stop(e, true);
+			}
+
+			action.run();
+		}));
+
+		this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
-		if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
-			const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
-			const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
-			const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
-
-			const createButton = (action: Action, enabled?: boolean) => {
-				const button =
-					action instanceof ChoiceAction && action.menu?.length ?
-						buttonBar.addButtonWithDropdown({
-							title: true,
-							actions: action.menu ?? [],
-							contextMenuProvider: this.contextMenuService
-						}) :
-						buttonBar.addButton();
-
-				button.label = action.label;
-				button.enabled = enabled !== undefined ? enabled : action.enabled;
-
-				this.rerenderDisposables.add(button.onDidClick(e => {
-					if (e) {
-						EventHelper.stop(e, true);
-					}
-
-					action.run();
-				}));
-
-				this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
-			};
-
-			const trustUris = async (uris?: URI[]) => {
-				if (!uris) {
-					this.workspaceTrustManagementService.setWorkspaceTrust(true);
-				} else {
-					this.workspaceTrustManagementService.setFoldersTrust(uris, true);
-				}
-			};
-
-			const trustChoiceWithMenu: IPromptChoiceWithMenu = {
-				isSecondary: false,
-				label: localize('trustButton', "Trust"),
-				menu: [],
-				run: () => {
-					trustUris();
-				}
-			};
-
-			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
-			if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
-				const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
-				const { name } = splitName(parentPath);
-				if (parentPath) {
-					trustChoiceWithMenu.menu.push({
-						label: localize('trustParentButton', "Trust All in '{0}'", name),
-						run: () => {
-							trustUris([URI.file(parentPath)]);
-						}
-					});
-				}
+		const trustUris = async (uris?: URI[]) => {
+			if (!uris) {
+				this.workspaceTrustManagementService.setWorkspaceTrust(true);
+			} else {
+				this.workspaceTrustManagementService.setUrisTrust(uris, true);
 			}
+		};
 
-			const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
-			createButton(new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), !isWorkspaceTrusted);
+		const trustChoiceWithMenu: IPromptChoiceWithMenu = {
+			isSecondary: false,
+			label: localize('trustButton', "Trust"),
+			menu: [],
+			run: () => {
+				trustUris();
+			}
+		};
+
+		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
+			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
+			if (parentPath) {
+				trustChoiceWithMenu.menu.push({
+					label: localize('trustParentButton', "Trust All in Parent Folder"),
+					run: () => {
+						trustUris([URI.file(parentPath)]);
+					}
+				});
+			}
 		}
-	}
 
-	private addUntrustedTextToElement(parent: HTMLElement): void {
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
-		const canSetWorkspaceTrust = this.workspaceTrustManagementService.canSetWorkspaceTrust();
-
-		if (canSetWorkspaceTrust && isWorkspaceTrusted) {
-			const textElement = append(parent, $('.workspace-trust-untrusted-description'));
-			textElement.innerText = localize('untrustedFolder', "This workspace is trusted via one or more of the trusted folders below.");
-		}
+		this.createButton(parent, new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), !isWorkspaceTrusted);
 	}
 
-	private renderLimitationsHeaderElement(parent: HTMLElement, headerText: string, iconClassNames: string[]): void {
+	private addDontTrustButtonToElement(parent: HTMLElement): void {
+		this.createButton(parent, new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
+			await this.workspaceTrustManagementService.setWorkspaceTrust(false);
+		}));
+	}
+
+	private addTrustedTextToElement(parent: HTMLElement): void {
+		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
+		textElement.innerText = this.useWorkspaceLanguage() ? localize('untrustedWorkspaceReason', "This workspace is trusted via one or more of the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via one or more of the trusted folders below.");
+	}
+
+	private renderLimitationsHeaderElement(parent: HTMLElement, headerText: string, subtitleText: string): void {
 		const limitationsHeaderContainer = append(parent, $('.workspace-trust-limitations-header'));
 		const titleElement = append(limitationsHeaderContainer, $('.workspace-trust-limitations-title'));
-		const iconElement = append(titleElement, $('.workspace-trust-limitations-title-icon'));
 		const textElement = append(titleElement, $('.workspace-trust-limitations-title-text'));
+		const subtitleElement = append(limitationsHeaderContainer, $('.workspace-trust-limitations-subtitle'));
 
 		textElement.innerText = headerText;
-		iconElement.className = 'workspace-trust-title-icon';
-		iconElement.classList.add(...iconClassNames);
+		subtitleElement.innerText = subtitleText;
 	}
 
 	private renderLimitationsListElement(parent: HTMLElement, limitations: string[], iconClassNames: string[]): void {

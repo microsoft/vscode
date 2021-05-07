@@ -58,6 +58,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -77,7 +78,7 @@ type GettingStartedActionEvent = {
 
 export class GettingStartedPage extends EditorPane {
 
-	public static ID = 'gettingStartedPage';
+	public static readonly ID = 'gettingStartedPage';
 
 	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
@@ -129,6 +130,7 @@ export class GettingStartedPage extends EditorPane {
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
@@ -293,7 +295,8 @@ export class GettingStartedPage extends EditorPane {
 								this.gettingStartedList?.rerender();
 								break;
 							}
-							case 'selectStep': {
+							// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
+							case 'selectTask': {
 								this.selectStep(argument);
 								break;
 							}
@@ -346,9 +349,14 @@ export class GettingStartedPage extends EditorPane {
 	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
-				const bytes = await this.fileService.readFile(path);
-				const markdown = bytes.value.toString();
-				return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+				try {
+					const bytes = await this.fileService.readFile(path);
+					const markdown = bytes.value.toString();
+					return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+				} catch (e) {
+					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
+					return '';
+				}
 			})());
 		}
 		return assertIsDefined(this.mdCache.get(path));
@@ -366,7 +374,9 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
-	private async selectStep(id: string | undefined, toggleIfAlreadySelected = true, delayFocus = true) {
+	private async selectStep(id: string | undefined, delayFocus = true) {
+		if (id && this.editorInput.selectedStep === id) { return; }
+
 		this.stepDisposables.clear();
 		clearNode(this.stepMediaComponent);
 
@@ -378,10 +388,7 @@ export class GettingStartedPage extends EditorPane {
 				node.setAttribute('aria-expanded', 'false');
 			});
 			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
-			if (this.editorInput.selectedStep === id && toggleIfAlreadySelected) {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'toggleStepCompletion2', argument: id });
-				this.toggleStepCompletion(id);
-			}
+
 			stepElement.style.height = ``;
 			stepElement.style.height = `${stepElement.scrollHeight}px`;
 
@@ -411,7 +418,7 @@ export class GettingStartedPage extends EditorPane {
 
 				const media = stepToExpand.media;
 
-				const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.base] }, undefined));
+				const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root] }, undefined));
 				webview.mountTo(this.stepMediaComponent);
 				webview.html = await this.renderMarkdown(media.path, media.base);
 
@@ -442,7 +449,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
-		element.srcset = sources[themeType].toString(true) + ' 1.5x';
+		element.srcset = sources[themeType].toString().replace(/ /g, '%20') + ' 1.5x';
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
@@ -920,7 +927,7 @@ export class GettingStartedPage extends EditorPane {
 
 				return $('button.getting-started-step',
 					{
-						'x-dispatch': 'selectStep:' + step.id,
+						'x-dispatch': 'selectTask:' + step.id,
 						'data-step-id': step.id,
 						'aria-expanded': 'false',
 						'aria-checked': '' + step.done,
@@ -937,7 +944,7 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent);
 
 		const toExpand = category.content.steps.find(step => !step.done) ?? category.content.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id, false);
+		this.selectStep(selectedStep ?? toExpand.id);
 
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
@@ -946,6 +953,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private getKeybindingLabel(command: string) {
+		command = command.replace(/^command:/, '');
 		const label = this.keybindingService.lookupKeybinding(command)?.getLabel();
 		if (!label) { return ''; }
 		else {
@@ -981,7 +989,7 @@ export class GettingStartedPage extends EditorPane {
 			if (allSteps) {
 				const toFind = this.editorInput.selectedStep ?? this.previousSelection;
 				const selectedIndex = allSteps.findIndex(step => step.id === toFind);
-				if (allSteps[selectedIndex + 1]?.id) { this.selectStep(allSteps[selectedIndex + 1]?.id, true, false); }
+				if (allSteps[selectedIndex + 1]?.id) { this.selectStep(allSteps[selectedIndex + 1]?.id, false); }
 			}
 		} else {
 			(document.activeElement?.nextElementSibling as HTMLElement)?.focus?.();
@@ -994,7 +1002,7 @@ export class GettingStartedPage extends EditorPane {
 			if (allSteps) {
 				const toFind = this.editorInput.selectedStep ?? this.previousSelection;
 				const selectedIndex = allSteps.findIndex(step => step.id === toFind);
-				if (allSteps[selectedIndex - 1]?.id) { this.selectStep(allSteps[selectedIndex - 1]?.id, true, false); }
+				if (allSteps[selectedIndex - 1]?.id) { this.selectStep(allSteps[selectedIndex - 1]?.id, false); }
 			}
 		} else {
 			(document.activeElement?.previousElementSibling as HTMLElement)?.focus?.();

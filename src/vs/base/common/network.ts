@@ -61,6 +61,7 @@ export namespace Schemas {
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
+	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
 
 	export const vscodeSettings = 'vscode-settings';
 
@@ -85,6 +86,11 @@ export namespace Schemas {
 	 * files with our custom protocol handler (desktop only).
 	 */
 	export const vscodeFileResource = 'vscode-file';
+
+	/**
+	 * Scheme used for temporary resources
+	 */
+	export const tmp = 'tmp';
 }
 
 class RemoteAuthoritiesImpl {

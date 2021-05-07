@@ -279,7 +279,16 @@ class BrowserMain extends Disposable {
 		} catch (error) {
 			onUnexpectedError(error);
 		}
-		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
+
+		let userDataProvider: IFileSystemProvider | undefined;
+		if (indexedDBUserDataProvider) {
+			userDataProvider = indexedDBUserDataProvider;
+		} else {
+			logService.info('using in-memory user data provider');
+			userDataProvider = new InMemoryFileSystemProvider();
+		}
+
+		fileService.registerProvider(Schemas.userData, userDataProvider);
 
 		if (indexedDBUserDataProvider) {
 			registerAction2(class ResetUserDataAction extends Action2 {
@@ -311,7 +320,7 @@ class BrowserMain extends Disposable {
 		}
 
 		fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
-		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

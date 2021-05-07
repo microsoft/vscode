@@ -42,7 +42,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -83,7 +83,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -96,7 +96,7 @@ import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogSer
 import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditor, IEditor } from 'vs/editor/common/editorCommon';
+import { IChange, IDiffEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -119,7 +119,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -136,6 +136,10 @@ import { IEditorOverrideService } from 'vs/workbench/services/editor/common/edit
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
+import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -183,6 +187,7 @@ export function workbenchInstantiationService(
 ): ITestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
+	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
@@ -261,6 +266,7 @@ export class TestServiceAccessor {
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
 		@IEditorService public editorService: TestEditorService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
+		@IEditorOverrideService public editorOverrideService: IEditorOverrideService,
 		@IModeService public modeService: IModeService,
 		@ITextModelService public textModelResolverService: ITextModelService,
 		@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService,
@@ -405,7 +411,7 @@ export class TestProgressService implements IProgressService {
 	declare readonly _serviceBrand: undefined;
 
 	withProgress(
-		options: IProgressOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
+		options: IProgressOptions | IProgressDialogOptions | IProgressWindowOptions | IProgressNotificationOptions | IProgressCompositeOptions,
 		task: (progress: IProgress<IProgressStep>) => Promise<any>,
 		onDidCancel?: ((choice?: number | undefined) => void) | undefined
 	): Promise<any> {
@@ -1360,7 +1366,7 @@ export function registerTestResourceEditor(): IDisposable {
 		),
 		[
 			new SyncDescriptor<EditorInput>(UntitledTextEditorInput),
-			new SyncDescriptor<EditorInput>(ResourceEditorInput)
+			new SyncDescriptor<EditorInput>(TextResourceEditorInput)
 		]
 	));
 
@@ -1378,6 +1384,23 @@ export function registerTestSideBySideEditor(): IDisposable {
 		),
 		[
 			new SyncDescriptor(SideBySideEditorInput)
+		]
+	));
+
+	return disposables;
+}
+
+export function registerTestDiffEditor(): IDisposable {
+	const disposables = new DisposableStore();
+
+	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(
+		EditorDescriptor.create(
+			TextDiffEditor,
+			TextDiffEditor.ID,
+			'Text Diff Editor'
+		),
+		[
+			new SyncDescriptor(DiffEditorInput)
 		]
 	));
 
@@ -1406,7 +1429,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	override matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId); }
 	setPreferredResource(resource: URI): void { }
-	setEncoding(encoding: string) { }
+	async setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredName(name: string): void { }
 	setPreferredDescription(description: string): void { }
@@ -1538,7 +1561,7 @@ export class TestWorkspacesService implements IWorkspacesService {
 	async clearRecentlyOpened(): Promise<void> { }
 	async getRecentlyOpened(): Promise<IRecentlyOpened> { return { files: [], workspaces: [] }; }
 	async getDirtyWorkspaces(): Promise<(URI | IWorkspaceIdentifier)[]> { return []; }
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> { throw new Error('Method not implemented.'); }
+	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> { throw new Error('Method not implemented.'); }
 	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
 }
 
@@ -1564,12 +1587,15 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 
 export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
 	_serviceBrand: undefined;
+	defaultProfileName = '';
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void { }
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> { }
-	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { return { path: '/default', profileName: 'Default' }; }
+	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { return { path: '/default', profileName: 'Default', isDefault: true }; }
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { return '/default'; }
 	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { return []; }
-	async getShellEnvironment(): Promise<IProcessEnvironment> { return process.env; }
+	async getEnvironment(): Promise<IProcessEnvironment> { return process.env; }
+	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined { return undefined; }
+	getSafeConfigValueFullKey(key: string): unknown | undefined { return undefined; }
 }
 
 export class TestLocalTerminalService implements ILocalTerminalService {
@@ -1586,11 +1612,15 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
-	getShellEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
+	getEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
+	getShellEnvironment(): Promise<IProcessEnvironment | undefined> { throw new Error('Method not implemented.'); }
+	getWslPath(original: string): Promise<string> { throw new Error('Method not implemented.'); }
 	async setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById) { throw new Error('Method not implemented.'); }
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
 	async reduceConnectionGraceTime(): Promise<void> { throw new Error('Method not implemented.'); }
 	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
+	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
+	updateIcon(id: number, icon: string): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
@@ -1647,4 +1677,19 @@ export class TestQuickInputService implements IQuickInputService {
 	accept(): Promise<void> { throw new Error('not implemented.'); }
 	back(): Promise<void> { throw new Error('not implemented.'); }
 	cancel(): Promise<void> { throw new Error('not implemented.'); }
+}
+
+export class TestEditorWorkerService implements IEditorWorkerService {
+
+	declare readonly _serviceBrand: undefined;
+
+	canComputeDiff(original: URI, modified: URI): boolean { return false; }
+	async computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> { return null; }
+	canComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }
+	async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }
+	async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }
+	canComputeWordRanges(resource: URI): boolean { return false; }
+	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[]; } | null> { return null; }
+	canNavigateValueSet(resource: URI): boolean { return false; }
+	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
 }

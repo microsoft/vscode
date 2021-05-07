@@ -25,7 +25,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { CellEditType, IImmediateCellEditOperation, INotebookExclusiveDocumentFilter, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IImmediateCellEditOperation, INotebookExclusiveDocumentFilter, INotebookContributionData, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
@@ -179,13 +179,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.NotebookContentProvider,
-		options?: vscode.NotebookDocumentContentOptions & {
-			viewOptions?: {
-				displayName: string;
-				filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern })[];
-				exclusive?: boolean;
-			};
-		}
+		options?: vscode.NotebookDocumentContentOptions,
+		registration?: vscode.NotebookRegistrationData
 	): vscode.Disposable {
 		if (isFalsyOrWhitespace(viewType)) {
 			throw new Error(`viewType cannot be empty or just whitespace`);
@@ -196,7 +191,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
 
-
 		let listener: IDisposable | undefined;
 		if (provider.onDidChangeNotebookContentOptions) {
 			listener = provider.onDidChangeNotebookContentOptions(() => {
@@ -205,27 +199,37 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			});
 		}
 
-		const viewOptionsFilenamePattern = options?.viewOptions?.filenamePattern
-			.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.from(pattern))
-			.filter(pattern => pattern !== undefined) as (string | IRelativePattern | INotebookExclusiveDocumentFilter)[];
-
-		if (options?.viewOptions?.filenamePattern && !viewOptionsFilenamePattern) {
-			console.warn(`Notebook content provider view options file name pattern is invalid ${options?.viewOptions?.filenamePattern}`);
-		}
-
-		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
-		this._notebookProxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, {
-			transientOutputs: internalOptions.transientOutputs,
-			transientCellMetadata: internalOptions.transientCellMetadata,
-			transientDocumentMetadata: internalOptions.transientDocumentMetadata,
-			viewOptions: options?.viewOptions && viewOptionsFilenamePattern ? { displayName: options.viewOptions.displayName, filenamePattern: viewOptionsFilenamePattern, exclusive: options.viewOptions.exclusive || false } : undefined
-		});
+		this._notebookProxy.$registerNotebookProvider(
+			{ id: extension.identifier, location: extension.extensionLocation },
+			viewType,
+			typeConverters.NotebookDocumentContentOptions.from(options),
+			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
+		);
 
 		return new extHostTypes.Disposable(() => {
 			listener?.dispose();
 			this._notebookContentProviders.delete(viewType);
 			this._notebookProxy.$unregisterNotebookProvider(viewType);
 		});
+	}
+
+	private static _convertNotebookRegistrationData(extension: IExtensionDescription, registration: vscode.NotebookRegistrationData | undefined): INotebookContributionData | undefined {
+		if (!registration) {
+			return;
+		}
+		const viewOptionsFilenamePattern = registration.filenamePattern
+			.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.from(pattern))
+			.filter(pattern => pattern !== undefined) as (string | IRelativePattern | INotebookExclusiveDocumentFilter)[];
+		if (registration.filenamePattern && !viewOptionsFilenamePattern) {
+			console.warn(`Notebook content provider view options file name pattern is invalid ${registration.filenamePattern}`);
+			return undefined;
+		}
+		return {
+			providerDisplayName: extension.displayName || extension.name,
+			displayName: registration.displayName,
+			filenamePattern: viewOptionsFilenamePattern,
+			exclusive: registration.exclusive || false
+		};
 	}
 
 	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, selector: vscode.NotebookSelector, provider: vscode.NotebookCellStatusBarItemProvider) {
@@ -335,18 +339,18 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private _handlePool = 0;
 	private readonly _notebookSerializer = new Map<number, vscode.NotebookSerializer>();
 
-	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions): vscode.Disposable {
+	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData): vscode.Disposable {
 		if (isFalsyOrWhitespace(viewType)) {
 			throw new Error(`viewType cannot be empty or just whitespace`);
 		}
 		const handle = this._handlePool++;
 		this._notebookSerializer.set(handle, serializer);
-		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
 		this._notebookProxy.$registerNotebookSerializer(
 			handle,
-			{ id: extension.identifier, location: extension.extensionLocation, description: extension.description },
+			{ id: extension.identifier, location: extension.extensionLocation },
 			viewType,
-			internalOptions
+			typeConverters.NotebookDocumentContentOptions.from(options),
+			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
 		);
 		return toDisposable(() => {
 			this._notebookProxy.$unregisterNotebookSerializer(handle);

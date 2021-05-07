@@ -40,7 +40,7 @@ async function main() {
     };
     const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
     const scripts = client.database('builds').container(quality).scripts;
-    await retry_1.retry(() => scripts.storedProcedure('createBuild').execute('', [Object.assign(Object.assign({}, build), { _partitionKey: '' })]));
+    await (0, retry_1.retry)(() => scripts.storedProcedure('createBuild').execute('', [Object.assign(Object.assign({}, build), { _partitionKey: '' })]));
 }
 main().then(() => {
     console.log('Build successfully created');

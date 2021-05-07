@@ -6,17 +6,17 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { IAvailableProfilesRequest, ICommandTracker, IDefaultShellAndArgsRequest, INavigationMode, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, LinuxDistro, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -30,14 +30,10 @@ export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('r
 export interface ITerminalInstanceService {
 	readonly _serviceBrand: undefined;
 
-	// These events are optional as the requests they make are only needed on the browser side
-	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
-
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
 	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
 	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
-	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -51,11 +47,11 @@ export const enum Direction {
 	Down = 3
 }
 
-export interface ITerminalTab {
+export interface ITerminalGroup {
 	activeInstance: ITerminalInstance | null;
 	terminalInstances: ITerminalInstance[];
 	title: string;
-	onDisposed: Event<ITerminalTab>;
+	onDisposed: Event<ITerminalGroup>;
 	onInstancesChanged: Event<void>;
 	focusPreviousPane(): void;
 	focusNextPane(): void;
@@ -81,14 +77,14 @@ export interface ITerminalService {
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
-	terminalTabs: ITerminalTab[];
+	terminalGroups: ITerminalGroup[];
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly availableProfiles: ITerminalProfile[];
 
 	initializeTerminals(): Promise<void>;
 	onActiveTabChanged: Event<void>;
-	onTabDisposed: Event<ITerminalTab>;
+	onTabDisposed: Event<ITerminalGroup>;
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
@@ -97,6 +93,7 @@ export interface ITerminalService {
 	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
+	onInstanceIconChanged: Event<ITerminalInstance | undefined>;
 	onInstancePrimaryStatusChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onRequestAvailableProfiles: Event<IAvailableProfilesRequest>;
@@ -138,7 +135,7 @@ export interface ITerminalService {
 	 */
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
 
-	getActiveTab(): ITerminalTab | null;
+	getActiveGroup(): ITerminalGroup | null;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
@@ -156,7 +153,8 @@ export interface ITerminalService {
 	getFindState(): FindReplaceState;
 	findNext(): void;
 	findPrevious(): void;
-	focusTabsView(): void;
+	focusTabs(): void;
+	showTabs(): void;
 
 	registerProcessSupport(isSupported: boolean): void;
 	/**
@@ -169,15 +167,9 @@ export interface ITerminalService {
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
-	getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined;
+	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-
-	/**
-	 * Injects native Windows functionality into the service.
-	 */
-	setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void;
-	setLinuxDistro(linuxDistro: LinuxDistro): void;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.
@@ -186,9 +178,10 @@ export interface ITerminalService {
 	 * @param executable The executable off the shellLaunchConfig
 	 * @param title The terminal's title
 	 * @param path The path to be escaped and formatted.
+	 * @param isRemote Whether the terminal's pty is remote.
 	 * @returns An escaped version of the path to be execuded in the terminal.
 	 */
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType): Promise<string>;
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
@@ -196,7 +189,7 @@ export interface ITerminalService {
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
-	createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess>;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess>;
 }
 
 /**
@@ -285,9 +278,19 @@ export interface ITerminalInstance {
 	readonly isDisconnected: boolean;
 
 	/**
+	 * Whether the terminal's pty is hosted on a remote.
+	 */
+	readonly isRemote: boolean;
+
+	/**
 	 * An event that fires when the terminal instance's title changes.
 	 */
 	onTitleChanged: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when the terminal instance's icon changes.
+	 */
+	onIconChanged: Event<ITerminalInstance>;
 
 	/**
 	 * An event that fires when the terminal instance is disposed.
@@ -295,6 +298,7 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onFocused: Event<ITerminalInstance>;
+	onDropped: Event<{ instance: ITerminalInstance, dragEvent: DragEvent; }>;
 	onProcessIdReady: Event<ITerminalInstance>;
 	onLinksReady: Event<ITerminalInstance>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
@@ -574,4 +578,10 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to rename this terminal.
 	 */
 	changeIcon(): Promise<void>;
+}
+
+export const enum LinuxDistro {
+	Unknown = 1,
+	Fedora = 2,
+	Ubuntu = 3,
 }

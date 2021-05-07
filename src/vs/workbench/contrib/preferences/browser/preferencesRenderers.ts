@@ -1059,7 +1059,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.requireTrust) {
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1085,7 +1085,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			});
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.requireTrust) {
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1115,7 +1115,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		return {
 			severity: MarkerSeverity.Warning,
 			...setting.range,
-			message: nls.localize('untrustedSetting', "This setting can be applied only in the trusted workspace.")
+			message: nls.localize('untrustedSetting', "This setting can only be applied in a trusted workspace.")
 		};
 	}
 

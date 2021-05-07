@@ -34,7 +34,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { attachStylerCallback, attachInputBoxStyler, attachCheckboxStyler, attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -48,6 +47,7 @@ import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionV
 import { IKeybindingItemEntry, IKeybindingsEditorPane } from 'vs/workbench/services/preferences/common/preferences';
 import { keybindingsRecordKeysIcon, keybindingsSortIcon, keybindingsAddIcon, preferencesClearInputIcon, keybindingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 
 const $ = DOM.$;
 

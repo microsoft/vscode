@@ -90,7 +90,7 @@ export class Dialog extends Disposable {
 	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
 		super();
 
-		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
+		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		this.element.setAttribute('role', 'dialog');
@@ -217,6 +217,10 @@ export class Dialog extends Disposable {
 			// Handle keyboard events gloably: Tab, Arrow-Left/Right
 			this._register(domEvent(window, 'keydown', true)((e: KeyboardEvent) => {
 				const evt = new StandardKeyboardEvent(e);
+
+				if (evt.equals(KeyMod.Alt)) {
+					evt.preventDefault();
+				}
 
 				if (evt.equals(KeyCode.Enter)) {
 

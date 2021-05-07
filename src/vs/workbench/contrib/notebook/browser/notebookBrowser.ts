@@ -16,7 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
+import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -64,6 +64,7 @@ export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('noteboo
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 // Kernels
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
+export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 
 //#endregion
@@ -248,6 +249,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
 	readonly editStateSource: string;
+	readonly editorAttached: boolean;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -268,6 +270,8 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	getCellStatusBarItems(): INotebookCellStatusBarItem[];
 	getEditState(): CellEditState;
 	updateEditState(state: CellEditState, source: string): void;
+	deltaModelDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+	getCellDecorationRange(id: string): Range | null;
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {
@@ -344,6 +348,7 @@ export interface INotebookEditorCreationOptions {
 
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
+	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
 }
 
@@ -498,7 +503,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	/**
 	 * Send message to the webview for outputs.
 	 */
-	postMessage(forRendererId: string | undefined, message: any): void;
+	postMessage(message: any): void;
 
 	/**
 	 * Remove class name on the notebook editor root DOM node.
@@ -761,11 +766,17 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput;
 }
 
 export interface CellFindMatch {
 	cell: CellViewModel;
+	matches: FindMatch[];
+}
+
+export interface CellFindMatchWithIndex {
+	cell: CellViewModel;
+	index: number;
 	matches: FindMatch[];
 }
 

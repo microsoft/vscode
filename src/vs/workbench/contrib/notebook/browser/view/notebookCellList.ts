@@ -1279,6 +1279,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
 		super.dispose();
+
+		// un-ref
+		this._previousFocusedElements = [];
+		this._viewModel = null;
+		this._hiddenRangeIds = [];
+		this.hiddenRangesPrefixSum = null;
+		this._visibleRanges = [];
 	}
 }
 

@@ -3219,7 +3219,7 @@ declare namespace monaco.editor {
 		/**
 		 * Control the behavior and rendering of the inline hints.
 		 */
-		inlineHints?: IEditorInlineHintsOptions;
+		inlayHints?: IEditorInlayHintsOptions;
 	}
 
 	/**
@@ -3580,9 +3580,9 @@ declare namespace monaco.editor {
 	export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
 
 	/**
-	 * Configuration options for editor inlineHints
+	 * Configuration options for editor inlayHints
 	 */
-	export interface IEditorInlineHintsOptions {
+	export interface IEditorInlayHintsOptions {
 		/**
 		 * Enable the inline hints.
 		 * Defaults to true.
@@ -3600,7 +3600,7 @@ declare namespace monaco.editor {
 		fontFamily?: string;
 	}
 
-	export type EditorInlineHintsOptions = Readonly<Required<IEditorInlineHintsOptions>>;
+	export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions>>;
 
 	/**
 	 * Configuration options for editor minimap
@@ -4105,7 +4105,7 @@ declare namespace monaco.editor {
 		wrappingIndent = 119,
 		wrappingStrategy = 120,
 		showDeprecated = 121,
-		inlineHints = 122,
+		inlayHints = 122,
 		editorClassName = 123,
 		pixelRatio = 124,
 		tabFocusMode = 125,
@@ -4213,7 +4213,7 @@ declare namespace monaco.editor {
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
-		inlineHints: IEditorOption<EditorOption.inlineHints, any>;
+		inlayHints: IEditorOption<EditorOption.inlayHints, any>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
 		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
@@ -4771,7 +4771,7 @@ declare namespace monaco.editor {
 		getRawOptions(): IEditorOptions;
 		/**
 		 * Get value of the current model attached to this editor.
-		 * @see `ITextModel.getValue`
+		 * @see {@link ITextModel.getValue}
 		 */
 		getValue(options?: {
 			preserveBOM: boolean;
@@ -4779,7 +4779,7 @@ declare namespace monaco.editor {
 		}): string;
 		/**
 		 * Set the value of the current model attached to this editor.
-		 * @see `ITextModel.setValue`
+		 * @see {@link ITextModel.setValue}
 		 */
 		setValue(newValue: string): void;
 		/**
@@ -4861,7 +4861,7 @@ declare namespace monaco.editor {
 		getLineDecorations(lineNumber: number): IModelDecoration[] | null;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
-		 * @see `ITextModel.deltaDecorations`
+		 * @see {@link ITextModel.deltaDecorations}
 		 */
 		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 		/**
@@ -4966,7 +4966,7 @@ declare namespace monaco.editor {
 	 */
 	export interface IDiffEditor extends IEditor {
 		/**
-		 * @see ICodeEditor.getDomNode
+		 * @see {@link ICodeEditor.getDomNode}
 		 */
 		getDomNode(): HTMLElement;
 		/**
@@ -6450,24 +6450,23 @@ declare namespace monaco.languages {
 		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
-	export enum InlineHintKind {
+	export enum InlayHintKind {
 		Other = 0,
 		Type = 1,
 		Parameter = 2
 	}
 
-	export interface InlineHint {
+	export interface InlayHint {
 		text: string;
-		range: IRange;
-		kind: InlineHintKind;
-		description?: string | IMarkdownString;
+		position: IPosition;
+		kind: InlayHintKind;
 		whitespaceBefore?: boolean;
 		whitespaceAfter?: boolean;
 	}
 
-	export interface InlineHintsProvider {
-		onDidChangeInlineHints?: IEvent<void> | undefined;
-		provideInlineHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+	export interface InlayHintsProvider {
+		onDidChangeInlayHints?: IEvent<void> | undefined;
+		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
 	}
 
 	export interface SemanticTokensLegend {

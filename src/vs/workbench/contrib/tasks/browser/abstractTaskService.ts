@@ -82,6 +82,7 @@ import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
+import { Schemas } from 'vs/base/common/network';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -135,6 +136,11 @@ export interface WorkspaceFolderConfigurationResult {
 
 interface TaskCustomizationTelemetryEvent {
 	properties: string[];
+}
+
+interface CommandUpgrade {
+	command?: string;
+	args?: string[];
 }
 
 class TaskMap {
@@ -226,6 +232,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected readonly _onDidStateChange: Emitter<TaskEvent>;
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
+	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
+	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -550,6 +558,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
 		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
 			this._taskSystemInfos.set(key, info);
+			this._onDidChangeTaskSystemInfo.fire();
 		}
 	}
 
@@ -1630,7 +1639,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (workspaceFolder) {
 					return this.getTaskSystemInfo(workspaceFolder.uri.scheme);
 				} else if (this._taskSystemInfos.size > 0) {
-					return this._taskSystemInfos.values().next().value;
+					const infos = Array.from(this._taskSystemInfos.entries());
+					const notFile = infos.filter(info => info[0] !== Schemas.file);
+					if (notFile.length > 0) {
+						return notFile[0][1];
+					}
+					return infos[0][1];
 				} else {
 					return undefined;
 				}
@@ -2444,7 +2458,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async trust(): Promise<boolean> {
 		return (await this.workspaceTrustRequestService.requestWorkspaceTrust(
 			{
-				modal: true,
 				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
 			})) === true;
 	}
@@ -3135,11 +3148,24 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this.canRunCommand()) {
 			return;
 		}
-		const activeTasks: Task[] = await this.getActiveTasks();
+		const activeTasksPromise: Promise<Task[]> = this.getActiveTasks();
+		const activeTasks: Task[] = await activeTasksPromise;
+		let group: string | undefined;
 		if (activeTasks.length === 1) {
 			this._taskSystem!.revealTask(activeTasks[0]);
+		} else if (activeTasks.every((task) => {
+			if (InMemoryTask.is(task)) {
+				return false;
+			}
+
+			if (!group) {
+				group = task.command.presentation?.group;
+			}
+			return task.command.presentation?.group && (task.command.presentation.group === group);
+		})) {
+			this._taskSystem!.revealTask(activeTasks[0]);
 		} else {
-			this.showQuickPick(this.getActiveTasks(),
+			this.showQuickPick(activeTasksPromise,
 				nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
 				{
 					label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
@@ -3160,13 +3186,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const tasksFile = folder.toResource('.vscode/tasks.json');
 		if (await this.fileService.exists(tasksFile)) {
 			const oldFile = tasksFile.with({ path: `${tasksFile.path}.old` });
-			await this.fileService.copy(tasksFile, oldFile);
+			await this.fileService.copy(tasksFile, oldFile, true);
 			return [oldFile, tasksFile];
 		}
 		return undefined;
 	}
 
-	private upgradeTask(task: Task): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
+	private upgradeTask(task: Task, suppressTaskName: boolean, globalConfig: { windows?: CommandUpgrade, osx?: CommandUpgrade, linux?: CommandUpgrade }): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
 		if (!CustomTask.is(task)) {
 			return;
 		}
@@ -3181,11 +3207,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (task.command.runtime === RuntimeType.Shell) {
 				configElement.type = RuntimeType.toString(RuntimeType.Shell);
 			}
-			if (task.command.name) {
+			if (task.command.name && !suppressTaskName && !globalConfig.windows?.command && !globalConfig.osx?.command && !globalConfig.linux?.command) {
 				configElement.command = task.command.name;
+			} else if (suppressTaskName) {
+				configElement.command = task._source.config.element.command;
 			}
-			if (task.command.args) {
-				configElement.args = task.command.args;
+			if (task.command.args && (!Types.isArray(task.command.args) || (task.command.args.length > 0))) {
+				if (!globalConfig.windows?.args && !globalConfig.osx?.args && !globalConfig.linux?.args) {
+					configElement.args = task.command.args;
+				} else {
+					configElement.args = task._source.config.element.args;
+				}
 			}
 		}
 
@@ -3212,7 +3244,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async upgrade(): Promise<void> {
-		if (this.executionEngine !== ExecutionEngine.Process) {
+		if (this.schemaVersion === JsonSchemaVersion.V2_0_0) {
+			return;
+		}
+
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+			this._register(Event.once(this.workspaceTrustManagementService.onDidChangeTrust)(isTrusted => {
+				if (isTrusted) {
+					this.upgrade();
+				}
+			}));
 			return;
 		}
 
@@ -3228,8 +3269,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			const configTasks: (TaskConfig.CustomTask | TaskConfig.ConfiguringTask)[] = [];
+			const suppressTaskName = !!this.configurationService.getValue('tasks.suppressTaskName', { resource: folder.uri });
+			const globalConfig = {
+				windows: <CommandUpgrade>this.configurationService.getValue('tasks.windows', { resource: folder.uri }),
+				osx: <CommandUpgrade>this.configurationService.getValue('tasks.osx', { resource: folder.uri }),
+				linux: <CommandUpgrade>this.configurationService.getValue('tasks.linux', { resource: folder.uri })
+			};
 			tasks.get(folder).forEach(task => {
-				const configTask = this.upgradeTask(task);
+				const configTask = this.upgradeTask(task, suppressTaskName, globalConfig);
 				if (configTask) {
 					configTasks.push(configTask);
 				}
@@ -3251,9 +3298,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.updateSetup();
 
 		this.notificationService.prompt(Severity.Warning,
-			nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diffs to review the upgrade."),
+			fileDiffs.length === 1 ?
+				nls.localize('taskService.upgradeVersion', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diff to review the upgrade.")
+				: nls.localize('taskService.upgradeVersionPlural', "The deprecated tasks version 0.1.0 has been removed. Your tasks have been upgraded to version 2.0.0. Open the diffs to review the upgrade."),
 			[{
-				label: nls.localize('taskService.openDiffs', "Open diffs"),
+				label: fileDiffs.length === 1 ? nls.localize('taskService.openDiff', "Open diff") : nls.localize('taskService.openDiffs', "Open diffs"),
 				run: async () => {
 					for (const upgrade of fileDiffs) {
 						await this.editorService.openEditor({

@@ -47,7 +47,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const [handle] = await window.showOpenFilePicker({ multiple: false });
 		const uuid = generateUuid();
-		const uri = URI.from({ scheme: Schemas.file, authority: uuid, path: `/${handle.name}` });
+		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
 		this.fileSystemProvider.registerFileHandle(uuid, handle);
 
@@ -91,7 +91,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const handle = await window.showSaveFilePicker();
 		const uuid = generateUuid();
-		const uri = URI.from({ scheme: Schemas.file, authority: uuid, path: `/${handle.name}` });
+		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
 		this.fileSystemProvider.registerFileHandle(uuid, handle);
 
@@ -107,7 +107,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const handle = await window.showSaveFilePicker();
 		const uuid = generateUuid();
-		const uri = URI.from({ scheme: Schemas.file, authority: uuid, path: `/${handle.name}` });
+		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
 		this.fileSystemProvider.registerFileHandle(uuid, handle);
 
@@ -123,7 +123,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const handle = await window.showDirectoryPicker();
 		const uuid = generateUuid();
-		const uri = URI.from({ scheme: Schemas.file, authority: uuid, path: `/${handle.name}` });
+		const uri = URI.from({ scheme: Schemas.file, path: `/${uuid}/${handle.name}` });
 
 		this.fileSystemProvider.registerDirectoryHandle(uuid, handle);
 
@@ -134,8 +134,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return schema === Schemas.untitled ? [Schemas.file] : [schema];
 	}
 
-	private shouldUseSimplified(schema: string): boolean {
-		return schema !== Schemas.file && schema !== Schemas.userData;
+	private shouldUseSimplified(scheme: string): boolean {
+		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
 	}
 }
 

@@ -47,16 +47,21 @@ export class GitHubServer {
 		return this.type === AuthProviderType['github-enterprise'] || /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
 	}
 
+	// TODO@joaomoreno TODO@RMacfarlane
+	private async isNoCorsEnvironment(): Promise<boolean> {
+		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+		return uri.scheme === 'https' && /^vscode\./.test(uri.authority);
+	}
+
 	public async login(scopes: string): Promise<string> {
 		Logger.info('Logging in...');
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
-		let callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
 
 		// TODO@joaomoreno TODO@RMacfarlane
-		const nocors = callbackUri.scheme === 'https' && /^vscode\./.test(callbackUri.authority);
-		callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate${nocors ? '?nocors=true' : ''}`));
+		const nocors = await this.isNoCorsEnvironment();
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate${nocors ? '?nocors=true' : ''}`));
 
 		if (this.isTestEnvironment(callbackUri)) {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
@@ -257,6 +262,12 @@ export class GitHubServer {
 	}
 
 	public async checkIsEdu(token: string): Promise<void> {
+		const nocors = await this.isNoCorsEnvironment();
+
+		if (nocors) {
+			return;
+		}
+
 		try {
 			const result = await fetch('https://education.github.com/api/user', {
 				headers: {

@@ -18,7 +18,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookDeltaCellStatusBarItems, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookDeltaCellStatusBarItems, CellFocusMode, CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
@@ -35,6 +35,7 @@ import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/edit
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { groupByNumber } from 'vs/base/common/collections';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -732,25 +733,24 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[] {
-		oldItems.forEach(id => {
-			const handle = this._statusBarItemIdToCellMap.get(id);
-
-			if (handle !== undefined) {
-				const cell = this.getCellByHandle(handle);
-				cell?.deltaCellStatusBarItems([id], []);
-			}
-		});
+		const deletesByHandle = groupByNumber(oldItems, id => this._statusBarItemIdToCellMap.get(id) ?? -1);
 
 		const result: string[] = [];
-
 		newItems.forEach(itemDelta => {
 			const cell = this.getCellByHandle(itemDelta.handle);
-			const ret = cell?.deltaCellStatusBarItems([], itemDelta.items) || [];
+			const deleted = deletesByHandle.get(itemDelta.handle) ?? [];
+			deletesByHandle.delete(itemDelta.handle);
+			const ret = cell?.deltaCellStatusBarItems(deleted, itemDelta.items) || [];
 			ret.forEach(id => {
 				this._statusBarItemIdToCellMap.set(id, itemDelta.handle);
 			});
 
 			result.push(...ret);
+		});
+
+		deletesByHandle.forEach((ids, handle) => {
+			const cell = this.getCellByHandle(handle);
+			cell?.deltaCellStatusBarItems(ids, []);
 		});
 
 		return result;
@@ -1063,12 +1063,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	 * Search in notebook text model
 	 * @param value
 	 */
-	find(value: string, options: INotebookSearchOptions): CellFindMatch[] {
-		const matches: CellFindMatch[] = [];
-		this._viewCells.forEach(cell => {
+	find(value: string, options: INotebookSearchOptions): CellFindMatchWithIndex[] {
+		const matches: CellFindMatchWithIndex[] = [];
+		this._viewCells.forEach((cell, index) => {
 			const cellMatches = cell.startFind(value, options);
 			if (cellMatches) {
-				matches.push(cellMatches);
+				matches.push({
+					cell: cellMatches.cell,
+					index: index,
+					matches: cellMatches.matches
+				});
 			}
 		});
 

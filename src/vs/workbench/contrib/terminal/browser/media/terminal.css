@@ -21,7 +21,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-tab {
+.monaco-workbench .pane-body.integrated-terminal .terminal-group {
 	height: 100%;
 }
 
@@ -253,10 +253,6 @@
 	vertical-align: text-bottom;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-tl-twistie.force-no-twistie {
-	display: none !important;
-}
-
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .actions {
 	display: none;
 }
@@ -282,6 +278,5 @@
 
 .monaco-action-bar .action-item .single-terminal-tab .codicon:nth-child(2) {
 	margin-left: 4px;
-	font-size: 14px;
 	color: inherit;
 }

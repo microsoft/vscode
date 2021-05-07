@@ -82,7 +82,19 @@ suite('ExtHost Testing', () => {
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('a')) } }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(stubTest('a')) } }
+				],
+				[
+					TestDiffOpType.Add,
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-root', expand: TestItemExpandState.Expanded }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', expand: TestItemExpandState.BusyExpanding }
 				],
 				[
 					TestDiffOpType.Add,
@@ -95,14 +107,6 @@ suite('ExtHost Testing', () => {
 				[
 					TestDiffOpType.Update,
 					{ extId: 'id-a', expand: TestItemExpandState.Expanded }
-				],
-				[
-					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
-				],
-				[
-					TestDiffOpType.Update,
-					{ extId: 'id-root', expand: TestItemExpandState.Expanded }
 				],
 			]);
 		});

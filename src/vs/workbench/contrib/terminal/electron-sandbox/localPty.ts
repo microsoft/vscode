@@ -17,21 +17,21 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
 
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
-	public readonly onProcessData = this._onProcessData.event;
+	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
-	public readonly onProcessReplay = this._onProcessReplay.event;
+	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	public readonly onProcessExit = this._onProcessExit.event;
+	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
-	public readonly onProcessReady = this._onProcessReady.event;
+	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	public readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
+	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	public readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
+	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	public readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	constructor(
 		readonly id: number,

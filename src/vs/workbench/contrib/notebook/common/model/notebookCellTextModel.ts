@@ -21,8 +21,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
 
-	private _onDidChangeContent = new Emitter<void>();
-	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	private _onDidChangeContent = new Emitter<'content' | 'language'>();
+	onDidChangeContent: Event<'content' | 'language'> = this._onDidChangeContent.event;
 
 	private _onDidChangeMetadata = new Emitter<CellMetadataChangedEvent>();
 	onDidChangeMetadata: Event<CellMetadataChangedEvent> = this._onDidChangeMetadata.event;
@@ -70,7 +70,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._language = newLanguage;
 		this._hash = null;
 		this._onDidChangeLanguage.fire(newLanguage);
-		this._onDidChangeContent.fire();
+		this._onDidChangeContent.fire('language');
 	}
 
 	private _textBuffer!: model.IReadonlyTextBuffer;
@@ -90,7 +90,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
 			if (!this._textModel) {
-				this._onDidChangeContent.fire();
+				this._onDidChangeContent.fire('content');
 			}
 		}));
 
@@ -132,7 +132,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 					this._versionId = this._textModel.getVersionId();
 					this._alternativeId = this._textModel.getAlternativeVersionId();
 				}
-				this._onDidChangeContent.fire();
+				this._onDidChangeContent.fire('content');
 			}));
 
 			this._textModel._overwriteVersionId(this._versionId);
@@ -171,8 +171,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return this._hash;
 		}
 
-		// TODO@rebornix, raw outputs
-		this._hash = hash([hash(this.language), hash(this.getValue()), this._getPersisentMetadata, this.transientOptions.transientOutputs ? [] : this._outputs]);
+		this._hash = hash([hash(this.language), hash(this.getValue()), this._getPersisentMetadata(), this.transientOptions.transientOutputs ? [] : this._outputs.map(op => ({
+			outputs: op.outputs,
+			metadata: op.metadata
+		}))]);
 		return this._hash;
 	}
 

@@ -13,12 +13,14 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { ResourceMap } from 'vs/base/common/map';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
 	controller: vscode.NotebookController;
 	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument; }>;
 	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any }>;
+	associatedNotebooks: ResourceMap<boolean>;
 }
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
@@ -39,7 +41,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: vscode.NotebookExecuteHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
 
 		for (let data of this._kernelData.values()) {
-			if (data.controller.id === id) {
+			if (data.controller.id === id && ExtensionIdentifier.equals(extension.identifier, data.extensionId)) {
 				throw new Error(`notebook controller with id '${id}' ALREADY exist`);
 			}
 		}
@@ -56,7 +58,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id,
+			id: `${extension.identifier.value}/${id}`,
 			viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
@@ -91,8 +93,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			});
 		};
 
+		// notebook documents that are associated to this controller
+		const associatedNotebooks = new ResourceMap<boolean>();
+
 		const controller: vscode.NotebookController = {
-			get id() { return data.id; },
+			get id() { return id; },
 			get viewType() { return data.viewType; },
 			onDidChangeNotebookAssociation: onDidChangeSelection.event,
 			get label() {
@@ -151,6 +156,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				if (isDisposed) {
 					throw new Error('notebook controller is DISPOSED');
 				}
+				if (!associatedNotebooks.has(cell.notebook.uri)) {
+					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
+				}
 				//todo@jrieken
 				return that._extHostNotebook.createNotebookCellExecution(cell.notebook.uri, cell.index, data.id)!;
 			},
@@ -178,16 +186,30 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			}
 		};
 
-		this._kernelData.set(handle, { extensionId: extension.identifier, controller, onDidChangeSelection, onDidReceiveMessage });
+		this._kernelData.set(handle, {
+			extensionId: extension.identifier,
+			controller,
+			onDidReceiveMessage,
+			onDidChangeSelection,
+			associatedNotebooks
+		});
 		return controller;
 	}
 
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void {
 		const obj = this._kernelData.get(handle);
 		if (obj) {
+			// update data structure
+			const notebook = this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!;
+			if (value) {
+				obj.associatedNotebooks.set(notebook.uri, true);
+			} else {
+				obj.associatedNotebooks.delete(notebook.uri);
+			}
+			// send event
 			obj.onDidChangeSelection.fire({
 				selected: value,
-				notebook: this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!.apiNotebook
+				notebook: notebook.apiNotebook
 			});
 		}
 	}
@@ -242,7 +264,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	$acceptRendererMessage(handle: number, editorId: string, message: any): void {
+	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			// extension can dispose kernels in the meantime

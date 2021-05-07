@@ -38,6 +38,8 @@ suite('RipgrepTextSearchEngine', () => {
 			['f[\\n-a]', 'f[\\n-a]'],
 			['(?<=\\n)\\w', '(?<=\\n)\\w'],
 			['fo\\n+o', 'fo(?:\\r?\\n)+o'],
+			['fo[^\\n]o', 'fo(?!\\r?\\n)o'],
+			['fo[^\\na-z]o', 'fo(?!\\r?\\n|[a-z])o'],
 		];
 
 		for (const [input, expected] of ttable) {

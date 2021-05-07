@@ -50,7 +50,7 @@ export interface IExtUri {
 
 	/**
 	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
-	 * @see ResourceMap
+	 * @see {@link ResourceMap}
 	 * @param uri Uri
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */

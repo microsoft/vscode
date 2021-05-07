@@ -24,6 +24,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private readonly _onDidRemoveOutputs = new Emitter<readonly ICellOutputViewModel[]>();
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
+	private readonly _onDidHideInput = new Emitter<void>();
+	readonly onDidHideInput = this._onDidHideInput.event;
+	private readonly _onDidHideOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	readonly onDidHideOutputs = this._onDidHideOutputs.event;
 	private _outputCollection: number[] = [];
 
 	private _outputsTop: PrefixSumComputer | null = null;
@@ -113,6 +117,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 		}));
 
+		this._register(this.model.onDidChangeMetadata(e => {
+			if (this.metadata?.outputCollapsed) {
+				this._onDidHideOutputs.fire(this.outputsViewModels.slice(0));
+			}
+
+			if (this.metadata?.inputCollapsed) {
+				this._onDidHideInput.fire();
+			}
+		}));
+
 		this._outputCollection = new Array(this.model.outputs.length);
 
 		this._layoutInfo = {
@@ -144,7 +158,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			let newState: CodeCellLayoutState;
 			let editorHeight: number;
 			let totalHeight: number;
-			if (!state.editorHeight && this._layoutInfo.layoutState === CodeCellLayoutState.FromCache) {
+			if (!state.editorHeight && this._layoutInfo.layoutState === CodeCellLayoutState.FromCache && !state.outputHeight) {
 				// No new editorHeight info - keep cached totalHeight and estimate editorHeight
 				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
 				totalHeight = this._layoutInfo.totalHeight;
@@ -361,5 +375,13 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			cell: this,
 			matches
 		};
+	}
+
+	override dispose() {
+		super.dispose();
+
+		this._outputCollection = [];
+		this._outputsTop = null;
+		this._outputViewModels = [];
 	}
 }

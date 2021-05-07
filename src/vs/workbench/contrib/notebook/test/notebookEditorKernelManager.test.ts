@@ -35,6 +35,7 @@ suite('NotebookEditorKernelManager', () => {
 
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
 			override onDidAddNotebookDocument = Event.None;
+			override onDidRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
 		});
 
@@ -58,7 +59,7 @@ suite('NotebookEditorKernelManager', () => {
 		await withTestNotebook(
 			[],
 			async (viewModel) => {
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { activeKernel: undefined, viewModel });
+				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
@@ -98,7 +99,7 @@ suite('NotebookEditorKernelManager', () => {
 		// https://github.com/microsoft/vscode/issues/121904
 
 		return withTestNotebook([], async viewModel => {
-			assert.strictEqual(kernelService.getNotebookKernels(viewModel.notebookDocument).all.length, 0);
+			assert.strictEqual(kernelService.getMatchingKernel(viewModel.notebookDocument).all.length, 0);
 
 			let didExecute = false;
 			const kernel = new class extends TestNotebookKernel {
