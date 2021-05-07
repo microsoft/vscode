@@ -687,12 +687,14 @@ export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
 export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidChangeDirty: Event<void>;
 	readonly onDidSave: Event<void>;
+	readonly onDidChangeOrphaned: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isReadonly(): boolean;
+	isOrphaned(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;

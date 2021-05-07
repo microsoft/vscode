@@ -58,7 +58,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.name;
 	}
 
-	override getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
 		if (typeof this.description !== 'string') {
 
 			// Pass the description of the modified side in case both original
