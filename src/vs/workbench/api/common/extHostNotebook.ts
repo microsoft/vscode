@@ -225,6 +225,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			return undefined;
 		}
 		return {
+			extension: extension.identifier,
 			providerDisplayName: extension.displayName || extension.name,
 			displayName: registration.displayName,
 			filenamePattern: viewOptionsFilenamePattern,

@@ -95,6 +95,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		for (const extension of extensions) {
 			for (const notebookContribution of extension.value) {
 				this.add(new NotebookProviderInfo({
+					extension: extension.description.identifier,
 					id: notebookContribution.viewType,
 					displayName: notebookContribution.displayName,
 					selectors: notebookContribution.selector || [],
@@ -484,6 +485,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable {
 
 		const info = new NotebookProviderInfo({
+			extension: data.extension,
 			id: viewType,
 			displayName: data.displayName,
 			providerDisplayName: data.providerDisplayName,
