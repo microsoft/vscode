@@ -329,4 +329,4 @@ stages:
           - job: ReleaseBuild
             displayName: Release Build
             steps:
-              - template: release.yml
+              - template: product-release.yml

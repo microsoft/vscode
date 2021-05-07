@@ -61,14 +61,14 @@ export interface ICommandMenuOptions {
 export interface ICommandOptions {
 	id: string;
 	precondition: ContextKeyExpression | undefined;
-	kbOpts?: ICommandKeybindingsOptions;
+	kbOpts?: ICommandKeybindingsOptions | ICommandKeybindingsOptions[];
 	description?: ICommandHandlerDescription;
 	menuOpts?: ICommandMenuOptions | ICommandMenuOptions[];
 }
 export abstract class Command {
 	public readonly id: string;
 	public readonly precondition: ContextKeyExpression | undefined;
-	private readonly _kbOpts: ICommandKeybindingsOptions | undefined;
+	private readonly _kbOpts: ICommandKeybindingsOptions | ICommandKeybindingsOptions[] | undefined;
 	private readonly _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
 	private readonly _description: ICommandHandlerDescription | undefined;
 
@@ -89,37 +89,38 @@ export abstract class Command {
 		}
 
 		if (this._kbOpts) {
-			let kbWhen = this._kbOpts.kbExpr;
-			if (this.precondition) {
-				if (kbWhen) {
-					kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
-				} else {
-					kbWhen = this.precondition;
+			const kbOptsArr = Array.isArray(this._kbOpts) ? this._kbOpts : [this._kbOpts];
+			for (const kbOpts of kbOptsArr) {
+				let kbWhen = kbOpts.kbExpr;
+				if (this.precondition) {
+					if (kbWhen) {
+						kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
+					} else {
+						kbWhen = this.precondition;
+					}
 				}
+
+				const desc = {
+					id: this.id,
+					weight: kbOpts.weight,
+					args: kbOpts.args,
+					when: kbWhen,
+					primary: kbOpts.primary,
+					secondary: kbOpts.secondary,
+					win: kbOpts.win,
+					linux: kbOpts.linux,
+					mac: kbOpts.mac,
+				};
+
+				KeybindingsRegistry.registerKeybindingRule(desc);
 			}
-
-			KeybindingsRegistry.registerCommandAndKeybindingRule({
-				id: this.id,
-				handler: (accessor, args) => this.runCommand(accessor, args),
-				weight: this._kbOpts.weight,
-				args: this._kbOpts.args,
-				when: kbWhen,
-				primary: this._kbOpts.primary,
-				secondary: this._kbOpts.secondary,
-				win: this._kbOpts.win,
-				linux: this._kbOpts.linux,
-				mac: this._kbOpts.mac,
-				description: this._description
-			});
-
-		} else {
-
-			CommandsRegistry.registerCommand({
-				id: this.id,
-				handler: (accessor, args) => this.runCommand(accessor, args),
-				description: this._description
-			});
 		}
+
+		CommandsRegistry.registerCommand({
+			id: this.id,
+			handler: (accessor, args) => this.runCommand(accessor, args),
+			description: this._description
+		});
 	}
 
 	private _registerMenuItem(item: ICommandMenuOptions): void {
