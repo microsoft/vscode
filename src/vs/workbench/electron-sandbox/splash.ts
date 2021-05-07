@@ -60,10 +60,6 @@ export class PartsSplash {
 		}, this, this._disposables);
 	}
 
-	dispose(): void {
-		this._disposables.dispose();
-	}
-
 	private _savePartsSplash() {
 		const theme = this._themeService.getColorTheme();
 
@@ -102,10 +98,15 @@ export class PartsSplash {
 		if (element) {
 			element.style.display = 'none';
 		}
+
 		// remove initial colors
 		const defaultStyles = document.head.getElementsByClassName('initialShellColors');
 		if (defaultStyles.length) {
 			document.head.removeChild(defaultStyles[0]);
 		}
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
 	}
 }
