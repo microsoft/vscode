@@ -188,6 +188,10 @@ export class DiskFileSystemProvider extends Disposable implements
 				}
 			}
 
+			if (isWindows && (opts.create || opts.overwrite) && filePath.endsWith('.')) {
+				throw createFileSystemProviderError(localize('entryEndsWithDot', "Entries cannot end with a '.' on Windows."), FileSystemProviderErrorCode.FilePathInvalid);
+			}
+
 			// Open
 			handle = await this.open(resource, { create: true, unlock: opts.unlock });
 
@@ -211,7 +215,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		try {
 			const filePath = this.toFilePath(resource);
 
-			// Determine wether to unlock the file (write only)
+			// Determine whether to unlock the file (write only)
 			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
 				try {
 					const { stat } = await SymlinkSupport.stat(filePath);

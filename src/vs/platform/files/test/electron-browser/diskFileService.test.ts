@@ -1674,6 +1674,13 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(event!.target!.resource.fsPath, resource.fsPath);
 	});
 
+	(isWindows ? test : test.skip)('createFile (Windows does not allow files to end with ".")', async () => {
+		const resource = URI.file(join(testDir, 'test.'));
+		await assert.rejects(async () => {
+			await service.writeFile(resource, VSBuffer.fromString(''));
+		});
+	});
+
 	test('writeFile - default', async () => {
 		return testWriteFile();
 	});

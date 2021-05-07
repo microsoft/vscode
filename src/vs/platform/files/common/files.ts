@@ -466,6 +466,7 @@ export enum FileSystemProviderErrorCode {
 	FileNotADirectory = 'EntryNotADirectory',
 	FileIsADirectory = 'EntryIsADirectory',
 	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
+	FilePathInvalid = 'EntryHasInvalidCharacter',
 	FileTooLarge = 'EntryTooLarge',
 	FileWriteLocked = 'EntryWriteLocked',
 	NoPermissions = 'NoPermissions',
