@@ -203,7 +203,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return controller;
 	}
 
-	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void {
+	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {
 		const obj = this._kernelData.get(handle);
 		if (obj) {
 			// update data structure

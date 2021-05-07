@@ -167,7 +167,7 @@ suite('NotebookKernel', function () {
 	test('execute - simple createNotebookCellExecutionTask', function () {
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
-		extHostNotebookKernels.$acceptSelection(0, notebook.uri, true);
+		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
 
 		const cell1 = notebook.apiNotebook.cellAt(0);
 		const task = kernel.createNotebookCellExecutionTask(cell1);
@@ -181,7 +181,7 @@ suite('NotebookKernel', function () {
 			kernel.createNotebookCellExecutionTask(notebook.apiNotebook.cellAt(0));
 		});
 
-		extHostNotebookKernels.$acceptSelection(0, notebook.uri, true);
+		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
 		kernel.createNotebookCellExecutionTask(notebook.apiNotebook.cellAt(0));
 	});
 
@@ -190,7 +190,7 @@ suite('NotebookKernel', function () {
 
 		const cell1 = notebook.apiNotebook.cellAt(0);
 
-		extHostNotebookKernels.$acceptSelection(0, notebook.uri, true);
+		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
 			versionId: 12,
 			rawEvents: [{
