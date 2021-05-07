@@ -75,6 +75,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
 		shellLaunchConfig.icon = this._verifyIcon(shellLaunchConfig.icon) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
+
+		// Resolve useShellEnvironment based on the setting if it's not set
+		if (shellLaunchConfig.useShellEnvironment === undefined) {
+			shellLaunchConfig.useShellEnvironment = this._configurationService.getValue(TerminalSettingId.InheritEnv);
+		}
 	}
 
 	private _verifyIcon(iconId?: string): string | undefined {
