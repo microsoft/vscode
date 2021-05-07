@@ -1327,7 +1327,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.SplitInstance,
-				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
+				title: { value: localize('workbench.action.terminal.splitInstance', "Split Terminal"), original: 'Split Terminal' },
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -1343,14 +1343,19 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
 			const instances = getSelectedInstances(accessor);
 			if (instances) {
-				for (const instance of instances) {
-					accessor.get(ITerminalService).splitInstance(instance);
+				for (const t of instances) {
+					terminalService.setActiveInstance(t);
+					terminalService.doWithActiveInstance(async instance => {
+						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
+						terminalService.splitInstance(instance, { cwd });
+						await terminalService.showPanel(true);
+					});
 				}
 			}
-			accessor.get(ITerminalService).focusTabs();
-			focusNext(accessor);
+			return undefined;
 		}
 	});
 	registerAction2(class extends Action2 {
