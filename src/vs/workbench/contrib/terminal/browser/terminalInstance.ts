@@ -29,7 +29,7 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGR
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -57,6 +57,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -191,8 +192,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
 	get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
-	private readonly _onDropped = new Emitter<{ instance: ITerminalInstance, dragEvent: DragEvent; }>();
-	get onDropped(): Event<{ instance: ITerminalInstance, dragEvent: DragEvent; }> { return this._onDropped.event; }
+	private readonly _onDropped = new Emitter<DragEvent>();
+	get onDropped(): Event<DragEvent> { return this._onDropped.event; }
 	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
 	get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	private readonly _onLinksReady = new Emitter<ITerminalInstance>();
@@ -224,6 +225,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private _container: HTMLElement | undefined,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -319,6 +321,34 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		});
+
+		this._register(this.onDropped(async (dragEvent) => {
+			if (!dragEvent.dataTransfer) {
+				return;
+			}
+
+			// Check if files were dragged from the tree explorer
+			let path: string | undefined;
+			const resources = dragEvent.dataTransfer.getData(DataTransfers.RESOURCES);
+			if (resources) {
+				path = URI.parse(JSON.parse(resources)[0]).fsPath;
+			} else if (dragEvent.dataTransfer.files?.[0].path /* Electron only */) {
+				// Check if the file was dragged from the filesystem
+				path = URI.file(dragEvent.dataTransfer.files[0].path).fsPath;
+			}
+
+			if (!path) {
+				return;
+			}
+
+			if (!this.shellLaunchConfig.executable) {
+				return;
+			}
+			const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
+
+			this.sendText(preparedPath, false);
+			this.focus();
+		}));
 	}
 
 	private _getIcon(): Codicon | undefined {
@@ -745,7 +775,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}));
 
 		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DROP, (e: DragEvent) => {
-			this._onDropped.fire({ instance: this, dragEvent: e });
+			this._onDropped.fire(e);
 		}));
 
 		this._widgetManager.attachToElement(xterm.element);
