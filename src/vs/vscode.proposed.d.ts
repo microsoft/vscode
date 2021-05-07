@@ -1635,8 +1635,7 @@ declare module 'vscode' {
 		// todo@API qualify cell, ...NotebookCell...
 		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 
-		// todo@API use viewType instead of NotebookSelector
-		export function registerNotebookCellStatusBarItemProvider(selector: NotebookSelector, provider: NotebookCellStatusBarItemProvider): Disposable;
+		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
 	//#endregion
@@ -1845,18 +1844,6 @@ declare module 'vscode' {
 		// @jrieken REMOVE maybe
 		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/119949, Notebook (deprecated)
-
-	export interface NotebookFilter {
-		readonly viewType?: string;
-		readonly scheme?: string;
-		readonly pattern?: GlobPattern;
-	}
-
-	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
 	//#endregion
 

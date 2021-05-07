@@ -1237,7 +1237,7 @@ suite('Notebook API tests', function () {
 		const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
 		const onDidCallProvide = emitter.event;
 		suiteSetup(() => {
-			vscode.notebook.registerNotebookCellStatusBarItemProvider({ viewType: 'notebookCoreTest' }, {
+			vscode.notebook.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
 				async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
 					emitter.fire(cell);
 					return [];

@@ -228,13 +228,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		};
 	}
 
-	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, selector: vscode.NotebookSelector, provider: vscode.NotebookCellStatusBarItemProvider) {
+	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) {
 
 		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
 		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
 
 		this._notebookStatusBarItemProviders.set(handle, provider);
-		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, selector);
+		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, notebookType);
 
 		let subscription: vscode.Disposable | undefined;
 		if (eventHandle !== undefined) {

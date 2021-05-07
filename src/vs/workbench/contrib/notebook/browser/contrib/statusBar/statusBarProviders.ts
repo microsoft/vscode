@@ -14,14 +14,12 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { CHANGE_CELL_LANGUAGE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemProvider {
-	readonly selector: NotebookSelector = {
-		pattern: '**/*'
-	};
+
+	readonly viewType = '*';
 
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
