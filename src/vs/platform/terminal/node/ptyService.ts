@@ -181,9 +181,6 @@ export class PtyService extends Disposable implements IPtyService {
 		return { ...process.env };
 	}
 
-	// async getShellEnvironment(): Promise<IProcessEnvironment> {
-	// }
-
 	async getWslPath(original: string): Promise<string> {
 		if (!isWindows) {
 			return original;
