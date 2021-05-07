@@ -286,22 +286,22 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		[TerminalSettingId.DefaultProfileLinux]: {
+			restricted: true,
 			markdownDescription: localize('terminal.integrated.defaultProfile.linux', "The default profile used on Linux. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.linux#`', '`#terminal.integrated.shellArgs.linux#`'),
 			type: ['string', 'null'],
-			default: null,
-			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
+			default: null
 		},
 		[TerminalSettingId.DefaultProfileMacOs]: {
+			restricted: true,
 			description: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
 			type: ['string', 'null'],
-			default: null,
-			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
+			default: null
 		},
 		[TerminalSettingId.DefaultProfileWindows]: {
+			restricted: true,
 			description: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
 			type: ['string', 'null'],
-			default: null,
-			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
+			default: null
 		},
 		[TerminalSettingId.UseWslProfiles]: {
 			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
