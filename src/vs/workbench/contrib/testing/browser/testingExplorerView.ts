@@ -1055,7 +1055,7 @@ const getActionableElementActions = (
 		const result = { primary, secondary };
 		const actionsDisposable = createAndFillInActionBarActions(menu, {
 			shouldForwardArgs: true,
-		}, result, group => group === 'inline');
+		}, result, 'inline');
 
 		return { value: result, dispose: () => actionsDisposable.dispose };
 	} finally {
