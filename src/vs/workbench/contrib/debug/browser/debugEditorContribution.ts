@@ -66,8 +66,6 @@ export const debugInlineBackground = registerColor('debugInline.decorationBackgr
 	hc: '#ffc80033'
 }, nls.localize('debugInline.decorationBackground', "Color for the debug inline value background."));
 
-
-
 class InlineSegment {
 	constructor(public column: number, public text: string) {
 	}
