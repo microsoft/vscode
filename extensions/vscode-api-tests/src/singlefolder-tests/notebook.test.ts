@@ -701,7 +701,7 @@ suite('Notebook API tests', function () {
 
 		await p;
 		listener.dispose();
-		await saveAllFilesAndCloseAll(undefined);
+		await saveAllFilesAndCloseAll();
 	});
 
 	test('document execute command takes arguments', async () => {
