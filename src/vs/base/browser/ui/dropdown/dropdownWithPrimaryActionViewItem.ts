@@ -16,6 +16,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
+	private _dropdownContainer: HTMLElement | null = null;
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -43,8 +44,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._container.classList.add('monaco-dropdown-with-primary');
 		const primaryContainer = DOM.$('.action-container');
 		this._primaryAction.render(DOM.append(this._container, primaryContainer));
-		const dropdownContainer = DOM.$('.dropdown-action-container');
-		this._dropdown.render(DOM.append(this._container, dropdownContainer));
+		this._dropdownContainer = DOM.$('.dropdown-action-container');
+		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
 
 		this.toDispose.push(DOM.addDisposableListener(primaryContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -54,7 +55,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-		this.toDispose.push(DOM.addDisposableListener(dropdownContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this.toDispose.push(DOM.addDisposableListener(this._dropdownContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
 				this._primaryAction.element!.tabIndex = 0;
@@ -99,8 +100,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			menuAsChild: true,
 			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down']
 		});
-		if (this.element) {
-			this._dropdown.render(this.element);
+		if (this._dropdownContainer) {
+			this._dropdown.render(this._dropdownContainer);
 		}
 	}
 }
