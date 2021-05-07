@@ -1946,7 +1946,7 @@ export interface ExtHostNotebookEditorsShape {
 }
 
 export interface ExtHostNotebookKernelsShape {
-	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void;
+	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void;
 	$executeCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
 	$cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;

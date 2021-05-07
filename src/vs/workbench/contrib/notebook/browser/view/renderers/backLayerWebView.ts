@@ -290,10 +290,7 @@ export interface ICustomKernelMessage extends BaseToWebviewMessage {
 
 export interface ICreateMarkdownMessage {
 	type: 'createMarkdownPreview',
-	id: string;
-	handle: number;
-	content: string;
-	top: number;
+	cell: IMarkdownCellInitialization;
 }
 export interface IDeleteMarkdownMessage {
 	type: 'deleteMarkdownPreview',
@@ -1255,18 +1252,10 @@ var requirejs = (function() {
 			return;
 		}
 
-		const initialTop = initialization.offset;
-		this.markdownPreviewMapping.set(initialization.cellId, {
-			...initialization,
-			visible: true
-		});
-
+		this.markdownPreviewMapping.set(initialization.cellId, initialization);
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
-			id: initialization.cellId,
-			handle: initialization.cellHandle,
-			content: initialization.content,
-			top: initialTop,
+			cell: initialization
 		});
 	}
 

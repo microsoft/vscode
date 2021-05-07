@@ -53,10 +53,10 @@ export class ExtHostCell {
 	readonly uri: URI;
 	readonly cellKind: CellKind;
 
-	private _cell: vscode.NotebookCell | undefined;
+	private _apiCell: vscode.NotebookCell | undefined;
 
 	constructor(
-		private readonly _notebook: ExtHostNotebookDocument,
+		readonly notebook: ExtHostNotebookDocument,
 		private readonly _extHostDocument: ExtHostDocumentsAndEditors,
 		private readonly _cellData: IMainCellDto,
 	) {
@@ -74,15 +74,15 @@ export class ExtHostCell {
 	}
 
 	get apiCell(): vscode.NotebookCell {
-		if (!this._cell) {
+		if (!this._apiCell) {
 			const that = this;
 			const data = this._extHostDocument.getDocument(this.uri);
 			if (!data) {
 				throw new Error(`MISSING extHostDocument for notebook cell: ${this.uri}`);
 			}
-			this._cell = Object.freeze<vscode.NotebookCell>({
-				get index() { return that._notebook.getCellIndex(that); },
-				notebook: that._notebook.apiNotebook,
+			this._apiCell = Object.freeze<vscode.NotebookCell>({
+				get index() { return that.notebook.getCellIndex(that); },
+				notebook: that.notebook.apiNotebook,
 				kind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
 				document: data.document,
 				get outputs() { return that._outputs.slice(0); },
@@ -90,7 +90,7 @@ export class ExtHostCell {
 				get latestExecutionSummary() { return that._previousResult; }
 			});
 		}
-		return this._cell;
+		return this._apiCell;
 	}
 
 	setOutputs(newOutputs: IOutputDto[]): void {
@@ -278,7 +278,7 @@ export class ExtHostNotebookDocument {
 
 			const changeEvent = new RawContentChangeEvent(splice[0], splice[1], [], newCells);
 			const deletedItems = this._cells.splice(splice[0], splice[1], ...newCells);
-			for (let cell of deletedItems) {
+			for (const cell of deletedItems) {
 				removedCellDocuments.push(cell.uri);
 				changeEvent.deletedItems.push(cell.apiCell);
 			}
@@ -347,6 +347,10 @@ export class ExtHostNotebookDocument {
 			const executionState = newMetadata.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
 			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, executionState }));
 		}
+	}
+
+	getCellFromApiCell(apiCell: vscode.NotebookCell): ExtHostCell | undefined {
+		return this._cells.find(cell => cell.apiCell === apiCell);
 	}
 
 	getCellFromIndex(index: number): ExtHostCell | undefined {
