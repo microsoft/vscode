@@ -76,7 +76,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
 
-
 		this.onMouseDblClick(async () => {
 			if (this.getFocus().length === 0) {
 				const instance = this._terminalService.createTerminal();
