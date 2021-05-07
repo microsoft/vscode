@@ -71,7 +71,7 @@ export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor
 /**
  * Workspace Trust Required editor id.
  */
-export const WORKSPACE_TRUST_REQUIRED_FILE_EDITOR_ID = 'workbench.editors.files.workspaceTrustRequiredEditor';
+export const WORKSPACE_TRUST_REQUIRED_FILE_EDITOR_ID = 'workbench.editors.workspaceTrustRequiredEditor';
 
 /**
  * The editor pane is the container for workbench editors.
@@ -468,9 +468,9 @@ export interface IEditorInput extends IDisposable {
 	resolve(): Promise<IEditorModel | null>;
 
 	/**
-	 * Returns if the input requires trust or not.
+	 * Returns if the input requires workspace trust or not.
 	 */
-	requiresTrust(): Promise<boolean>;
+	requiresWorkspaceTrust(): Promise<boolean>;
 
 	/**
 	 * Returns if this input is readonly or not.
@@ -612,7 +612,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return { typeId: this.typeId };
 	}
 
-	async requiresTrust(): Promise<boolean> {
+	async requiresWorkspaceTrust(): Promise<boolean> {
 		return false;
 	}
 
@@ -848,6 +848,10 @@ export class SideBySideEditorInput extends EditorInput {
 
 	override getDescription(): string | undefined {
 		return this.description;
+	}
+
+	override async requiresWorkspaceTrust(): Promise<boolean> {
+		return await this.primary.requiresWorkspaceTrust() || await this.secondary.requiresWorkspaceTrust();
 	}
 
 	override isReadonly(): boolean {

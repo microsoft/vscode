@@ -61,21 +61,18 @@ export class EditorControl extends Disposable {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		super();
+
+		this._register(this.workspaceTrustService.onDidChangeTrust(async () => {
+			const editor = this._activeEditorPane?.input;
+			if (editor && await editor.requiresWorkspaceTrust()) {
+				this.openEditor(editor, undefined, { newInGroup: false });
+			}
+		}));
 	}
 
 	async openEditor(editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<IOpenEditorResult> {
-		const requiresTrust = await editor.requiresTrust();
+		const requiresTrust = await editor.requiresWorkspaceTrust();
 		const blockedByTrust = requiresTrust && !this.workspaceTrustService.isWorkpaceTrusted();
-
-		if (requiresTrust) {
-			const disposable = this.workspaceTrustService.onDidChangeTrust(() => {
-				if (this._activeEditorPane?.input === editor) {
-					this.openEditor(editor, options, context);
-				}
-
-				disposable.dispose();
-			});
-		}
 
 		const descriptor = blockedByTrust ? WORKSPACE_TRUST_REQUIRED_EDITOR_DESCRIPTOR : Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
 
