@@ -225,7 +225,7 @@ export class TerminalService implements ITerminalService {
 		// Reattach to all remote terminals
 		const layoutInfo = await this._remoteTerminalService.getTerminalLayoutInfo();
 		this._remoteTerminalService.reduceConnectionGraceTime();
-		const reconnectCounter = this._recreateTerminalTabs(layoutInfo);
+		const reconnectCounter = this._recreateTerminalGroups(layoutInfo);
 		/* __GDPR__
 			"terminalReconnection" : {
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
@@ -247,14 +247,14 @@ export class TerminalService implements ITerminalService {
 		// Reattach to all local terminals
 		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
-			this._recreateTerminalTabs(layoutInfo);
+			this._recreateTerminalGroups(layoutInfo);
 		}
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
 		this._attachProcessLayoutListeners(false);
 	}
 
-	private _recreateTerminalTabs(layoutInfo?: ITerminalsLayoutInfo): number {
+	private _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): number {
 		let reconnectCounter = 0;
 		let activeGroup: ITerminalGroup | undefined;
 		if (layoutInfo) {
