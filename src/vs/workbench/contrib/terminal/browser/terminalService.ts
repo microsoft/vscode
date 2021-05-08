@@ -449,6 +449,15 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _removeGroup(group: ITerminalGroup): void {
+		const wasActiveGroup = this._removeGroupAndAdjustFocus(group);
+
+		this._onInstancesChanged.fire();
+		if (wasActiveGroup) {
+			this._onActiveGroupChanged.fire();
+		}
+	}
+
+	private _removeGroupAndAdjustFocus(group: ITerminalGroup): boolean {
 		// Get the index of the group and remove it from the list
 		const index = this._terminalGroups.indexOf(group);
 		const activeGroup = this.getActiveGroup();
@@ -479,15 +488,10 @@ export class TerminalService implements ITerminalService {
 			this._onActiveInstanceChanged.fire(undefined);
 		}
 
-		// Fire events
-		this._onInstancesChanged.fire();
-		if (wasActiveGroup) {
-			this._onActiveGroupChanged.fire();
-		}
+		return wasActiveGroup;
 	}
 
 	refreshActiveGroup(): void {
-		// Fire active instances changed
 		this._onActiveGroupChanged.fire();
 	}
 
