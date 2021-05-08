@@ -39,9 +39,11 @@ export const enum RevealTarget {
  */
 export const enum EditOperationType {
 	Other = 0,
-	Typing = 1,
 	DeletingLeft = 2,
-	DeletingRight = 3
+	DeletingRight = 3,
+	TypingOther = 4,
+	TypingFirstSpace = 5,
+	TypingConsecutiveSpace = 6,
 }
 
 export interface CharacterMap {

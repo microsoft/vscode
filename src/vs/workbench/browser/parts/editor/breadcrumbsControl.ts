@@ -219,6 +219,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
+		this.hide();
 	}
 
 	dispose(): void {

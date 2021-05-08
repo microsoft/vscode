@@ -51,8 +51,11 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 		// - any working copy without `typeId`
 		// - not `search-edior:/` (supports migration to typeId)
 		const backups = (await this.workingCopyBackupService.getBackups())
-			.filter(backup => backup.typeId.length === 0)
-			.filter(backup => backup.resource.scheme !== 'search-editor');
+			.filter(backup => backup.typeId.length === 0) 		// any working copy with `typeId` is adopted
+			.filter(backup =>
+				backup.resource.scheme !== 'search-editor' && 	// search editor has adopted
+				backup.resource.scheme !== 'vscode-notebook'	// notebooks (complex) has adopted
+			);
 
 		// Trigger `resolve` in each opened editor that can be found
 		// for the given resource and keep track of backups that are

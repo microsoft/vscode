@@ -46,7 +46,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const str = items.map(item => JSON.stringify(item.value, null, '\t')).join('');
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
@@ -95,7 +95,7 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		let scriptVal = '';
 		items.forEach(item => {
 			const data = item.value;
@@ -129,7 +129,7 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const str = items.map(item => getStringValue(item.value)).join('');
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -180,13 +180,13 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 
 		items.forEach(item => {
 			const text = getStringValue(item.value);
 			const contentNode = DOM.$('span.output-stream');
-			truncatedArrayOfString(contentNode, [text], linkDetector, this.openerService, this.textFileService, this.themeService);
+			truncatedArrayOfString(notebookUri!, output.cellViewModel, contentNode, [text], linkDetector, this.openerService, this.textFileService, this.themeService);
 			container.appendChild(contentNode);
 		});
 
@@ -203,7 +203,7 @@ class StderrRendererContrib extends StreamRendererContrib {
 		return ['application/x.notebook.stderr'];
 	}
 
-	override render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	override render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const result = super.render(output, items, container, notebookUri);
 		container.classList.add('error');
 		return result;
@@ -228,7 +228,7 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 		items.forEach(item => {
 			const data: any = item.value;
@@ -279,12 +279,12 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 
 		const str = items.map(item => getStringValue(item.value));
 		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(contentNode, str, linkDetector, this.openerService, this.textFileService, this.themeService);
+		truncatedArrayOfString(notebookUri!, output.cellViewModel, contentNode, str, linkDetector, this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
 
 		return { type: RenderOutputType.Mainframe, supportAppend: true };
@@ -306,7 +306,7 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const data = items.map(item => getStringValue(item.value)).join('');
 
 		const str = (isArray(data) ? data.join('') : data) as string;
@@ -333,7 +333,7 @@ class SVGRendererContrib extends Disposable implements IOutputRendererContributi
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const str = items.map(item => getStringValue(item.value)).join('');
 		return {
 			type: RenderOutputType.Html,
@@ -388,7 +388,7 @@ class PNGRendererContrib extends Disposable implements IOutputRendererContributi
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		items.forEach(item => {
 			const image = document.createElement('img');
 			const imagedata = item.value;
@@ -417,7 +417,7 @@ class JPEGRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		items.forEach(item => {
 			const image = document.createElement('img');
 			const imagedata = item.value;

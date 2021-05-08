@@ -256,14 +256,6 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.Rename,
 						title: localize('workbench.action.terminal.rename', "Rename...")
-					}
-				}
-			},
-			{
-				id: MenuId.TerminalInlineTabContext, item: {
-					command: {
-						id: TerminalCommandId.RenameInstance,
-						title: localize('workbench.action.terminal.renameInstance', "Rename...")
 					},
 					group: ContextMenuGroup.Edit
 				}

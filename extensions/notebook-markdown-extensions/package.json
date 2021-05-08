@@ -15,7 +15,10 @@
     "Other"
   ],
   "capabilities": {
-    "virtualWorkspaces": false
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "notebookMarkupRenderers": [

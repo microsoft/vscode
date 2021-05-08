@@ -35,7 +35,7 @@ suite('NotebookEditorKernelManager', () => {
 
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
 			override onDidAddNotebookDocument = Event.None;
-			override onDidRemoveNotebookDocument = Event.None;
+			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
 		});
 

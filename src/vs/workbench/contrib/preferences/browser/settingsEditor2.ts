@@ -48,13 +48,12 @@ import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/p
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditor2Input } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
+import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { isIPad } from 'vs/base/browser/browser';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -339,8 +338,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private _setOptions(options: SettingsEditorOptions): void {
-		if (options.focusSearch && !isIPad) {
-			// isIPad - #122044
+		if (options.focusSearch && !platform.isIOS) {
+			// isIOS - #122044
 			this.focusSearch();
 		}
 
@@ -380,7 +379,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	override focus(): void {
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
-			if (!isIPad) {
+			if (!platform.isIOS) {
 				// #122044
 				this.focusSearch();
 			}

@@ -122,7 +122,9 @@ export class CellContextKeyManager extends Disposable {
 		this.cellEditable.set(!this.notebookEditor.viewModel?.options.isReadOnly);
 
 		const runState = metadata.runState ?? NotebookCellExecutionState.Idle;
-		if (runState === NotebookCellExecutionState.Idle) {
+		if (this.element instanceof MarkdownCellViewModel) {
+			this.cellRunState.reset();
+		} else if (runState === NotebookCellExecutionState.Idle) {
 			if (metadata.lastRunSuccess === true) {
 				this.cellRunState.set('succeeded');
 			} else if (metadata.lastRunSuccess === false) {

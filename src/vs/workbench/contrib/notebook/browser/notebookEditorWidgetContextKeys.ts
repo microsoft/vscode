@@ -43,6 +43,8 @@ export class NotebookEditorContextKeys {
 		this._notebookKernelCount.reset();
 		this._interruptibleKernel.reset();
 		this._someCellRunning.reset();
+		dispose(this._cellStateListeners);
+		this._cellStateListeners.length = 0;
 	}
 
 	private _handleDidChangeModel(): void {

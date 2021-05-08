@@ -7,7 +7,7 @@ import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -69,6 +69,7 @@ export class TerminalTabbedView extends Disposable {
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -148,7 +149,7 @@ export class TerminalTabbedView extends Disposable {
 	private _shouldShowTabs(): boolean {
 		const enable = this._terminalService.configHelper.config.tabs.enabled;
 		const hideForSingle = this._terminalService.configHelper.config.tabs.hideCondition === 'singleTerminal';
-		return enable && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
+		return enable && this._terminalService.terminalInstances.length > 0 && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
 	}
 
 	private _refreshShowTabs() {
@@ -262,10 +263,10 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _rerenderTabs() {
-		const hasText = this._tabTreeContainer.clientWidth > MIDPOINT_WIDGET_WIDTH;
+		const hasText = this._terminalTabTree.clientWidth > MIDPOINT_WIDGET_WIDTH;
 		this._tabTreeContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		this._tabList.rerender();
+		this._tabList.render();
 	}
 
 	private _addSashListener() {
@@ -414,7 +415,7 @@ export class TerminalTabbedView extends Disposable {
 
 				const terminal = this._terminalService.getActiveInstance();
 				if (terminal) {
-					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType, terminal.isRemote);
+					const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType, terminal.isRemote);
 					terminal.sendText(preparedPath, false);
 					terminal.focus();
 				}
@@ -466,6 +467,9 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	focusTabs(): void {
+		if (!this._shouldShowTabs()) {
+			return;
+		}
 		this._terminalTabsFocusContextKey.set(true);
 		const selected = this._tabList.getSelection();
 		this._tabList.domFocus();
@@ -502,6 +506,7 @@ export class TerminalTabbedView extends Disposable {
 	getFindWidget(): TerminalFindWidget {
 		return this._findWidget!;
 	}
+
 	focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can

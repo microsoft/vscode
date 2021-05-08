@@ -1149,6 +1149,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			shellLaunchConfig.env = options.env;
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
+		shellLaunchConfig.useShellEnvironment = true;
 		return shellLaunchConfig;
 	}
 

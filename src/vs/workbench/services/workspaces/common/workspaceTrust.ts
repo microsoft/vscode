@@ -9,7 +9,6 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -248,7 +247,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// If the current folder isn't trusted directly, return false
 		const trustInfo = this.getUriTrustInfo(workspaceIdentifier.uri);
-		if (!trustInfo.trusted || !isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
+		if (!trustInfo.trusted || !this.uriIdentityService.extUri.isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
 			return false;
 		}
 
@@ -291,12 +290,25 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return this._trustStateInfo.uriTrustInfo.map(info => info.uri);
 	}
 
-	async setTrustedFolders(folders: URI[]): Promise<void> {
+	async setTrustedFolders(uris: URI[]): Promise<void> {
 		this._trustStateInfo.uriTrustInfo = [];
-		for (const folder of folders) {
+		for (const uri of uris) {
+			const cleanUri = this.uriIdentityService.extUri.removeTrailingPathSeparator(uri);
+			let added = false;
+			for (const addedUri of this._trustStateInfo.uriTrustInfo) {
+				if (this.uriIdentityService.extUri.isEqual(addedUri.uri, cleanUri)) {
+					added = true;
+					break;
+				}
+			}
+
+			if (added) {
+				continue;
+			}
+
 			this._trustStateInfo.uriTrustInfo.push({
 				trusted: true,
-				uri: folder
+				uri: cleanUri
 			});
 		}
 

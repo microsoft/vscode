@@ -1021,11 +1021,37 @@ declare module 'vscode' {
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
+
+		/**
+		 * The index of this cell in its {@link NotebookDocument.cellAt containing notebook}. The
+		 * index is updated when a cell is moved within its notebook. The index is `-1`
+		 * when the cell has been removed from its notebook.
+		 */
 		readonly index: number;
+
+		/**
+		 * The {@link NotebookDocument notebook} that contains this cell.
+		 */
 		readonly notebook: NotebookDocument;
+
+		/**
+		 * The kind of this cell.
+		 */
 		readonly kind: NotebookCellKind;
+
+		/**
+		 * The {@link TextDocument text} of this cell, represented as text document.
+		 */
 		readonly document: TextDocument;
+
+		/**
+		 * The metadata of this cell.
+		 */
 		readonly metadata: NotebookCellMetadata
+
+		/**
+		 * The outputs of this cell.
+		 */
 		readonly outputs: ReadonlyArray<NotebookCellOutput>;
 
 		// todo@API maybe just executionSummary or lastExecutionSummary?
@@ -1886,15 +1912,13 @@ declare module 'vscode' {
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
-	export interface NotebookDocumentContentOptions {
-		/**
-		 * Not ready for production or development use yet.
-		 */
-		viewOptions?: {
-			displayName: string;
-			filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern; })[];
-			exclusive?: boolean;
-		};
+	/**
+	 * todo@API Not ready for production or development use yet.
+	 */
+	export interface NotebookRegistrationData {
+		displayName: string;
+		filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern; })[];
+		exclusive?: boolean;
 	}
 
 	export namespace notebook {
@@ -1902,6 +1926,12 @@ declare module 'vscode' {
 		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
 		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
 		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions): Disposable;
+
+		// SPECIAL overload with _NotebookRegistrationData
+		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions, registrationData?: NotebookRegistrationData): Disposable;
+
+		// SPECIAL overload with _NotebookRegistrationData
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions, registration?: NotebookRegistrationData): Disposable;
 	}
 
 	//#endregion
@@ -2565,7 +2595,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or directory.
 		 */
-		uri: Uri;
+		uri?: Uri;
 
 		/**
 		 * Display name describing the test item.
@@ -2588,7 +2618,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or directory.
 		 */
-		readonly uri: Uri;
+		readonly uri?: Uri;
 
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
@@ -2820,7 +2850,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or file.
 		 */
-		readonly uri: Uri;
+		readonly uri?: Uri;
 
 		/**
 		 * Display name describing the test case.

@@ -243,7 +243,7 @@
 	box-sizing: border-box;
 	line-height: normal;
 	margin: 8px 8px 12px;
-	padding: 6px 12px 6px;
+	padding: 3px 12px 6px;
 	left: 1px;
 	text-align: left;
 	display: flex;
@@ -622,6 +622,10 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon {
 	top: 0;
+}
+
+.monaco-workbench .part.editor > .content .getting-started-category .codicon::before{
+	vertical-align: middle;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .codicon-close {
