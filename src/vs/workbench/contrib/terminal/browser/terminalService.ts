@@ -590,11 +590,7 @@ export class TerminalService implements ITerminalService {
 
 	setActiveInstanceByIndex(terminalIndex: number): void {
 		const instanceInfo = this._getInstanceInfoFromGlobalInstanceIndex(terminalIndex);
-		if (!instanceInfo) {
-			return;
-		}
-
-		if (!this._activeInstanceChanged(instanceInfo.localInstanceIndex)) {
+		if (!instanceInfo || !this._activeInstanceChanged(instanceInfo.localInstanceIndex)) {
 			return;
 		}
 
