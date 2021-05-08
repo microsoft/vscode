@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer, FuzzyScore, anyScore } from 'vs/base/common/filters';
-import { CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionItemProvider, CompletionItemKind, CompletionItemTag } from 'vs/editor/common/modes';
 import { CompletionItem } from './suggest';
 import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
@@ -159,6 +159,9 @@ export class CompletionModel {
 
 			if (item.isInvalid) {
 				continue; // SKIP invalid items
+			}
+			if (!this._options.showDeprecated && item.completion.tags?.includes(CompletionItemTag.Deprecated)) {
+				continue; // skip deprecated items
 			}
 
 			// collect all support, know if their result is incomplete
