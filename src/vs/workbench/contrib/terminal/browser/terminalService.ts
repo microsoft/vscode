@@ -603,8 +603,8 @@ export class TerminalService implements ITerminalService {
 		if (!didInstanceChange) {
 			return;
 		}
-
-		instanceInfo.group.setActiveInstanceByIndex(instanceInfo.localInstanceIndex);
+		this._activeInstanceIndex = instanceInfo.localInstanceIndex;
+		instanceInfo.group.setActiveInstanceByIndex(this._activeInstanceIndex);
 		const didTabChange = this._activeGroupIndex !== instanceInfo.groupIndex;
 		this._activeGroupIndex = instanceInfo.groupIndex;
 		this._terminalGroups.forEach((g, i) => g.setVisible(i === instanceInfo.groupIndex));
