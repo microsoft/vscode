@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { raceCancellation } from 'vs/base/common/async';
+import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -106,7 +106,8 @@ export class StatefulMarkdownCell extends Disposable {
 	private markdownContainer: HTMLElement;
 	private editorPart: HTMLElement;
 
-	private readonly localDisposables = new DisposableStore();
+	private readonly localDisposables = this._register(new DisposableStore());
+	private readonly focusSwitchDisposable = this._register(new MutableDisposable());
 	private foldingState: CellFoldingState;
 	private useRenderer: boolean = false;
 	private renderStrategy: IMarkdownRenderStrategy;
@@ -236,7 +237,6 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	override dispose() {
-		this.localDisposables.dispose();
 		this.viewCell.detachTextEditor();
 		super.dispose();
 	}
@@ -423,6 +423,7 @@ export class StatefulMarkdownCell extends Disposable {
 	private bindEditorListeners(editor: CodeEditorWidget) {
 
 		this.localDisposables.clear();
+		this.focusSwitchDisposable.clear();
 
 		this.localDisposables.add(editor.onDidContentSizeChange(e => {
 			const viewLayout = editor.getLayoutInfo();
@@ -461,9 +462,7 @@ export class StatefulMarkdownCell extends Disposable {
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
 			if (document.activeElement?.contains(this.templateData.container)) {
-				setTimeout(() => {
-					updateFocusMode();
-				}, 300);
+				this.focusSwitchDisposable.value = disposableTimeout(() => updateFocusMode(), 300);
 			} else {
 				updateFocusMode();
 			}
