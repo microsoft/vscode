@@ -598,9 +598,11 @@ export class TerminalService implements ITerminalService {
 		if (!this._activeInstanceChanged(instanceInfo.localInstanceIndex)) {
 			return;
 		}
+
 		this._activeInstanceIndex = instanceInfo.localInstanceIndex;
-		instanceInfo.group.setActiveInstanceByIndex(this._activeInstanceIndex);
 		this._activeGroupIndex = instanceInfo.groupIndex;
+
+		instanceInfo.group.setActiveInstanceByIndex(this._activeInstanceIndex);
 		this._terminalGroups.forEach((g, i) => g.setVisible(i === instanceInfo.groupIndex));
 
 		if (this._activeTabChanged(instanceInfo.groupIndex)) {
