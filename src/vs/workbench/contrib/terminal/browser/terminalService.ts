@@ -496,10 +496,6 @@ export class TerminalService implements ITerminalService {
 		return this._terminalGroups[this._activeGroupIndex];
 	}
 
-	getActiveInstanceIndex(): number {
-		return this.getActiveInstance()?.instanceId || 0;
-	}
-
 	public getActiveInstance(): ITerminalInstance | null {
 		const group = this.getActiveGroup();
 		if (!group) {
