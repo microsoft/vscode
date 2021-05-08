@@ -108,6 +108,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private readonly localDisposables = this._register(new DisposableStore());
 	private readonly focusSwitchDisposable = this._register(new MutableDisposable());
+	private readonly editorDisposables = this._register(new DisposableStore());
 	private foldingState: CellFoldingState;
 	private useRenderer: boolean = false;
 	private renderStrategy: IMarkdownRenderStrategy;
@@ -278,7 +279,7 @@ export class StatefulMarkdownCell extends Disposable {
 		if (this.editor && this.editor.hasModel()) {
 			editorHeight = this.editor.getContentHeight();
 
-			// not first time, we don't need to create editor or bind listeners
+			// not first time, we don't need to create editor
 			this.viewCell.attachTextEditor(this.editor);
 			this.focusEditorIfNeeded();
 
@@ -289,7 +290,7 @@ export class StatefulMarkdownCell extends Disposable {
 				height: editorHeight
 			});
 		} else {
-			this.editor?.dispose();
+			this.editorDisposables.clear();
 
 			const width = this.viewCell.layoutInfo.editorWidth;
 			const lineNum = this.viewCell.lineCount;
@@ -302,9 +303,9 @@ export class StatefulMarkdownCell extends Disposable {
 			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
-			this._register(editorContextKeyService);
+			this.editorDisposables.add(editorContextKeyService);
 
-			this.editor = this._register(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
+			this.editor = this.editorDisposables.add(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
 				...this.editorOptions,
 				dimension: {
 					width: width,
@@ -315,7 +316,7 @@ export class StatefulMarkdownCell extends Disposable {
 			this.templateData.currentEditor = this.editor;
 
 			const cts = new CancellationTokenSource();
-			this._register({ dispose() { cts.dispose(true); } });
+			this.editorDisposables.add({ dispose() { cts.dispose(true); } });
 			raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
 				if (!model) {
 					return;
