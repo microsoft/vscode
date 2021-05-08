@@ -141,7 +141,7 @@ export interface ITerminalService {
 	getActiveGroup(): ITerminalGroup | null;
 	setActiveGroupToNext(): void;
 	setActiveGroupToPrevious(): void;
-	setActiveGroupByIndex(tabIndex: number): void;
+	setActiveGroupByIndex(groupIndex: number): void;
 
 	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
@@ -587,4 +587,13 @@ export const enum LinuxDistro {
 	Unknown = 1,
 	Fedora = 2,
 	Ubuntu = 3,
+}
+
+export type InstanceInfo = IInstanceInfo | null;
+
+export interface IInstanceInfo {
+	group: ITerminalGroup,
+	groupIndex: number,
+	instance: ITerminalInstance,
+	localInstanceIndex: number
 }

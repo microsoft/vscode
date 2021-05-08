@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, InstanceInfo } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
@@ -156,19 +156,22 @@ export class TerminalService implements ITerminalService {
 		this._activeInstanceIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
-		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._terminalCountContextKey = KEYBINDING_CONTEXT_TERMINAL_COUNT.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
+
+		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
+		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+
 		this.onGroupDisposed(group => this._removeGroup(group));
 		// update detected profiles so for example we detect if you've installed a pwsh
 		// this avoids having poll routinely
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
 		this.onInstancesChanged(() => this._terminalCountContextKey.set(this._terminalInstances.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
+
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
@@ -420,7 +423,7 @@ export class TerminalService implements ITerminalService {
 	private _saveState(isRemote?: boolean): void {
 		const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
 		const state: ITerminalsLayoutInfoById = {
-			tabs: this.terminalGroups.map(t => t.getLayoutInfo(t === this.getActiveGroup()))
+			tabs: this.terminalGroups.map(g => g.getLayoutInfo(g === this.getActiveGroup()))
 		};
 		offProcService!.setTerminalLayoutInfo(state);
 	}
@@ -570,7 +573,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getInstanceInfoFromGlobalInstanceIndex(index: number): { group: ITerminalGroup, groupIndex: number, instance: ITerminalInstance, localInstanceIndex: number } | null {
+	private _getInstanceInfo(index: number): InstanceInfo {
 		let currentGroupIndex = 0;
 		while (index >= 0 && currentGroupIndex < this._terminalGroups.length) {
 			const group = this._terminalGroups[currentGroupIndex];
@@ -590,7 +593,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	setActiveInstanceByIndex(index: number): void {
-		const instanceInfo = this._getInstanceInfoFromGlobalInstanceIndex(index);
+		const instanceInfo = this._getInstanceInfo(index);
 		if (!instanceInfo || !this._newInstanceIndex(instanceInfo.localInstanceIndex)) {
 			return;
 		}
