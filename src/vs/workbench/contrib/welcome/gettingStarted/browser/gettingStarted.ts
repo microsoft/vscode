@@ -374,11 +374,54 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
-	private async selectStep(id: string | undefined, delayFocus = true) {
-		if (id && this.editorInput.selectedStep === id) { return; }
+	private async buildMediaComponent(stepId: string) {
+		if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
+			throw Error('cannot expand step for category of non steps type' + this.currentCategory?.id);
+		}
+		const stepToExpand = assertIsDefined(this.currentCategory.content.steps.find(step => step.id === stepId));
 
 		this.stepDisposables.clear();
 		clearNode(this.stepMediaComponent);
+
+		if (stepToExpand.media.type === 'image') {
+
+			this.stepMediaComponent.classList.add('image');
+			this.stepMediaComponent.classList.remove('markdown');
+
+			const media = stepToExpand.media;
+			const mediaElement = $<HTMLImageElement>('img');
+			this.stepMediaComponent.appendChild(mediaElement);
+			mediaElement.setAttribute('alt', media.altText);
+			this.updateMediaSourceForColorMode(mediaElement, media.path);
+
+			this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
+
+		} else if (stepToExpand.media.type === 'markdown') {
+
+			this.stepMediaComponent.classList.remove('image');
+			this.stepMediaComponent.classList.add('markdown');
+
+			const media = stepToExpand.media;
+
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root] }, undefined));
+			webview.mountTo(this.stepMediaComponent);
+			webview.html = await this.renderMarkdown(media.path, media.base);
+
+			let isDisposed = false;
+			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
+
+			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+				// Render again since syntax highlighting of code blocks may have changed
+				const body = await this.renderMarkdown(media.path, media.base);
+				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+					webview.html = body;
+				}
+			}));
+		}
+	}
+
+	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
+		if (id && this.editorInput.selectedStep === id && !forceRebuild) { return; }
 
 		if (id) {
 			const stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`));
@@ -392,49 +435,12 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.style.height = ``;
 			stepElement.style.height = `${stepElement.scrollHeight}px`;
 
-			if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
-				throw Error('cannot expand step for category of non steps type' + this.currentCategory?.id);
-			}
 			this.editorInput.selectedStep = id;
 			this.selectedStepElement = stepElement;
-			const stepToExpand = assertIsDefined(this.currentCategory.content.steps.find(step => step.id === id));
-			if (stepToExpand.media.type === 'image') {
 
-				this.stepMediaComponent.classList.add('image');
-				this.stepMediaComponent.classList.remove('markdown');
-
-				const media = stepToExpand.media;
-				const mediaElement = $<HTMLImageElement>('img');
-				this.stepMediaComponent.appendChild(mediaElement);
-				mediaElement.setAttribute('alt', media.altText);
-				this.updateMediaSourceForColorMode(mediaElement, media.path);
-
-				this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
-
-			} else if (stepToExpand.media.type === 'markdown') {
-
-				this.stepMediaComponent.classList.remove('image');
-				this.stepMediaComponent.classList.add('markdown');
-
-				const media = stepToExpand.media;
-
-				const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root] }, undefined));
-				webview.mountTo(this.stepMediaComponent);
-				webview.html = await this.renderMarkdown(media.path, media.base);
-
-				let isDisposed = false;
-				this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
-
-				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-					// Render again since syntax highlighting of code blocks may have changed
-					const body = await this.renderMarkdown(media.path, media.base);
-					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-						webview.html = body;
-					}
-				}));
-			}
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
+			this.buildMediaComponent(id);
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
@@ -951,7 +957,7 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent);
 
 		const toExpand = category.content.steps.find(step => !step.done) ?? category.content.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id);
+		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, true);
 
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
