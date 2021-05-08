@@ -59,7 +59,7 @@ export class TerminalService implements ITerminalService {
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
-	private readonly _offProcessTerminalService: IOffProcessTerminalService;
+	private readonly _offProcessTerminalService?: IOffProcessTerminalService;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
@@ -416,7 +416,7 @@ export class TerminalService implements ITerminalService {
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalGroups.map(g => g.getLayoutInfo(g === this.getActiveGroup()))
 		};
-		this._offProcessTerminalService.setTerminalLayoutInfo(state);
+		this._offProcessTerminalService?.setTerminalLayoutInfo(state);
 	}
 
 	@debounce(500)
@@ -424,7 +424,7 @@ export class TerminalService implements ITerminalService {
 		if (!instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
-		this._offProcessTerminalService.updateTitle(instance.persistentProcessId, instance.title);
+		this._offProcessTerminalService?.updateTitle(instance.persistentProcessId, instance.title);
 	}
 
 	@debounce(500)
@@ -432,7 +432,7 @@ export class TerminalService implements ITerminalService {
 		if (!instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		this._offProcessTerminalService.updateIcon(instance.persistentProcessId, instance.icon.id);
+		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon.id);
 	}
 
 	private _removeGroup(group: ITerminalGroup): void {
