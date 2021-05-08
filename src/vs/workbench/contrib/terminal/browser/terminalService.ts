@@ -595,21 +595,26 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		const didInstanceChange = this._activeInstanceIndex !== instanceInfo.localInstanceIndex || this._activeInstanceIndex === 0;
-		if (!didInstanceChange) {
+		if (!this._activeInstanceChanged(instanceInfo.localInstanceIndex)) {
 			return;
 		}
 		this._activeInstanceIndex = instanceInfo.localInstanceIndex;
 		instanceInfo.group.setActiveInstanceByIndex(this._activeInstanceIndex);
-		const didTabChange = this._activeGroupIndex !== instanceInfo.groupIndex;
 		this._activeGroupIndex = instanceInfo.groupIndex;
 		this._terminalGroups.forEach((g, i) => g.setVisible(i === instanceInfo.groupIndex));
 
-		// Only fire the event if there was a change
-		if (didTabChange) {
+		if (this._activeTabChanged(instanceInfo.groupIndex)) {
 			this._onActiveTabChanged.fire();
 		}
 		this._onActiveInstanceChanged.fire(instanceInfo.instance);
+	}
+
+	private _activeInstanceChanged(instanceIndex: number): boolean {
+		return this._activeInstanceIndex !== instanceIndex || this._activeInstanceIndex === 0;
+	}
+
+	private _activeTabChanged(tabIndex: number): boolean {
+		return this._activeGroupIndex !== tabIndex;
 	}
 
 	setActiveTabToNext(): void {
