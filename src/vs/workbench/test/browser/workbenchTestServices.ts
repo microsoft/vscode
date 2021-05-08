@@ -1568,21 +1568,10 @@ export class TestWorkspacesService implements IWorkspacesService {
 export class TestTerminalInstanceService implements ITerminalInstanceService {
 	declare readonly _serviceBrand: undefined;
 
-	async getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return {
-			shell: 'bash',
-			args: undefined
-		};
-	}
-	async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
-		return {};
-	}
-
 	async getXtermConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	async getXtermSearchConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	async getXtermUnicode11Constructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	async getXtermWebglConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
-	createWindowsShellHelper(shellProcessId: number, xterm: any): any { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> { throw new Error('Method not implemented.'); }
 }
 
