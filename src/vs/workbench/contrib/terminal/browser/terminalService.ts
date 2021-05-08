@@ -59,7 +59,7 @@ export class TerminalService implements ITerminalService {
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
-	private readonly _offProcessTerminalService?: IOffProcessTerminalService;
+	private readonly _offProcessTerminalService: IOffProcessTerminalService;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
@@ -201,11 +201,11 @@ export class TerminalService implements ITerminalService {
 		// it's done. This should happen even when there is no extension host.
 		this._connectionState = TerminalConnectionState.Connecting;
 		let initPromise: Promise<any>;
-		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection) {
-			this._offProcessTerminalService = this._remoteTerminalService;
+		const isRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
+		this._offProcessTerminalService = isRemote ? this._remoteTerminalService : this._localTerminalService;
+		if (isRemote) {
 			initPromise = this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 		} else if (enableTerminalReconnection) {
-			this._offProcessTerminalService = this._localTerminalService;
 			initPromise = this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
 		} else {
 			initPromise = Promise.resolve();
