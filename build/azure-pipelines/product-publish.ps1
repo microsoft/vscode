@@ -36,9 +36,10 @@ if (Test-Path $ARTIFACT_PROCESSED_WILDCARD_PATH) {
 			$set.Add($_) | Out-Null
 			Write-Host "Already processed artifact: $_"
 		}
-} else {
-	New-Item -Path $ARTIFACT_PROCESSED_FILE_PATH -Force | Out-Null
 }
+
+# Create the artifact file that will be used for this run
+New-Item -Path $ARTIFACT_PROCESSED_FILE_PATH -Force | Out-Null
 
 # Determine which stages we need to watch
 $stages = @(
