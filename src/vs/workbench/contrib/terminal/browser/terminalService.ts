@@ -637,7 +637,6 @@ export class TerminalService implements ITerminalService {
 		const instance = group.split(shellLaunchConfig);
 
 		this._initInstanceListeners(instance);
-		this._onInstancesChanged.fire();
 
 		this._terminalGroups.forEach((g, i) => g.setVisible(i === this._activeGroupIndex));
 		return instance;
