@@ -40,11 +40,11 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	setTrustedFolders(folders: URI[]): Promise<void> {
+	async setTrustedFolders(folders: URI[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
-	setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
+	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -60,7 +60,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return this.trusted;
 	}
 
-	setWorkspaceTrust(trusted: boolean): void {
+	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		if (this.trusted !== trusted) {
 			this.trusted = trusted;
 			this._onDidChangeTrust.fire(this.trusted);
