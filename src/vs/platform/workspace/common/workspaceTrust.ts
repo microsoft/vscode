@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -40,15 +41,16 @@ export interface IWorkspaceTrustManagementService {
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	onDidChangeTrustedFolders: Event<void>;
 
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
 	isWorkpaceTrusted(): boolean;
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): void;
 	canSetWorkspaceTrust(): boolean;
-	setWorkspaceTrust(trusted: boolean): void;
+	setWorkspaceTrust(trusted: boolean): Promise<void>;
 	getUriTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
-	setUrisTrust(folders: URI[], trusted: boolean): void;
+	setUrisTrust(folders: URI[], trusted: boolean): Promise<void>;
 	getTrustedFolders(): URI[];
-	setTrustedFolders(folders: URI[]): void;
+	setTrustedFolders(folders: URI[]): Promise<void>;
 }
 
 export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
@@ -59,8 +61,12 @@ export interface IWorkspaceTrustRequestService {
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 
 	cancelRequest(): void;
-	completeRequest(trusted?: boolean): void;
+	completeRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+}
+
+export interface IWorkspaceTrustTransitionParticipant {
+	participate(trusted: boolean): Promise<void>;
 }
 
 export interface IWorkspaceTrustUriInfo {

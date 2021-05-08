@@ -331,9 +331,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private addTrustButtonToElement(parent: HTMLElement): void {
 		const trustUris = async (uris?: URI[]) => {
 			if (!uris) {
-				this.workspaceTrustManagementService.setWorkspaceTrust(true);
+				await this.workspaceTrustManagementService.setWorkspaceTrust(true);
 			} else {
-				this.workspaceTrustManagementService.setUrisTrust(uris, true);
+				await this.workspaceTrustManagementService.setUrisTrust(uris, true);
 			}
 		};
 

@@ -123,7 +123,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				if (result.checkboxChecked) {
 					this.workspaceTrustManagementService.setParentFolderTrust(true);
 				} else {
-					this.workspaceTrustRequestService.completeRequest(true);
+					await this.workspaceTrustRequestService.completeRequest(true);
 				}
 				break;
 			case 1:
@@ -207,10 +207,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			// Dialog result
 			switch (buttons[result.choice].type) {
 				case 'ContinueWithTrust':
-					this.workspaceTrustRequestService.completeRequest(true);
+					await this.workspaceTrustRequestService.completeRequest(true);
 					break;
 				case 'ContinueWithoutTrust':
-					this.workspaceTrustRequestService.completeRequest(undefined);
+					await this.workspaceTrustRequestService.completeRequest(undefined);
 					break;
 				case 'Manage':
 					this.workspaceTrustRequestService.cancelRequest();
