@@ -59,7 +59,7 @@ export class TerminalService implements ITerminalService {
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
-	private readonly _offProcTerminalService: IOffProcessTerminalService;
+	private readonly _offProcessTerminalService: IOffProcessTerminalService;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
@@ -152,7 +152,6 @@ export class TerminalService implements ITerminalService {
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
-		this._offProcTerminalService = !!_environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
@@ -203,8 +202,10 @@ export class TerminalService implements ITerminalService {
 		this._connectionState = TerminalConnectionState.Connecting;
 		let initPromise: Promise<any>;
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection) {
+			this._offProcessTerminalService = this._remoteTerminalService;
 			initPromise = this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 		} else if (enableTerminalReconnection) {
+			this._offProcessTerminalService = this._localTerminalService;
 			initPromise = this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
 		} else {
 			initPromise = Promise.resolve();
@@ -415,7 +416,7 @@ export class TerminalService implements ITerminalService {
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalGroups.map(g => g.getLayoutInfo(g === this.getActiveGroup()))
 		};
-		this._offProcTerminalService.setTerminalLayoutInfo(state);
+		this._offProcessTerminalService.setTerminalLayoutInfo(state);
 	}
 
 	@debounce(500)
@@ -423,7 +424,7 @@ export class TerminalService implements ITerminalService {
 		if (!instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
-		this._offProcTerminalService.updateTitle(instance.persistentProcessId, instance.title);
+		this._offProcessTerminalService.updateTitle(instance.persistentProcessId, instance.title);
 	}
 
 	@debounce(500)
@@ -431,7 +432,7 @@ export class TerminalService implements ITerminalService {
 		if (!instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		this._offProcTerminalService.updateIcon(instance.persistentProcessId, instance.icon.id);
+		this._offProcessTerminalService.updateIcon(instance.persistentProcessId, instance.icon.id);
 	}
 
 	private _removeGroup(group: ITerminalGroup): void {
