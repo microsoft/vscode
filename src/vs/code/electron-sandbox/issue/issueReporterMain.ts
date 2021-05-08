@@ -355,7 +355,11 @@ export class IssueReporter extends Disposable {
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
-		this.previewButton.onDidClick(() => this.createIssue());
+		this.previewButton.onDidClick(async () => {
+			if ((await this.createIssue())) {
+				ipcRenderer.send('vscode:closeIssueReporter');
+			}
+		});
 
 		function sendWorkbenchCommand(commandId: string) {
 			ipcRenderer.send('vscode:workbenchCommand', { id: commandId, from: 'issueReporter' });
@@ -382,7 +386,7 @@ export class IssueReporter extends Disposable {
 			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
-				if (await this.createIssue()) {
+				if ((await this.createIssue())) {
 					ipcRenderer.send('vscode:closeIssueReporter');
 				}
 			}
