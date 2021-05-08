@@ -1633,7 +1633,7 @@ declare module 'vscode' {
 
 		// todo@API what is this used for?
 		// todo@API qualify cell, ...NotebookCell...
-		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
+		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 
 		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}

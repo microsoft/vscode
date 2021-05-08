@@ -1081,7 +1081,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
 			},
-			onDidChangeCellExecutionState(listener, thisArgs?, disposables?) {
+			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
 			},

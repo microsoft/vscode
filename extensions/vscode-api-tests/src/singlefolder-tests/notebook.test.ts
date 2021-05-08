@@ -863,7 +863,7 @@ suite('Notebook API tests', function () {
 		let eventCount = 0;
 		let resolve: () => void;
 		const p = new Promise<void>(r => resolve = r);
-		const listener = vscode.notebook.onDidChangeCellExecutionState(e => {
+		const listener = vscode.notebook.onDidChangeNotebookCellExecutionState(e => {
 			if (eventCount === 0) {
 				assert.strictEqual(e.executionState, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
 			} else if (eventCount === 1) {
