@@ -291,6 +291,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveTabChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onActiveInstanceChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onTabDisposed(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
@@ -342,7 +343,6 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 		});
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onActiveInstanceChanged(() => this.updateLabel()));
-		this._register(this._terminalService.onInstancesChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
 			if (e === this._terminalService.getActiveInstance()) {
 				this.updateLabel();

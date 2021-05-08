@@ -162,10 +162,6 @@ export class TerminalService implements ITerminalService {
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		this.onTabDisposed(group => this._removeTab(group));
-		this.onActiveTabChanged(() => {
-			const instance = this.getActiveInstance();
-			this._onActiveInstanceChanged.fire(instance ? instance : undefined);
-		});
 		// update detected profiles so for example we detect if you've installed a pwsh
 		// this avoids having poll routinely
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
@@ -571,7 +567,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getInstanceFromGlobalInstanceIndex(index: number): { group: ITerminalGroup, groupIndex: number, instance: ITerminalInstance, localInstanceIndex: number } | null {
+	private _getInstanceInfoFromGlobalInstanceIndex(index: number): { group: ITerminalGroup, groupIndex: number, instance: ITerminalInstance, localInstanceIndex: number } | null {
 		let currentTabIndex = 0;
 		while (index >= 0 && currentTabIndex < this._terminalGroups.length) {
 			const group = this._terminalGroups[currentTabIndex];
@@ -591,20 +587,21 @@ export class TerminalService implements ITerminalService {
 	}
 
 	setActiveInstanceByIndex(terminalIndex: number): void {
-		const query = this._getInstanceFromGlobalInstanceIndex(terminalIndex);
-		if (!query) {
+		const instanceInfo = this._getInstanceInfoFromGlobalInstanceIndex(terminalIndex);
+		if (!instanceInfo) {
 			return;
 		}
 
-		query.group.setActiveInstanceByIndex(query.localInstanceIndex);
-		const didTabChange = this._activeGroupIndex !== query.groupIndex;
-		this._activeGroupIndex = query.groupIndex;
-		this._terminalGroups.forEach((g, i) => g.setVisible(i === query.groupIndex));
+		instanceInfo.group.setActiveInstanceByIndex(instanceInfo.localInstanceIndex);
+		const didTabChange = this._activeGroupIndex !== instanceInfo.groupIndex;
+		this._activeGroupIndex = instanceInfo.groupIndex;
+		this._terminalGroups.forEach((g, i) => g.setVisible(i === instanceInfo.groupIndex));
 
 		// Only fire the event if there was a change
 		if (didTabChange) {
 			this._onActiveTabChanged.fire();
 		}
+		this._onActiveInstanceChanged.fire(instanceInfo.instance);
 	}
 
 	setActiveTabToNext(): void {
