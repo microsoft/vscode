@@ -16,6 +16,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
@@ -123,7 +124,24 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 	private async _installHandler(): Promise<void> {
 		this._register(this._workingCopyEditorService.registerHandler({
 			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeCustomEditor,
-			isOpen: (workingCopy, editor) => editor instanceof CustomEditorInput && editor.resource.path === workingCopy.resource.path && workingCopy.resource.authority === editor.viewType,
+			isOpen: (workingCopy, editor) => {
+				if (!(editor instanceof CustomEditorInput)) {
+					return false;
+				}
+
+				if (workingCopy.resource.authority !== editor.viewType.replace(/[^a-z0-9\-_]/gi, '-').toLowerCase()) {
+					return false;
+				}
+
+				// The working copy stores the uri of the original resource as its query param
+				try {
+					const data = JSON.parse(workingCopy.resource.query);
+					const workingCopyResource = URI.from(data);
+					return isEqual(workingCopyResource, editor.resource);
+				} catch {
+					return false;
+				}
+			},
 			createEditor: async workingCopy => {
 				const backup = await this._workingCopyBackupService.resolve<CustomDocumentBackupData>(workingCopy);
 				if (!backup?.meta) {
