@@ -65,11 +65,13 @@ export class TerminalService implements ITerminalService {
 	private _findState: FindReplaceState;
 	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeGroupIndex: number;
+	private _activeInstanceIndex: number;
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
 
 	public get activeTabIndex(): number { return this._activeGroupIndex; }
+	public get activeInstanceIndex(): number { return this._activeInstanceIndex; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
 	public get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
@@ -152,6 +154,7 @@ export class TerminalService implements ITerminalService {
 		this._localTerminalService = localTerminalService;
 
 		this._activeGroupIndex = 0;
+		this._activeInstanceIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
@@ -493,6 +496,10 @@ export class TerminalService implements ITerminalService {
 		return this._terminalGroups[this._activeGroupIndex];
 	}
 
+	getActiveInstanceIndex(): number {
+		return this.getActiveInstance()?.instanceId || 0;
+	}
+
 	public getActiveInstance(): ITerminalInstance | null {
 		const group = this.getActiveGroup();
 		if (!group) {
@@ -589,6 +596,11 @@ export class TerminalService implements ITerminalService {
 	setActiveInstanceByIndex(terminalIndex: number): void {
 		const instanceInfo = this._getInstanceInfoFromGlobalInstanceIndex(terminalIndex);
 		if (!instanceInfo) {
+			return;
+		}
+
+		const didInstanceChange = this._activeInstanceIndex !== instanceInfo.localInstanceIndex || this._activeInstanceIndex === 0;
+		if (!didInstanceChange) {
 			return;
 		}
 
