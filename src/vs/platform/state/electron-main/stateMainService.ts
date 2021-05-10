@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import { promises } from 'fs';
 import { writeFile } from 'vs/base/node/pfs';
+import { join } from 'vs/base/common/path';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -20,6 +20,7 @@ export class FileStorage {
 	private lastFlushedSerializedDatabase: string | undefined = undefined;
 
 	private readonly flushDelayer = new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
+	private closed = false;
 
 	constructor(
 		private readonly dbPath: string,
@@ -112,7 +113,11 @@ export class FileStorage {
 		}
 	}
 
-	private save(delay?: number): Promise<void> {
+	private async save(delay?: number): Promise<void> {
+		if (this.closed) {
+			return; // already closed
+		}
+
 		return this.flushDelayer.trigger(() => this.doSave(), delay);
 	}
 
@@ -130,8 +135,14 @@ export class FileStorage {
 		}
 	}
 
-	flush(): Promise<void> {
-		return this.save(0 /* as soon as possible */);
+	async close(): Promise<void> {
+		if (this.closed) {
+			return; // already closed
+		}
+
+		this.closed = true;
+
+		return this.flushDelayer.trigger(() => this.doSave(), 0 /* as soon as possible */);
 	}
 }
 
@@ -193,9 +204,9 @@ export class StateMainService implements IStateMainService {
 		this.fileStorage.removeItem(key);
 	}
 
-	flush(): Promise<void> {
+	close(): Promise<void> {
 		this.checkInit();
 
-		return this.fileStorage.flush();
+		return this.fileStorage.close();
 	}
 }
