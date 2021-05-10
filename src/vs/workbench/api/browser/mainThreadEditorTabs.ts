@@ -28,7 +28,7 @@ export class MainThreadEditorTabs {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService editorService: IEditorService
 	) {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
@@ -43,6 +43,7 @@ export class MainThreadEditorTabs {
 				this._pushEditorTabs();
 			}
 		}));
+		this._dispoables.add(editorService.onDidActiveEditorChange(this._pushEditorTabs, this));
 		this._pushEditorTabs();
 	}
 
@@ -72,7 +73,7 @@ export class MainThreadEditorTabs {
 					group: group.id,
 					name: editor.getTitle(Verbosity.SHORT) ?? '',
 					resource: editor.resource,
-					isActive: this._editorService.activeEditor?.resource?.toString() === editor.resource.toString()
+					isActive: group.isActive(editor)
 				});
 			}
 		}
