@@ -3028,6 +3028,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	//#endregion
+	normalizePosition(position: Position, affinity: model.PositionNormalizationAffinity): Position {
+		return position;
+	}
 }
 
 //#region Decorations
