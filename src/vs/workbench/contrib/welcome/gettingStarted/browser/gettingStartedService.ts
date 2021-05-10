@@ -401,7 +401,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				}));
 		});
 
-		if (sectionToOpen) {
+		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') !== 'hide') {
 
 			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
 			for (const group of this.editorGroupsService.groups) {
