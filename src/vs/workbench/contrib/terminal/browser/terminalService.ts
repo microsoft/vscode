@@ -962,7 +962,7 @@ export class TerminalService implements ITerminalService {
 		const isRemoteWorkspace = !!VirtualWorkspaceContext.getValue(this._contextKeyService) ||
 			this._remoteAgentService.getConnection() && (typeof shellLaunchConfig.cwd === 'string' || shellLaunchConfig.cwd?.scheme === Schemas.file);
 		if (isRemoteWorkspace) {
-			shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminal', "Warning: This shell is running on your local machine"), true);
+			shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminal', "⚠ : This shell is running on your \x1b[3mlocal\x1b[23m machine, not the opened machine/folder"), true);
 			shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
 		}
 
