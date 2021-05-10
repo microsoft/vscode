@@ -186,7 +186,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private _showKernelStatus(notebook: INotebookTextModel) {
 
-		let { selected, all } = this._notebookKernelService.getMatchingKernel(notebook);
+		let { selected, suggested, all } = this._notebookKernelService.getMatchingKernel(notebook);
 		let isSuggested = false;
 
 		if (all.length === 0) {
@@ -194,18 +194,21 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			this._kernelInfoElement.clear();
 			return;
 
-		} else if (selected || all.length === 1) {
+		} else if (selected || suggested) {
 			// selected or single kernel
-			if (!selected) {
-				selected = all[0];
+			let kernel: INotebookKernel;
+			if (selected) {
+				kernel = selected;
+			} else {
+				kernel = suggested!;
 				isSuggested = true;
 			}
-			const text = `$(notebook-kernel-select) ${selected.label}`;
-			const tooltip = selected.description ?? selected.detail ?? selected.label;
+			const text = `$(notebook-kernel-select) ${kernel.label}`;
+			const tooltip = kernel.description ?? kernel.detail ?? kernel.label;
 			const registration = this._statusbarService.addEntry(
 				{
 					text,
-					ariaLabel: selected.label,
+					ariaLabel: kernel.label,
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 					command: 'notebook.selectKernel',
 				},
@@ -214,7 +217,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 				StatusbarAlignment.RIGHT,
 				1000
 			);
-			const listener = selected.onDidChange(() => this._showKernelStatus(notebook));
+			const listener = kernel.onDidChange(() => this._showKernelStatus(notebook));
 			this._kernelInfoElement.value = combinedDisposable(listener, registration);
 
 		} else {

@@ -24,13 +24,7 @@ export class NotebookEditorKernelManager extends Disposable {
 	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
 		// returns SELECTED or the ONLY available kernel
 		const info = this._notebookKernelService.getMatchingKernel(notebook);
-		if (info.selected) {
-			return info.selected;
-		}
-		if (info.all.length === 1) {
-			return info.all[0];
-		}
-		return undefined;
+		return info.selected ?? info.suggested;
 	}
 
 	confirmSuggestedKernel(notebook: INotebookTextModel): void {
