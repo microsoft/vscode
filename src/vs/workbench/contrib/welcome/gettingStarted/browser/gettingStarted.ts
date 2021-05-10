@@ -234,7 +234,8 @@ export class GettingStartedPage extends EditorPane {
 		setTimeout(() => this.container.classList.add('animationReady'), 0);
 	}
 
-	makeCategoryVisibleWhenAvailable(categoryID: string) {
+	async makeCategoryVisibleWhenAvailable(categoryID: string) {
+		await this.extensionService.whenInstalledExtensionsRegistered();
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
