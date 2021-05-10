@@ -1477,6 +1477,7 @@ declare module 'vscode' {
 		endTime?: number;
 	}
 
+	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecutionTask
 	/**
 	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
 	 * {@link notebook.createNotebookCellExecutionTask `createNotebookCellExecutionTask`} is called, the cell
@@ -1575,9 +1576,9 @@ declare module 'vscode' {
 		dispose(): void;
 
 		/**
-		 * A kernel can apply to one or many notebook documents but a notebook has only one active
-		 * kernel. This event fires whenever a notebook has been associated to a kernel or when
-		 * that association has been removed.
+		 * An event that fires whenever a controller has been selected for a notebook document. Selecting a controller
+		 * for a notebook is a user gesture and happens either explicitly or implicitly when interacting while a
+		 * controller was suggested.
 		 */
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
