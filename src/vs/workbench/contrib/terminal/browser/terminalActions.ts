@@ -30,7 +30,7 @@ import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfile, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TerminalCommandId, TerminalSettingId, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
@@ -508,7 +508,7 @@ export function registerTerminalActions() {
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 			const instance = terminalService.getActiveOrCreateInstance();
-			const path = await terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
+			const path = await accessor.get(ITerminalInstanceService).preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 			instance.sendText(path, true);
 			return terminalService.showPanel();
 		}
@@ -1327,7 +1327,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.SplitInstance,
-				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
+				title: { value: localize('workbench.action.terminal.splitInstance', "Split Terminal"), original: 'Split Terminal' },
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -1343,14 +1343,19 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
 			const instances = getSelectedInstances(accessor);
 			if (instances) {
-				for (const instance of instances) {
-					accessor.get(ITerminalService).splitInstance(instance);
+				for (const t of instances) {
+					terminalService.setActiveInstance(t);
+					terminalService.doWithActiveInstance(async instance => {
+						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
+						terminalService.splitInstance(instance, { cwd });
+						await terminalService.showPanel(true);
+					});
 				}
 			}
-			accessor.get(ITerminalService).focusTabs();
-			focusNext(accessor);
+			return undefined;
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1502,7 +1507,13 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			getSelectedInstances(accessor)?.forEach(instance => instance.dispose(true));
+			const selectedInstances = getSelectedInstances(accessor);
+			if (!selectedInstances) {
+				return;
+			}
+			for (const instance of selectedInstances) {
+				instance.dispose(true);
+			}
 			const terminalService = accessor.get(ITerminalService);
 			if (terminalService.terminalInstances.length > 0) {
 				terminalService.focusTabs();

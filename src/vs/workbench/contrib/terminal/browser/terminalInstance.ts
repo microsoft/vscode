@@ -57,6 +57,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -191,8 +192,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
 	get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
-	private readonly _onDropped = new Emitter<{ instance: ITerminalInstance, dragEvent: DragEvent; }>();
-	get onDropped(): Event<{ instance: ITerminalInstance, dragEvent: DragEvent; }> { return this._onDropped.event; }
 	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
 	get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	private readonly _onLinksReady = new Emitter<ITerminalInstance>();
@@ -324,10 +323,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _getIcon(): Codicon | undefined {
 		if (this.shellLaunchConfig.icon) {
 			return iconRegistry.get(this.shellLaunchConfig.icon);
-		} else if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
+		}
+		if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
 			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon);
 		}
-		return Codicon.terminal;
+		if (this._processManager.processState >= ProcessState.Launching) {
+			return Codicon.terminal;
+		}
+		return undefined;
 	}
 
 	private _getTitle(): string {
@@ -740,8 +743,32 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
-		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DROP, (e: DragEvent) => {
-			this._onDropped.fire({ instance: this, dragEvent: e });
+		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DROP, async (dragEvent: DragEvent) => {
+			if (!dragEvent.dataTransfer) {
+				return;
+			}
+
+			// Check if files were dragged from the tree explorer
+			let path: string | undefined;
+			const resources = dragEvent.dataTransfer.getData(DataTransfers.RESOURCES);
+			if (resources) {
+				path = URI.parse(JSON.parse(resources)[0]).fsPath;
+			} else if (dragEvent.dataTransfer.files?.[0].path /* Electron only */) {
+				// Check if the file was dragged from the filesystem
+				path = URI.file(dragEvent.dataTransfer.files[0].path).fsPath;
+			}
+
+			if (!path) {
+				return;
+			}
+
+			if (!this.shellLaunchConfig.executable) {
+				return;
+			}
+			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
+
+			this.sendText(preparedPath, false);
+			this.focus();
 		}));
 
 		this._widgetManager.attachToElement(xterm.element);

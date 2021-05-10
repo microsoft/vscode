@@ -254,7 +254,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Otherwise, make sure to create at least one editor
 			// for the backup to show
 			if (!hasOpenedEditorForBackup) {
-				nonOpenedEditorsForBackups.push(handler.createEditor(unrestoredBackup));
+				nonOpenedEditorsForBackups.push(await handler.createEditor(unrestoredBackup));
 			}
 
 			// Remember as (potentially) restored

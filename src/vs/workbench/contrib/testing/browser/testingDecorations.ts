@@ -113,7 +113,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		updateFontFamilyVar();
 
 		this._register(this.results.onTestChanged(({ item: result }) => {
-			if (this.currentUri && result.item.uri.toString() === this.currentUri.toString()) {
+			if (this.currentUri && result.item.uri && result.item.uri.toString() === this.currentUri.toString()) {
 				this.setDecorations(this.currentUri);
 			}
 		}));

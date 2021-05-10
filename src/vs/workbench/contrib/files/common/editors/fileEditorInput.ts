@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, isTextEditorPane } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -17,7 +16,6 @@ import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from
 import { ILabelService } from 'vs/platform/label/common/label';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -62,11 +60,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(resource, preferredResource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(resource, preferredResource, editorService, textFileService, labelService, fileService);
 
 		this.model = this.textFileService.files.get(resource);
 
@@ -86,17 +83,13 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			this.setPreferredMode(preferredMode);
 		}
 
+		// Attach to model that matches our resource once created
+		this._register(this.textFileService.files.onDidCreate(model => this.onDidCreateTextFileModel(model)));
+
 		// If a file model already exists, make sure to wire it in
 		if (this.model) {
 			this.registerModelListeners(this.model);
 		}
-	}
-
-	protected override registerListeners(): void {
-		super.registerListeners();
-
-		// Attach to model that matches our resource once created
-		this._register(this.textFileService.files.onDidCreate(model => this.onDidCreateTextFileModel(model)));
 	}
 
 	private onDidCreateTextFileModel(model: ITextFileEditorModel): void {
@@ -132,7 +125,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	override getName(): string {
-		return this.preferredName || this.decorateLabel(super.getName());
+		return this.preferredName || super.getName();
 	}
 
 	setPreferredName(name: string): void {
@@ -173,22 +166,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	getPreferredDescription(): string | undefined {
 		return this.preferredDescription;
-	}
-
-	override getTitle(verbosity: Verbosity): string {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.decorateLabel(super.getName());
-			case Verbosity.MEDIUM:
-			case Verbosity.LONG:
-				return this.decorateLabel(super.getTitle(verbosity));
-		}
-	}
-
-	private decorateLabel(label: string): string {
-		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
-		const readonly = this.isReadonly();
-		return decorateFileEditorLabel(label, { orphaned: !!orphaned, readonly });
 	}
 
 	getEncoding(): string | undefined {
@@ -251,6 +228,14 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 
 		return super.isReadonly();
+	}
+
+	override isOrphaned(): boolean {
+		if (this.model) {
+			return this.model.hasState(TextFileEditorModelState.ORPHAN);
+		}
+
+		return super.isOrphaned();
 	}
 
 	override isSaving(): boolean {
@@ -393,20 +378,4 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		dispose(this.cachedTextFileModelReference);
 		this.cachedTextFileModelReference = undefined;
 	}
-}
-
-export function decorateFileEditorLabel(label: string, state: { orphaned: boolean, readonly: boolean }): string {
-	if (state.orphaned && state.readonly) {
-		return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-	}
-
-	if (state.orphaned) {
-		return localize('orphanedFile', "{0} (deleted)", label);
-	}
-
-	if (state.readonly) {
-		return localize('readonlyFile', "{0} (read-only)", label);
-	}
-
-	return label;
 }

@@ -61,7 +61,6 @@ import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
-import { isIPad } from 'vs/base/browser/browser';
 
 const $ = DOM.$;
 
@@ -661,7 +660,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
-			renderDropdownAsChildElement: !isIPad,
+			renderDropdownAsChildElement: !isIOS,
 			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
 		});
 		return toolbar;

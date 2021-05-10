@@ -43,7 +43,7 @@
 				};
 			},
 			canModifyDOM: function (windowConfig) {
-				showPartsSplash(windowConfig);
+				showSplash(windowConfig);
 			},
 			beforeLoaderConfig: function (loaderConfig) {
 				loaderConfig.recordStats = true;
@@ -117,7 +117,7 @@
 	/**
 	 * @param {INativeWindowConfiguration & NativeParsedArgs} configuration
 	 */
-	function showPartsSplash(configuration) {
+	function showSplash(configuration) {
 		performance.mark('code/willShowPartsSplash');
 
 		let data = configuration.partsSplash;
@@ -148,14 +148,16 @@
 			shellBackground = '#1E1E1E';
 			shellForeground = '#CCCCCC';
 		}
+
 		const style = document.createElement('style');
 		style.className = 'initialShellColors';
 		document.head.appendChild(style);
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 		// restore parts if possible (we might not always store layout info)
-		if (data && data.layoutInfo) {
+		if (data?.layoutInfo) {
 			const { layoutInfo, colorInfo } = data;
+
 			const splash = document.createElement('div');
 			splash.id = 'monaco-parts-splash';
 			splash.className = baseTheme;
@@ -186,9 +188,8 @@
 			splash.appendChild(activityDiv);
 
 			// part: side bar (only when opening workspace/folder)
+			// folder or workspace -> status bar color, sidebar
 			if (configuration.workspace) {
-
-				// folder or workspace -> status bar color, sidebar
 				const sideDiv = document.createElement('div');
 				sideDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};`);
 				splash.appendChild(sideDiv);

@@ -133,7 +133,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				if (result.checkboxChecked) {
 					this.workspaceTrustManagementService.setParentFolderTrust(true);
 				} else {
-					this.workspaceTrustRequestService.completeRequest(true);
+					await this.workspaceTrustRequestService.completeRequest(true);
 				}
 				break;
 			case 1:
@@ -176,8 +176,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			{ label: localize('dontTrustOption', "No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
 			[
 				!isSingleFolderWorkspace ?
-					localize('workspaceStartupTrustDetails', "{0} provides advanced editing features that may automatically execute files in this workspace.", product.nameShort) :
-					localize('folderStartupTrustDetails', "{0} provides advanced editing features that may automatically execute files in this folder.", product.nameShort),
+					localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", product.nameShort) :
+					localize('folderStartupTrustDetails', "{0} provides features that may automatically execute files in this folder.", product.nameShort),
 				localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
 			],
 			checkboxText
@@ -255,10 +255,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			// Dialog result
 			switch (buttons[result.choice].type) {
 				case 'ContinueWithTrust':
-					this.workspaceTrustRequestService.completeRequest(true);
+					await this.workspaceTrustRequestService.completeRequest(true);
 					break;
 				case 'ContinueWithoutTrust':
-					this.workspaceTrustRequestService.completeRequest(undefined);
+					await this.workspaceTrustRequestService.completeRequest(undefined);
 					break;
 				case 'Manage':
 					this.workspaceTrustRequestService.cancelRequest();

@@ -10,7 +10,7 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -19,6 +19,7 @@ import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -45,7 +46,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { IActionableTestTreeElement, isActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
@@ -60,7 +61,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DebugAction, EditFocusedTest, HideOrShowTestAction, RunAction } from './testExplorerActions';
+import { GoToTest } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -213,6 +214,7 @@ export class TestingExplorerViewModel extends Disposable {
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 	private readonly welcomeVisibilityEmitter = new Emitter<boolean>();
+	private readonly actionRunner = new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined));
 
 	/**
 	 * Whether there's a reveal request which has not yet been delivered. This
@@ -264,6 +266,7 @@ export class TestingExplorerViewModel extends Disposable {
 		this.tree.resort(null);
 		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
+
 	constructor(
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
@@ -296,8 +299,8 @@ export class TestingExplorerViewModel extends Disposable {
 			listContainer,
 			new ListDelegate(),
 			[
-				instantiationService.createInstance(TestItemRenderer, labels),
-				instantiationService.createInstance(WorkspaceFolderRenderer, labels),
+				instantiationService.createInstance(TestItemRenderer, labels, this.actionRunner),
+				instantiationService.createInstance(WorkspaceFolderRenderer, labels, this.actionRunner),
 				instantiationService.createInstance(ErrorRenderer),
 			],
 			{
@@ -371,7 +374,7 @@ export class TestingExplorerViewModel extends Disposable {
 			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
 				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
 				if (!(await this.tryPeekError(selected)) && selected?.test) {
-					this.instantiationService.invokeFunction(accessor => new EditFocusedTest().run(accessor, selected.test!.item, true));
+					this.instantiationService.invokeFunction(accessor => new GoToTest().run(accessor, selected, true));
 				}
 			}
 		}));
@@ -514,12 +517,17 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const actions = getActionableElementActions(this.instantiationService, this.contextKeyService, this.menuService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => actions.value.secondary,
-			getActionsContext: () => element.test.item.extId,
+			getActions: () => [
+				...actions.value.primary,
+				new Separator(),
+				...actions.value.secondary,
+			],
+			getActionsContext: () => element,
 			onHide: () => actions.dispose(),
+			actionRunner: this.actionRunner,
 		});
 	}
 
@@ -687,7 +695,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		}
 
 		for (let e: IActionableTestTreeElement | null = element; e instanceof TestItemTreeElement; e = e!.parent) {
-			return e.test.item.uri.toString() === this._filterToUri
+			return e.test.item.uri?.toString() === this._filterToUri
 				? FilterResult.Include
 				: FilterResult.Exclude;
 		}
@@ -735,7 +743,7 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 
 		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByLocation) {
 			if (a instanceof TestItemTreeElement && b instanceof TestItemTreeElement
-				&& a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
+				&& a.test.item.uri && b.test.item.uri && a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
 				const delta = a.test.item.range.startLineNumber - b.test.item.range.startLineNumber;
 				if (delta !== 0) {
 					return delta;
@@ -744,6 +752,23 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 		}
 
 		return a.label.localeCompare(b.label);
+	}
+}
+
+class TestExplorerActionRunner extends ActionRunner {
+	constructor(private getSelectedTests: () => ReadonlyArray<TestExplorerTreeElement>) {
+		super();
+	}
+
+	override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<any> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const selection = this.getSelectedTests();
+		const contextIsSelected = selection.some(s => s === context);
+		const actualContext = contextIsSelected ? selection : [context];
+		await action.run(...actualContext.filter(isActionableTestTreeElement));
 	}
 }
 
@@ -856,6 +881,7 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 	implements ITreeRenderer<T, FuzzyScore, IActionableElementTemplateData> {
 	constructor(
 		protected readonly labels: ResourceLabels,
+		private readonly actionRunner: TestExplorerActionRunner,
 		private readonly menuService: IMenuService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly instantiationService: IInstantiationService,
@@ -880,6 +906,7 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 
 		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(testingHiddenIcon)));
 		const actionBar = new ActionBar(wrapper, {
+			actionRunner: this.actionRunner,
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action)
@@ -913,9 +940,10 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 	}
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
-		const actions = getActionableElementActions(this.instantiationService, this.contextKeyService, this.menuService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, element);
 		data.elementDisposable.push(actions);
 		data.actionBar.clear();
+		data.actionBar.context = element;
 		data.actionBar.push(actions.value.primary, { icon: true, label: false });
 	}
 }
@@ -925,12 +953,13 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 
 	constructor(
 		labels: ResourceLabels,
+		actionRunner: TestExplorerActionRunner,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITestService private readonly testService: ITestService
 	) {
-		super(labels, menuService, contextKeyService, instantiationService);
+		super(labels, actionRunner, menuService, contextKeyService, instantiationService);
 	}
 
 	/**
@@ -973,11 +1002,12 @@ class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspa
 
 	constructor(
 		labels: ResourceLabels,
+		actionRunner: TestExplorerActionRunner,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(labels, menuService, contextKeyService, instantiationService);
+		super(labels, actionRunner, menuService, contextKeyService, instantiationService);
 	}
 
 	/**
@@ -1005,7 +1035,6 @@ class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspa
 }
 
 const getActionableElementActions = (
-	instantionService: IInstantiationService,
 	contextKeyService: IContextKeyService,
 	menuService: IMenuService,
 	element: IActionableTestTreeElement,
@@ -1013,33 +1042,18 @@ const getActionableElementActions = (
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
 	const contextOverlay = contextKeyService.createOverlay([
 		['view', Testing.ExplorerViewId],
-		[TestingContextKeys.testItemExtId.key, test?.item.extId]
+		[TestingContextKeys.testItemExtId.key, test?.item.extId],
+		[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
+		[TestingContextKeys.hasDebuggableTests.key, !Iterable.isEmpty(element.debuggable)],
+		[TestingContextKeys.hasRunnableTests.key, !Iterable.isEmpty(element.runnable)],
 	]);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 
 	try {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const running = element.state === TestResultState.Running;
-		if (!Iterable.isEmpty(element.runnable)) {
-			const run = instantionService.createInstance(RunAction, element.runnable, running);
-			primary.push(run);
-			secondary.push(run);
-		}
-
-		if (!Iterable.isEmpty(element.debuggable)) {
-			const debug = instantionService.createInstance(DebugAction, element.debuggable, running);
-			primary.push(debug);
-			secondary.push(debug);
-		}
-
-		if (test) {
-			secondary.push(instantionService.createInstance(HideOrShowTestAction, test.item.extId));
-		}
-
 		const result = { primary, secondary };
 		const actionsDisposable = createAndFillInActionBarActions(menu, {
-			arg: test?.item,
 			shouldForwardArgs: true,
 		}, result, 'inline');
 

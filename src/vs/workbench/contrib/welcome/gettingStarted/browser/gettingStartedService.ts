@@ -55,7 +55,7 @@ export interface IGettingStartedStep {
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
 	media:
 	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
-	| { type: 'markdown', path: URI, base: URI, }
+	| { type: 'markdown', path: URI, base: URI, root: URI }
 }
 
 export interface IGettingStartedWalkthroughDescriptor {
@@ -226,8 +226,17 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						order: index,
 						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
 						media: step.media.type === 'image'
-							? { type: 'image', altText: step.media.altText, path: convertInternalMediaPathsToBrowserURIs(step.media.path) }
-							: { type: 'markdown', path: convertInternalMediaPathToFileURI(step.media.path), base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require) },
+							? {
+								type: 'image',
+								altText: step.media.altText,
+								path: convertInternalMediaPathsToBrowserURIs(step.media.path)
+							}
+							: {
+								type: 'markdown',
+								path: convertInternalMediaPathToFileURI(step.media.path),
+								base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+								root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+							},
 					});
 				}));
 		});
@@ -355,7 +364,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
 			},
 				(walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
-					const description = parseDescription(step.description);
+					const description = parseDescription(step.description || '');
 					const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
 					if (buttonDescription) {
 						description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
@@ -367,11 +376,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						media = {
 							type: 'markdown',
 							path: convertExtensionPathToFileURI(step.media.path),
-							base: convertExtensionPathToFileURI(dirname(step.media.path))
+							base: convertExtensionPathToFileURI(dirname(step.media.path)),
+							root: FileAccess.asFileUri(extension.extensionLocation),
 						};
 					} else {
 						const altText = (step.media as any).altText;
-						if (!altText) {
+						if (altText === undefined) {
 							console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
 						}
 						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };

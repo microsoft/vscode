@@ -90,6 +90,13 @@ export interface IWorkingCopyService {
 	 */
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable;
 
+	/**
+	 * Whether a working copy with the given resource exists.
+	 *
+	 * @param resource the resource of the working copy to check
+	 */
+	has(resource: URI): boolean;
+
 	//#endregion
 }
 
@@ -173,6 +180,10 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		if (workingCopy.isDirty()) {
 			this._onDidChangeDirty.fire(workingCopy);
 		}
+	}
+
+	has(resource: URI): boolean {
+		return this.mapResourceToWorkingCopies.has(resource);
 	}
 
 	//#endregion

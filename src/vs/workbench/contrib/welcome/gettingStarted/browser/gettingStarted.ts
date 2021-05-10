@@ -58,6 +58,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -129,6 +130,7 @@ export class GettingStartedPage extends EditorPane {
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
@@ -347,9 +349,14 @@ export class GettingStartedPage extends EditorPane {
 	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
-				const bytes = await this.fileService.readFile(path);
-				const markdown = bytes.value.toString();
-				return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+				try {
+					const bytes = await this.fileService.readFile(path);
+					const markdown = bytes.value.toString();
+					return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+				} catch (e) {
+					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
+					return '';
+				}
 			})());
 		}
 		return assertIsDefined(this.mdCache.get(path));
@@ -367,9 +374,54 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
-	private async selectStep(id: string | undefined, toggleIfAlreadySelected = true, delayFocus = true) {
+	private async buildMediaComponent(stepId: string) {
+		if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
+			throw Error('cannot expand step for category of non steps type' + this.currentCategory?.id);
+		}
+		const stepToExpand = assertIsDefined(this.currentCategory.content.steps.find(step => step.id === stepId));
+
 		this.stepDisposables.clear();
 		clearNode(this.stepMediaComponent);
+
+		if (stepToExpand.media.type === 'image') {
+
+			this.stepMediaComponent.classList.add('image');
+			this.stepMediaComponent.classList.remove('markdown');
+
+			const media = stepToExpand.media;
+			const mediaElement = $<HTMLImageElement>('img');
+			this.stepMediaComponent.appendChild(mediaElement);
+			mediaElement.setAttribute('alt', media.altText);
+			this.updateMediaSourceForColorMode(mediaElement, media.path);
+
+			this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
+
+		} else if (stepToExpand.media.type === 'markdown') {
+
+			this.stepMediaComponent.classList.remove('image');
+			this.stepMediaComponent.classList.add('markdown');
+
+			const media = stepToExpand.media;
+
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root] }, undefined));
+			webview.mountTo(this.stepMediaComponent);
+			webview.html = await this.renderMarkdown(media.path, media.base);
+
+			let isDisposed = false;
+			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
+
+			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+				// Render again since syntax highlighting of code blocks may have changed
+				const body = await this.renderMarkdown(media.path, media.base);
+				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+					webview.html = body;
+				}
+			}));
+		}
+	}
+
+	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
+		if (id && this.editorInput.selectedStep === id && !forceRebuild) { return; }
 
 		if (id) {
 			const stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`));
@@ -379,56 +431,16 @@ export class GettingStartedPage extends EditorPane {
 				node.setAttribute('aria-expanded', 'false');
 			});
 			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
-			if (this.editorInput.selectedStep === id && toggleIfAlreadySelected) {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'toggleStepCompletion2', argument: id });
-				this.toggleStepCompletion(id);
-			}
+
 			stepElement.style.height = ``;
 			stepElement.style.height = `${stepElement.scrollHeight}px`;
 
-			if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
-				throw Error('cannot expand step for category of non steps type' + this.currentCategory?.id);
-			}
 			this.editorInput.selectedStep = id;
 			this.selectedStepElement = stepElement;
-			const stepToExpand = assertIsDefined(this.currentCategory.content.steps.find(step => step.id === id));
-			if (stepToExpand.media.type === 'image') {
 
-				this.stepMediaComponent.classList.add('image');
-				this.stepMediaComponent.classList.remove('markdown');
-
-				const media = stepToExpand.media;
-				const mediaElement = $<HTMLImageElement>('img');
-				this.stepMediaComponent.appendChild(mediaElement);
-				mediaElement.setAttribute('alt', media.altText);
-				this.updateMediaSourceForColorMode(mediaElement, media.path);
-
-				this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
-
-			} else if (stepToExpand.media.type === 'markdown') {
-
-				this.stepMediaComponent.classList.remove('image');
-				this.stepMediaComponent.classList.add('markdown');
-
-				const media = stepToExpand.media;
-
-				const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.base] }, undefined));
-				webview.mountTo(this.stepMediaComponent);
-				webview.html = await this.renderMarkdown(media.path, media.base);
-
-				let isDisposed = false;
-				this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
-
-				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-					// Render again since syntax highlighting of code blocks may have changed
-					const body = await this.renderMarkdown(media.path, media.base);
-					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-						webview.html = body;
-					}
-				}));
-			}
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
+			this.buildMediaComponent(id);
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
@@ -464,6 +476,13 @@ export class GettingStartedPage extends EditorPane {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
+					img[centered] {
+						margin: 0 auto;
+					}
+					body {
+						display: flex;
+						flex-direction: column;
+					}
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
 				</style>
@@ -938,7 +957,7 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent);
 
 		const toExpand = category.content.steps.find(step => !step.done) ?? category.content.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id, false);
+		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, true);
 
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
@@ -983,7 +1002,7 @@ export class GettingStartedPage extends EditorPane {
 			if (allSteps) {
 				const toFind = this.editorInput.selectedStep ?? this.previousSelection;
 				const selectedIndex = allSteps.findIndex(step => step.id === toFind);
-				if (allSteps[selectedIndex + 1]?.id) { this.selectStep(allSteps[selectedIndex + 1]?.id, true, false); }
+				if (allSteps[selectedIndex + 1]?.id) { this.selectStep(allSteps[selectedIndex + 1]?.id, false); }
 			}
 		} else {
 			(document.activeElement?.nextElementSibling as HTMLElement)?.focus?.();
@@ -996,7 +1015,7 @@ export class GettingStartedPage extends EditorPane {
 			if (allSteps) {
 				const toFind = this.editorInput.selectedStep ?? this.previousSelection;
 				const selectedIndex = allSteps.findIndex(step => step.id === toFind);
-				if (allSteps[selectedIndex - 1]?.id) { this.selectStep(allSteps[selectedIndex - 1]?.id, true, false); }
+				if (allSteps[selectedIndex - 1]?.id) { this.selectStep(allSteps[selectedIndex - 1]?.id, false); }
 			}
 		} else {
 			(document.activeElement?.previousElementSibling as HTMLElement)?.focus?.();
