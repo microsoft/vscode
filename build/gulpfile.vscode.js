@@ -468,6 +468,7 @@ gulp.task('vscode-translations-import', function () {
 });
 
 // This task is run in the Bing stage and only picks up the Linux asset
+const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', () => {
 	return new Promise((resolve, reject) => {
 		const buildDir = process.env['PIPELINE_WORKSPACE'];
@@ -508,6 +509,7 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 					console.log(`stderr: ${stderr}`);
 				}
 
+				console.log(`Finished exporting default configuration to ${allConfigDetailsPath}`);
 				resolve();
 			}
 		);
@@ -523,7 +525,6 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 	});
 });
 
-const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task(task.define(
 	'upload-vscode-configuration',
 	task.series(
@@ -531,11 +532,11 @@ gulp.task(task.define(
 		() => {
 			const azure = require('gulp-azure-storage');
 
-			if (!shouldSetupSettingsSearch()) {
-				const branch = process.env.BUILD_SOURCEBRANCH;
-				console.log(`Only runs on main and release branches, not ${branch}`);
-				return;
-			}
+			// if (!shouldSetupSettingsSearch()) {
+			// 	const branch = process.env.BUILD_SOURCEBRANCH;
+			// 	console.log(`Only runs on main and release branches, not ${branch}`);
+			// 	return;
+			// }
 
 			if (!fs.existsSync(allConfigDetailsPath)) {
 				throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
