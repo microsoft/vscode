@@ -13,7 +13,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
@@ -100,7 +100,7 @@ class OtherTestInput extends EditorInput {
 		return null;
 	}
 }
-class TestResourceEditorInput extends ResourceEditorInput { }
+class TestResourceEditorInput extends TextResourceEditorInput { }
 
 suite('Workbench EditorPane', () => {
 
@@ -171,7 +171,7 @@ suite('Workbench EditorPane', () => {
 		const editor = EditorRegistry.getEditor(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'testEditor');
 
-		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
+		const otherEditor = EditorRegistry.getEditor(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
 		disposables.dispose();

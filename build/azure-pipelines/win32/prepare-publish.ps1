@@ -30,8 +30,6 @@ if ("$Arch" -ne "arm64") {
 $PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | ConvertFrom-Json
 $Version = $PackageJson.version
 
-$AssetPlatform = if ("$Arch" -eq "ia32") { "win32" } else { "win32-$Arch" }
-
 $ARCHIVE_NAME = "VSCode-win32-$Arch-$Version.zip"
 $SYSTEM_SETUP_NAME = "VSCodeSetup-$Arch-$Version.exe"
 $USER_SETUP_NAME = "VSCodeUserSetup-$Arch-$Version.exe"

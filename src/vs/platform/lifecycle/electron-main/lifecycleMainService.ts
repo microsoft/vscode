@@ -287,13 +287,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		this.logService.trace('Lifecycle#onWillShutdown.fire()');
 
-		const joiners: Promise<void>[] = [
-			// Always make sure the state service
-			// is flushed. Since we depend on it
-			// we cannot really use the lifecycle
-			// service from the state service...
-			this.stateMainService.flush()
-		];
+		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
 			join(promise) {
@@ -301,7 +295,23 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			}
 		});
 
-		this.pendingWillShutdownPromise = Promises.settled(joiners).then(() => undefined, err => this.logService.error(err));
+		this.pendingWillShutdownPromise = (async () => {
+
+			// Settle all shutdown event joiners
+			try {
+				await Promises.settled(joiners);
+			} catch (error) {
+				this.logService.error(error);
+			}
+
+			// Then, always make sure at the end
+			// the state service is flushed.
+			try {
+				await this.stateMainService.close();
+			} catch (error) {
+				this.logService.error(error);
+			}
+		})();
 
 		return this.pendingWillShutdownPromise;
 	}

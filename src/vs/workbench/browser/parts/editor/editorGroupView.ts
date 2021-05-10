@@ -901,21 +901,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
-		// Guard against invalid inputs
-		if (!editor) {
-			return undefined;
-		}
-
-		// Proceed with opening
-		return this.doOpenEditor(editor, options);
-	}
-
-	private async doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
-
 		// Guard against invalid inputs. Disposed inputs
 		// should never open because they emit no events
 		// e.g. to indicate dirty changes.
-		if (editor.isDisposed()) {
+		if (!editor || editor.isDisposed()) {
 			return;
 		}
 
@@ -1673,7 +1662,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		for (const { editor, replacement, forceReplaceDirty, options } of inactiveReplacements) {
 
 			// Open inactive editor
-			await this.doOpenEditor(replacement, options);
+			await this.openEditor(replacement, options);
 
 			// Close replaced inactive editor unless they match
 			if (!editor.matches(replacement)) {
@@ -1694,7 +1683,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (activeReplacement) {
 
 			// Open replacement as active editor
-			const openEditorResult = this.doOpenEditor(activeReplacement.replacement, activeReplacement.options);
+			const openEditorResult = this.openEditor(activeReplacement.replacement, activeReplacement.options);
 
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {

@@ -19,6 +19,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { HIDE_NOTIFICATIONS_CENTER, HIDE_NOTIFICATION_TOAST } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { isIOS } from 'vs/base/common/platform';
 
 class TwitterFeedbackService implements IFeedbackDelegate {
 
@@ -70,7 +71,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 	) {
 		super();
 
-		if (productService.sendASmile) {
+		if (productService.sendASmile && !isIOS) {
 			this.createFeedbackStatusEntry();
 			this.registerListeners();
 		}

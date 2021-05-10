@@ -210,20 +210,6 @@ export function setupTerminalMenus(): void {
 		[
 			{
 				id: MenuId.ViewTitle, item: {
-					group: 'navigation',
-					command: {
-						id: TerminalCommandId.Split,
-						title: localize('workbench.action.terminal.split', "Split Terminal")
-					},
-					order: 2,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
-					])
-				}
-			},
-			{
-				id: MenuId.ViewTitle, item: {
 					command: {
 						id: TerminalCommandId.SwitchTerminal,
 						title: { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' }
@@ -256,14 +242,6 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.Rename,
 						title: localize('workbench.action.terminal.rename', "Rename...")
-					}
-				}
-			},
-			{
-				id: MenuId.TerminalInlineTabContext, item: {
-					command: {
-						id: TerminalCommandId.RenameInstance,
-						title: localize('workbench.action.terminal.renameInstance', "Rename...")
 					},
 					group: ContextMenuGroup.Edit
 				}

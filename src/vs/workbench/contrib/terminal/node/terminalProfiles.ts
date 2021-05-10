@@ -31,6 +31,7 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, safeCon
 			logService,
 			safeConfigProvider(TerminalSettingId.UseWslProfiles) || true,
 			safeConfigProvider(TerminalSettingId.ProfilesWindows),
+			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
 			variableResolver,
 			workspaceFolder
 		);
@@ -40,13 +41,14 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, safeCon
 		logService,
 		configuredProfilesOnly,
 		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
+		safeConfigProvider(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
 		testPaths,
 		variableResolver,
 		workspaceFolder
 	);
 }
 
-async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, fsProvider: IFsProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, fsProvider: IFsProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, defaultProfileName?: string, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -76,7 +78,10 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 			icon: Codicon.terminalPowershell.id,
 			isAutoDetected: true
 		});
-		detectedProfiles.set('Git Bash', { source: ProfileSource.GitBash, isAutoDetected: true });
+		detectedProfiles.set('Git Bash', {
+			source: ProfileSource.GitBash,
+			isAutoDetected: true
+		});
 		detectedProfiles.set('Cygwin', {
 			path: [
 				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
@@ -85,22 +90,20 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 			args: ['--login'],
 			isAutoDetected: true
 		});
-		detectedProfiles.set('Command Prompt',
-			{
-				path: `${system32Path}\\cmd.exe`,
-				icon: Codicon.terminalCmd.id,
-				isAutoDetected: true
-			},
-		);
+		detectedProfiles.set('Command Prompt', {
+			path: `${system32Path}\\cmd.exe`,
+			icon: Codicon.terminalCmd.id,
+			isAutoDetected: true
+		});
 	}
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), fsProvider, logService, variableResolver, workspaceFolder);
+	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver, workspaceFolder);
 
 	if (!configuredProfilesOnly || (configuredProfilesOnly && useWslProfiles)) {
 		try {
-			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, useWslProfiles);
+			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
 			if (result) {
 				resultProfiles.push(...result);
 			}
@@ -112,7 +115,7 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 	return resultProfiles;
 }
 
-async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, fsProvider: IFsProvider, logService?: ILogService, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, defaultProfileName: string | undefined, fsProvider: IFsProvider, logService?: ILogService, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const resultProfiles: ITerminalProfile[] = [];
 	for (const [profileName, profile] of entries) {
 		if (profile === null) { continue; }
@@ -140,7 +143,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		for (let i = 0; i < paths.length; i++) {
 			paths[i] = await variableResolver?.resolveAsync(workspaceFolder, paths[i]) || paths[i];
 		}
-		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
+		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			validatedProfile.icon = icon;
@@ -166,7 +169,9 @@ async function initializeWindowsProfiles(): Promise<void> {
 			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
+			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
+			`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`,
+			`${process.env['AllUsersProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`
 		],
 		args: ['--login']
 	});
@@ -186,58 +191,58 @@ async function getPowershellPaths(): Promise<string[]> {
 	return paths;
 }
 
-async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promise<ITerminalProfile[]> {
+async function getWslProfiles(wslPath: string, defaultProfileName: string | undefined): Promise<ITerminalProfile[]> {
 	const profiles: ITerminalProfile[] = [];
-	if (useWslProfiles) {
-		const distroOutput = await new Promise<string>((resolve, reject) => {
-			// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
-			cp.exec('wsl.exe -l -q', { encoding: 'utf16le' }, (err, stdout) => {
-				if (err) {
-					return reject('Problem occurred when getting wsl distros');
-				}
-				resolve(stdout);
-			});
-		});
-		if (distroOutput) {
-			const regex = new RegExp(/[\r?\n]/);
-			const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
-			for (const distroName of distroNames) {
-				// Skip empty lines
-				if (distroName === '') {
-					continue;
-				}
-
-				// docker-desktop and docker-desktop-data are treated as implementation details of
-				// Docker Desktop for Windows and therefore not exposed
-				if (distroName.startsWith('docker-desktop')) {
-					continue;
-				}
-
-				// Create the profile, adding the icon depending on the distro
-				const profile: ITerminalProfile = {
-					profileName: `${distroName} (WSL)`,
-					path: wslPath,
-					args: [`-d`, `${distroName}`]
-				};
-				if (distroName.includes('Ubuntu')) {
-					profile.icon = 'terminal-ubuntu';
-				}
-				else if (distroName.includes('Debian')) {
-					profile.icon = 'terminal-debian';
-				} else {
-					profile.icon = 'terminal-linux';
-				}
-
-				// Add the profile
-				profiles.push(profile);
+	const distroOutput = await new Promise<string>((resolve, reject) => {
+		// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
+		cp.exec('wsl.exe -l -q', { encoding: 'utf16le' }, (err, stdout) => {
+			if (err) {
+				return reject('Problem occurred when getting wsl distros');
 			}
-			return profiles;
-		}
+			resolve(stdout);
+		});
+	});
+	if (!distroOutput) {
+		return [];
 	}
-	return [];
+	const regex = new RegExp(/[\r?\n]/);
+	const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
+	for (const distroName of distroNames) {
+		// Skip empty lines
+		if (distroName === '') {
+			continue;
+		}
+
+		// docker-desktop and docker-desktop-data are treated as implementation details of
+		// Docker Desktop for Windows and therefore not exposed
+		if (distroName.startsWith('docker-desktop')) {
+			continue;
+		}
+
+		// Create the profile, adding the icon depending on the distro
+		const profileName = `${distroName} (WSL)`;
+		const profile: ITerminalProfile = {
+			profileName,
+			path: wslPath,
+			args: [`-d`, `${distroName}`],
+			isDefault: profileName === defaultProfileName
+		};
+		if (distroName.includes('Ubuntu')) {
+			profile.icon = 'terminal-ubuntu';
+		}
+		else if (distroName.includes('Debian')) {
+			profile.icon = 'terminal-debian';
+		} else {
+			profile.icon = 'terminal-linux';
+		}
+
+		// Add the profile
+		profiles.push(profile);
+	}
+	return profiles;
 }
 
-async function detectAvailableUnixProfiles(fsProvider: IFsProvider, logService?: ILogService, configuredProfilesOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(fsProvider: IFsProvider, logService?: ILogService, configuredProfilesOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, defaultProfileName?: string, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add non-quick launch profiles
@@ -259,7 +264,7 @@ async function detectAvailableUnixProfiles(fsProvider: IFsProvider, logService?:
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	return await transformToTerminalProfiles(detectedProfiles.entries(), fsProvider, logService, variableResolver, workspaceFolder);
+	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver, workspaceFolder);
 }
 
 function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProfileObject } | undefined, profilesMap: Map<string, ITerminalProfileObject>) {
@@ -275,16 +280,16 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProf
 	}
 }
 
-async function validateProfilePaths(profileName: string, potentialPaths: string[], fsProvider: IFsProvider, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, defaultProfileName: string | undefined, potentialPaths: string[], fsProvider: IFsProvider, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
 	const path = potentialPaths.shift()!;
 	if (path === '') {
-		return validateProfilePaths(profileName, potentialPaths, fsProvider, args, env, overrideName, isAutoDetected);
+		return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, args, env, overrideName, isAutoDetected);
 	}
 
-	const profile: ITerminalProfile = { profileName, path, args, env, overrideName, isAutoDetected };
+	const profile: ITerminalProfile = { profileName, path, args, env, overrideName, isAutoDetected, isDefault: profileName === defaultProfileName };
 
 	// For non-absolute paths, check if it's available on $PATH
 	if (basename(path) === path) {
@@ -292,7 +297,7 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 		const envPaths: string[] | undefined = process.env.PATH ? process.env.PATH.split(delimiter) : undefined;
 		const executable = await findExecutable(path, undefined, envPaths, undefined, fsProvider.existsFile);
 		if (!executable) {
-			return validateProfilePaths(profileName, potentialPaths, fsProvider, args);
+			return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, args);
 		}
 		return profile;
 	}
@@ -302,7 +307,7 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 		return profile;
 	}
 
-	return validateProfilePaths(profileName, potentialPaths, fsProvider, args, env, overrideName, isAutoDetected);
+	return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, args, env, overrideName, isAutoDetected);
 }
 
 export interface IFsProvider {

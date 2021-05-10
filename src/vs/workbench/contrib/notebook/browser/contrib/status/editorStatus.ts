@@ -297,9 +297,10 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 
 		const idxFocused = vm.getCellIndex(activeCell) + 1;
 		const numSelected = vm.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
+		const totalCells = vm.getCells().length;
 		return numSelected > 1 ?
 			nls.localize('notebook.multiActiveCellIndicator', "Cell {0} ({1} selected)", idxFocused, numSelected) :
-			nls.localize('notebook.singleActiveCellIndicator', "Cell {0}", idxFocused);
+			nls.localize('notebook.singleActiveCellIndicator', "Cell {0} of {1}", idxFocused, totalCells);
 	}
 }
 

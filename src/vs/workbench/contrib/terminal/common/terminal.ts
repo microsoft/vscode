@@ -91,6 +91,9 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
 	readonly _serviceBrand: undefined;
+
+	readonly defaultProfileName: string | undefined;
+
 	/**
 	 * Resolves the icon of a shell launch config if this will use the default profile
 	 */
@@ -257,6 +260,7 @@ export interface IBeforeProcessDataEvent {
 export interface ITerminalProfile {
 	profileName: string;
 	path: string;
+	isDefault: boolean;
 	isAutoDetected?: boolean;
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
@@ -269,8 +273,7 @@ export const enum ProfileSource {
 	Pwsh = 'PowerShell'
 }
 
-export interface ITerminalExecutable {
-	path: string | string[];
+export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
@@ -278,13 +281,12 @@ export interface ITerminalExecutable {
 	env?: ITerminalEnvironment;
 }
 
-export interface ITerminalProfileSource {
+export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
+	path: string | string[];
+}
+
+export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
-	isAutoDetected?: boolean;
-	overrideName?: boolean;
-	args?: string | string[] | undefined;
-	icon?: string;
-	env?: ITerminalEnvironment;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
@@ -343,21 +345,21 @@ export interface ITerminalProcessManager extends IDisposable {
 
 export const enum ProcessState {
 	// The process has not been initialized yet.
-	Uninitialized,
+	Uninitialized = 1,
 	// The process is currently launching, the process is marked as launching
 	// for a short duration after being created and is helpful to indicate
 	// whether the process died as a result of bad shell and args.
-	Launching,
+	Launching = 2,
 	// The process is running normally.
-	Running,
+	Running = 3,
 	// The process was killed during launch, likely as a result of bad shell and
 	// args.
-	KilledDuringLaunch,
+	KilledDuringLaunch = 4,
 	// The process was killed by the user (the event originated from VS Code).
-	KilledByUser,
+	KilledByUser = 5,
 	// The process was killed by itself, for example the shell crashed or `exit`
 	// was run.
-	KilledByProcess
+	KilledByProcess = 6
 }
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
@@ -474,7 +476,8 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration'
+	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration',
+	InheritEnv = 'terminal.integrated.inheritEnv'
 }
 
 export const enum TerminalCommandId {

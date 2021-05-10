@@ -348,13 +348,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// were not restored in the session.
 		if (this.editorGroupService.isRestored()) {
 			try {
-
-				// Backups without `typeId` are handed in the legacy backup
-				// restorer still and thus we explicitly don't want to keep
-				// them on shutdown, otherwise they would always come back.
-				// TODO@bpasero remove this check once typeId has been adopted.
-				const backupsToKeep = Array.from(this.unrestoredBackups).filter(unrestoredBackup => unrestoredBackup.typeId.length > 0);
-				await this.workingCopyBackupService.discardBackups(backupsToKeep);
+				await this.workingCopyBackupService.discardBackups(Array.from(this.unrestoredBackups));
 			} catch (error) {
 				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 			}

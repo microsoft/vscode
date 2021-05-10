@@ -189,9 +189,9 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
 			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, false);
+				this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
 			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, true);
+				this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
 			}
 		});
 

@@ -19,5 +19,5 @@ export interface IStateMainService {
 
 	removeItem(key: string): void;
 
-	flush(): Promise<void>;
+	close(): Promise<void>;
 }

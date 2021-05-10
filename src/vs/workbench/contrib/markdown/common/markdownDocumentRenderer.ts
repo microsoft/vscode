@@ -18,6 +18,10 @@ body {
 	margin: 0 auto;
 }
 
+body *:last-child {
+	margin-bottom: 0;
+}
+
 img {
 	max-width: 100%;
 	max-height: 100%;
@@ -159,10 +163,10 @@ function removeEmbeddedSVGs(documentContent: string): string {
 			'*': [
 				'align',
 			],
-			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height'],
+			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height', 'centered'],
 			span: ['class'],
 		},
-		allowedSchemes: ['http', 'https', 'command',],
+		allowedSchemes: ['http', 'https', 'command'],
 		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
 			return token.tag !== 'svg';
 		}

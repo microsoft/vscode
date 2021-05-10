@@ -8,10 +8,12 @@ import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/path';
 import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
 export interface NotebookEditorDescriptor {
+	readonly extension: ExtensionIdentifier,
 	readonly id: string;
 	readonly displayName: string;
 	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
@@ -22,13 +24,13 @@ export interface NotebookEditorDescriptor {
 
 export class NotebookProviderInfo {
 
+	readonly extension: ExtensionIdentifier;
 	readonly id: string;
 	readonly displayName: string;
-
 	readonly priority: ContributedEditorPriority;
-	// it's optional as the memento might not have it
 	readonly providerDisplayName: string;
 	readonly exclusive: boolean;
+
 	private _selectors: NotebookSelector[];
 	get selectors() {
 		return this._selectors;
@@ -39,6 +41,7 @@ export class NotebookProviderInfo {
 	}
 
 	constructor(descriptor: NotebookEditorDescriptor) {
+		this.extension = descriptor.extension;
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
 		this._selectors = descriptor.selectors?.map(selector => ({

@@ -3209,6 +3209,25 @@ export class LinkedEditingRanges {
 	}
 }
 
+//#region ports
+export class PortAttributes {
+	private _port: number;
+	private _autoForwardAction: PortAutoForwardAction;
+	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
+		this._port = port;
+		this._autoForwardAction = autoForwardAction;
+	}
+
+	get port(): number {
+		return this._port;
+	}
+
+	get autoForwardAction(): PortAutoForwardAction {
+		return this._autoForwardAction;
+	}
+}
+//#endregion ports
+
 //#region Testing
 export enum TestResultState {
 	Unset = 0,
@@ -3263,7 +3282,7 @@ const rangeComparator = (a: vscode.Range | undefined, b: vscode.Range | undefine
 
 export class TestItemImpl implements vscode.TestItem<unknown> {
 	public readonly id!: string;
-	public readonly uri!: vscode.Uri;
+	public readonly uri!: vscode.Uri | undefined;
 	public readonly children!: ReadonlyMap<string, TestItemImpl>;
 	public readonly parent!: TestItemImpl | undefined;
 
@@ -3277,7 +3296,7 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 	/** Extension-owned resolve handler */
 	public resolveHandler?: (token: vscode.CancellationToken) => void;
 
-	constructor(id: string, public label: string, uri: vscode.Uri, public data: unknown) {
+	constructor(id: string, public label: string, uri: vscode.Uri | undefined, public data: unknown) {
 		const api = getPrivateApiFor(this);
 
 		Object.defineProperties(this, {
@@ -3303,7 +3322,7 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 			range: testItemPropAccessor(api, 'range', undefined, rangeComparator),
 			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
 			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
-			debuggable: testItemPropAccessor(api, 'debuggable', true, strictEqualComparator),
+			debuggable: testItemPropAccessor(api, 'debuggable', false, strictEqualComparator),
 			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved, strictEqualComparator),
 			error: testItemPropAccessor(api, 'error', undefined, strictEqualComparator),
 		});
