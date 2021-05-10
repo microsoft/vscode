@@ -1030,6 +1030,12 @@ declare module 'vscode' {
 		Code = 2
 	}
 
+	/**
+	 * Represents a cell of a {@link NotebookDocument notebook}, either a {@link NotebookCellKind.Code code}-cell
+	 * or {@link NotebookCellKind.Markup markup}-cell.
+	 *
+	 * NotebookCell instances are immutable and are kept in sync for as long as they are part of their notebook.
+	 */
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
 
@@ -1282,6 +1288,9 @@ declare module 'vscode' {
 		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
+	/**
+	 * NotebookCellData is the raw representation of notebook cells. Its is part of {@link NotebookData `NotebookData`}.
+	 */
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
 
@@ -1328,9 +1337,31 @@ declare module 'vscode' {
 		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: NotebookCellExecutionSummary);
 	}
 
+	/**
+	 * NotebookData is the raw representation of notebooks.
+	 *
+	 * Extensions are responsible to create {@link NotebookData `NotebookData`} so that the editor
+	 * can create a {@link NotebookDocument `NotebookDocument`}.
+	 *
+	 * @see {@link NotebookSerializer}
+	 */
 	export class NotebookData {
+		/**
+		 * The cell data of this notebook data.
+		 */
 		cells: NotebookCellData[];
+
+		/**
+		 * The metadata of this notebook data.
+		 */
 		metadata: NotebookDocumentMetadata;
+
+		/**
+		 * Create new notebook data.
+		 *
+		 * @param cells An array of cell data.
+		 * @param metadata Notebook metadata.
+		 */
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
