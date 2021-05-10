@@ -242,13 +242,15 @@ stages:
               - template: web/product-build-web.yml
 
     - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
-      - stage: Upload Configuration for Bing
+      - stage: BingSettingsSearch
+        displayName: Upload Configuration for Bing
         dependsOn:
           - Linux
         pool:
           vmImage: "Ubuntu-18.04"
         jobs:
-          - job: BingSettingsSearch
+          - job: BingSettingsSearchJob
+            displayName: Upload Configuration for Bing
             steps:
               - template: linux/product-bing.yml
 
