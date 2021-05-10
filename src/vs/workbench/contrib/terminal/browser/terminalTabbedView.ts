@@ -163,7 +163,7 @@ export class TerminalTabbedView extends Disposable {
 				this._rerenderTabs();
 			}
 		} else {
-			if (this._splitView.length === 2 && this._terminalTabsMouseContextKey.get() === false) {
+			if (this._splitView.length === 2 && !this._terminalTabsMouseContextKey.get()) {
 				this._splitView.removeView(this._tabTreeIndex);
 				if (this._plusButton) {
 					this._tabTreeContainer.removeChild(this._plusButton);
