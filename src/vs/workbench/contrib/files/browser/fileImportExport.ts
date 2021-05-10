@@ -12,7 +12,7 @@ import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Limiter, Promises, RunOnceWorker, sequence } from 'vs/base/common/async';
+import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -491,7 +491,7 @@ export class NativeFileImport {
 				});
 			}
 
-			const resourcesFiltered = coalesce((await Promise.all(resources.map(async resource => {
+			const resourcesFiltered = coalesce((await Promises.settled(resources.map(async resource => {
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
@@ -578,8 +578,8 @@ export class FileDownload {
 		return downloadPromise;
 	}
 
-	private async doDownload(source: ExplorerItem[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
-		await sequence(source.map(explorerItem => async () => {
+	private async doDownload(sources: ExplorerItem[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+		for (const source of sources) {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
@@ -587,12 +587,14 @@ export class FileDownload {
 			// Web: use DOM APIs to download files with optional support
 			// for folders and large files
 			if (isWeb) {
-				return this.doDownloadBrowser(explorerItem.resource, progress, cts);
+				await this.doDownloadBrowser(source.resource, progress, cts);
 			}
 
 			// Native: use working copy file service to get at the contents
-			return this.doDownloadNative(explorerItem, progress, cts);
-		}));
+			else {
+				await this.doDownloadNative(source, progress, cts);
+			}
+		}
 	}
 
 	private async doDownloadBrowser(resource: URI, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
