@@ -17,6 +17,7 @@ import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -1255,6 +1256,29 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 
 	// Ensure to remove the element from DOM eventually
 	setTimeout(() => document.body.removeChild(anchor));
+}
+
+export function triggerUpload(): Promise<FileList | undefined> {
+	return new Promise<FileList | undefined>(resolve => {
+
+		// In order to upload to the browser, create a
+		// input element of type `file` and click it
+		// to gather the selected files
+		const input = document.createElement('input');
+		document.body.appendChild(input);
+		input.type = 'file';
+		input.multiple = true;
+
+		// Resolve once the input event has fired once
+		Event.once(Event.fromDOMEventEmitter(input, 'input'))(() => {
+			resolve(withNullAsUndefined(input.files));
+		});
+
+		input.click();
+
+		// Ensure to remove the element from DOM eventually
+		setTimeout(() => document.body.removeChild(input));
+	});
 }
 
 export enum DetectedFullscreenMode {
