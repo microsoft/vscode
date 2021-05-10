@@ -32,8 +32,9 @@ import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/termin
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { DropdownWithPrimaryActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownWithPrimaryActionViewItem';
-import { reset } from 'vs/base/browser/dom';
-import { renderLabelWithIconsWithSpan } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { separateIconAndText } from 'vs/base/common/iconLabels';
+import * as dom from 'vs/base/browser/dom';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
@@ -354,7 +355,7 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 			const label = this.label;
 			const instance = this._terminalService.getActiveInstance();
 			if (!instance) {
-				reset(label, '');
+				dom.reset(label, '');
 				return;
 			}
 			label.classList.add('single-terminal-tab');
@@ -369,7 +370,15 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			reset(label, ...renderLabelWithIconsWithSpan(getSingleTabLabel(instance)));
+
+			const elements = new Array<HTMLSpanElement | string>();
+			const [[, codicon], labelText] = separateIconAndText(getSingleTabLabel(instance));
+			elements.push(renderIcon({ id: codicon }));
+			const node = dom.$(`span`);
+			node.classList.add('label-text');
+			node.innerText = labelText;
+			elements.push(node);
+			dom.reset(label, ...elements);
 		}
 	}
 
