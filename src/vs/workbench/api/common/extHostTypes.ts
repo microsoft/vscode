@@ -3209,6 +3209,25 @@ export class LinkedEditingRanges {
 	}
 }
 
+//#region ports
+export class PortAttributes {
+	private _port: number;
+	private _autoForwardAction: PortAutoForwardAction;
+	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
+		this._port = port;
+		this._autoForwardAction = autoForwardAction;
+	}
+
+	get port(): number {
+		return this._port;
+	}
+
+	get autoForwardAction(): PortAutoForwardAction {
+		return this._autoForwardAction;
+	}
+}
+//#endregion ports
+
 //#region Testing
 export enum TestResultState {
 	Unset = 0,
