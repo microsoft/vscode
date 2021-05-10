@@ -27,13 +27,6 @@ export class NotebookEditorKernelManager extends Disposable {
 		return info.selected ?? info.suggested;
 	}
 
-	confirmSuggestedKernel(notebook: INotebookTextModel): void {
-		const kernel = this.getSelectedOrSuggestedKernel(notebook);
-		if (kernel) {
-			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
-		}
-	}
-
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
 		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
 		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
