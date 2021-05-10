@@ -69,11 +69,6 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
 /**
- * Workspace Trust Required editor id.
- */
-export const WORKSPACE_TRUST_REQUIRED_FILE_EDITOR_ID = 'workbench.editors.workspaceTrustRequiredEditor';
-
-/**
  * The editor pane is the container for workbench editors.
  */
 export interface IEditorPane extends IComposite {
@@ -851,7 +846,9 @@ export class SideBySideEditorInput extends EditorInput {
 	}
 
 	override async requiresWorkspaceTrust(): Promise<boolean> {
-		return await this.primary.requiresWorkspaceTrust() || await this.secondary.requiresWorkspaceTrust();
+		const requiresTrust = await Promise.all([this.primary.requiresWorkspaceTrust(), this.secondary.requiresWorkspaceTrust()]);
+
+		return requiresTrust.some(value => value === true);
 	}
 
 	override isReadonly(): boolean {

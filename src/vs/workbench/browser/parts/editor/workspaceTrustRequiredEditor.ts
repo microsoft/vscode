@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/workspaceTrustRequiredEditor';
+import 'vs/css!./media/workspacetrusteditor';
 import { localize } from 'vs/nls';
-import { EditorInput, EditorOptions, IEditorOpenContext, WORKSPACE_TRUST_REQUIRED_FILE_EDITOR_ID } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -19,9 +19,13 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { EditorDescriptor } from 'vs/workbench/browser/editor';
 
 export class WorkspaceTrustRequiredEditor extends EditorPane {
-	static readonly ID = WORKSPACE_TRUST_REQUIRED_FILE_EDITOR_ID;
+
+	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
+	static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
+	static readonly DESCRIPTOR = EditorDescriptor.create(WorkspaceTrustRequiredEditor, WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL);
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -38,11 +42,7 @@ export class WorkspaceTrustRequiredEditor extends EditorPane {
 	}
 
 	override getTitle(): string {
-		return this.input ? this.input.getName() : localize('requiresTrust', "Workspace Trust Required");
-	}
-
-	private useWorkspaceLanguage(): boolean {
-		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceService.getWorkspace()));
+		return WorkspaceTrustRequiredEditor.LABEL;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -67,21 +67,20 @@ export class WorkspaceTrustRequiredEditor extends EditorPane {
 		}
 
 		// Render Input
-		this.inputDisposable.value = this.renderInput(input, options);
+		this.inputDisposable.value = this.renderInput();
 	}
 
-	private renderInput(input: EditorInput, options: EditorOptions | undefined): IDisposable {
+	private renderInput(): IDisposable {
 		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
 
 		clearNode(container);
 
 		const disposables = new DisposableStore();
 
-		const label = document.createElement('p');
-		label.textContent = this.useWorkspaceLanguage() ?
-			localize('requiresWorkspaceTrustText', "The file is not displayed in the editor because trust has not been granted to the workspace.") :
-			localize('requiresFolderTrustText', "The file is not displayed in the editor because trust has not been granted to the folder.");
-		container.appendChild(label);
+		const label = container.appendChild(document.createElement('p'));
+		label.textContent = isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceService.getWorkspace())) ?
+			localize('requiresFolderTrustText', "The file is not displayed in the editor because trust has not been granted to the folder.") :
+			localize('requiresWorkspaceTrustText', "The file is not displayed in the editor because trust has not been granted to the workspace.");
 
 		const link = append(label, $('a.embedded-link'));
 		link.setAttribute('role', 'button');
@@ -97,10 +96,10 @@ export class WorkspaceTrustRequiredEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
-		// Clear the rest
 		if (this.container) {
 			clearNode(this.container);
 		}
+
 		this.inputDisposable.clear();
 
 		super.clearInput();
