@@ -8,7 +8,9 @@
 const gulp = require('gulp');
 const fs = require('fs');
 const os = require('os');
-const cp = require('child_process');
+// const cp = require('child_process');
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
 const path = require('path');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
@@ -469,65 +471,40 @@ gulp.task('vscode-translations-import', function () {
 
 // This task is run in the Bing stage and only picks up the Linux asset
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
-const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', () => {
-	return new Promise((resolve, reject) => {
-		const buildDir = process.env['PIPELINE_WORKSPACE'];
-		if (!buildDir) {
-			return reject(new Error('$PIPELINE_WORKSPACE not set'));
-		}
+const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', async () => {
+	const buildDir = process.env['PIPELINE_WORKSPACE'];
+	if (!buildDir) {
+		throw new Error('$PIPELINE_WORKSPACE not set');
+	}
 
-		if (process.env.VSCODE_QUALITY !== 'insider' && process.env.VSCODE_QUALITY !== 'stable') {
-			return resolve();
-		}
+	if (process.env.VSCODE_QUALITY !== 'insider' && process.env.VSCODE_QUALITY !== 'stable') {
+		return;
+	}
 
-		const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
-		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
-		const arch = process.env['VSCODE_ARCH'];
-		const appRoot = path.join(buildDir, 'vscode_client_linux_x64_archive-unsigned', `VSCode-linux-${arch}`);
-		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'code-insiders' : 'code';
-		const appPath = path.join(appRoot, 'bin', appName);
+	const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
+	const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
+	const arch = process.env['VSCODE_ARCH'];
+	const appRoot = path.join(buildDir, 'vscode_client_linux_x64_archive-unsigned', `VSCode-linux-${arch}`);
+	const appName = process.env.VSCODE_QUALITY === 'insider' ? 'code-insiders' : 'code';
+	const appPath = path.join(appRoot, 'bin', appName);
 
-		if (!fs.existsSync(appPath)) {
-			console.log(`App root (${appRoot}) exists?: ${fs.existsSync(appPath)}`);
-			return reject(new Error(`VS Code executable at ${appPath} does not exist`));
-		}
+	if (!fs.existsSync(appPath)) {
+		console.log(`App root (${appRoot}) exists?: ${fs.existsSync(appPath)}`);
+		throw new Error(`VS Code executable at ${appPath} does not exist`);
+	}
 
-		const cmd = `${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`;
-		console.log(cmd);
-		const codeProc = cp.exec(cmd, (err, stdout, stderr) => {
-			clearTimeout(timer);
-			if (err) {
-				console.log(`err: ${err} ${err.message} ${err.toString()}`);
-				reject(err);
-			}
+	const cmd = `${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`;
+	console.log(cmd);
+	const { stdout, stderr } = await exec(cmd, { timeout: 12 * 1000 });
 
-			if (stdout) {
-				console.log(`stdout: ${stdout}`);
-			}
+	if (stdout) {
+		console.log(`stdout: ${stdout}`);
+	}
 
-			if (stderr) {
-				console.log(`stderr: ${stderr}`);
-			}
-
-			console.log(`Finished exporting default configuration to ${allConfigDetailsPath}`);
-			resolve();
-		});
-		const timer = setTimeout(() => {
-			codeProc.kill();
-			reject(new Error('export-default-configuration process timed out'));
-		}, 12 * 1000);
-
-		codeProc.on('error', err => {
-			clearTimeout(timer);
-			reject(err);
-		});
-
-		codeProc.on('exit', code => {
-			if (code != 0) {
-				reject(new Error(`export-default-configuration process exited with status code: ${code}`));
-			}
-		});
-	});
+	if (stderr) {
+		console.log(`stderr: ${stderr}`);
+	}
+	console.log(`Finished exporting default configuration to ${allConfigDetailsPath}`);
 });
 
 gulp.task(task.define(
