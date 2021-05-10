@@ -467,12 +467,12 @@ gulp.task('vscode-translations-import', function () {
 	}));
 });
 
-// This task is only run for the MacOS build
+// This task is run in the Bing stage and only picks up the Linux asset
 const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', () => {
 	return new Promise((resolve, reject) => {
-		const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+		const buildDir = process.env['PIPELINE_WORKSPACE'];
 		if (!buildDir) {
-			return reject(new Error('$AGENT_BUILDDIRECTORY not set'));
+			return reject(new Error('$PIPELINE_WORKSPACE not set'));
 		}
 
 		if (process.env.VSCODE_QUALITY !== 'insider' && process.env.VSCODE_QUALITY !== 'stable') {
@@ -482,9 +482,9 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 		const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
 		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
 		const arch = process.env['VSCODE_ARCH'];
-		const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
-		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'Visual\\ Studio\\ Code\\ -\\ Insiders.app' : 'Visual\\ Studio\\ Code.app';
-		const appPath = path.join(appRoot, appName, 'Contents', 'Resources', 'app', 'bin', 'code');
+		const appRoot = path.join(buildDir, 'vscode_client_linux_x64_archive-unsigned', `VSCode-linux-${arch}`);
+		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'code-insiders' : 'code';
+		const appPath = path.join(appRoot, 'bin', appName);
 		const codeProc = cp.exec(
 			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
 			(err, stdout, stderr) => {

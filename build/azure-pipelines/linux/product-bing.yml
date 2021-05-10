@@ -1,0 +1,70 @@
+# This stage only runs on linux
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "14.x"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.x"
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode
+
+  - script: |
+      set -e
+      cat << EOF > ~/.netrc
+      machine github.com
+      login vscode
+      password $(github-distro-mixin-password)
+      EOF
+
+      git config user.email "vscode@microsoft.com"
+      git config user.name "VSCode"
+    displayName: Prepare tooling
+
+  - script: |
+      set -e
+      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+    displayName: Merge distro
+
+  - script: |
+      mkdir -p .build
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
+    displayName: Prepare yarn cache flags
+
+  # We should always pull from the cache since we are using the same agent as the Linux stage.
+  - task: Cache@2
+    inputs:
+      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - script: |
+      set -e
+      tar -xzf .build/node_modules_cache/cache.tgz
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
+
+  - download: current
+    artifact: vscode_client_linux_x64_archive-unsigned
+    displayName: Download x64 Linux build
+
+  - script: |
+      ARTIFACT_PATH="$(Pipeline.Workspace)/vscode_client_linux_x64_archive-unsigned"
+      cd $ARTIFACT_PATH
+      ZIP_NAME=$(ls)
+      tar -xvf $ZIP_NAME
+    displayName: Unzip asset archive
+
+  - script: |
+      yarn gulp upload-vscode-configuration
+    displayName: Upload configuration (for Bing settings search)
+    env:
+      AZURE_STORAGE_ACCESS_KEY: $(ticino-storage-key)
+      VSCODE_ARCH: x64
+    continueOnError: true

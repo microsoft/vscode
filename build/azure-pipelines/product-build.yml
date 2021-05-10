@@ -241,6 +241,19 @@ stages:
             steps:
               - template: web/product-build-web.yml
 
+    - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+      - stage: BingSettingsSearch
+        displayName: Upload Configuration for Bing
+        dependsOn:
+          - Linux
+        pool:
+          vmImage: "Ubuntu-18.04"
+        jobs:
+          - job: BingSettingsSearchJob
+            displayName: Upload Configuration for Bing
+            steps:
+              - template: linux/product-bing.yml
+
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
     - stage: macOS
       dependsOn:
