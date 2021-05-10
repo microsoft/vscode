@@ -7,27 +7,8 @@ import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IBannerService } from 'vs/workbench/services/banner/common/bannerService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
-export class CloseBannerAction extends Action2 {
-
-	static readonly ID = 'workbench.action.closeBanner';
-	static readonly LABEL = localize('closeBanner', "Hide Banner");
-
-	constructor() {
-		super({
-			id: CloseBannerAction.ID,
-			title: { value: CloseBannerAction.LABEL, original: 'Close Banner' }
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IBannerService).setBannerVisibility(false);
-	}
-}
-
-registerAction2(CloseBannerAction);
 
 class FocusBannerAction extends Action2 {
 

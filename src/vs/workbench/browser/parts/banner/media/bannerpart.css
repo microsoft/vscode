@@ -26,6 +26,11 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .part.banner .message-container p {
+	margin-block-start: 0;
+	margin-block-end: 0;
+}
+
 .monaco-workbench .part.banner .message-actions-container {
 	flex-grow: 1;
 	flex-shrink: 0;

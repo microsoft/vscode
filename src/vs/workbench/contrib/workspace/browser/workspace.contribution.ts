@@ -23,7 +23,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
-import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
+import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
@@ -42,10 +42,10 @@ import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGRO
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IBannerService } from 'vs/workbench/services/banner/common/bannerService';
+import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 
+const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
-
 
 /*
  * Trust Request UX Handler
@@ -190,6 +190,25 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
 
+	private getBannerItem(): IBannerItem {
+		return {
+			id: BANNER_RESTRICTED_MODE,
+			icon: shieldIcon,
+			message: localize('restrictedModeBannerMessage', "Restricted Mode has limited functionality. Trust this folder to enable advanced features."),
+			actions: [
+				{
+					label: localize('restrictedModeBannerManage', "Manage"),
+					href: 'command:workbench.trust.manage'
+				},
+				{
+					label: localize('restrictedModeBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-workspace-trust'
+				}
+			],
+			scope: StorageScope.WORKSPACE,
+		};
+	}
+
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
 		const text = workspaceTrustToString(trusted);
 		const backgroundColor = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
@@ -216,7 +235,11 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private updateWorkbenchIndicators(trusted: boolean): void {
 		this.updateStatusbarEntry(trusted);
-		this.bannerService.setBannerVisibility(!trusted);
+		if (!trusted) {
+			this.bannerService.show(this.getBannerItem());
+		} else {
+			this.bannerService.hide(BANNER_RESTRICTED_MODE);
+		}
 	}
 
 	private registerListeners(): void {

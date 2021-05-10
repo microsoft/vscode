@@ -48,7 +48,7 @@ import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
-import { IBannerService } from 'vs/workbench/services/banner/common/bannerService';
+import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',

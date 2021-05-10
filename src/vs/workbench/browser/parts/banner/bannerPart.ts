@@ -5,29 +5,28 @@
 
 import 'vs/css!./media/bannerpart';
 import { localize } from 'vs/nls';
-import { $, append } from 'vs/base/browser/dom';
+import { $, append, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Action } from 'vs/base/common/actions';
-import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
+import { Link } from 'vs/platform/opener/browser/link';
 import { attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { editorInfoForeground, listActiveSelectionBackground, listActiveSelectionForeground, registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter } from 'vs/base/common/event';
-import { IBannerService } from 'vs/workbench/services/banner/common/bannerService';
-import { CloseBannerAction } from 'vs/workbench/browser/parts/banner/bannerActions';
+import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 
 
 // Icons
 
-const shieldIcon = registerCodicon('banner-trust-icon', Codicon.shield);
 const bannerCloseIcon = registerCodicon('banner-close', Codicon.close);
 
 
@@ -49,7 +48,6 @@ const BANNER_ICON_FOREGROUND = registerColor('banner.iconForeground', {
 	dark: editorInfoForeground,
 	light: editorInfoForeground,
 	hc: editorInfoForeground
-
 }, localize('banner.iconForeground', ""));
 
 const BANNER_TEXT_LINK_FOREGROUND = registerColor('banner.textLinkForeground', {
@@ -80,27 +78,21 @@ registerThemingParticipant((theme, collector) => {
 
 // Banner Part
 
-export interface IBannerOptions {
-	readonly icon: Codicon;
-	readonly message: MarkdownString;
-	readonly actions?: ILinkDescriptor[];
-}
-
 export class BannerPart extends Part implements IBannerService {
 	declare readonly _serviceBrand: undefined;
 
 	// #region IView
 
+	readonly height: number = 26;
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
 	get minimumHeight(): number {
-		return this.visible ? 26 : 0;
+		return this.visible ? this.height : 0;
 	}
 
-
 	get maximumHeight(): number {
-		return this.visible ? 26 : 0;
+		return this.visible ? this.height : 0;
 	}
 
 	private _onDidChangeSize = new Emitter<{ width: number; height: number; } | undefined>();
@@ -109,58 +101,105 @@ export class BannerPart extends Part implements IBannerService {
 
 	//#endregion
 
+	private item: IBannerItem | undefined;
+	private readonly markdownRenderer: MarkdownRenderer;
 	private visible = false;
 
 	constructor(
-		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
-		this.element.tabIndex = 0;
-
-		// Icon
-		const iconContainer = append(this.element, $('div.icon-container'));
-		iconContainer.appendChild($(`div${shieldIcon.cssSelector}`));
-
-		// Message
-		const messageContainer = append(this.element, $('div.message-container'));
-		const message = localize('restrictedModeMessage', "Restricted Mode has limited functionality. Trust this folder to enable advanced features.");
-		messageContainer.innerText = message;
-		messageContainer.title = message;
-
-		// Message Actions
-		const messageActionsContainer = append(this.element, $('div.message-actions-container'));
-		const manageLink = this._register(this.instantiationService.createInstance(Link, { label: 'Manage', href: 'command:workbench.trust.manage' }));
-		this._register(attachLinkStyler(manageLink, this.themeService, { textLinkForeground: BANNER_TEXT_LINK_FOREGROUND }));
-		messageActionsContainer.appendChild(manageLink.el);
-
-		const learnMoreLink = this._register(this.instantiationService.createInstance(Link, { label: 'Learn More', href: 'https://aka.ms/vscode-workspace-trust' }));
-		this._register(attachLinkStyler(learnMoreLink, this.themeService, { textLinkForeground: BANNER_TEXT_LINK_FOREGROUND }));
-		messageActionsContainer.appendChild(learnMoreLink.el);
-
-		// Action
-		const actionBarContainer = append(this.element, $('div.action-container'));
-		const actionBar = this._register(new ActionBar(actionBarContainer));
-		const closeAction = this._register(new Action('banner.close', 'Close Banner', bannerCloseIcon.classNames, true, () => {
-			this.instantiationService.invokeFunction(accessor => new CloseBannerAction().run(accessor));
-		}));
-		actionBar.push(closeAction, { icon: true, label: false });
-
 		return this.element;
 	}
 
-	setBannerVisibility(visible: boolean): void {
+	private close(item: IBannerItem): void {
+		// Hide banner
+		this.setVisibility(false);
+
+		// Remove from document
+		clearNode(this.element);
+
+		// Remember choice
+		if (item.scope) {
+			this.storageService.store(item.id, true, item.scope, StorageTarget.USER);
+		}
+
+		this.item = undefined;
+	}
+
+	private getBannerMessage(message: MarkdownString | string): HTMLElement {
+		if (typeof message === 'string') {
+			const element = $('span');
+			element.innerText = message;
+			return element;
+		}
+
+		return this.markdownRenderer.render(message).element;
+	}
+
+
+	private setVisibility(visible: boolean): void {
 		if (visible !== this.visible) {
 			this.visible = visible;
 
 			this._onDidChangeSize.fire(undefined);
 		}
+	}
+
+	hide(id: string): void {
+		if (this.item?.id !== id) {
+			return;
+		}
+
+		this.setVisibility(false);
+	}
+
+	show(item: IBannerItem): void {
+		if (item.scope && this.storageService.getBoolean(item.id, item.scope, false)) {
+			return;
+		}
+
+		if (item.id === this.item?.id) {
+			this.setVisibility(true);
+			return;
+		}
+
+		// Icon
+		const iconContainer = append(this.element, $('div.icon-container'));
+		iconContainer.appendChild($(`div${item.icon.cssSelector}`));
+
+		// Message
+		const messageContainer = append(this.element, $('div.message-container'));
+		messageContainer.appendChild(this.getBannerMessage(item.message));
+
+		// Message Actions
+		if (item.actions) {
+			const actionContainer = append(this.element, $('div.message-actions-container'));
+
+			for (const action of item.actions) {
+				const actionLink = this._register(this.instantiationService.createInstance(Link, action));
+				this._register(attachLinkStyler(actionLink, this.themeService, { textLinkForeground: BANNER_TEXT_LINK_FOREGROUND }));
+				actionContainer.appendChild(actionLink.el);
+			}
+		}
+
+		// Action
+		const actionBarContainer = append(this.element, $('div.action-container'));
+		const actionBar = this._register(new ActionBar(actionBarContainer));
+		const closeAction = this._register(new Action('banner.close', 'Close Banner', bannerCloseIcon.classNames, true, () => this.close(item)));
+		actionBar.push(closeAction, { icon: true, label: false });
+
+		this.setVisibility(true);
+		this.item = item;
 	}
 
 	toJSON(): object {
