@@ -987,13 +987,12 @@ export class TerminalService implements ITerminalService {
 		return { label, description: profile.path, profile, buttons };
 	}
 
-	createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
+	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._terminalShellTypeContextKey,
 			this._terminalAltBufferActiveContextKey,
 			this._configHelper,
-			container,
 			shellLaunchConfig
 		);
 		this._onInstanceCreated.fire(instance);
@@ -1039,7 +1038,7 @@ export class TerminalService implements ITerminalService {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
-			const instance = this.createInstance(undefined, shellLaunchConfig);
+			const instance = this.createInstance(shellLaunchConfig);
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
