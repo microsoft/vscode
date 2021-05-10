@@ -799,7 +799,25 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._orthogonalSize = ctx.orthogonalSize;
 		this.absoluteOffset = ctx.absoluteOffset + offset;
 		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
-		this.view.layout(this.width, this.height, this.top, this.left);
+
+		this._layout(this.width, this.height, this.top, this.left);
+	}
+
+	private cachedWidth: number = 0;
+	private cachedHeight: number = 0;
+	private cachedTop: number = 0;
+	private cachedLeft: number = 0;
+
+	private _layout(width: number, height: number, top: number, left: number): void {
+		if (this.cachedWidth === width && this.cachedHeight === height && this.cachedTop === top && this.cachedLeft === left) {
+			return;
+		}
+
+		this.cachedWidth = width;
+		this.cachedHeight = height;
+		this.cachedTop = top;
+		this.cachedLeft = left;
+		this.view.layout(width, height, top, left);
 	}
 
 	setVisible(visible: boolean): void {
