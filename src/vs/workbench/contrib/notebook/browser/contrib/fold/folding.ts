@@ -39,7 +39,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			}
 
 			this._localStore.add(this._notebookEditor.viewModel.eventDispatcher.onDidChangeCellState(e => {
-				if (e.source.editStateChanged && e.cell.cellKind === CellKind.Markdown) {
+				if (e.source.editStateChanged && e.cell.cellKind === CellKind.Markup) {
 					this._foldingModel?.recompute();
 					// this._updateEditorFoldingRanges();
 				}

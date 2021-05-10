@@ -140,7 +140,7 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 0), [{
-				kind: vscode.NotebookCellKind.Markdown,
+				kind: vscode.NotebookCellKind.Markup,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
@@ -177,7 +177,7 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 1), [{
-				kind: vscode.NotebookCellKind.Markdown,
+				kind: vscode.NotebookCellKind.Markup,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
@@ -213,7 +213,7 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 0), [{
-			kind: vscode.NotebookCellKind.Markdown,
+			kind: vscode.NotebookCellKind.Markup,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],
@@ -260,7 +260,7 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(notebook.uri, new vscode.NotebookRange(0, 0), [{
-			kind: vscode.NotebookCellKind.Markdown,
+			kind: vscode.NotebookCellKind.Markup,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],

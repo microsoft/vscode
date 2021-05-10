@@ -25,7 +25,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export enum CellKind {
-	Markdown = 1,
+	Markup = 1,
 	Code = 2
 }
 

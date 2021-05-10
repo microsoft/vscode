@@ -3101,7 +3101,7 @@ export class NotebookCellOutput {
 }
 
 export enum NotebookCellKind {
-	Markdown = 1,
+	Markup = 1,
 	Code = 2
 }
 

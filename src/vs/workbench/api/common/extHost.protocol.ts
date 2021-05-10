@@ -51,7 +51,7 @@ import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
-import { ICellEditOperation, IImmediateCellEditOperation, IMainCellDto, INotebookCellStatusBarItem, INotebookContributionData, INotebookDecorationRenderOptions, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookDataDto, NotebookDocumentMetadata, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellEditOperation, IImmediateCellEditOperation, IMainCellDto, INotebookCellStatusBarItem, INotebookContributionData, INotebookDecorationRenderOptions, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookDataDto, NotebookDocumentMetadata, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -814,11 +814,6 @@ export interface ExtHostWebviewViewsShape {
 	$onDidChangeWebviewViewVisibility(webviewHandle: WebviewHandle, visible: boolean): void;
 
 	$disposeWebviewView(webviewHandle: WebviewHandle): void;
-}
-
-export enum CellKind {
-	Markdown = 1,
-	Code = 2
 }
 
 export enum CellOutputKind {

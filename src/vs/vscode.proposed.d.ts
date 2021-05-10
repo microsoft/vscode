@@ -1013,9 +1013,20 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/122922, Notebook, Finalization 1
 
+	/**
+	 * A notebook cell kind.
+	 */
 	export enum NotebookCellKind {
-		// todo@API rename/rethink as "Markup" cell
-		Markdown = 1,
+
+		/**
+		 * A markup-cell is formatted source that is used for display.
+		 */
+		Markup = 1,
+
+		/**
+		 * A code-cell is source that can be {@link NotebookController executed} and that
+		 * produces {@link NotebookCellOutput output}.
+		 */
 		Code = 2
 	}
 
