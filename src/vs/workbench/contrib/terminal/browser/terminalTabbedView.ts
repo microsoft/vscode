@@ -176,6 +176,8 @@ export class TerminalTabbedView extends Disposable {
 		const storedValue = this._storageService.get(widthKey, StorageScope.WORKSPACE);
 
 		if (!storedValue || !parseInt(storedValue)) {
+			// we want to use the min width by default for the vertical orientation bc
+			// there is such a limited width for the terminal panel to begin w there.
 			return this._panelOrientation === Orientation.VERTICAL ? MIN_TABS_WIDGET_WIDTH : DEFAULT_TABS_WIDGET_WIDTH;
 		}
 		return parseInt(storedValue);

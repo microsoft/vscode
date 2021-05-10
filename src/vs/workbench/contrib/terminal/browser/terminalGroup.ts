@@ -465,13 +465,13 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._splitPaneContainer.setOrientation(newOrientation);
 				this._panelPosition = newPanelPosition;
 				this._terminalLocation = newTerminalLocation;
+				this._onPanelOrientationChanged.fire(this._splitPaneContainer.orientation);
 			}
 			this._splitPaneContainer.layout(width, height);
 			if (this._initialRelativeSizes && height > 0 && width > 0) {
 				this.resizePanes(this._initialRelativeSizes);
 				this._initialRelativeSizes = undefined;
 			}
-			this._onPanelOrientationChanged.fire(this._splitPaneContainer.orientation);
 		}
 	}
 
