@@ -146,7 +146,6 @@ export class BannerPart extends Part implements IBannerService {
 		return this.markdownRenderer.render(message).element;
 	}
 
-
 	private setVisibility(visible: boolean): void {
 		if (visible !== this.visible) {
 			this.visible = visible;
@@ -172,6 +171,9 @@ export class BannerPart extends Part implements IBannerService {
 			this.setVisibility(true);
 			return;
 		}
+
+		// Clear previous item
+		clearNode(this.element);
 
 		// Icon
 		const iconContainer = append(this.element, $('div.icon-container'));
