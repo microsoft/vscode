@@ -23,7 +23,7 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 
@@ -65,6 +65,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _terminalIsTabsNarrowContextKey: IContextKey<boolean>;
 	private _terminalTabsFocusContextKey: IContextKey<boolean>;
+	private _terminalTabsMouseContextKey: IContextKey<boolean>;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -110,6 +111,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._terminalIsTabsNarrowContextKey = KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS.bindTo(contextKeyService);
 		this._terminalTabsFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS.bindTo(contextKeyService);
+		this._terminalTabsMouseContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE.bindTo(contextKeyService);
 
 		_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.TabsEnabled) ||
@@ -161,7 +163,7 @@ export class TerminalTabbedView extends Disposable {
 				this._rerenderTabs();
 			}
 		} else {
-			if (this._splitView.length === 2) {
+			if (this._splitView.length === 2 && this._terminalTabsMouseContextKey.get() === false) {
 				this._splitView.removeView(this._tabTreeIndex);
 				if (this._plusButton) {
 					this._tabTreeContainer.removeChild(this._plusButton);
@@ -310,6 +312,15 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
+		this._register(dom.addDisposableListener(this._tabTreeContainer, 'mouseleave', async (event: MouseEvent) => {
+			this._terminalTabsMouseContextKey.set(false);
+			this._refreshShowTabs();
+			event.stopPropagation();
+		}));
+		this._register(dom.addDisposableListener(this._tabTreeContainer, 'mouseenter', async (event: MouseEvent) => {
+			this._terminalTabsMouseContextKey.set(true);
+			event.stopPropagation();
+		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
