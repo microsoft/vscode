@@ -7,7 +7,7 @@ import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -15,8 +15,6 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { URI } from 'vs/base/common/uri';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
@@ -69,7 +67,6 @@ export class TerminalTabbedView extends Disposable {
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -392,34 +389,6 @@ export class TerminalTabbedView extends Disposable {
 		}));
 		this._register(dom.addDisposableListener(this._tabTreeContainer, dom.EventType.FOCUS_OUT, () => {
 			this._terminalTabsFocusContextKey.set(false);
-		}));
-		this._register(dom.addDisposableListener(parentDomElement, dom.EventType.DROP, async (e: DragEvent) => {
-			if (e.target === this._parentElement || dom.isAncestor(e.target as HTMLElement, parentDomElement)) {
-				if (!e.dataTransfer) {
-					return;
-				}
-
-				// Check if files were dragged from the tree explorer
-				let path: string | undefined;
-				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-				if (resources) {
-					path = URI.parse(JSON.parse(resources)[0]).fsPath;
-				} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
-					// Check if the file was dragged from the filesystem
-					path = URI.file(e.dataTransfer.files[0].path).fsPath;
-				}
-
-				if (!path) {
-					return;
-				}
-
-				const terminal = this._terminalService.getActiveInstance();
-				if (terminal) {
-					const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType, terminal.isRemote);
-					terminal.sendText(preparedPath, false);
-					terminal.focus();
-				}
-			}
 		}));
 	}
 

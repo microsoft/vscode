@@ -762,9 +762,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return;
 			}
 
-			if (!this.shellLaunchConfig.executable) {
-				return;
-			}
 			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
 
 			this.sendText(preparedPath, false);
