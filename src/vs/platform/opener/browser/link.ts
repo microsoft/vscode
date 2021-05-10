@@ -18,6 +18,10 @@ export interface ILinkDescriptor {
 	readonly title?: string;
 }
 
+export interface ILinkOptions {
+	readonly opener?: (href: string) => void;
+}
+
 export interface ILinkStyles {
 	readonly textLinkForeground?: Color;
 	readonly disabled?: boolean;
@@ -31,10 +35,9 @@ export class Link extends Disposable {
 		textLinkForeground: Color.fromHex('#006AB1')
 	};
 
-	private handler: (href: string) => void;
-
 	constructor(
 		link: ILinkDescriptor,
+		options: ILinkOptions | undefined = undefined,
 		@IOpenerService openerService: IOpenerService
 	) {
 		super();
@@ -52,22 +55,19 @@ export class Link extends Disposable {
 			.event;
 		const onOpen = Event.any<EventLike>(onClick, onEnterPress);
 
-		this.handler = (href) => openerService.open(href, { allowCommands: true });
-		this._register({ dispose: () => this.handler = undefined! });
-
 		this._register(onOpen(e => {
 			EventHelper.stop(e, true);
 			if (!this.disabled) {
-				this.handler(link.href);
+				if (options?.opener) {
+					options.opener(link.href);
+				} else {
+					openerService.open(link.href, { allowCommands: true });
+				}
 			}
 		}));
 
 		this.disabled = false;
 		this.applyStyles();
-	}
-
-	setHandler(handler: (href: string) => void) {
-		this.handler = handler;
 	}
 
 	style(styles: ILinkStyles): void {

@@ -1662,16 +1662,17 @@ export class SearchView extends ViewPane {
 			if (typeof node === 'string') {
 				dom.append(span, document.createTextNode(node));
 			} else {
-				const link = this.instantiationService.createInstance(Link, node);
-				link.setHandler(async href => {
-					const parsed = URI.parse(href, true);
-					if (parsed.scheme === Schemas.command) {
-						const result = await this.commandService.executeCommand(parsed.path);
-						if ((result as any)?.triggerSearch) {
-							this.triggerQueryChange();
+				const link = this.instantiationService.createInstance(Link, node, {
+					opener: async href => {
+						const parsed = URI.parse(href, true);
+						if (parsed.scheme === Schemas.command) {
+							const result = await this.commandService.executeCommand(parsed.path);
+							if ((result as any)?.triggerSearch) {
+								this.triggerQueryChange();
+							}
+						} else {
+							this.openerService.open(parsed);
 						}
-					} else {
-						this.openerService.open(parsed);
 					}
 				});
 				dom.append(span, link.el);

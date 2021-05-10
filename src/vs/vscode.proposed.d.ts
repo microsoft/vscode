@@ -410,8 +410,9 @@ declare module 'vscode' {
 		 *
 		 * Messages with "Information" tyle support links in markdown syntax:
 		 * - Click to [run a command](command:workbench.action.OpenQuickPick)
-		 * 		- Commands may optionally return an object with a 'triggerSearch' property set `true` to signal to VS Code that the original should run be agian.
 		 * - Click to [open a website](https://aka.ms)
+		 *
+		 * Commands may optionally return { triggerSearch: true } to signal to VS Code that the original search should run be agian.
 		 */
 		message?: { text: string, type: TextSearchCompleteMessageType } | { text: string, type: TextSearchCompleteMessageType }[];
 	}

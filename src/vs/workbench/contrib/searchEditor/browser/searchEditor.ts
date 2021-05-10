@@ -597,16 +597,17 @@ export class SearchEditor extends BaseTextEditor {
 			if (typeof node === 'string') {
 				DOM.append(messageBox, document.createTextNode(node));
 			} else {
-				const link = this.instantiationService.createInstance(Link, node);
-				link.setHandler(async href => {
-					const parsed = URI.parse(href, true);
-					if (parsed.scheme === Schemas.command) {
-						const result = await this.commandService.executeCommand(parsed.path);
-						if ((result as any)?.triggerSearch) {
-							this.triggerSearch();
+				const link = this.instantiationService.createInstance(Link, node, {
+					opener: async href => {
+						const parsed = URI.parse(href, true);
+						if (parsed.scheme === Schemas.command) {
+							const result = await this.commandService.executeCommand(parsed.path);
+							if ((result as any)?.triggerSearch) {
+								this.triggerSearch();
+							}
+						} else {
+							this.openerService.open(parsed);
 						}
-					} else {
-						this.openerService.open(parsed);
 					}
 				});
 				DOM.append(messageBox, link.el);
