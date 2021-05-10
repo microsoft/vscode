@@ -1309,6 +1309,15 @@ export function registerTerminalActions() {
 						}
 					}]
 				},
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+					])
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
