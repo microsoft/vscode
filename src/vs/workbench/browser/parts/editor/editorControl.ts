@@ -68,10 +68,12 @@ export class EditorControl extends Disposable {
 		// If the active editor pane requires workspace trust
 		// we need to re-open it anytime trust changes to
 		// account for it.
+		// For that we explicitly call into the group-view
+		// to handle errors properly.
 		const editor = this._activeEditorPane?.input;
 		const options = this._activeEditorPane?.options;
 		if (editor && await editor.requiresWorkspaceTrust()) {
-			this.openEditor(editor, options);
+			this.groupView.openEditor(editor, options);
 		}
 	}
 
