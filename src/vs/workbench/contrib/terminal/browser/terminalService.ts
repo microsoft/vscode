@@ -561,7 +561,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getInstanceInfo(index: number): IInstanceLocation | undefined {
+	private _getInstanceLocation(index: number): IInstanceLocation | undefined {
 		let currentGroupIndex = 0;
 		while (index >= 0 && currentGroupIndex < this._terminalGroups.length) {
 			const group = this._terminalGroups[currentGroupIndex];
@@ -581,21 +581,21 @@ export class TerminalService implements ITerminalService {
 	}
 
 	setActiveInstanceByIndex(index: number): void {
-		const instanceInfo = this._getInstanceInfo(index);
-		if (!instanceInfo || (this._activeInstanceIndex > 0 && this._activeInstanceIndex === index)) {
+		const instanceLocation = this._getInstanceLocation(index);
+		if (!instanceLocation || (this._activeInstanceIndex > 0 && this._activeInstanceIndex === index)) {
 			return;
 		}
 
-		this._activeInstanceIndex = instanceInfo.instanceIndex;
-		this._activeGroupIndex = instanceInfo.groupIndex;
+		this._activeInstanceIndex = instanceLocation.instanceIndex;
+		this._activeGroupIndex = instanceLocation.groupIndex;
 
-		instanceInfo.group.setActiveInstanceByIndex(this._activeInstanceIndex);
-		this._terminalGroups.forEach((g, i) => g.setVisible(i === instanceInfo.groupIndex));
+		instanceLocation.group.setActiveInstanceByIndex(this._activeInstanceIndex);
+		this._terminalGroups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
 
-		if (this._activeGroupIndex !== instanceInfo.groupIndex) {
+		if (this._activeGroupIndex !== instanceLocation.groupIndex) {
 			this._onActiveGroupChanged.fire();
 		}
-		this._onActiveInstanceChanged.fire(instanceInfo.instance);
+		this._onActiveInstanceChanged.fire(instanceLocation.instance);
 	}
 
 	setActiveGroupToNext(): void {
