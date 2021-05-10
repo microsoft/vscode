@@ -191,7 +191,7 @@ export class NotebookKernelService implements INotebookKernelService {
 		const selectedId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
 		const selected = selectedId ? this._kernels.get(selectedId)?.kernel : undefined;
 
-		return { all, selected };
+		return { all, selected, suggested: all.length === 1 ? all[0] : undefined };
 	}
 
 	// default kernel for notebookType

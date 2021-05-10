@@ -84,7 +84,7 @@ suite('NotebookKernel', function () {
 					source: ['### Heading'],
 					eol: '\n',
 					language: 'markdown',
-					cellKind: CellKind.Markdown,
+					cellKind: CellKind.Markup,
 					outputs: [],
 				}, {
 					handle: 1,
