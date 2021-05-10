@@ -488,21 +488,6 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 	group: '5b_importexport',
 	order: 10,
 	command: {
-		id: UPLOAD_COMMAND_ID,
-		title: UPLOAD_LABEL,
-	},
-	when: ContextKeyExpr.and(
-		// only in web
-		IsWebContext,
-		// only on folders
-		ExplorerFolderContext
-	)
-}));
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
-	group: '5b_importexport',
-	order: 20,
-	command: {
 		id: DOWNLOAD_COMMAND_ID,
 		title: DOWNLOAD_LABEL,
 	},
@@ -513,6 +498,21 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 		ContextKeyExpr.and(IsWebContext, ExplorerFolderContext.toNegated(), ExplorerRootContext.toNegated()),
 		// web: for any folders if file system API support is provided
 		ContextKeyExpr.and(IsWebContext, HasWebFileSystemAccess)
+	)
+}));
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
+	group: '5b_importexport',
+	order: 20,
+	command: {
+		id: UPLOAD_COMMAND_ID,
+		title: UPLOAD_LABEL,
+	},
+	when: ContextKeyExpr.and(
+		// only in web
+		IsWebContext,
+		// only on folders
+		ExplorerFolderContext
 	)
 }));
 
