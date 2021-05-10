@@ -408,23 +408,6 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafe(() => onFormat(formatParams.textDocument, undefined, formatParams.options), [], `Error while formatting ${formatParams.textDocument.uri}`, token);
 	});
 
-	connection.onDocumentRangeFormatting(async (formatParams, token) => {
-		return runSafe(async () => {
-			const document = documents.get(formatParams.textDocument.uri);
-			if (document) {
-				let settings = await getDocumentSettings(document, () => true);
-				if (!settings) {
-					settings = globalSettings;
-				}
-				const unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
-				const enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
-
-				return format(languageModes, document, formatParams.range, formatParams.options, settings, enabledModes);
-			}
-			return [];
-		}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
-	});
-
 	connection.onDocumentLinks((documentLinkParam, token) => {
 		return runSafe(async () => {
 			const document = documents.get(documentLinkParam.textDocument.uri);
