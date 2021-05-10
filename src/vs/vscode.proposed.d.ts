@@ -1284,16 +1284,48 @@ declare module 'vscode' {
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
+
+		/**
+		 * The {@link NotebookCellKind kind} of this cell data.
+		 */
 		kind: NotebookCellKind;
-		// todo@API better names: value? text?
-		source: string;
-		// todo@API languageId (as in TextDocument)
-		language: string;
+
+		/**
+		 * The source value of this cell data - either source code or formatted text.
+		 */
+		value: string;
+
+		/**
+		 * The language identifier of the source value of this cell data. Any value from
+		 * {@link languages.getLanguages `getLanguages`} is possible.
+		 */
+		languageId: string;
+
+		/**
+		 * The outputs of this cell data.
+		 */
 		outputs?: NotebookCellOutput[];
+
+		/**
+		 * The metadata of this cell data.
+		 */
 		metadata?: NotebookCellMetadata;
+
 		// todo@API just executionSummary or lastExecutionSummary
 		latestExecutionSummary?: NotebookCellExecutionSummary;
-		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: NotebookCellExecutionSummary);
+
+		/**
+		 * Create new cell data. Minimal cell data specifies its kind, its source value, and the
+		 * language identifier of its source.
+		 *
+		 * @param kind The kind.
+		 * @param value The source value.
+		 * @param languageId The language identifier of the source value.
+		 * @param outputs //TODO@API remove ctor?
+		 * @param metadata //TODO@API remove ctor?
+		 * @param latestExecutionSummary //TODO@API remove ctor?
+		 */
+		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: NotebookCellExecutionSummary);
 	}
 
 	export class NotebookData {

@@ -1490,8 +1490,8 @@ export namespace NotebookCellData {
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
 		return {
 			cellKind: NotebookCellKind.from(data.kind),
-			language: data.language,
-			source: data.source,
+			language: data.languageId,
+			source: data.value,
 			metadata: {
 				...data.metadata,
 				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
