@@ -1268,18 +1268,18 @@ declare module 'vscode' {
 		//todo@API string or Unit8Array?
 		value: unknown;
 
-		metadata?: Record<string, any>;
+		metadata?: { [key: string]: any };
 
-		constructor(mime: string, value: unknown, metadata?: Record<string, any>);
+		constructor(mime: string, value: unknown, metadata?: { [key: string]: any });
 	}
 
 	// @jrieken transient
 	export class NotebookCellOutput {
 		id: string;
 		outputs: NotebookCellOutputItem[];
-		metadata?: Record<string, any>;
-		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, any>);
-		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: Record<string, any>);
+		metadata?: { [key: string]: any };
+		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
+		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
