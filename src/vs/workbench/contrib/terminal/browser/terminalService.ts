@@ -15,17 +15,17 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtHostReadyEntry, ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, InstanceInfo } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, KEYBINDING_CONTEXT_TERMINAL_COUNT, TerminalSettingId, IProfileQuickPickItem } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, ITerminalProfileObject, KEYBINDING_CONTEXT_TERMINAL_COUNT, TerminalSettingId, ITerminalTypeContribution } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -536,7 +536,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		if (!this._isNewGroupIndex(index)) {
+		if (this._activeGroupIndex !== index) {
 			return;
 		}
 
@@ -561,7 +561,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getInstanceInfo(index: number): InstanceInfo {
+	private _getInstanceInfo(index: number): IInstanceLocation | undefined {
 		let currentGroupIndex = 0;
 		while (index >= 0 && currentGroupIndex < this._terminalGroups.length) {
 			const group = this._terminalGroups[currentGroupIndex];
@@ -571,39 +571,31 @@ export class TerminalService implements ITerminalService {
 					group,
 					groupIndex: currentGroupIndex,
 					instance: group.terminalInstances[index],
-					localInstanceIndex: index
+					instanceIndex: index
 				};
 			}
 			index -= count;
 			currentGroupIndex++;
 		}
-		return null;
+		return undefined;
 	}
 
 	setActiveInstanceByIndex(index: number): void {
 		const instanceInfo = this._getInstanceInfo(index);
-		if (!instanceInfo || !this._isNewInstanceIndex(instanceInfo.localInstanceIndex)) {
+		if (!instanceInfo || (this._activeInstanceIndex > 0 && this._activeInstanceIndex === index)) {
 			return;
 		}
 
-		this._activeInstanceIndex = instanceInfo.localInstanceIndex;
+		this._activeInstanceIndex = instanceInfo.instanceIndex;
 		this._activeGroupIndex = instanceInfo.groupIndex;
 
 		instanceInfo.group.setActiveInstanceByIndex(this._activeInstanceIndex);
 		this._terminalGroups.forEach((g, i) => g.setVisible(i === instanceInfo.groupIndex));
 
-		if (this._isNewGroupIndex(instanceInfo.groupIndex)) {
+		if (this._activeGroupIndex !== instanceInfo.groupIndex) {
 			this._onActiveGroupChanged.fire();
 		}
 		this._onActiveInstanceChanged.fire(instanceInfo.instance);
-	}
-
-	private _isNewInstanceIndex(index: number): boolean {
-		return this._activeInstanceIndex !== index || this._activeInstanceIndex === 0;
-	}
-
-	private _isNewGroupIndex(index: number): boolean {
-		return this._activeGroupIndex !== index;
 	}
 
 	setActiveGroupToNext(): void {
@@ -1041,4 +1033,20 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 	}
+}
+
+interface IProfileQuickPickItem extends IQuickPickItem {
+	profile: ITerminalProfile | ITerminalTypeContribution;
+}
+
+interface IExtHostReadyEntry {
+	promise: Promise<void>;
+	resolve: () => void;
+}
+
+interface IInstanceLocation {
+	group: ITerminalGroup,
+	groupIndex: number,
+	instance: ITerminalInstance,
+	instanceIndex: number
 }

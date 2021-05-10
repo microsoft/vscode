@@ -456,8 +456,3 @@ export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimension
 }
 
 export type SafeConfigProvider = <T>(key: string) => T | undefined;
-
-export interface IExtHostReadyEntry {
-	promise: Promise<void>;
-	resolve: () => void;
-}

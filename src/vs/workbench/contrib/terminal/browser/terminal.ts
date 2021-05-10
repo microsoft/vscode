@@ -587,12 +587,3 @@ export const enum LinuxDistro {
 	Fedora = 2,
 	Ubuntu = 3,
 }
-
-export type InstanceInfo = IInstanceInfo | null;
-
-export interface IInstanceInfo {
-	group: ITerminalGroup,
-	groupIndex: number,
-	instance: ITerminalInstance,
-	localInstanceIndex: number
-}

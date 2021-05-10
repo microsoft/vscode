@@ -12,7 +12,6 @@ import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/comm
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -722,7 +721,3 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 		},
 	},
 };
-
-export interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile | ITerminalTypeContribution;
-}
