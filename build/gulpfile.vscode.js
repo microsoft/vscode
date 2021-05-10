@@ -485,6 +485,12 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 		const appRoot = path.join(buildDir, 'vscode_client_linux_x64_archive-unsigned', `VSCode-linux-${arch}`);
 		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'code-insiders' : 'code';
 		const appPath = path.join(appRoot, 'bin', appName);
+
+		if (!fs.existsSync(appPath)) {
+			console.log(`App root (${appRoot}) exists?: ${fs.existsSync(appPath)}`);
+			throw new Error(`VS Code executable at ${appPath} does not exist`);
+		}
+
 		const codeProc = cp.exec(
 			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
 			(err, stdout, stderr) => {
