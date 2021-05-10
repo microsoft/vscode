@@ -6,7 +6,7 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IThemeSpecificColorCustomizations, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations, THEME_ID_WILDCARD, THEME_ID_CLOSE_PAREN, THEME_ID_OPEN_PAREN, THEME_ID_REGEX } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations, IThemeSpecificColorCustomizations, THEME_ID_CLOSE_PAREN, THEME_ID_OPEN_PAREN, THEME_ID_REGEX, THEME_ID_WILDCARD } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -425,19 +425,30 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.textMateThemingRules = undefined;
 	}
 
-	private getThemeSpecificColors(colors: IThemeSpecificColorCustomizations): IThemeSpecificColorCustomizations | undefined {
+	public isThemeIdScope(key: string): boolean {
+		return key.charAt(0) === THEME_ID_OPEN_PAREN && key.charAt(key.length - 1) === THEME_ID_CLOSE_PAREN;
+	}
+
+	public isThemeIdSettingMatch(themeId: string): boolean {
+		const themeIdPrefix = themeId.slice(0, -1),
+			  themeIdFirstChar = themeId.slice(0, 1),
+			  themeIdInfix = themeId.slice(1, -1),
+			  themeIdSuffix = themeId.slice(1),
+			  themeIdLastChar = themeId.slice(-1);
+		return themeId === this.settingsId
+			|| (this.settingsId.includes(themeIdInfix) && themeIdFirstChar === THEME_ID_WILDCARD && themeIdLastChar === THEME_ID_WILDCARD)
+			|| (this.settingsId.startsWith(themeIdPrefix) && themeIdLastChar === THEME_ID_WILDCARD)
+			|| (this.settingsId.endsWith(themeIdSuffix) && themeIdFirstChar === THEME_ID_WILDCARD);
+	}
+
+	public getThemeSpecificColors(colors: IThemeSpecificColorCustomizations): IThemeSpecificColorCustomizations | undefined {
 		let themeSpecificColors;
 		for (let key in colors) {
 			const subColors = colors[key];
-			if (types.isObject(subColors) && key.charAt(0) === THEME_ID_OPEN_PAREN && key.charAt(key.length - 1) === THEME_ID_CLOSE_PAREN) {
+			if (types.isObject(subColors) && this.isThemeIdScope(key)) {
 				const themeIdList = key.match(THEME_ID_REGEX) || [];
 				for (let themeId of themeIdList) {
-					if (
-						themeId === this.settingsId
-						|| (themeId.slice(-3) === THEME_ID_WILDCARD && themeId.slice(0, 3) === THEME_ID_WILDCARD && this.settingsId.includes(themeId.slice(3, -3)))
-						|| (themeId.slice(-3) === THEME_ID_WILDCARD && this.settingsId.startsWith(themeId.slice(0, -3)))
-						|| (themeId.slice(0, 3) === THEME_ID_WILDCARD && this.settingsId.endsWith(themeId.slice(-3)))
-					) {
+					if (this.isThemeIdSettingMatch(themeId)) {
 						themeSpecificColors = themeSpecificColors || {} as IThemeSpecificColorCustomizations;
 						if (types.isObject(subColors)) {
 							let themeSpecificSubColors = subColors as Iterable<IThemeSpecificColorCustomizations>;
