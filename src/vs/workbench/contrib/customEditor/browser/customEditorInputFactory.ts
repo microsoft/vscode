@@ -121,7 +121,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 		this._installHandler();
 	}
 
-	private async _installHandler(): Promise<void> {
+	private _installHandler(): void {
 		this._register(this._workingCopyEditorService.registerHandler({
 			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeCustomEditor,
 			isOpen: (workingCopy, editor) => {
