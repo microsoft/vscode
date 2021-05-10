@@ -9,11 +9,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
@@ -26,14 +24,11 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
-	private readonly editorInputFactories = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
-
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPathService private readonly pathService: IPathService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -53,8 +48,9 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 		const backups = (await this.workingCopyBackupService.getBackups())
 			.filter(backup => backup.typeId.length === 0) 		// any working copy with `typeId` is adopted
 			.filter(backup =>
-				backup.resource.scheme !== 'search-editor' && 	// search editor has adopted
-				backup.resource.scheme !== 'vscode-notebook'	// notebooks (complex) has adopted
+				backup.resource.scheme !== 'search-editor' && 			// search editor has adopted
+				backup.resource.scheme !== Schemas.vscodeNotebook &&	// notebooks (complex) has adopted
+				backup.resource.scheme !== Schemas.vscodeCustomEditor	// custom editors (complex) has adopted
 			);
 
 		// Trigger `resolve` in each opened editor that can be found
@@ -96,8 +92,7 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 
 	private findOpenedEditor(backup: IWorkingCopyIdentifier): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
-			const customFactory = this.editorInputFactories.getCustomEditorInputFactory(backup.resource.scheme);
-			if (customFactory?.canResolveBackup(editor, backup.resource) || isEqual(editor.resource, backup.resource)) {
+			if (isEqual(editor.resource, backup.resource)) {
 				return editor;
 			}
 		}
@@ -122,15 +117,6 @@ export class LegacyWorkingCopyBackupRestorer implements IWorkbenchContribution {
 		// if so, we must ensure to restore the local resource it had.
 		if (backup.resource.scheme === Schemas.untitled && !LegacyWorkingCopyBackupRestorer.UNTITLED_REGEX.test(backup.resource.path)) {
 			return { resource: toLocalResource(backup.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme), options, forceUntitled: true };
-		}
-
-		// Handle custom editors by asking the custom editor input factory
-		// to create the input.
-		const customFactory = this.editorInputFactories.getCustomEditorInputFactory(backup.resource.scheme);
-		if (customFactory) {
-			const editor = await customFactory.createCustomEditorInput(backup.resource, this.instantiationService);
-
-			return { editor, options };
 		}
 
 		// Finally return with a simple resource based input
