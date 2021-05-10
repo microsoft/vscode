@@ -469,8 +469,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const xterm = new Terminal({
-			cols: this._cols || undefined,
-			rows: this._rows || undefined,
+			// TODO: Replace null with undefined when https://github.com/xtermjs/xterm.js/issues/3329 is resolved
+			cols: this._cols || null as any,
+			rows: this._rows || null as any,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
