@@ -489,30 +489,29 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 
 		if (!fs.existsSync(appPath)) {
 			console.log(`App root (${appRoot}) exists?: ${fs.existsSync(appPath)}`);
-			throw new Error(`VS Code executable at ${appPath} does not exist`);
+			return reject(new Error(`VS Code executable at ${appPath} does not exist`));
 		}
 
-		const codeProc = cp.exec(
-			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
-			(err, stdout, stderr) => {
-				clearTimeout(timer);
-				if (err) {
-					console.log(`err: ${err} ${err.message} ${err.toString()}`);
-					reject(err);
-				}
-
-				if (stdout) {
-					console.log(`stdout: ${stdout}`);
-				}
-
-				if (stderr) {
-					console.log(`stderr: ${stderr}`);
-				}
-
-				console.log(`Finished exporting default configuration to ${allConfigDetailsPath}`);
-				resolve();
+		const cmd = `${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`;
+		console.log(cmd);
+		const codeProc = cp.exec(cmd, (err, stdout, stderr) => {
+			clearTimeout(timer);
+			if (err) {
+				console.log(`err: ${err} ${err.message} ${err.toString()}`);
+				reject(err);
 			}
-		);
+
+			if (stdout) {
+				console.log(`stdout: ${stdout}`);
+			}
+
+			if (stderr) {
+				console.log(`stderr: ${stderr}`);
+			}
+
+			console.log(`Finished exporting default configuration to ${allConfigDetailsPath}`);
+			resolve();
+		});
 		const timer = setTimeout(() => {
 			codeProc.kill();
 			reject(new Error('export-default-configuration process timed out'));
@@ -521,6 +520,12 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 		codeProc.on('error', err => {
 			clearTimeout(timer);
 			reject(err);
+		});
+
+		codeProc.on('exit', code => {
+			if (code != 0) {
+				reject(new Error(`export-default-configuration process exited with status code: ${code}`));
+			}
 		});
 	});
 });
