@@ -463,7 +463,9 @@ export class GettingStartedPage extends EditorPane {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 
-		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src) => {
+		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src: string) => {
+			if (src.startsWith('https://')) { return `src="${src}"`; }
+
 			const path = joinPath(base, src);
 			const transformed = asWebviewUri(this.environmentService, this.webviewID, path).toString();
 			return `src="${transformed}"`;
