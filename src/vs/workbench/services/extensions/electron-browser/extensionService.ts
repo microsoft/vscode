@@ -372,7 +372,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 			if (resolverResult.options?.trust === RemoteTrustOption.DisableTrust) {
 				promptForMachineTrust = false;
-				this._workspaceTrustManagementService.setWorkspaceTrust(true);
+				await this._workspaceTrustManagementService.setWorkspaceTrust(true);
 			} else if (resolverResult.options?.trust === RemoteTrustOption.MachineTrusted) {
 				promptForMachineTrust = false;
 			}

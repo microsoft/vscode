@@ -635,6 +635,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			pendingState.operation.cancel();
 		});
 
+		let errorMessage = '';
 		try {
 			const backupId = await pendingState.operation;
 			// Make sure state has not changed in the meantime
@@ -653,12 +654,15 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			if (this._hotExitState === pendingState) {
 				this._hotExitState = HotExitState.NotAllowed;
 			}
+			if (e.message) {
+				errorMessage = e.message;
+			}
 		}
 
 		if (this._hotExitState === HotExitState.Allowed) {
 			return backupData;
 		}
 
-		throw new Error('Cannot back up in this state');
+		throw new Error(`Cannot back up in this state: ${errorMessage}`);
 	}
 }

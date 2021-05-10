@@ -413,14 +413,41 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
 		this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
 
-		this._diffElementViewModels = viewModels;
-		this._list.splice(0, this._list.length, this._diffElementViewModels);
+		this._setViewModel(viewModels);
+		// this._diffElementViewModels = viewModels;
+		// this._list.splice(0, this._list.length, this._diffElementViewModels);
 
 		if (this._revealFirst && firstChangeIndex !== -1) {
 			this._revealFirst = false;
 			this._list.setFocus([firstChangeIndex]);
 			this._list.reveal(firstChangeIndex, 0.3);
 		}
+	}
+
+	private _setViewModel(viewModels: DiffElementViewModelBase[]) {
+		let isSame = true;
+		if (this._diffElementViewModels.length === viewModels.length) {
+			for (let i = 0; i < viewModels.length; i++) {
+				const a = this._diffElementViewModels[i];
+				const b = viewModels[i];
+
+				if (a.original?.textModel.getHashValue() !== b.original?.textModel.getHashValue()
+					|| a.modified?.textModel.getHashValue() !== b.modified?.textModel.getHashValue()) {
+					isSame = false;
+					break;
+				}
+			}
+		} else {
+			isSame = false;
+		}
+
+		if (isSame) {
+			return;
+		}
+
+		this._diffElementViewModels = viewModels;
+		this._list.splice(0, this._list.length, this._diffElementViewModels);
+
 	}
 
 	/**

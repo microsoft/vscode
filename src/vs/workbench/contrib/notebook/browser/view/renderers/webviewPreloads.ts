@@ -794,9 +794,16 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 		type: 'initialized'
 	});
 
-	function createMarkdownPreview(cellId: string, content: string, top: number) {
+	function createMarkdownPreview(cellId: string, content: string, top: number): HTMLElement {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
+
+		const existing = document.getElementById(cellId);
+		if (existing) {
+			console.error(`Trying to create markdown preview that already exists: ${cellId}`);
+			return existing;
+		}
+
 		cellContainer.id = cellId;
 		cellContainer.classList.add('preview');
 

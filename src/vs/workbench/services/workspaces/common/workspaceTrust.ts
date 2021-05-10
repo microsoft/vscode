@@ -5,10 +5,10 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { splitName } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -17,7 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
@@ -50,11 +50,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
+	private _isWorkspaceTransitionInProgress: boolean = false;
 	private _isWorkspaceTrusted: boolean = false;
 	private _trustStateInfo: IWorkspaceTrustInfo;
 
+	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
+
 	constructor(
-		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -65,25 +68,25 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._trustStateInfo = this.loadTrustInfo();
 		this._isWorkspaceTrusted = this.calculateWorkspaceTrust();
 
+		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
+
 		this.registerListeners();
 	}
 
-	private set currentTrustState(trusted: boolean) {
-		if (this._isWorkspaceTrusted === trusted) { return; }
-		this._isWorkspaceTrusted = trusted;
-
-		this._onDidChangeTrust.fire(trusted);
-	}
-
 	private registerListeners(): void {
-		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrust()));
-		this._register(this.workspaceService.onDidChangeWorkbenchState(() => this.currentTrustState = this.calculateWorkspaceTrust()));
-		this._register(this.storageService.onDidChangeValue(changeEvent => {
+		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
+		this._register(this.workspaceService.onDidChangeWorkbenchState(async () => await this.updateWorkspaceTrust()));
+		this._register(this.storageService.onDidChangeValue(async changeEvent => {
 			if (changeEvent.key === this.storageKey) {
 				this._trustStateInfo = this.loadTrustInfo();
-				this.currentTrustState = this.calculateWorkspaceTrust();
-
 				this._onDidChangeTrustedFolders.fire();
+
+				// Asynchronously update the workspace trust state so that if there is
+				// an attempt to synchronously update workspace trust state that would
+				// take precedence.
+				// Updating the workspace trust state asynchronously should only occur
+				// if the storage has been updated due to an action in a separate window.
+				setTimeout(async () => await this.updateWorkspaceTrust());
 			}
 		}));
 	}
@@ -114,8 +117,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return result;
 	}
 
-	private saveTrustInfo(): void {
+	private async saveTrustInfo(): Promise<void> {
 		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		await this.updateWorkspaceTrust();
 	}
 
 	private calculateWorkspaceTrust(): boolean {
@@ -161,7 +165,25 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return workspaceUris;
 	}
 
-	public getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
+	private async updateWorkspaceTrust(): Promise<void> {
+		const trusted = this.calculateWorkspaceTrust();
+		if (this.isWorkpaceTrusted() === trusted) { return; }
+		if (this._isWorkspaceTransitionInProgress) { return; }
+
+		// Run workspace trust transition participants
+		this._isWorkspaceTransitionInProgress = true;
+		await this._trustTransitionManager.participate(trusted);
+		this._isWorkspaceTransitionInProgress = false;
+
+		this._isWorkspaceTrusted = trusted;
+		this._onDidChangeTrust.fire(trusted);
+	}
+
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		return this._trustTransitionManager.addWorkspaceTrustTransitionParticipant(participant);
+	}
+
+	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
 		let resultState = false;
 		let maxLength = -1;
 
@@ -181,7 +203,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return { trusted: resultState, uri: resultUri };
 	}
 
-	setUrisTrust(uris: URI[], trusted: boolean): void {
+	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
 		let changed = false;
 
 		for (const uri of uris) {
@@ -201,7 +223,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		if (changed) {
-			this.saveTrustInfo();
+			await this.saveTrustInfo();
 		}
 	}
 
@@ -225,7 +247,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// If the current folder isn't trusted directly, return false
 		const trustInfo = this.getUriTrustInfo(workspaceIdentifier.uri);
-		if (!trustInfo.trusted || !isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
+		if (!trustInfo.trusted || !this.uriIdentityService.extUri.isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
 			return false;
 		}
 
@@ -259,25 +281,38 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 	}
 
-	setWorkspaceTrust(trusted: boolean): void {
+	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		const workspaceFolders = this.getWorkspaceUris();
-		this.setUrisTrust(workspaceFolders, trusted);
+		await this.setUrisTrust(workspaceFolders, trusted);
 	}
 
 	getTrustedFolders(): URI[] {
 		return this._trustStateInfo.uriTrustInfo.map(info => info.uri);
 	}
 
-	setTrustedFolders(folders: URI[]): void {
+	async setTrustedFolders(uris: URI[]): Promise<void> {
 		this._trustStateInfo.uriTrustInfo = [];
-		for (const folder of folders) {
+		for (const uri of uris) {
+			const cleanUri = this.uriIdentityService.extUri.removeTrailingPathSeparator(uri);
+			let added = false;
+			for (const addedUri of this._trustStateInfo.uriTrustInfo) {
+				if (this.uriIdentityService.extUri.isEqual(addedUri.uri, cleanUri)) {
+					added = true;
+					break;
+				}
+			}
+
+			if (added) {
+				continue;
+			}
+
 			this._trustStateInfo.uriTrustInfo.push({
 				trusted: true,
-				uri: folder
+				uri: cleanUri
 			});
 		}
 
-		this.saveTrustInfo();
+		await this.saveTrustInfo();
 	}
 }
 
@@ -299,7 +334,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	) {
 		super();
 
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.onTrustStateChanged(trusted)));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.trusted = trusted));
 
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
 
@@ -315,9 +350,13 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._ctxWorkspaceTrustState.set(trusted);
 	}
 
-	private onTrustStateChanged(trusted: boolean): void {
+	private resolveRequest(trusted?: boolean): void {
+		if (this._modalTrustRequestResolver) {
+			this._modalTrustRequestResolver(trusted ?? this.trusted);
 
-		this.trusted = trusted;
+			this._modalTrustRequestResolver = undefined;
+			this._modalTrustRequestPromise = undefined;
+		}
 	}
 
 	cancelRequest(): void {
@@ -329,19 +368,15 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 	}
 
-	completeRequest(trusted?: boolean): void {
-		if (this._modalTrustRequestResolver) {
-			this._modalTrustRequestResolver(trusted ?? this.trusted);
-
-			this._modalTrustRequestResolver = undefined;
-			this._modalTrustRequestPromise = undefined;
-		}
-
-		if (trusted === undefined) {
+	async completeRequest(trusted?: boolean): Promise<void> {
+		if (trusted === undefined || trusted === this.trusted) {
+			this.resolveRequest(trusted);
 			return;
 		}
 
-		this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
+		// Update storage, transition workspace, and resolve the promise
+		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
+		this.resolveRequest(trusted);
 	}
 
 	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
@@ -362,8 +397,27 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 
 		this._onDidInitiateWorkspaceTrustRequest.fire(options);
-
 		return this._modalTrustRequestPromise;
+	}
+}
+
+export class WorkspaceTrustTransitionManager extends Disposable {
+
+	private readonly participants = new LinkedList<IWorkspaceTrustTransitionParticipant>();
+
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		const remove = this.participants.push(participant);
+		return toDisposable(() => remove());
+	}
+
+	async participate(trusted: boolean): Promise<void> {
+		for (const participant of this.participants) {
+			await participant.participate(trusted);
+		}
+	}
+
+	override dispose(): void {
+		this.participants.clear();
 	}
 }
 
