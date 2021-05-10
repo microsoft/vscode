@@ -519,7 +519,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param container The element to attach the terminal instance to.
 	 */
-	attachToElement(container: HTMLElement): void;
+	attachToElement(container: HTMLElement): Promise<void> | void;
 
 	/**
 	 * Configure the dimensions of the terminal instance.

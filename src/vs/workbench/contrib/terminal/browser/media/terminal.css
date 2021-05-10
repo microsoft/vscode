@@ -28,11 +28,11 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: none;
 	margin: 0 10px;
+	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
 	display: block;
 	position: absolute;
-	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 	top: 0;
 }
 .monaco-workbench .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper {

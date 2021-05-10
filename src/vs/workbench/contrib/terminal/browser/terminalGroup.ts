@@ -127,6 +127,7 @@ class SplitPaneContainer extends Disposable {
 		}
 
 		this._withDisabledLayout(() => this._splitView.addView(child, Sizing.Distribute, index));
+		this.layout(this._width, this._height);
 
 		this._onDidChange = Event.any(...this._children.map(c => c.onDidChange));
 	}
@@ -147,6 +148,7 @@ class SplitPaneContainer extends Disposable {
 	layout(width: number, height: number): void {
 		this._width = width;
 		this._height = height;
+		console.log('SplitPaneContainer.layout', width, height);
 		if (this.orientation === Orientation.HORIZONTAL) {
 			this._children.forEach(c => c.orthogonalLayout(height));
 			this._splitView.layout(width);
@@ -209,6 +211,7 @@ class SplitPane implements IView {
 	}
 
 	layout(size: number): void {
+		console.log(`SplitPane.layout (${this.instance.instanceId})`, size, this.orthogonalSize);
 		// Only layout when both sizes are known
 		if (!size || !this.orthogonalSize) {
 			return;
@@ -433,6 +436,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (this._groupElement) {
 			this._groupElement.style.display = visible ? '' : 'none';
 		}
+		console.log('TerminalGroup.setVisible');
 		this.terminalInstances.forEach(i => i.setVisible(visible));
 	}
 

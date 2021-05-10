@@ -136,7 +136,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hasHadInput: boolean;
 
 	readonly statusList: ITerminalStatusList = new TerminalStatusList();
-	disableLayout: boolean;
+	disableLayout: boolean = false;
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI {
 		return URI.from({
@@ -221,6 +221,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
+		// TODO: Remove this, it's never set in the ctor
 		private _container: HTMLElement | undefined,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
@@ -259,7 +260,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 		this._terminalA11yTreeFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
-		this.disableLayout = false;
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 
@@ -346,6 +346,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _initDimensions(): void {
+		console.log('initDimensions, container?', this._container);
+
 		// The terminal panel needs to have been created
 		if (!this._container) {
 			return;
@@ -367,18 +369,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Ignore if dimensions are undefined or 0
 		if (!width || !height) {
 			this._setLastKnownColsAndRows();
+			console.log('1');
 			return null;
 		}
 
 		const dimension = this._getDimension(width, height);
 		if (!dimension) {
 			this._setLastKnownColsAndRows();
+			console.log('2');
 			return null;
 		}
 
 		const font = this._configHelper.getFont(this._xtermCore);
 		if (!font.charWidth || !font.charHeight) {
 			this._setLastKnownColsAndRows();
+			console.log('3');
 			return null;
 		}
 
@@ -397,6 +402,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const newRows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 
 		if (this._cols !== newCols || this._rows !== newRows) {
+			console.log('newRows', newRows);
 			this._cols = newCols;
 			this._rows = newRows;
 			this._fireMaximumDimensionsChanged();
@@ -421,15 +427,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The font needs to have been initialized
 		const font = this._configHelper.getFont(this._xtermCore);
 		if (!font || !font.charWidth || !font.charHeight) {
+			console.log('a');
 			return undefined;
 		}
 
 		// The panel is minimized
-		if (!this._isVisible) {
-			return TerminalInstance._lastKnownCanvasDimensions;
-		}
+		// if (!this._isVisible) {
+		// 	console.log('b');
+		// 	return TerminalInstance._lastKnownCanvasDimensions;
+		// }
 
 		if (!this._wrapperElement) {
+			console.log('c');
 			return undefined;
 		}
 
@@ -479,6 +488,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			xtermRendererType = config.gpuAcceleration === 'on' ? 'canvas' : 'dom';
 		}
 
+		console.log('create 80x30 terminal', this._cols, this._rows);
 		const xterm = new Terminal({
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
@@ -582,7 +592,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 	}
 
-	attachToElement(container: HTMLElement): void {
+	attachToElement(container: HTMLElement): Promise<void> | void {
+		console.log('external attachToElement');
 		// The container did not change, do nothing
 		if (this._container === container) {
 			return;
@@ -590,8 +601,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Attach has not occured yet
 		if (!this._wrapperElement) {
-			this._attachToElement(container);
-			return;
+			return this._attachToElement(container);
 		}
 
 		// The container changed, reattach
@@ -601,7 +611,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _attachToElement(container: HTMLElement): Promise<void> {
-		const xterm = await this._xtermReadyPromise;
+		console.log('_attachToElement', container);
 
 		if (this._wrapperElement) {
 			throw new Error('The terminal instance has already been attached to a container');
@@ -612,11 +622,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.classList.add('terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
+		this._wrapperElement.appendChild(this._xtermElement);
+		this._container.appendChild(this._wrapperElement);
+
+		const xterm = await this._xtermReadyPromise;
+
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = this._xterm;
 
-		this._wrapperElement.appendChild(this._xtermElement);
-		this._container.appendChild(this._wrapperElement);
 		xterm.open(this._xtermElement);
 
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
@@ -751,7 +764,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
 
-		const computedStyle = window.getComputedStyle(this._container);
+		// const computedStyle = window.getComputedStyle(this._container);
+		const computedStyle = window.getComputedStyle(this._container.parentElement!);
 		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this.layout(new dom.Dimension(width, height));
@@ -972,6 +986,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	setVisible(visible: boolean): void {
+		console.log('setVisible', visible);
 		this._isVisible = visible;
 		if (this._wrapperElement) {
 			this._wrapperElement.classList.toggle('active', visible);
@@ -985,19 +1000,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// fixed upstream.
 			this._xtermCore._onScroll.fire(this._xterm.buffer.active.viewportY);
 			if (this._container && this._container.parentElement) {
-				// Force a layout when the instance becomes invisible. This is particularly important
+				// Force a layout when the instance becomes visible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
 				// correctly get correct character measurements in order to render to the screen (see
 				// #34554).
-				const computedStyle = window.getComputedStyle(this._container.parentElement);
-				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-				this.layout(new dom.Dimension(width, height));
+				// const computedStyle = window.getComputedStyle(this._container.parentElement);
+				// const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+				// const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+				// this.layout(new dom.Dimension(width, height));
 				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
 				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
 				// supported.
-				this._timeoutDimension = new dom.Dimension(width, height);
-				setTimeout(() => this.layout(this._timeoutDimension!), 0);
+				// this._timeoutDimension = new dom.Dimension(width, height);
+				// setTimeout(() => this.layout(this._timeoutDimension!), 0);
 			}
 		}
 	}
@@ -1490,9 +1505,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	layout(dimension: dom.Dimension): void {
 		if (this.disableLayout) {
+			console.log('disableLayout');
 			return;
 		}
 
+		console.log('layout', dimension);
 		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
 		if (!terminalWidth) {
 			return;
@@ -1548,6 +1565,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._onDimensionsChanged.fire();
 			}
 
+			console.log('resize now', cols, rows);
 			this._xterm.resize(cols, rows);
 			TerminalInstance._lastKnownGridDimensions = { cols, rows };
 
