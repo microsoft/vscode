@@ -536,7 +536,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		if (this._activeGroupIndex !== index) {
+		if (this._activeGroupIndex === index) {
 			return;
 		}
 
