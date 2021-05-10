@@ -358,11 +358,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
+
 		const data = await serializer.deserializeNotebook(bytes.buffer, token);
-		return {
+		const res: NotebookDataDto = {
 			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
-			cells: data.cells.map(typeConverters.NotebookCellData.from),
+			cells: [],
 		};
+
+		for (let cell of data.cells) {
+			extHostTypes.NotebookCellData.validate(cell);
+			res.cells.push(typeConverters.NotebookCellData.from(cell));
+		}
+
+		return res;
 	}
 
 	async $notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer> {

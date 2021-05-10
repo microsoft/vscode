@@ -3023,6 +3023,18 @@ export class NotebookDocumentMetadata {
 
 export class NotebookCellData {
 
+	static validate(data: NotebookCellData): void {
+		if (typeof data.kind !== 'number') {
+			throw new Error('NotebookCellData MUST have \'kind\' property');
+		}
+		if (typeof data.value !== 'string') {
+			throw new Error('NotebookCellData MUST have \'value\' property');
+		}
+		if (typeof data.languageId !== 'string') {
+			throw new Error('NotebookCellData MUST have \'languageId\' property');
+		}
+	}
+
 	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
 		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
 	}
@@ -3046,6 +3058,8 @@ export class NotebookCellData {
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
 		this.latestExecutionSummary = latestExecutionSummary;
+
+		NotebookCellData.validate(this);
 	}
 }
 
