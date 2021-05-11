@@ -160,7 +160,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
-		const scrollLocation = vscode.window.activeTextEditor?.visibleRanges[0].start.line;
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,
@@ -168,8 +167,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._previewConfigurations,
 			this._logger,
 			this._contributions,
-			this._engine,
-			scrollLocation);
+			this._engine);
 		this.registerStaticPreview(preview);
 	}
 
