@@ -1835,8 +1835,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const items: IQuickPickItem[] = [];
-		const colors = ['red', 'blue', 'green', 'yellow'];
-		for (const color of colors) {
+		for (const color in this._getXtermTheme()) {
 			items.push({ label: `$(${icon.id})`, description: `${color}` });
 		}
 		const result = await this._quickInputService.pick(items, {
