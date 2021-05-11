@@ -17,7 +17,7 @@ import { CellKind, INotebookSearchOptions, ShowCellStatusBarKey, INotebookCellSt
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -129,7 +129,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		public id: string,
-		private readonly _eventDispatcher: NotebookEventDispatcher,
+		private readonly _viewContext: ViewContext,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _modelService: ITextModelService,
 	) {
@@ -152,7 +152,7 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	getEditorStatusbarHeight() {
 		const showCellStatusBar = this._configurationService.getValue<boolean>(ShowCellStatusBarKey);
-		return showCellStatusBar ? this._eventDispatcher.notebookOptions.getLayoutConfiguration().cellStatusBarHeight : 0;
+		return showCellStatusBar ? this._viewContext.notebookOptions.getLayoutConfiguration().cellStatusBarHeight : 0;
 	}
 
 	abstract hasDynamicHeight(): boolean;

@@ -18,6 +18,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, diff, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -38,8 +39,8 @@ suite('NotebookViewModel', () => {
 	test('ctor', function () {
 		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
-		const eventDispatcher = new NotebookEventDispatcher(new NotebookOptions());
-		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService, textModelService);
+		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
+		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, instantiationService, bulkEditService, undoRedoService, textModelService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 

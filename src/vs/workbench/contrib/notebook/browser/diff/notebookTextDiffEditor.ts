@@ -75,7 +75,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>();
 	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
 
-	private _notebookOptions = new NotebookOptions();
+	private _notebookOptions: NotebookOptions;
 
 	get notebookOptions() {
 		return this._notebookOptions;
@@ -99,6 +99,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@IStorageService storageService: IStorageService,
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
+		this._notebookOptions = new NotebookOptions(this.configurationService);
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
 		this._revealFirst = true;

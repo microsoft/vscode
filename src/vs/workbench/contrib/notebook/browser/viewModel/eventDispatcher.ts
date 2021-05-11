@@ -6,7 +6,6 @@
 import { Emitter } from 'vs/base/common/event';
 import { NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookLayoutChangeEvent, NotebookLayoutInfo, CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export enum NotebookViewEventType {
 	LayoutChanged = 1,
@@ -50,7 +49,7 @@ export class NotebookEventDispatcher {
 	protected readonly _onDidChangeCellState = new Emitter<NotebookCellStateChangedEvent>();
 	readonly onDidChangeCellState = this._onDidChangeCellState.event;
 
-	constructor(readonly notebookOptions: NotebookOptions) {
+	constructor() {
 	}
 
 	emit(events: NotebookViewEvent[]) {

@@ -11,7 +11,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, getEditorTopPadding, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -95,12 +95,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		viewType: string,
 		model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
-		readonly eventDispatcher: NotebookEventDispatcher,
+		readonly viewContext: ViewContext,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 	) {
-		super(viewType, model, UUID.generateUuid(), eventDispatcher, configurationService, modelService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splices) => {
@@ -132,7 +132,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
 			editorWidth: initialNotebookLayoutInfo
-				? this.eventDispatcher.notebookOptions.computeCodeCellEditorWidth(initialNotebookLayoutInfo.width)
+				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
@@ -148,7 +148,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
 		// recompute
 		this._ensureOutputsTop();
-		const notebookLayoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
+		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
 		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalValue());
 
@@ -182,9 +182,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				- notebookLayoutConfiguration.bottomCellToolbarGap
 				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2
 				- outputShowMoreContainerHeight;
-			const bottomToolbarOffset = this.eventDispatcher.notebookOptions.computeBottomToolbarOffset(totalHeight);
+			const bottomToolbarOffset = this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight);
 			const editorWidth = state.outerWidth !== undefined
-				? this.eventDispatcher.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
+				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
 				: this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
@@ -215,9 +215,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				- notebookLayoutConfiguration.bottomCellToolbarGap
 				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2
 				- outputShowMoreContainerHeight;
-			const bottomToolbarOffset = this.eventDispatcher.notebookOptions.computeBottomToolbarOffset(totalHeight);
+			const bottomToolbarOffset = this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight);
 			const editorWidth = state.outerWidth !== undefined
-				? this.eventDispatcher.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
+				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
 				: this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
@@ -301,12 +301,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
 		return this.lineCount * lineHeight
 			+ getEditorTopPadding()
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().editorBottomPadding // EDITOR_BOTTOM_PADDING
+			+ this.viewContext.notebookOptions.getLayoutConfiguration().editorBottomPadding // EDITOR_BOTTOM_PADDING
 			+ verticalScrollbarHeight;
 	}
 
 	private computeTotalHeight(editorHeight: number, outputsTotalHeight: number, outputShowMoreContainerHeight: number): number {
-		const layoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
+		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		return layoutConfiguration.editorToolbarHeight //EDITOR_TOOLBAR_HEIGHT
 			+ layoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 			+ editorHeight

@@ -76,6 +76,7 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetContextKeys';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 
 const $ = DOM.$;
 
@@ -215,6 +216,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _dndController: CellDragAndDropController | null = null;
 	private _listTopCellToolbar: ListTopCellToolbar | null = null;
 	private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
+	private _viewContext: ViewContext | undefined;
 	private _eventDispatcher: NotebookEventDispatcher | undefined;
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private _localStore: DisposableStore = this._register(new DisposableStore());
@@ -337,7 +339,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.isEmbedded = creationOptions.isEmbedded || false;
 
 		this.useRenderer = !isWeb && !!this.configurationService.getValue<boolean>(ExperimentalUseMarkdownRenderer) && !accessibilityService.isScreenReaderOptimized();
-		this._notebookOptions = new NotebookOptions();
+		this._notebookOptions = new NotebookOptions(this.configurationService);
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
@@ -1161,9 +1163,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
 		await this._createWebview(this.getId(), textModel.uri);
 
-		this._eventDispatcher = new NotebookEventDispatcher(this._notebookOptions);
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._eventDispatcher, this.getLayoutInfo());
-		this._eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
+		this._viewContext = new ViewContext(this._notebookOptions, new NotebookEventDispatcher());
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo());
+		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
 		this._updateForOptions();
 		this._updateForNotebookConfiguration();
