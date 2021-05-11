@@ -73,7 +73,7 @@ export class MainThreadEditorTabs {
 					group: group.id,
 					name: editor.getTitle(Verbosity.SHORT) ?? '',
 					resource: editor.resource,
-					isActive: group.isActive(editor)
+					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
 				});
 			}
 		}
