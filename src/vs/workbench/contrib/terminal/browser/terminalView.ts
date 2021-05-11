@@ -31,12 +31,12 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { DropdownWithPrimaryActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownWithPrimaryActionViewItem';
 import { reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
+import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -64,6 +64,7 @@ export class TerminalViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -186,7 +187,8 @@ export class TerminalViewPane extends ViewPane {
 					this._tabButtons.dispose();
 				}
 				const actions = this._getTabActionBarArgs(this._terminalService.availableProfiles);
-				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService);
+
+				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, this._keybindingService, this._notificationService);
 				this._updateTabActionBar(this._terminalService.availableProfiles);
 				return this._tabButtons;
 			}
@@ -196,7 +198,7 @@ export class TerminalViewPane extends ViewPane {
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		const actions = this._getTabActionBarArgs(profiles);
-		this._tabButtons?.update(actions.dropdownAction, actions.dropdownMenuActions, actions.dropdownIcon);
+		this._tabButtons?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
 	private _getTabActionBarArgs(profiles: ITerminalProfile[]): {
@@ -234,7 +236,20 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}
 
-		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.New, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+		const primaryAction = this._instantiationService.createInstance(
+			MenuItemAction,
+			{
+				id: TerminalCommandId.New,
+				title: nls.localize('terminal.new', "New Terminal"),
+				icon: Codicon.plus
+			},
+			{
+				id: TerminalCommandId.Split,
+				title: nls.localize('terminal.split', "Split Terminal"),
+				icon: Codicon.splitHorizontal
+			},
+			undefined);
+
 		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
 		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
 	}
