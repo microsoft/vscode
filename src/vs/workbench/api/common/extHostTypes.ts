@@ -3078,7 +3078,13 @@ export class NotebookData {
 export class NotebookCellOutputItem {
 
 	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
-		return obj instanceof NotebookCellOutputItem;
+		if (obj instanceof NotebookCellOutputItem) {
+			return true;
+		}
+		if (!obj) {
+			return false;
+		}
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
 	}
 
 	constructor(

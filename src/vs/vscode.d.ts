@@ -10495,7 +10495,7 @@ declare module 'vscode' {
 		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
 
 		/**
-		 * All text documents currently known to the system.
+		 * All text documents currently known to the editor.
 		 */
 		export const textDocuments: ReadonlyArray<TextDocument>;
 
