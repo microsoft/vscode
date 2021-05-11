@@ -500,8 +500,9 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		logger: Logger,
 		contributionProvider: MarkdownContributionProvider,
 		engine: MarkdownEngine,
+		scrollLocation?: number,
 	): StaticMarkdownPreview {
-		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, logger, contributionProvider, engine);
+		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, logger, contributionProvider, engine, scrollLocation);
 	}
 
 	private readonly preview: MarkdownPreview;
@@ -514,10 +515,12 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		logger: Logger,
 		contributionProvider: MarkdownContributionProvider,
 		engine: MarkdownEngine,
+		scrollLocation?: number,
 	) {
 		super();
 
-		this.preview = this._register(new MarkdownPreview(this._webviewPanel, resource, undefined, {
+		const startingScroll = scrollLocation ? new StartingScrollLine(scrollLocation) : undefined;
+		this.preview = this._register(new MarkdownPreview(this._webviewPanel, resource, startingScroll, {
 			getAdditionalState: () => { return {}; },
 			openPreviewLinkToMarkdownFile: () => { /* todo */ }
 		}, engine, contentProvider, _previewConfigurations, logger, contributionProvider));
