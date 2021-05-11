@@ -467,11 +467,11 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToPendingModelResolvers.clear();
 
 		// dispose the dispose listeners
-		this.mapResourceToDisposeListener.forEach(listener => listener.dispose());
+		dispose(this.mapResourceToDisposeListener.values());
 		this.mapResourceToDisposeListener.clear();
 
 		// dispose the model change listeners
-		this.mapResourceToModelListeners.forEach(listener => listener.dispose());
+		dispose(this.mapResourceToModelListeners.values());
 		this.mapResourceToModelListeners.clear();
 	}
 }

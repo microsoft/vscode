@@ -722,16 +722,16 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this.mapResourceToPendingWorkingCopyResolve.clear();
 
 		// Dispose the dispose listeners
-		dispose(Array.from(this.mapResourceToDisposeListener.values()));
+		dispose(this.mapResourceToDisposeListener.values());
 		this.mapResourceToDisposeListener.clear();
 
 		// Dispose the working copy change listeners
-		dispose(Array.from(this.mapResourceToWorkingCopyListeners.values()));
+		dispose(this.mapResourceToWorkingCopyListeners.values());
 		this.mapResourceToWorkingCopyListeners.clear();
 	}
 
 	destroyWorkingCopies(): void {
-		dispose(Array.from(this.mapResourceToWorkingCopy.values()));
+		dispose(this.mapResourceToWorkingCopy.values());
 	}
 
 	//#endregion
