@@ -86,6 +86,7 @@ export interface ITunnelService {
 	readonly onTunnelOpened: Event<RemoteTunnel>;
 	readonly onTunnelClosed: Event<{ host: string, port: number; }>;
 	readonly canElevate: boolean;
+	readonly hasTunnelProvider: boolean;
 
 	canTunnel(uri: URI): boolean;
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, isPublic?: boolean): Promise<RemoteTunnel | undefined> | undefined;
@@ -140,6 +141,10 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	public constructor(
 		@ILogService protected readonly logService: ILogService
 	) { }
+
+	get hasTunnelProvider(): boolean {
+		return !!this._tunnelProvider;
+	}
 
 	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable {
 		this._tunnelProvider = provider;

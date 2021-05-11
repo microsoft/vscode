@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
-import { promises } from 'fs';
+import { promises, readFileSync } from 'fs';
 import { join } from 'vs/base/common/path';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
@@ -43,7 +43,7 @@ flakySuite('StateMainService', () => {
 
 		service.setItem('some.other.key', 'some.other.value');
 
-		await service.flush();
+		await service.close();
 
 		service = new FileStorage(storageFile, new NullLogService());
 		await service.init();
@@ -106,7 +106,7 @@ flakySuite('StateMainService', () => {
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
 
-		await service.flush();
+		await service.close();
 
 		service = new FileStorage(storageFile, new NullLogService());
 		await service.init();
@@ -140,5 +140,29 @@ flakySuite('StateMainService', () => {
 		assert.strictEqual(service.getItem('some.key2'), undefined);
 		assert.strictEqual(service.getItem('some.key3'), undefined);
 		assert.strictEqual(service.getItem('some.key4'), undefined);
+	});
+
+	test('Used after close', async function () {
+		const storageFile = join(testDir, 'storage.json');
+		writeFileSync(storageFile, '');
+
+		const service = new FileStorage(storageFile, new NullLogService());
+
+		await service.init();
+
+		service.setItem('some.key1', 'some.value1');
+		service.setItem('some.key2', 'some.value2');
+		service.setItem('some.key3', 'some.value3');
+		service.setItem('some.key4', 'some.value4');
+
+		await service.close();
+
+		service.setItem('some.key5', 'some.marker');
+
+		const contents = readFileSync(storageFile).toString();
+		assert.ok(contents.includes('some.value1'));
+		assert.ok(!contents.includes('some.marker'));
+
+		await service.close();
 	});
 });

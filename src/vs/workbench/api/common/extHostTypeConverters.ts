@@ -1466,8 +1466,8 @@ export namespace NotebookCellPreviousExecutionResult {
 export namespace NotebookCellKind {
 	export function from(data: vscode.NotebookCellKind): notebooks.CellKind {
 		switch (data) {
-			case types.NotebookCellKind.Markdown:
-				return notebooks.CellKind.Markdown;
+			case types.NotebookCellKind.Markup:
+				return notebooks.CellKind.Markup;
 			case types.NotebookCellKind.Code:
 			default:
 				return notebooks.CellKind.Code;
@@ -1476,8 +1476,8 @@ export namespace NotebookCellKind {
 
 	export function to(data: notebooks.CellKind): vscode.NotebookCellKind {
 		switch (data) {
-			case notebooks.CellKind.Markdown:
-				return types.NotebookCellKind.Markdown;
+			case notebooks.CellKind.Markup:
+				return types.NotebookCellKind.Markup;
 			case notebooks.CellKind.Code:
 			default:
 				return types.NotebookCellKind.Code;
@@ -1490,8 +1490,8 @@ export namespace NotebookCellData {
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
 		return {
 			cellKind: NotebookCellKind.from(data.kind),
-			language: data.language,
-			source: data.source,
+			language: data.languageId,
+			source: data.value,
 			metadata: {
 				...data.metadata,
 				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})

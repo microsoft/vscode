@@ -22,11 +22,10 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export enum CellKind {
-	Markdown = 1,
+	Markup = 1,
 	Code = 2
 }
 
@@ -813,7 +812,7 @@ export interface INotebookKernel {
 }
 
 export interface INotebookCellStatusBarItemProvider {
-	selector: NotebookSelector;
+	viewType: string;
 	onDidChangeStatusBarItems?: Event<void>;
 	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }

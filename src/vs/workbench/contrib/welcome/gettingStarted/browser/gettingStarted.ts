@@ -234,7 +234,8 @@ export class GettingStartedPage extends EditorPane {
 		setTimeout(() => this.container.classList.add('animationReady'), 0);
 	}
 
-	makeCategoryVisibleWhenAvailable(categoryID: string) {
+	async makeCategoryVisibleWhenAvailable(categoryID: string) {
+		await this.extensionService.whenInstalledExtensionsRegistered();
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
@@ -463,7 +464,9 @@ export class GettingStartedPage extends EditorPane {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 
-		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src) => {
+		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src: string) => {
+			if (src.startsWith('https://')) { return `src="${src}"`; }
+
 			const path = joinPath(base, src);
 			const transformed = asWebviewUri(this.environmentService, this.webviewID, path).toString();
 			return `src="${transformed}"`;

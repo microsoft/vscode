@@ -58,6 +58,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// Read in the cache on statup
 		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
 		this.storageService.remove(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL);
+		this.convertOldAssociationFormat();
 
 		this._register(this.storageService.onWillSaveState(() => {
 			// We want to store the glob patterns we would activate on, this allows us to know if we need to await the ext host on startup for opening a resource
@@ -68,6 +69,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		this.extensionService.onDidRegisterExtensions(() => {
 			this.cache = undefined;
 		});
+
+		// When the setting changes we want to ensure that it is properly converted
+		this._register(this.configurationService.onDidChangeConfiguration(() => {
+			this.convertOldAssociationFormat();
+		}));
 	}
 
 	async resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined> {
@@ -172,19 +178,31 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return matchingAssociations.filter(association => allContributions.find(c => c.editorInfo.id === association.viewType));
 	}
 
-	private getAllUserAssociations(): EditorAssociations {
+	private convertOldAssociationFormat(): void {
 		const rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || [];
-		let associations = [];
+		// If it's not an array, then it's the new format
 		if (!Array.isArray(rawAssociations)) {
-			for (const [key, value] of Object.entries(rawAssociations)) {
-				const association: EditorAssociation = {
-					filenamePattern: key,
-					viewType: value
-				};
-				associations.push(association);
+			return;
+		}
+		let newSettingObject = Object.create(null);
+		// Make the correctly formatted object from the array and then set that object
+		for (const association of rawAssociations) {
+			if (association.filenamePattern) {
+				newSettingObject[association.filenamePattern] = association.viewType;
 			}
-		} else {
-			associations = rawAssociations;
+		}
+		this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
+	}
+
+	private getAllUserAssociations(): EditorAssociations {
+		const rawAssociations = this.configurationService.getValue<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || [];
+		let associations = [];
+		for (const [key, value] of Object.entries(rawAssociations)) {
+			const association: EditorAssociation = {
+				filenamePattern: key,
+				viewType: value
+			};
+			associations.push(association);
 		}
 		return associations;
 	}

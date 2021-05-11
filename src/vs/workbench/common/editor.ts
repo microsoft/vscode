@@ -198,22 +198,6 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
-/**
- * @deprecated obsolete
- *
- * TODO@bpasero remove this API and users once the generic backup restorer has been removed
- */
-export interface ICustomEditorInputFactory {
-	/**
-	 * @deprecated obsolete
-	 */
-	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
-	/**
-	 * @deprecated obsolete
-	 */
-	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
-}
-
 export interface IEditorInputFactoryRegistry {
 
 	/**
@@ -225,20 +209,6 @@ export interface IEditorInputFactoryRegistry {
 	 * Returns the file editor input factory to use for file inputs.
 	 */
 	getFileEditorInputFactory(): IFileEditorInputFactory;
-
-	/**
-	 * Registers the custom editor input factory to use for custom inputs.
-	 *
-	 * @deprecated obsolete
-	 */
-	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void;
-
-	/**
-	 * Returns the custom editor input factory to use for custom inputs.
-	 *
-	 * @deprecated obsolete
-	 */
-	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
 	/**
 	 * Registers a editor input serializer for the given editor input to the registry.
@@ -463,6 +433,11 @@ export interface IEditorInput extends IDisposable {
 	resolve(): Promise<IEditorModel | null>;
 
 	/**
+	 * Returns if the input requires workspace trust or not.
+	 */
+	requiresWorkspaceTrust(): Promise<boolean>;
+
+	/**
 	 * Returns if this input is readonly or not.
 	 */
 	isReadonly(): boolean;
@@ -600,6 +575,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 			}
 		*/
 		return { typeId: this.typeId };
+	}
+
+	async requiresWorkspaceTrust(): Promise<boolean> {
+		return false;
 	}
 
 	isReadonly(): boolean {
@@ -818,6 +797,12 @@ export class SideBySideEditorInput extends EditorInput {
 
 	override getDescription(): string | undefined {
 		return this.description;
+	}
+
+	override async requiresWorkspaceTrust(): Promise<boolean> {
+		const requiresTrust = await Promise.all([this.primary.requiresWorkspaceTrust(), this.secondary.requiresWorkspaceTrust()]);
+
+		return requiresTrust.some(value => value === true);
 	}
 
 	override isReadonly(): boolean {
@@ -1475,7 +1460,6 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 
 	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
-	private readonly customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
 	private readonly editorInputSerializerConstructors: Map<string /* Type ID */, IConstructorSignature0<IEditorInputSerializer>> = new Map();
 	private readonly editorInputSerializerInstances: Map<string /* Type ID */, IEditorInputSerializer> = new Map();
@@ -1528,14 +1512,6 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	getEditorInputSerializer(editorInputTypeId: string): IEditorInputSerializer | undefined;
 	getEditorInputSerializer(arg1: string | IEditorInput): IEditorInputSerializer | undefined {
 		return this.editorInputSerializerInstances.get(typeof arg1 === 'string' ? arg1 : arg1.typeId);
-	}
-
-	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void {
-		this.customEditorInputFactoryInstances.set(scheme, factory);
-	}
-
-	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined {
-		return this.customEditorInputFactoryInstances.get(scheme);
 	}
 }
 

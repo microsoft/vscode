@@ -6,12 +6,12 @@
 import { Schemas } from 'vs/base/common/network';
 import { deepFreeze, equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { CellKind, INotebookDocumentPropertiesChangeData, MainThreadNotebookDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { INotebookDocumentPropertiesChangeData, MainThreadNotebookDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IMainCellDto, IOutputDto, IOutputItemDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IMainCellDto, IOutputDto, IOutputItemDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 class RawContentChangeEvent {

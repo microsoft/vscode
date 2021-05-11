@@ -17,17 +17,18 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+
 const $ = dom.$;
 
-const untitledHintSetting = 'workbench.editor.untitled.hint';
-export class UntitledHintContribution implements IEditorContribution {
+const untitledEditorHintSetting = 'workbench.editor.untitled.hint';
+export class UntitledEditorHintContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.untitledHint';
 
 	private toDispose: IDisposable[];
-	private untitledHintContentWidget: UntitledHintContentWidget | undefined;
+	private untitledHintContentWidget: UntitledEditorHintContentWidget | undefined;
 	private experimentTreatment: 'text' | 'hidden' | undefined;
-
 
 	constructor(
 		private editor: ICodeEditor,
@@ -40,7 +41,7 @@ export class UntitledHintContribution implements IEditorContribution {
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(untitledHintSetting)) {
+			if (e.affectsConfiguration(untitledEditorHintSetting)) {
 				this.update();
 			}
 		}));
@@ -52,13 +53,13 @@ export class UntitledHintContribution implements IEditorContribution {
 
 	private update(): void {
 		this.untitledHintContentWidget?.dispose();
-		const configValue = this.configurationService.getValue<'text' | 'hidden' | 'default'>(untitledHintSetting);
+		const configValue = this.configurationService.getValue<'text' | 'hidden' | 'default'>(untitledEditorHintSetting);
 		const untitledHintMode = configValue === 'default' ? (this.experimentTreatment || 'text') : configValue;
 
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID && untitledHintMode === 'text') {
-			this.untitledHintContentWidget = new UntitledHintContentWidget(this.editor, this.commandService, this.configurationService);
+			this.untitledHintContentWidget = new UntitledEditorHintContentWidget(this.editor, this.commandService, this.configurationService);
 		}
 	}
 
@@ -68,7 +69,7 @@ export class UntitledHintContribution implements IEditorContribution {
 	}
 }
 
-class UntitledHintContentWidget implements IContentWidget {
+class UntitledEditorHintContentWidget implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.untitledHint';
 
@@ -99,7 +100,7 @@ class UntitledHintContentWidget implements IContentWidget {
 	}
 
 	getId(): string {
-		return UntitledHintContentWidget.ID;
+		return UntitledEditorHintContentWidget.ID;
 	}
 
 	// Select a language to get started. Start typing to dismiss, or don't show this again.
@@ -133,7 +134,7 @@ class UntitledHintContentWidget implements IContentWidget {
 			}));
 
 			this.toDispose.push(dom.addDisposableListener(dontShow, 'click', () => {
-				this.configurationService.updateValue(untitledHintSetting, 'hidden');
+				this.configurationService.updateValue(untitledEditorHintSetting, 'hidden');
 				this.dispose();
 				this.editor.focus();
 			}));
@@ -173,3 +174,5 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .contentWidgets .untitled-hint a { color: ${textLinkForegroundColor}; }`);
 	}
 });
+
+registerEditorContribution(UntitledEditorHintContribution.ID, UntitledEditorHintContribution);

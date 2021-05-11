@@ -169,14 +169,14 @@ export class FindModel extends Disposable {
 
 		// the cell still exist
 		const cell = this._notebookEditor.viewModel!.viewCells[oldCurrMatchCellIndex];
-		if (cell.cellKind === CellKind.Markdown && cell.getEditState() === CellEditState.Preview) {
+		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
 			// find the nearest match above this cell
 			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
 			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
 			return;
 		}
 
-		if ((cell.cellKind === CellKind.Markdown && cell.getEditState() === CellEditState.Editing) || cell.cellKind === CellKind.Code) {
+		if ((cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Editing) || cell.cellKind === CellKind.Code) {
 			// check if there is monaco editor selection and find the first match, otherwise find the first match above current cell
 			// this._findMatches[cellIndex].matches[matchIndex].range
 			const currentMatchDecorationId = this._currentMatchDecorations.find(decoration => decoration.ownerId === cell.handle);

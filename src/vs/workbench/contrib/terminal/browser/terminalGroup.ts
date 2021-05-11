@@ -127,6 +127,7 @@ class SplitPaneContainer extends Disposable {
 		}
 
 		this._withDisabledLayout(() => this._splitView.addView(child, Sizing.Distribute, index));
+		this.layout(this._width, this._height);
 
 		this._onDidChange = Event.any(...this._children.map(c => c.onDidChange));
 	}
@@ -269,7 +270,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if ('instanceId' in shellLaunchConfigOrInstance) {
 			instance = shellLaunchConfigOrInstance;
 		} else {
-			instance = this._terminalService.createInstance(undefined, shellLaunchConfigOrInstance);
+			instance = this._terminalService.createInstance(shellLaunchConfigOrInstance);
 		}
 		this._terminalInstances.push(instance);
 		this._initInstanceListeners(instance);
@@ -437,7 +438,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		const instance = this._terminalService.createInstance(undefined, shellLaunchConfig);
+		const instance = this._terminalService.createInstance(shellLaunchConfig);
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);
 		this._setActiveInstance(instance);
