@@ -262,6 +262,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 		if (instance.icon?.color) {
 			template.element.style.color = instance.icon?.color.id;
+		} else {
+			template.element.style.color = 'inherit';
 		}
 
 		if (!hasActionbar) {

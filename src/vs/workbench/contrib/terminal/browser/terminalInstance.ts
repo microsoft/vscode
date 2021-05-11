@@ -1845,7 +1845,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		if (result) {
 			this.shellLaunchConfig.color = result.description;
-			this._onColorChanged.fire(this);
+			this._onIconChanged.fire(this);
 		}
 	}
 }
