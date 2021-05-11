@@ -20,7 +20,6 @@ interface TerminalData {
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
 const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.play, severity: Severity.Info };
-const INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.play, severity: Severity.Info };
 const SUCCEEDED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info };
 const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Warning };
 
@@ -76,7 +75,7 @@ export class TaskTerminalStatus extends Disposable {
 		}
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if (terminalData.problemMatcher.numberOfMatches === 0) {
-			terminalData.terminal.statusList.add(INACTIVE_TASK_STATUS);
+			terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
 		} else {
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		}
