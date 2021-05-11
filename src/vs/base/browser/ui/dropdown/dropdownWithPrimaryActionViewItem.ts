@@ -15,7 +15,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
-	private _altAction: BaseActionViewItem | null = null;
+	private _altAction: ActionViewItem | null = null;
 	private _container: HTMLElement | null = null;
 	private _dropdownContainer: HTMLElement | null = null;
 	private toDispose: IDisposable[];
@@ -24,7 +24,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		primaryAction: IAction,
 		dropdownAction: IAction,
 		dropdownMenuActions: IAction[],
-		_className: string,
+		className: string,
 		private readonly _contextMenuProvider: IContextMenuProvider,
 		altAction?: IAction
 	) {
@@ -37,7 +37,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			menuAsChild: true
 		});
 		if (altAction) {
-			this._altAction = new BaseActionViewItem(undefined, altAction, {});
+			this._altAction = new ActionViewItem(undefined, altAction, {
+				icon: true,
+				label: false
+			});
 		}
 		this.toDispose = [];
 	}
@@ -54,8 +57,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		if (this._altAction) {
 			this.toDispose.push(DOM.addDisposableListener(primaryContainer, DOM.EventType.CLICK, (e: MouseEvent) => {
 				if (e.altKey) {
-					this.actionRunner.run(this._altAction!.getAction());
 					e?.stopPropagation();
+					this.actionRunner.run(this._altAction!.getAction());
 				}
 			}));
 		}
