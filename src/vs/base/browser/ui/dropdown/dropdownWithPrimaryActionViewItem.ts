@@ -15,6 +15,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
+	private _altAction: BaseActionViewItem | null = null;
 	private _container: HTMLElement | null = null;
 	private _dropdownContainer: HTMLElement | null = null;
 	private toDispose: IDisposable[];
@@ -25,7 +26,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		dropdownMenuActions: IAction[],
 		_className: string,
 		private readonly _contextMenuProvider: IContextMenuProvider,
-		dropdownIcon?: string
+		altAction?: IAction
 	) {
 		super(null, primaryAction);
 		this._primaryAction = new ActionViewItem(undefined, primaryAction, {
@@ -35,6 +36,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true
 		});
+		if (altAction) {
+			this._altAction = new BaseActionViewItem(undefined, altAction, {});
+		}
 		this.toDispose = [];
 	}
 
@@ -47,6 +51,14 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
 
+		if (this._altAction) {
+			this.toDispose.push(DOM.addDisposableListener(primaryContainer, DOM.EventType.CLICK, (e: MouseEvent) => {
+				if (e.altKey) {
+					this.actionRunner.run(this._altAction!.getAction());
+					e?.stopPropagation();
+				}
+			}));
+		}
 		this.toDispose.push(DOM.addDisposableListener(primaryContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {

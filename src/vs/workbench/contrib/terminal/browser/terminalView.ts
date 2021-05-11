@@ -186,7 +186,8 @@ export class TerminalViewPane extends ViewPane {
 					this._tabButtons.dispose();
 				}
 				const actions = this._getTabActionBarArgs(this._terminalService.availableProfiles);
-				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService);
+
+				this._tabButtons = new DropdownWithPrimaryActionViewItem(actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, actions.altAction);
 				this._updateTabActionBar(this._terminalService.availableProfiles);
 				return this._tabButtons;
 			}
@@ -196,7 +197,7 @@ export class TerminalViewPane extends ViewPane {
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		const actions = this._getTabActionBarArgs(profiles);
-		this._tabButtons?.update(actions.dropdownAction, actions.dropdownMenuActions, actions.dropdownIcon);
+		this._tabButtons?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
 	private _getTabActionBarArgs(profiles: ITerminalProfile[]): {
@@ -204,7 +205,8 @@ export class TerminalViewPane extends ViewPane {
 		dropdownAction: IAction,
 		dropdownMenuActions: IAction[],
 		className: string,
-		dropdownIcon?: string
+		dropdownIcon?: string,
+		altAction?: IAction
 	} {
 		const dropdownActions: IAction[] = [];
 		const submenuActions: IAction[] = [];
@@ -234,9 +236,27 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}
 
-		const primaryAction = this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.New, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+		const primaryAction = this._instantiationService.createInstance(
+			MenuItemAction,
+			{
+				id: TerminalCommandId.New,
+				title: nls.localize('terminal.new', "New Terminal"),
+				icon: Codicon.plus
+			},
+			undefined,
+			undefined);
+
+		const altAction = this._instantiationService.createInstance(
+			MenuItemAction,
+			{
+				id: TerminalCommandId.Split,
+				title: nls.localize('terminal.split', "Split Terminal"),
+				icon: Codicon.splitHorizontal
+			},
+			undefined,
+			undefined);
 		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
-		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
+		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions', altAction };
 	}
 
 	override focus() {
