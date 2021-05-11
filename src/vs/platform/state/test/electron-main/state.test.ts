@@ -153,9 +153,9 @@ flakySuite('StateMainService', () => {
 
 		await service.init();
 
-		assert.strictEqual(service.getItem('some.key1'), undefined);
-		assert.strictEqual(service.getItem('some.key2'), undefined);
-		assert.strictEqual(service.getItem('some.key3'), undefined);
+		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
+		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
+		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
 	});
 
@@ -181,5 +181,22 @@ flakySuite('StateMainService', () => {
 		assert.ok(!contents.includes('some.marker'));
 
 		await service.close();
+	});
+
+	test('Closed before init', async function () {
+		const storageFile = join(testDir, 'storage.json');
+		writeFileSync(storageFile, '');
+
+		const service = new FileStorage(URI.file(storageFile), logService, fileService);
+
+		service.setItem('some.key1', 'some.value1');
+		service.setItem('some.key2', 'some.value2');
+		service.setItem('some.key3', 'some.value3');
+		service.setItem('some.key4', 'some.value4');
+
+		await service.close();
+
+		const contents = readFileSync(storageFile).toString();
+		assert.strictEqual(contents.length, 0);
 	});
 });
