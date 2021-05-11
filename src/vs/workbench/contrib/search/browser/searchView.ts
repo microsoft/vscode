@@ -77,6 +77,7 @@ import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
+import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const $ = dom.$;
@@ -1527,7 +1528,7 @@ export class SearchView extends ViewPane {
 			if (completed && completed.messages) {
 				for (const message of completed.messages) {
 					if (message.type === TextSearchCompleteMessageType.Information) {
-						this.addMessage(message.text);
+						this.addMessage(message);
 					}
 					else if (message.type === TextSearchCompleteMessageType.Warning) {
 						warningMessage += (warningMessage ? ' - ' : '') + message.text;
@@ -1644,8 +1645,8 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private addMessage(message: string) {
-		const linkedText = parseLinkedText(message);
+	private addMessage(message: TextSearchCompleteMessage) {
+		const linkedText = parseLinkedText(message.text);
 
 		const messageBox = this.messagesElement.firstChild as HTMLDivElement;
 		if (!messageBox) {
@@ -1664,14 +1665,21 @@ export class SearchView extends ViewPane {
 			} else {
 				const link = this.instantiationService.createInstance(Link, node, {
 					opener: async href => {
+						if (!message.trusted) { return; }
 						const parsed = URI.parse(href, true);
-						if (parsed.scheme === Schemas.command) {
+						if (parsed.scheme === Schemas.command && message.trusted) {
 							const result = await this.commandService.executeCommand(parsed.path);
 							if ((result as any)?.triggerSearch) {
 								this.triggerQueryChange();
 							}
-						} else {
+						} else if (parsed.scheme === Schemas.https) {
 							this.openerService.open(parsed);
+						} else {
+							if (parsed.scheme === Schemas.command && !message.trusted) {
+								this.notificationService.error(nls.localize('unable to open trust', "Unable to open command link from untrusted source: {0}", href));
+							} else {
+								this.notificationService.error(nls.localize('unable to open', "Unable to open unknown link: {0}", href));
+							}
 						}
 					}
 				});

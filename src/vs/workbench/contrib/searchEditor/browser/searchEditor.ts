@@ -57,6 +57,8 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -100,6 +102,7 @@ export class SearchEditor extends BaseTextEditor {
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IOpenerService readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorProgressService readonly progressService: IEditorProgressService,
 		@ITextResourceConfigurationService textResourceService: ITextResourceConfigurationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -560,7 +563,7 @@ export class SearchEditor extends BaseTextEditor {
 		if (searchOperation && searchOperation.messages) {
 			for (const message of searchOperation.messages) {
 				if (message.type === TextSearchCompleteMessageType.Information) {
-					this.addMessage(message.text);
+					this.addMessage(message);
 				}
 				else if (message.type === TextSearchCompleteMessageType.Warning) {
 					warningMessage += (warningMessage ? ' - ' : '') + message.text;
@@ -579,8 +582,8 @@ export class SearchEditor extends BaseTextEditor {
 		input.setMatchRanges(results.matchRanges);
 	}
 
-	private addMessage(message: string) {
-		const linkedText = parseLinkedText(message);
+	private addMessage(message: TextSearchCompleteMessage) {
+		const linkedText = parseLinkedText(message.text);
 
 		let messageBox: HTMLElement;
 		if (this.messageBox.firstChild) {
@@ -600,13 +603,19 @@ export class SearchEditor extends BaseTextEditor {
 				const link = this.instantiationService.createInstance(Link, node, {
 					opener: async href => {
 						const parsed = URI.parse(href, true);
-						if (parsed.scheme === Schemas.command) {
+						if (parsed.scheme === Schemas.command && message.trusted) {
 							const result = await this.commandService.executeCommand(parsed.path);
 							if ((result as any)?.triggerSearch) {
 								this.triggerSearch();
 							}
-						} else {
+						} else if (parsed.scheme === Schemas.https) {
 							this.openerService.open(parsed);
+						} else {
+							if (parsed.scheme === Schemas.command && !message.trusted) {
+								this.notificationService.error(localize('unable to open trust', "Unable to open command link from untrusted source: {0}", href));
+							} else {
+								this.notificationService.error(localize('unable to open', "Unable to open unknown link: {0}", href));
+							}
 						}
 					}
 				});
@@ -667,7 +676,9 @@ export class SearchEditor extends BaseTextEditor {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, context, token);
-		if (token.isCancellationRequested) { return; }
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		const { configurationModel, resultsModel } = await newInput.getModels();
 		if (token.isCancellationRequested) { return; }
