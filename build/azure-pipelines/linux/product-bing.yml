@@ -68,3 +68,7 @@ steps:
       AZURE_STORAGE_ACCESS_KEY: $(ticino-storage-key)
       VSCODE_ARCH: x64
     continueOnError: true
+
+  - publish: /tmp/configuration.json
+    artifact: Bing Configuration
+    displayName: Publish Bing Configuration artifact
