@@ -33,6 +33,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -440,6 +441,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 
@@ -840,6 +842,7 @@ var requirejs = (function() {
 			throw new Error('Element is already detached from the DOM tree');
 		}
 
+		await this.extensionService.whenInstalledExtensionsRegistered();
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
 		this._register(this.webview);
