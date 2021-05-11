@@ -20,34 +20,27 @@ import { Logger } from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 
 class OutputAppender {
-	private appender: Logger | undefined;
 
-	constructor(readonly name: string, readonly file: string) {
+	static async create(name: string, file: string): Promise<OutputAppender> {
+		const appender = await createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
+		appender.clearFormatters();
+
+		return new OutputAppender(name, file, appender);
 	}
 
-	private getAppender(): Promise<Logger> {
-		if (this.appender) {
-			return Promise.resolve(this.appender);
-		} else {
-			return createRotatingLogger(this.name, this.file, 30 * ByteSize.MB, 1).then(logger => {
-				this.appender = logger;
-				this.appender.clearFormatters();
-				return logger;
-			});
-		}
-	}
+	private constructor(readonly name: string, readonly file: string, private readonly appender: Logger) { }
 
 	append(content: string): void {
-		this.getAppender().then(logger => logger.critical(content));
+		this.appender.critical(content);
 	}
 
 	flush(): void {
-		this.getAppender().then(logger => logger.flush());
+		this.appender.flush();
 	}
 }
 
 
-export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
+class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
 	private _appender: OutputAppender;
 
@@ -122,7 +115,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 			}
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
 			const file = URI.file(join(outputDirPath, `${fileName}.log`));
-			const appender = new OutputAppender(fileName, file.fsPath);
+			const appender = await OutputAppender.create(fileName, file.fsPath);
 			return new ExtHostOutputChannelBackedByFile(name, appender, this._proxy);
 		} catch (error) {
 			// Do not crash if logger cannot be created
