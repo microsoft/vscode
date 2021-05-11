@@ -8,7 +8,6 @@ import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, MARKDOWN_CELL_BOTTOM_MARGIN, MARKDOWN_CELL_TOP_MARGIN, CELL_RIGHT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { CellEditState, CellFindMatch, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -29,7 +28,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	set renderedMarkdownHeight(newHeight: number) {
 		if (this.getEditState() === CellEditState.Preview) {
-			const newTotalHeight = newHeight + BOTTOM_CELL_TOOLBAR_GAP;
+			const newTotalHeight = newHeight + this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap; // BOTTOM_CELL_TOOLBAR_GAP;
 			this.totalHeight = newTotalHeight;
 		}
 	}
@@ -48,7 +47,11 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	set editorHeight(newHeight: number) {
 		this._editorHeight = newHeight;
 
-		this.totalHeight = this._editorHeight + MARKDOWN_CELL_TOP_MARGIN + MARKDOWN_CELL_BOTTOM_MARGIN + BOTTOM_CELL_TOOLBAR_GAP + this.getEditorStatusbarHeight();
+		this.totalHeight = this._editorHeight
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().markdownCellBottomMargin // MARKDOWN_CELL_BOTTOM_MARGIN
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+			+ this.getEditorStatusbarHeight();
 	}
 
 	get editorHeight() {
@@ -107,13 +110,13 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 	) {
-		super(viewType, model, UUID.generateUuid(), configurationService, textModelService);
+		super(viewType, model, UUID.generateUuid(), eventDispatcher, configurationService, textModelService);
 
 		this._layoutInfo = {
 			editorHeight: 0,
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorWidth: initialNotebookLayoutInfo?.width ? this.computeEditorWidth(initialNotebookLayoutInfo.width) : 0,
-			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_GAP,
+			bottomToolbarOffset: this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap, // BOTTOM_CELL_TOOLBAR_GAP,
 			totalHeight: 0
 		};
 
@@ -145,7 +148,9 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	private computeEditorWidth(outerWidth: number) {
-		return outerWidth - CODE_CELL_LEFT_MARGIN - CELL_RIGHT_MARGIN;
+		return outerWidth
+			- this.eventDispatcher.notebookOptions.getLayoutConfiguration().codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
+			- this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellRightMargin; // CELL_RIGHT_MARGIN;
 	}
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
@@ -159,19 +164,28 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
 				editorHeight: this._editorHeight,
-				bottomToolbarOffset: totalHeight - BOTTOM_CELL_TOOLBAR_GAP - BOTTOM_CELL_TOOLBAR_HEIGHT / 2,
+				bottomToolbarOffset: totalHeight
+					- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap /* BOTTOM_CELL_TOOLBAR_GAP */
+					- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight /* BOTTOM_CELL_TOOLBAR_HEIGHT */ / 2,
 				totalHeight
 			};
 		} else {
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
-			const totalHeight = MARKDOWN_CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT + BOTTOM_CELL_TOOLBAR_GAP + MARKDOWN_CELL_BOTTOM_MARGIN;
+			const totalHeight =
+				this.eventDispatcher.notebookOptions.getLayoutConfiguration().markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
+				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight // COLLAPSED_INDICATOR_HEIGHT
+				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().markdownCellBottomMargin; // MARKDOWN_CELL_BOTTOM_MARGIN;
+
 			state.totalHeight = totalHeight;
 
 			this._layoutInfo = {
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
 				editorHeight: this._editorHeight,
-				bottomToolbarOffset: totalHeight - BOTTOM_CELL_TOOLBAR_GAP - BOTTOM_CELL_TOOLBAR_HEIGHT / 2,
+				bottomToolbarOffset: totalHeight
+					- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+					- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2,
 				totalHeight
 			};
 		}
