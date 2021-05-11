@@ -70,4 +70,17 @@ export class NotebookOptions {
 	getLayoutConfiguration(): NotebookLayoutConfiguration {
 		return this._layoutConfiguration;
 	}
+
+	computeCollapsedMarkdownCellHeight(): number {
+		return this._layoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
+			+ this._layoutConfiguration.collapsedIndicatorHeight // COLLAPSED_INDICATOR_HEIGHT
+			+ this._layoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+			+ this._layoutConfiguration.markdownCellBottomMargin; // MARKDOWN_CELL_BOTTOM_MARGIN;
+	}
+
+	computeBottomToolbarOffset(totalHeight: number) {
+		return totalHeight
+			- this._layoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+			- this._layoutConfiguration.bottomCellToolbarHeight / 2;
+	}
 }
