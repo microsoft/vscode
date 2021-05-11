@@ -470,7 +470,8 @@ gulp.task('vscode-translations-import', function () {
 });
 
 // This task is run in the Bing stage and only picks up the Linux asset
-const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
+const tempDir = process.env.AGENT_TEMPDIRECTORY || os.tmpdir();
+const allConfigDetailsPath = path.join(tempDir, 'configuration.json');
 const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', async () => {
 	const buildDir = process.env['PIPELINE_WORKSPACE'];
 	if (!buildDir) {
@@ -481,8 +482,8 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 		return;
 	}
 
-	const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
-	const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
+	const userDataDir = path.join(tempDir, 'tmpuserdata');
+	const extensionsDir = path.join(tempDir, 'tmpextdir');
 	const arch = process.env['VSCODE_ARCH'];
 	const appRoot = path.join(buildDir, 'vscode_client_linux_x64_archive-unsigned', `VSCode-linux-${arch}`);
 	const appName = process.env.VSCODE_QUALITY === 'insider' ? 'code-insiders' : 'code';
