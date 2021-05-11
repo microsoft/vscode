@@ -3023,6 +3023,18 @@ export class NotebookDocumentMetadata {
 
 export class NotebookCellData {
 
+	static validate(data: NotebookCellData): void {
+		if (typeof data.kind !== 'number') {
+			throw new Error('NotebookCellData MUST have \'kind\' property');
+		}
+		if (typeof data.value !== 'string') {
+			throw new Error('NotebookCellData MUST have \'value\' property');
+		}
+		if (typeof data.languageId !== 'string') {
+			throw new Error('NotebookCellData MUST have \'languageId\' property');
+		}
+	}
+
 	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
 		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
 	}
@@ -3033,19 +3045,21 @@ export class NotebookCellData {
 	}
 
 	kind: NotebookCellKind;
-	source: string;
-	language: string;
+	value: string;
+	languageId: string;
 	outputs?: NotebookCellOutput[];
 	metadata?: NotebookCellMetadata;
 	latestExecutionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
-		this.source = source;
-		this.language = language;
+		this.value = value;
+		this.languageId = languageId;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
 		this.latestExecutionSummary = latestExecutionSummary;
+
+		NotebookCellData.validate(this);
 	}
 }
 
@@ -3101,7 +3115,7 @@ export class NotebookCellOutput {
 }
 
 export enum NotebookCellKind {
-	Markdown = 1,
+	Markup = 1,
 	Code = 2
 }
 

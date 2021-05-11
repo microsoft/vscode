@@ -177,7 +177,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
 			const focus = this.getFocusedElements()[0];
 
-			if (focus && focus.cellKind === CellKind.Markdown && !focus.metadata?.inputCollapsed) {
+			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata?.inputCollapsed) {
 				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}

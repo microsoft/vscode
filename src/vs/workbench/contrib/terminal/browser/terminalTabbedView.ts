@@ -30,7 +30,8 @@ import { localize } from 'vs/nls';
 const $ = dom.$;
 
 const FIND_FOCUS_CLASS = 'find-focused';
-const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
+const TABS_WIDGET_WIDTH_HORIZONTAL_KEY = 'tabs-widget-width-horizontal';
+const TABS_WIDGET_WIDTH_VERTICAL_KEY = 'tabs-widget-width-vertical';
 const MAX_TABS_WIDGET_WIDTH = 500;
 const STATUS_ICON_WIDTH = 30;
 const SPLIT_ANNOTATION_WIDTH = 30;
@@ -66,6 +67,8 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalIsTabsNarrowContextKey: IContextKey<boolean>;
 	private _terminalTabsFocusContextKey: IContextKey<boolean>;
 	private _terminalTabsMouseContextKey: IContextKey<boolean>;
+
+	private _panelOrientation: Orientation | undefined;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -136,16 +139,13 @@ export class TerminalTabbedView extends Disposable {
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
+		this._terminalService.onPanelOrientationChanged((orientation) => {
+			this._panelOrientation = orientation;
+		});
+
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
 
 		this._setupSplitView();
-
-		this._terminalService.onPanelMovedToSide(() => {
-			try {
-				this._updateWidgetWidth(MIN_TABS_WIDGET_WIDTH);
-			} catch (e) {
-			}
-		});
 	}
 
 	private _shouldShowTabs(): boolean {
@@ -174,9 +174,13 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _getLastWidgetWidth(): number {
-		const storedValue = this._storageService.get(TABS_WIDGET_WIDTH_KEY, StorageScope.WORKSPACE);
+		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_WIDGET_WIDTH_VERTICAL_KEY : TABS_WIDGET_WIDTH_HORIZONTAL_KEY;
+		const storedValue = this._storageService.get(widthKey, StorageScope.WORKSPACE);
+
 		if (!storedValue || !parseInt(storedValue)) {
-			return DEFAULT_TABS_WIDGET_WIDTH;
+			// we want to use the min width by default for the vertical orientation bc
+			// there is such a limited width for the terminal panel to begin w there.
+			return this._panelOrientation === Orientation.VERTICAL ? MIN_TABS_WIDGET_WIDTH : DEFAULT_TABS_WIDGET_WIDTH;
 		}
 		return parseInt(storedValue);
 	}
@@ -228,7 +232,8 @@ export class TerminalTabbedView extends Disposable {
 			this._splitView.resizeView(this._tabTreeIndex, width);
 		}
 		this._rerenderTabs();
-		this._storageService.store(TABS_WIDGET_WIDTH_KEY, width, StorageScope.WORKSPACE, StorageTarget.USER);
+		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_WIDGET_WIDTH_VERTICAL_KEY : TABS_WIDGET_WIDTH_HORIZONTAL_KEY;
+		this._storageService.store(widthKey, width, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private _setupSplitView(): void {

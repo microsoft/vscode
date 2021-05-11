@@ -40,6 +40,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -119,8 +120,8 @@ export class TerminalService implements ITerminalService {
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
 	get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
-	private readonly _onPanelMovedToSide = new Emitter<void>();
-	get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
+	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
+	get onPanelOrientationChanged(): Event<Orientation> { return this._onPanelOrientationChanged.event; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -959,7 +960,7 @@ export class TerminalService implements ITerminalService {
 
 		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
 		this._terminalGroups.push(terminalGroup);
-		terminalGroup.onPanelMovedToSide(() => this._onPanelMovedToSide.fire());
+		terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
 
 		const instance = terminalGroup.terminalInstances[0];
 

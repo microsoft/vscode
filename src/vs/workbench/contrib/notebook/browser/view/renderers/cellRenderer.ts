@@ -77,7 +77,7 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 	}
 
 	getTemplateId(element: CellViewModel): string {
-		if (element.cellKind === CellKind.Markdown) {
+		if (element.cellKind === CellKind.Markup) {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
 			return CodeCellRenderer.TEMPLATE_ID;

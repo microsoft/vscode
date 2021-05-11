@@ -228,13 +228,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		};
 	}
 
-	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, selector: vscode.NotebookSelector, provider: vscode.NotebookCellStatusBarItemProvider) {
+	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) {
 
 		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
 		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
 
 		this._notebookStatusBarItemProviders.set(handle, provider);
-		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, selector);
+		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, notebookType);
 
 		let subscription: vscode.Disposable | undefined;
 		if (eventHandle !== undefined) {
@@ -358,11 +358,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
+
 		const data = await serializer.deserializeNotebook(bytes.buffer, token);
-		return {
+		const res: NotebookDataDto = {
 			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
-			cells: data.cells.map(typeConverters.NotebookCellData.from),
+			cells: [],
 		};
+
+		for (let cell of data.cells) {
+			extHostTypes.NotebookCellData.validate(cell);
+			res.cells.push(typeConverters.NotebookCellData.from(cell));
+		}
+
+		return res;
 	}
 
 	async $notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer> {
