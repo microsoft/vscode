@@ -227,7 +227,6 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 
 		// Lifecycle
 		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.fileWorkingCopyManager'));
-		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	private async onWillShutdown(): Promise<void> {
@@ -567,21 +566,6 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		}
 	}
 
-	private clear(): void {
-
-		// Working copy caches
-		this.mapResourceToWorkingCopy.clear();
-		this.mapResourceToPendingWorkingCopyResolve.clear();
-
-		// Dispose the dispose listeners
-		this.mapResourceToDisposeListener.forEach(listener => listener.dispose());
-		this.mapResourceToDisposeListener.clear();
-
-		// Dispose the working copy change listeners
-		this.mapResourceToWorkingCopyListeners.forEach(listener => listener.dispose());
-		this.mapResourceToWorkingCopyListeners.clear();
-	}
-
 	//#endregion
 
 	//#region Save As...
@@ -718,7 +702,20 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 	override dispose(): void {
 		super.dispose();
 
-		this.clear();
+		// Working copy caches
+		this.mapResourceToWorkingCopy.forEach(workingCopy => workingCopy.dispose());
+		this.mapResourceToWorkingCopy.clear();
+
+		// Pending working copy resolves
+		this.mapResourceToPendingWorkingCopyResolve.clear();
+
+		// Dispose the dispose listeners
+		this.mapResourceToDisposeListener.forEach(listener => listener.dispose());
+		this.mapResourceToDisposeListener.clear();
+
+		// Dispose the working copy change listeners
+		this.mapResourceToWorkingCopyListeners.forEach(listener => listener.dispose());
+		this.mapResourceToWorkingCopyListeners.clear();
 	}
 
 	//#endregion

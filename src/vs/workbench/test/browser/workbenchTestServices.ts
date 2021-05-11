@@ -327,8 +327,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			workingCopyFileService,
 			uriIdentityService,
 			modeService,
-			logService,
-			elevatedFileService
+			elevatedFileService,
+			logService
 		);
 	}
 
