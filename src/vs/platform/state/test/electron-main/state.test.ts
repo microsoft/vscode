@@ -30,7 +30,7 @@ flakySuite('StateMainService', () => {
 		logService = new NullLogService();
 
 		fileService = new FileService(logService);
-		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		return promises.mkdir(testDir, { recursive: true });
