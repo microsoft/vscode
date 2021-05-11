@@ -35,7 +35,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, locale } from 'vs/base/common/platform';
 import { Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -351,7 +351,25 @@ export class GettingStartedPage extends EditorPane {
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
 				try {
-					const bytes = await this.fileService.readFile(path);
+					const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${locale}.md`) });
+
+					const generalizedLocale = locale?.replace(/-.*$/, '');
+					const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
+
+					const fileExists = (file: URI) => this.fileService.resolve(file).then(() => true).catch(() => false);
+
+					const [localizedFileExists, generalizedLocalizedFileExists] = await Promise.all([
+						fileExists(localizedPath),
+						fileExists(generalizedLocalizedPath),
+					]);
+
+					const bytes = await this.fileService.readFile(
+						localizedFileExists
+							? localizedPath
+							: generalizedLocalizedFileExists
+								? generalizedLocalizedPath
+								: path);
+
 					const markdown = bytes.value.toString();
 					return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
 				} catch (e) {
