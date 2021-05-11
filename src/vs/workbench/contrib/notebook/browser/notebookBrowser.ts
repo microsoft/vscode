@@ -31,6 +31,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -382,6 +383,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidScroll: Event<void>;
 
 	readonly onDidChangeActiveCell: Event<void>;
+	readonly notebookOptions: NotebookOptions;
 	isDisposed: boolean;
 	dispose(): void;
 

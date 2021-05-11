@@ -9,7 +9,6 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_RIGHT_MARGIN, CELL_RUN_GUTTER, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, getEditorTopPadding, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
@@ -101,7 +100,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 	) {
-		super(viewType, model, UUID.generateUuid(), configurationService, modelService);
+		super(viewType, model, UUID.generateUuid(), eventDispatcher, configurationService, modelService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splices) => {
@@ -145,14 +144,18 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private computeEditorWidth(outerWidth: number): number {
-		return outerWidth - (CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER + CELL_RIGHT_MARGIN);
+		return outerWidth - (
+			this.eventDispatcher.notebookOptions.getLayoutConfiguration().codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellRunGutter // CELL_RUN_GUTTER
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellRightMargin // CELL_RIGHT_MARGIN
+		);
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
 		// recompute
 		this._ensureOutputsTop();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.outputCollapsed ? COLLAPSED_INDICATOR_HEIGHT : this._outputsTop!.getTotalValue());
+		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.outputCollapsed ? this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight : this._outputsTop!.getTotalValue());
 
 		if (!this.metadata?.inputCollapsed) {
 			let newState: CodeCellLayoutState;
@@ -176,9 +179,17 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 			const statusbarHeight = this.getEditorStatusbarHeight();
 			const indicatorHeight = editorHeight + statusbarHeight + outputTotalHeight + outputShowMoreContainerHeight;
-			const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN + editorHeight + statusbarHeight;
-			const outputShowMoreContainerOffset = totalHeight - BOTTOM_CELL_TOOLBAR_GAP - BOTTOM_CELL_TOOLBAR_HEIGHT / 2 - outputShowMoreContainerHeight;
-			const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_GAP - BOTTOM_CELL_TOOLBAR_HEIGHT / 2;
+			const outputContainerOffset = this.eventDispatcher.notebookOptions.getLayoutConfiguration().editorToolbarHeight
+				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellTopMargin // CELL_TOP_MARGIN
+				+ editorHeight
+				+ statusbarHeight;
+			const outputShowMoreContainerOffset = totalHeight
+				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap
+				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2
+				- outputShowMoreContainerHeight;
+			const bottomToolbarOffset = totalHeight
+				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap
+				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2;
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
@@ -196,11 +207,22 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			};
 		} else {
 			outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.inputCollapsed && this.metadata.outputCollapsed ? 0 : outputTotalHeight);
-			const indicatorHeight = COLLAPSED_INDICATOR_HEIGHT + outputTotalHeight + outputShowMoreContainerHeight;
-			const outputContainerOffset = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT;
-			const totalHeight = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT + CELL_BOTTOM_MARGIN + BOTTOM_CELL_TOOLBAR_GAP + outputTotalHeight + outputShowMoreContainerHeight;
-			const outputShowMoreContainerOffset = totalHeight - BOTTOM_CELL_TOOLBAR_GAP - BOTTOM_CELL_TOOLBAR_HEIGHT / 2 - outputShowMoreContainerHeight;
-			const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_GAP - BOTTOM_CELL_TOOLBAR_HEIGHT / 2;
+			const indicatorHeight = this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight + outputTotalHeight + outputShowMoreContainerHeight;
+
+			const outputContainerOffset = this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellTopMargin + this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight;
+			const totalHeight =
+				this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellTopMargin
+				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight
+				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellBottomMargin //CELL_BOTTOM_MARGIN
+				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
+				+ outputTotalHeight + outputShowMoreContainerHeight;
+			const outputShowMoreContainerOffset = totalHeight
+				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap
+				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2
+				- outputShowMoreContainerHeight;
+			const bottomToolbarOffset = totalHeight
+				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap
+				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2;
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
@@ -282,11 +304,21 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
-		return this.lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING + verticalScrollbarHeight;
+		return this.lineCount * lineHeight
+			+ getEditorTopPadding()
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().editorBottomPadding // EDITOR_BOTTOM_PADDING
+			+ verticalScrollbarHeight;
 	}
 
 	private computeTotalHeight(editorHeight: number, outputsTotalHeight: number, outputShowMoreContainerHeight: number): number {
-		return EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN + editorHeight + this.getEditorStatusbarHeight() + outputsTotalHeight + outputShowMoreContainerHeight + BOTTOM_CELL_TOOLBAR_GAP + CELL_BOTTOM_MARGIN;
+		return this.eventDispatcher.notebookOptions.getLayoutConfiguration().editorToolbarHeight //EDITOR_TOOLBAR_HEIGHT
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellTopMargin // CELL_TOP_MARGIN
+			+ editorHeight
+			+ this.getEditorStatusbarHeight()
+			+ outputsTotalHeight
+			+ outputShowMoreContainerHeight
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
+			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellBottomMargin; // CELL_BOTTOM_MARGIN;
 	}
 
 	protected onDidChangeTextModelContent(): void {

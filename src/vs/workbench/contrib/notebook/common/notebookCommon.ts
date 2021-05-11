@@ -888,3 +888,22 @@ export class NotebookWorkingCopyTypeIdentifier {
 		return undefined;
 	}
 }
+
+export interface NotebookLayoutConfiguration {
+	cellRightMargin: number,
+	cellRunGutter: number,
+	cellStatusBarHeight: number,
+	cellTopMargin: number,
+	cellBottomMargin: number,
+	cellOutputPadding: number,
+	codeCellLeftMargin: number,
+	markdownCellTopMargin: number,
+	markdownCellBottomMargin: number,
+	markdownPreviewPadding: number,
+	bottomCellToolbarGap: number,
+	bottomCellToolbarHeight: number,
+	editorToolbarHeight: number,
+	editorBottomPadding: number,
+	editorBottomPaddingWithoutStatusBar: number,
+	collapsedIndicatorHeight: number,
+}

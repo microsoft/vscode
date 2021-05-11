@@ -38,9 +38,9 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { CELL_OUTPUT_PADDING, MARKDOWN_PREVIEW_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 const $ = DOM.$;
 
@@ -75,6 +75,12 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>();
 	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
 
+	private _notebookOptions = new NotebookOptions();
+
+	get notebookOptions() {
+		return this._notebookOptions;
+	}
+
 	private readonly _localStore = this._register(new DisposableStore());
 
 	private _isDisposed: boolean = false;
@@ -96,7 +102,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
 		this._revealFirst = true;
-
 		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
 	}
 
@@ -366,21 +371,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 	}
 
-	private readonly webviewOptions = {
-		outputNodePadding: CELL_OUTPUT_PADDING,
-		outputNodeLeftPadding: 32,
-		previewNodePadding: MARKDOWN_PREVIEW_PADDING,
-		leftMargin: 0,
-		rightMargin: 0,
-		runGutter: 0
-	};
-
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
 		if (this._modifiedWebview) {
 			this._modifiedWebview.dispose();
 		}
 
-		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this.webviewOptions) as BackLayerWebView<IDiffCellInfo>;
+		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
+			outputNodePadding: this._notebookOptions.getLayoutConfiguration().cellOutputPadding, // CELL_OUTPUT_PADDING,
+			outputNodeLeftPadding: 32,
+			previewNodePadding: this._notebookOptions.getLayoutConfiguration().markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			leftMargin: 0,
+			rightMargin: 0,
+			runGutter: 0
+		}) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		await this._modifiedWebview.createWebview();
@@ -393,7 +396,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._originalWebview.dispose();
 		}
 
-		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this.webviewOptions) as BackLayerWebView<IDiffCellInfo>;
+		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
+			outputNodePadding: this._notebookOptions.getLayoutConfiguration().cellOutputPadding, // CELL_OUTPUT_PADDING,
+			outputNodeLeftPadding: 32,
+			previewNodePadding: this._notebookOptions.getLayoutConfiguration().markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			leftMargin: 0,
+			rightMargin: 0,
+			runGutter: 0
+		}) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		await this._originalWebview.createWebview();

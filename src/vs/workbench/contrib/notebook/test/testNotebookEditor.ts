@@ -42,6 +42,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -171,7 +172,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	}), notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false });
 
 	const model = new NotebookEditorTestModel(notebook);
-	const eventDispatcher = new NotebookEventDispatcher();
+	const eventDispatcher = new NotebookEventDispatcher(new NotebookOptions());
 	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, eventDispatcher, null);
 
 	const cellList = createNotebookCellList(instantiationService);
