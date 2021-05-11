@@ -19,9 +19,7 @@ interface TerminalData {
 }
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
-const loadingSpin = Codicon.loading;
-loadingSpin.classNamesArray.push('codicon-spin');
-const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: loadingSpin, severity: Severity.Info };
+const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.play, severity: Severity.Info };
 const INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.play, severity: Severity.Info };
 const SUCCEEDED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info };
 const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Warning };
