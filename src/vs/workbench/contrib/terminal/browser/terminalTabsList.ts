@@ -76,6 +76,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onInstancesChanged(() => this.render());
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
+		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
@@ -142,7 +143,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
-		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
 		this.render();
 	}
 
@@ -260,6 +260,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				label += ` ${instance.title}`;
 			}
 		}
+		if (instance.icon?.color) {
+			template.element.style.color = instance.icon?.color.id;
+		}
+
 		if (!hasActionbar) {
 			template.actionBar.clear();
 		}

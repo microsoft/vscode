@@ -535,6 +535,8 @@ export const enum TerminalCommandId {
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	ChangeIconInstance = 'workbench.action.terminal.changeIconInstance',
+	ChangeColor = 'workbench.action.terminal.changeColor',
+	ChangeColorInstance = 'workbench.action.terminal.changeColorInstance',
 	Rename = 'workbench.action.terminal.rename',
 	RenameInstance = 'workbench.action.terminal.renameInstance',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',

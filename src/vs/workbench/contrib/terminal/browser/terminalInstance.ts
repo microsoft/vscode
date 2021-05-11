@@ -21,7 +21,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -185,7 +185,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get title(): string { return this._getTitle(); }
-	get icon(): Codicon | undefined { return this._getIcon(); }
+	get icon(): ThemeIcon | undefined { return this._getIcon(); }
+	get color(): string | undefined { return this._getColor(); }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -201,6 +202,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
 	private readonly _onIconChanged = new Emitter<ITerminalInstance>();
 	get onIconChanged(): Event<ITerminalInstance> { return this._onIconChanged.event; }
+	private readonly _onColorChanged = new Emitter<ITerminalInstance>();
+	get onColorChanged(): Event<ITerminalInstance> { return this._onColorChanged.event; }
 	private readonly _onData = new Emitter<string>();
 	get onData(): Event<string> { return this._onData.event; }
 	private readonly _onBinary = new Emitter<string>();
@@ -314,15 +317,36 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	private _getIcon(): Codicon | undefined {
+	private _getIcon(): ThemeIcon | undefined {
+		const colorId = this._getColor();
+		const themeColor = colorId ? themeColorFromId(colorId) : undefined;
 		if (this.shellLaunchConfig.icon) {
-			return iconRegistry.get(this.shellLaunchConfig.icon);
+			const iconId = iconRegistry.get(this.shellLaunchConfig.icon)?.id;
+			if (iconId) {
+				return { id: iconId, color: themeColor };
+			}
 		}
 		if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
-			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon);
+			const iconId = iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon)?.id;
+			if (iconId) {
+				return { id: iconId, color: themeColor };
+			}
 		}
 		if (this._processManager.processState >= ProcessState.Launching) {
-			return Codicon.terminal;
+			return { id: Codicon.terminal.id, color: themeColor };
+		}
+		return undefined;
+	}
+
+	private _getColor(): string | undefined {
+		if (this.shellLaunchConfig.color) {
+			return this.shellLaunchConfig.color;
+		}
+		if (this.shellLaunchConfig?.attachPersistentProcess?.color) {
+			return this.shellLaunchConfig.attachPersistentProcess.color;
+		}
+		if (this._processManager.processState >= ProcessState.Launching) {
+			return undefined;
 		}
 		return undefined;
 	}
@@ -1805,15 +1829,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async configure(): Promise<void> {
-		const changeIcon: IQuickPickItem = { label: nls.localize('changeIconTerminal', 'Change Icon') };
-		const rename: IQuickPickItem = { label: nls.localize('renameTerminal', 'Rename') };
-		const result = await this._quickInputService.pick([changeIcon, rename], {
-			title: nls.localize('configureTerminalTitle', "Configure Terminal")
+	async changeColor() {
+		const icon = this._getIcon();
+		if (!icon) {
+			return;
+		}
+		const items: IQuickPickItem[] = [];
+		const colors = ['red', 'blue', 'green', 'yellow'];
+		for (const color of colors) {
+			items.push({ label: `$(${icon.id})`, description: `${color}` });
+		}
+		const result = await this._quickInputService.pick(items, {
+			title: nls.localize('changeTerminalColor', "Change Color"),
+			matchOnDescription: true
 		});
-		switch (result) {
-			case changeIcon: return this.changeIcon();
-			case rename: return this.rename();
+		if (result) {
+			this.shellLaunchConfig.color = result.description;
+			this._onColorChanged.fire(this);
 		}
 	}
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -18,6 +17,7 @@ import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -255,7 +255,7 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
-	readonly icon?: Codicon;
+	readonly icon?: ThemeIcon;
 
 	readonly statusList: ITerminalStatusList;
 
@@ -581,6 +581,11 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to rename this terminal.
 	 */
 	changeIcon(): Promise<void>;
+
+	/**
+	 * Triggers a quick pick to change the color of the associated terminal tab icon.
+	 */
+	changeColor(): Promise<void>;
 }
 
 export const enum LinuxDistro {
