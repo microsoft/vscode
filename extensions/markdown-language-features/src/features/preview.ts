@@ -432,7 +432,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 
 	private async onDidClickPreviewLink(href: string) {
-		let [hrefPath, fragment] = decodeURIComponent(href).split('#');
+		let [hrefPath, fragment] = href.split('#').map(c => decodeURIComponent(c));
 
 		if (hrefPath[0] !== '/') {
 			// We perviously already resolve absolute paths.
