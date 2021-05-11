@@ -61,7 +61,7 @@ export interface INotebookMarkupRendererContribution {
 const notebookProviderContribution: IJSONSchema = {
 	description: nls.localize('contributes.notebook.provider', 'Contributes notebook document provider.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ viewType: '', displayName: '' }] }],
+	defaultSnippets: [{ body: [{ viewType: '', displayName: '', 'selector': [{ 'filenamePattern': '' }] }] }],
 	items: {
 		type: 'object',
 		required: [
@@ -201,9 +201,15 @@ const notebookMarkupRendererContribution: IJSONSchema = {
 	}
 };
 
-export const notebookProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
+export const notebooksExtensionPoint2 = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
 	{
 		extensionPoint: 'notebookProvider',
+		jsonSchema: { deprecationMessage: 'Use \'notebooks\' instead' }
+	});
+
+export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
+	{
+		extensionPoint: 'notebooks',
 		jsonSchema: notebookProviderContribution
 	});
 
