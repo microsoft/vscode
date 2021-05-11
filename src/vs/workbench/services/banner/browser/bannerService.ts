@@ -14,7 +14,7 @@ export interface IBannerItem {
 	readonly id: string;
 	readonly icon: Codicon;
 	readonly message: string | MarkdownString;
-	readonly scope?: StorageScope;
+	readonly scope?: StorageScope; /* Used to remember that the banner has been closed. */
 	readonly actions?: ILinkDescriptor[];
 }
 

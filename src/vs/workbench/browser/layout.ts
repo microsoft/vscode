@@ -216,10 +216,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			panelToRestore: undefined as string | undefined
 		},
 
-		banner: {
-			hidden: false,
-		},
-
 		statusBar: {
 			hidden: false
 		},
@@ -966,8 +962,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					default:
 						return isWeb ? false : !this.state.fullscreen || this.state.menuBar.toggled;
 				}
-			case Parts.BANNER_PART:
-				return !this.state.banner.hidden;
 			case Parts.SIDEBAR_PART:
 				return !this.state.sideBar.hidden;
 			case Parts.PANEL_PART:
