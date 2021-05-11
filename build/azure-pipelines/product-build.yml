@@ -251,6 +251,9 @@ stages:
         jobs:
           - job: BingSettingsSearchJob
             displayName: Upload Configuration for Bing
+            container: vscode-x64
+            variables:
+                VSCODE_ARCH: x64
             steps:
               - template: linux/product-bing.yml
 
