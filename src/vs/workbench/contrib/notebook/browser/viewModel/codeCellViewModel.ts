@@ -131,7 +131,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
-			editorWidth: initialNotebookLayoutInfo ? this.computeEditorWidth(initialNotebookLayoutInfo.width) : 0,
+			editorWidth: initialNotebookLayoutInfo
+				? this.eventDispatcher.notebookOptions.computeCodeCellEditorWidth(initialNotebookLayoutInfo.width)
+				: 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			outputShowMoreContainerHeight: 0,
@@ -141,16 +143,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			bottomToolbarOffset: 0,
 			layoutState: CodeCellLayoutState.Uninitialized
 		};
-	}
-
-	private computeEditorWidth(outerWidth: number): number {
-		const notebookLayoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
-
-		return outerWidth - (
-			notebookLayoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
-			+ notebookLayoutConfiguration.cellRunGutter // CELL_RUN_GUTTER
-			+ notebookLayoutConfiguration.cellRightMargin // CELL_RIGHT_MARGIN
-		);
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
@@ -191,7 +183,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2
 				- outputShowMoreContainerHeight;
 			const bottomToolbarOffset = this.eventDispatcher.notebookOptions.computeBottomToolbarOffset(totalHeight);
-			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
+			const editorWidth = state.outerWidth !== undefined
+				? this.eventDispatcher.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
+				: this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
 				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
@@ -222,7 +216,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2
 				- outputShowMoreContainerHeight;
 			const bottomToolbarOffset = this.eventDispatcher.notebookOptions.computeBottomToolbarOffset(totalHeight);
-			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
+			const editorWidth = state.outerWidth !== undefined
+				? this.eventDispatcher.notebookOptions.computeCodeCellEditorWidth(state.outerWidth)
+				: this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
 				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
