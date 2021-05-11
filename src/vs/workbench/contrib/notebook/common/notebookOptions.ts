@@ -83,4 +83,18 @@ export class NotebookOptions {
 			- this._layoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
 			- this._layoutConfiguration.bottomCellToolbarHeight / 2;
 	}
+
+	computeCodeCellEditorWidth(outerWidth: number): number {
+		return outerWidth - (
+			this._layoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
+			+ this._layoutConfiguration.cellRunGutter // CELL_RUN_GUTTER
+			+ this._layoutConfiguration.cellRightMargin // CELL_RIGHT_MARGIN
+		);
+	}
+
+	computeMarkdownCellEditorWidth(outerWidth: number): number {
+		return outerWidth
+			- this._layoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
+			- this._layoutConfiguration.cellRightMargin; // CELL_RIGHT_MARGIN;
+	}
 }

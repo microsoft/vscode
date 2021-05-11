@@ -116,7 +116,9 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._layoutInfo = {
 			editorHeight: 0,
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
-			editorWidth: initialNotebookLayoutInfo?.width ? this.computeEditorWidth(initialNotebookLayoutInfo.width) : 0,
+			editorWidth: initialNotebookLayoutInfo?.width
+				? this.eventDispatcher.notebookOptions.computeMarkdownCellEditorWidth(initialNotebookLayoutInfo.width)
+				: 0,
 			bottomToolbarOffset: this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap, // BOTTOM_CELL_TOOLBAR_GAP,
 			totalHeight: 0
 		};
@@ -148,18 +150,12 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._onDidChangeState.fire({ foldingStateChanged: true });
 	}
 
-	private computeEditorWidth(outerWidth: number) {
-		const notebookLayoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
-
-		return outerWidth
-			- notebookLayoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
-			- notebookLayoutConfiguration.cellRightMargin; // CELL_RIGHT_MARGIN;
-	}
-
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
 		if (!this.metadata?.inputCollapsed) {
-			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
+			const editorWidth = state.outerWidth !== undefined
+				? this.eventDispatcher.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
+				: this._layoutInfo.editorWidth;
 			const totalHeight = state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight;
 
 			this._layoutInfo = {
@@ -170,7 +166,9 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				totalHeight
 			};
 		} else {
-			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
+			const editorWidth = state.outerWidth !== undefined
+				? this.eventDispatcher.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
+				: this._layoutInfo.editorWidth;
 			const totalHeight = this.eventDispatcher.notebookOptions.computeCollapsedMarkdownCellHeight();
 
 			state.totalHeight = totalHeight;
