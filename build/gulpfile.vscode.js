@@ -470,7 +470,7 @@ gulp.task('vscode-translations-import', function () {
 });
 
 // This task is run in the Bing stage and only picks up the Linux asset
-const tempDir = process.env.AGENT_TEMPDIRECTORY || os.tmpdir();
+const tempDir = process.env['PIPELINE_WORKSPACE'] || os.tmpdir();
 const allConfigDetailsPath = path.join(tempDir, 'configuration.json');
 const generateVSCodeConfigurationTask = task.define('generate-vscode-configuration', async () => {
 	const buildDir = process.env['PIPELINE_WORKSPACE'];
