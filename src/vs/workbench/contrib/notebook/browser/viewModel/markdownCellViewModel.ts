@@ -46,11 +46,12 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	private _editorHeight = 0;
 	set editorHeight(newHeight: number) {
 		this._editorHeight = newHeight;
+		const layoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
 
 		this.totalHeight = this._editorHeight
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().markdownCellBottomMargin // MARKDOWN_CELL_BOTTOM_MARGIN
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+			+ layoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
+			+ layoutConfiguration.markdownCellBottomMargin // MARKDOWN_CELL_BOTTOM_MARGIN
+			+ layoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
 			+ this.getEditorStatusbarHeight();
 	}
 
@@ -148,13 +149,16 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	private computeEditorWidth(outerWidth: number) {
+		const notebookLayoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
+
 		return outerWidth
-			- this.eventDispatcher.notebookOptions.getLayoutConfiguration().codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
-			- this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellRightMargin; // CELL_RIGHT_MARGIN;
+			- notebookLayoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
+			- notebookLayoutConfiguration.cellRightMargin; // CELL_RIGHT_MARGIN;
 	}
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
+		const notebookLayoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
 
 		if (!this.metadata?.inputCollapsed) {
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
@@ -165,17 +169,17 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				editorWidth,
 				editorHeight: this._editorHeight,
 				bottomToolbarOffset: totalHeight
-					- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap /* BOTTOM_CELL_TOOLBAR_GAP */
-					- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight /* BOTTOM_CELL_TOOLBAR_HEIGHT */ / 2,
+					- notebookLayoutConfiguration.bottomCellToolbarGap /* BOTTOM_CELL_TOOLBAR_GAP */
+					- notebookLayoutConfiguration.bottomCellToolbarHeight /* BOTTOM_CELL_TOOLBAR_HEIGHT */ / 2,
 				totalHeight
 			};
 		} else {
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
 			const totalHeight =
-				this.eventDispatcher.notebookOptions.getLayoutConfiguration().markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
-				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight // COLLAPSED_INDICATOR_HEIGHT
-				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().markdownCellBottomMargin; // MARKDOWN_CELL_BOTTOM_MARGIN;
+				notebookLayoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
+				+ notebookLayoutConfiguration.collapsedIndicatorHeight // COLLAPSED_INDICATOR_HEIGHT
+				+ notebookLayoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+				+ notebookLayoutConfiguration.markdownCellBottomMargin; // MARKDOWN_CELL_BOTTOM_MARGIN;
 
 			state.totalHeight = totalHeight;
 
@@ -184,8 +188,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				editorWidth,
 				editorHeight: this._editorHeight,
 				bottomToolbarOffset: totalHeight
-					- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-					- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2,
+					- notebookLayoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+					- notebookLayoutConfiguration.bottomCellToolbarHeight / 2,
 				totalHeight
 			};
 		}
