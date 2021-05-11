@@ -82,7 +82,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			const shell = this._terminalService.getDefaultShell(true, configProvider);
 			const shellArgs = this._terminalService.getDefaultShellArgs(true, configProvider);
 
-			const terminalName = args.title || nls.localize('debug.terminal.title', "debuggee");
+			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
 
 			const shellConfig = JSON.stringify({ shell, shellArgs });
 			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
