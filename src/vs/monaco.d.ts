@@ -2974,7 +2974,7 @@ declare namespace monaco.editor {
 		 */
 		suggest?: ISuggestOptions;
 		/**
-		 * Smart select opptions;
+		 * Smart select options.
 		 */
 		smartSelect?: ISmartSelectOptions;
 		/**
