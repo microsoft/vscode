@@ -242,6 +242,76 @@ suite('FileWorkingCopyManager', () => {
 		workingCopy2.dispose();
 	});
 
+	test('resolve registers as working copy and dispose clears', async () => {
+		const resource1 = URI.file('/test1.html');
+		const resource2 = URI.file('/test2.html');
+		const resource3 = URI.file('/test3.html');
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+
+		const firstPromise = manager.resolve(resource1);
+		const secondPromise = manager.resolve(resource2);
+		const thirdPromise = manager.resolve(resource3);
+
+		await Promise.all([firstPromise, secondPromise, thirdPromise]);
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
+		assert.strictEqual(manager.workingCopies.length, 3);
+
+		manager.dispose();
+
+		assert.strictEqual(manager.workingCopies.length, 0);
+
+		// dispose does not remove from working copy service, only `destroy` should
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
+	});
+
+	test('destroy', async () => {
+		const resource1 = URI.file('/test1.html');
+		const resource2 = URI.file('/test2.html');
+		const resource3 = URI.file('/test3.html');
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+
+		const firstPromise = manager.resolve(resource1);
+		const secondPromise = manager.resolve(resource2);
+		const thirdPromise = manager.resolve(resource3);
+
+		await Promise.all([firstPromise, secondPromise, thirdPromise]);
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
+		assert.strictEqual(manager.workingCopies.length, 3);
+
+		await manager.destroy();
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+		assert.strictEqual(manager.workingCopies.length, 0);
+	});
+
+	test('destroy saves dirty working copies', async () => {
+		const resource = URI.file('/path/source.txt');
+
+		const workingCopy = await manager.resolve(resource);
+
+		let saved = false;
+		workingCopy.onDidSave(() => {
+			saved = true;
+		});
+
+		workingCopy.model?.updateContents('hello create');
+		assert.strictEqual(workingCopy.isDirty(), true);
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 1);
+		assert.strictEqual(manager.workingCopies.length, 1);
+
+		await manager.destroy();
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+		assert.strictEqual(manager.workingCopies.length, 0);
+
+		assert.strictEqual(saved, true);
+	});
+
 	test('file change event triggers working copy resolve', async () => {
 		const resource = URI.file('/path/index.txt');
 

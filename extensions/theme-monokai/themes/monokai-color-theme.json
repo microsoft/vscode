@@ -18,7 +18,7 @@
 		"button.background": "#75715E",
 		"editor.background": "#272822",
 		"editor.foreground": "#f8f8f2",
-		"selection.background": "#ccccc7",
+		"selection.background": "#878b9180",
 		"editor.selectionHighlightBackground": "#575b6180",
 		"editor.selectionBackground": "#878b9180",
 		"minimap.selectionHighlight": "#878b9180",

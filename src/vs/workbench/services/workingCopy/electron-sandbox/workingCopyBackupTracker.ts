@@ -328,12 +328,20 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));
 	}
 
-	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {
-		if (!this.editorGroupService.isRestored()) {
-			return false; // if editors have not restored, we are very likely not up to speed with backups and thus should not discard them
+	private async noVeto(backupsToDiscard: IWorkingCopy[]): Promise<boolean> {
+
+		// If we have proceeded enough that editors and dirty state
+		// has restored, we make sure that the dirty working copies
+		// that have been handled by the user get discarded.
+		if (this.editorGroupService.isRestored()) {
+			try {
+				await Promises.settled(backupsToDiscard.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy)));
+			} catch (error) {
+				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
+			}
 		}
 
-		return Promises.settled(backupsToDiscard.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy))).then(() => false, () => false);
+		return false; // no veto (no dirty)
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
@@ -348,13 +356,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// were not restored in the session.
 		if (this.editorGroupService.isRestored()) {
 			try {
-
-				// Backups without `typeId` are handed in the legacy backup
-				// restorer still and thus we explicitly don't want to keep
-				// them on shutdown, otherwise they would always come back.
-				// TODO@bpasero remove this check once typeId has been adopted.
-				const backupsToKeep = Array.from(this.unrestoredBackups).filter(unrestoredBackup => unrestoredBackup.typeId.length > 0);
-				await this.workingCopyBackupService.discardBackups(backupsToKeep);
+				await this.workingCopyBackupService.discardBackups({ except: Array.from(this.unrestoredBackups) });
 			} catch (error) {
 				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 			}

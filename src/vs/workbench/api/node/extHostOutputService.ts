@@ -16,17 +16,19 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
-import { RotatingLogger } from 'spdlog';
+import { Logger } from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 
 class OutputAppender {
 
-	private appender: RotatingLogger;
+	static async create(name: string, file: string): Promise<OutputAppender> {
+		const appender = await createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
+		appender.clearFormatters();
 
-	constructor(name: string, readonly file: string) {
-		this.appender = createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
-		this.appender.clearFormatters();
+		return new OutputAppender(name, file, appender);
 	}
+
+	private constructor(readonly name: string, readonly file: string, private readonly appender: Logger) { }
 
 	append(content: string): void {
 		this.appender.critical(content);
@@ -38,7 +40,7 @@ class OutputAppender {
 }
 
 
-export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
+class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
 	private _appender: OutputAppender;
 
@@ -113,7 +115,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 			}
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
 			const file = URI.file(join(outputDirPath, `${fileName}.log`));
-			const appender = new OutputAppender(fileName, file.fsPath);
+			const appender = await OutputAppender.create(fileName, file.fsPath);
 			return new ExtHostOutputChannelBackedByFile(name, appender, this._proxy);
 		} catch (error) {
 			// Do not crash if logger cannot be created

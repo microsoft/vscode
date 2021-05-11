@@ -138,12 +138,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPortsSource': {
 				type: 'string',
-				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports information is found. On Windows and Mac remotes, the `process` options have no effect and `output` will be used. Requires a reload to take effect."),
-				enum: ['process', 'output', 'processAlways'],
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when `remote.autoForwardPorts` is true. On Windows and Mac remotes, the `process` option has no effect and `output` will be used. Requires a reload to take effect."),
+				enum: ['process', 'output'],
 				enumDescriptions: [
-					localize('remote.autoForwardPortsSource.process', "When `remote.autoForwardPorts` is `true`, port information will be discovered by watching for processes that are started and include a port."),
-					localize('remote.autoForwardPortsSource.output', "When `remote.autoForwardPorts` is `true`, port information will be discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view."),
-					localize('remote.autoForwardPortsSource.processAlways', "Port information will always be discovered by watching for processes that are started and include a port, regardless of any other setting value.")
+					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
+					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view.")
 				],
 				default: 'process'
 			},

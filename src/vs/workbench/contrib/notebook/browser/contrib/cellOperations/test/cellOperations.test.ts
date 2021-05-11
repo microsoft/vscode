@@ -17,9 +17,9 @@ suite('CellOperations', () => {
 	test('Move cells - single cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -34,9 +34,9 @@ suite('CellOperations', () => {
 	test('Move cells - multiple cells in a selection', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -53,9 +53,9 @@ suite('CellOperations', () => {
 	test('Move cells - move with folding ranges', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -80,9 +80,9 @@ suite('CellOperations', () => {
 	test('Copy/duplicate cells - single cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -99,9 +99,9 @@ suite('CellOperations', () => {
 	test('Copy/duplicate cells - target and selection are different, #119769', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -118,9 +118,9 @@ suite('CellOperations', () => {
 	test('Copy/duplicate cells - multiple cells in a selection', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -139,9 +139,9 @@ suite('CellOperations', () => {
 	test('Copy/duplicate cells - move with folding ranges', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -168,9 +168,9 @@ suite('CellOperations', () => {
 	test('Join cell with below - single cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -196,9 +196,9 @@ suite('CellOperations', () => {
 	test('Join cell with above - single cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -445,4 +445,3 @@ suite('CellOperations', () => {
 			});
 	});
 });
-

@@ -421,7 +421,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.setActiveTabToNext();
+			terminalService.setActiveGroupToNext();
 			await terminalService.showPanel(true);
 		}
 	});
@@ -445,7 +445,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.setActiveTabToPrevious();
+			terminalService.setActiveGroupToPrevious();
 			await terminalService.showPanel(true);
 		}
 	});
@@ -1309,6 +1309,15 @@ export function registerTerminalActions() {
 						}
 					}]
 				},
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+					])
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
@@ -1689,7 +1698,7 @@ export function registerTerminalActions() {
 				return Promise.resolve(null);
 			}
 			if (item === switchTerminalActionViewItemSeparator) {
-				terminalService.refreshActiveTab();
+				terminalService.refreshActiveGroup();
 				return Promise.resolve(null);
 			}
 			if (item === switchTerminalShowTabsTitle) {
@@ -1698,7 +1707,7 @@ export function registerTerminalActions() {
 			}
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
-				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
+				terminalService.setActiveGroupByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
 			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
