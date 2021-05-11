@@ -164,7 +164,7 @@ export interface IPtyService {
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string): Promise<void>
-	updateIcon(id: number, icon: string): Promise<void>
+	updateIcon(id: number, icon: string, color?: string): Promise<void>
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;

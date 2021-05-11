@@ -235,6 +235,7 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceName: string;
 	isOrphan: boolean;
 	icon: string | undefined;
+	color: string | undefined;
 }
 
 export interface ICommandTracker {

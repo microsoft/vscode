@@ -1610,7 +1610,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async reduceConnectionGraceTime(): Promise<void> { throw new Error('Method not implemented.'); }
 	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
-	updateIcon(id: number, icon: string): Promise<void> { throw new Error('Method not implemented.'); }
+	updateIcon(id: number, icon: string, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
