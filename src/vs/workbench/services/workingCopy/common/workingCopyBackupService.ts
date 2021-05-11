@@ -157,8 +157,8 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		return this.impl.discardBackup(identifier);
 	}
 
-	discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
-		return this.impl.discardBackups(except);
+	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		return this.impl.discardBackups(filter);
 	}
 
 	getBackups(): Promise<IWorkingCopyIdentifier[]> {
@@ -307,21 +307,22 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		return `${identifier.resource.toString()}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify({ ...meta, typeId: identifier.typeId })}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER}`;
 	}
 
-	async discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
+	async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
 		const model = await this.ready;
 
 		// Discard all but some backups
+		const except = filter?.except;
 		if (Array.isArray(except) && except.length > 0) {
 			const exceptMap = new ResourceMap<boolean>();
 			for (const exceptWorkingCopy of except) {
 				exceptMap.set(this.toBackupResource(exceptWorkingCopy), true);
 			}
 
-			for (const backupResource of model.get()) {
+			await Promises.settled(model.get().map(async backupResource => {
 				if (!exceptMap.has(backupResource)) {
 					await this.doDiscardBackup(backupResource);
 				}
-			}
+			}));
 		}
 
 		// Discard all backups
@@ -531,7 +532,8 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 		this.backups.delete(this.toBackupResource(identifier));
 	}
 
-	async discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
+	async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		const except = filter?.except;
 		if (Array.isArray(except) && except.length > 0) {
 			const exceptMap = new ResourceMap<boolean>();
 			for (const exceptWorkingCopy of except) {

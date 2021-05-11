@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export const IWorkingCopyService = createDecorator<IWorkingCopyService>('workingCopyService');
 
@@ -91,10 +91,10 @@ export interface IWorkingCopyService {
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable;
 
 	/**
-	 * Whether a working copy with the given resource exists.
-	 *
-	 * @param resource the resource of the working copy to check
+	 * Whether a working copy with the given resource or identifier
+	 * exists.
 	 */
+	has(identifier: IWorkingCopyIdentifier): boolean;
 	has(resource: URI): boolean;
 
 	//#endregion
@@ -182,8 +182,14 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		}
 	}
 
-	has(resource: URI): boolean {
-		return this.mapResourceToWorkingCopies.has(resource);
+	has(identifier: IWorkingCopyIdentifier): boolean;
+	has(resource: URI): boolean;
+	has(resourceOrIdentifier: URI | IWorkingCopyIdentifier): boolean {
+		if (URI.isUri(resourceOrIdentifier)) {
+			return this.mapResourceToWorkingCopies.has(resourceOrIdentifier);
+		}
+
+		return this.mapResourceToWorkingCopies.get(resourceOrIdentifier.resource)?.has(resourceOrIdentifier.typeId) ?? false;
 	}
 
 	//#endregion
