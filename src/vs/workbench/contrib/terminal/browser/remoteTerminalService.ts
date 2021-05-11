@@ -144,7 +144,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			executable: shellLaunchConfig.executable,
 			args: shellLaunchConfig.args,
 			cwd: shellLaunchConfig.cwd,
-			env: shellLaunchConfig.env
+			env: shellLaunchConfig.env,
+			useShellEnvironment: shellLaunchConfig.useShellEnvironment
 		};
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
