@@ -240,7 +240,7 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
-						id: TerminalCommandId.ChangeIcon,
+						id: TerminalCommandId.ChangeColor,
 						title: localize('workbench.action.terminal.changeColor', "Change Color...")
 					},
 					group: ContextMenuGroup.Edit,

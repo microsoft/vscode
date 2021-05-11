@@ -259,11 +259,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			if (instance.icon) {
 				label += ` ${instance.title}`;
 			}
-		}
-		if (instance.icon?.color) {
-			template.element.style.color = instance.icon?.color.id;
-		} else {
-			template.element.style.color = 'inherit';
+
+			const codicon = template.element.querySelector<HTMLElement>('.codicon');
+			if (codicon) {
+				codicon.style.color = instance && instance.icon && instance.icon.color ? instance.icon.color.id : '';
+			}
 		}
 
 		if (!hasActionbar) {
