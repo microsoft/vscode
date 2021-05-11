@@ -48,7 +48,7 @@ flakySuite('StateMainService', () => {
 		writeFileSync(storageFile, '');
 
 		let service = new FileStorage(URI.file(storageFile), logService, fileService);
-		await service.init();
+		await service.initialize();
 
 		service.setItem('some.key', 'some.value');
 		assert.strictEqual(service.getItem('some.key'), 'some.value');
@@ -63,7 +63,7 @@ flakySuite('StateMainService', () => {
 		await service.close();
 
 		service = new FileStorage(URI.file(storageFile), logService, fileService);
-		await service.init();
+		await service.initialize();
 
 		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
 
@@ -110,7 +110,7 @@ flakySuite('StateMainService', () => {
 		writeFileSync(storageFile, '');
 
 		let service = new FileStorage(URI.file(storageFile), logService, fileService);
-		await service.init();
+		await service.initialize();
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');
@@ -126,7 +126,7 @@ flakySuite('StateMainService', () => {
 		await service.close();
 
 		service = new FileStorage(URI.file(storageFile), logService, fileService);
-		await service.init();
+		await service.initialize();
 
 		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
 		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
@@ -151,7 +151,7 @@ flakySuite('StateMainService', () => {
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
 
-		await service.init();
+		await service.initialize();
 
 		assert.strictEqual(service.getItem('some.key1'), undefined);
 		assert.strictEqual(service.getItem('some.key2'), undefined);
@@ -165,7 +165,7 @@ flakySuite('StateMainService', () => {
 
 		const service = new FileStorage(URI.file(storageFile), logService, fileService);
 
-		await service.init();
+		await service.initialize();
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');

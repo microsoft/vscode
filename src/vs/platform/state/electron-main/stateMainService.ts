@@ -34,13 +34,13 @@ export class FileStorage {
 
 	init(): Promise<void> {
 		if (!this.initializing) {
-			this.initializing = this.load();
+			this.initializing = this.doInit();
 		}
 
 		return this.initializing;
 	}
 
-	private async load(): Promise<void> {
+	private async doInit(): Promise<void> {
 		try {
 			this.lastSavedStorageContents = (await this.fileService.readFile(this.storagePath)).value.toString();
 			this.storage = JSON.parse(this.lastSavedStorageContents);
@@ -151,7 +151,7 @@ export class StateMainService implements IStateMainService {
 
 	private static readonly STATE_FILE = 'storage.json';
 
-	private fileStorage: FileStorage;
+	private readonly fileStorage: FileStorage;
 
 	constructor(
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
