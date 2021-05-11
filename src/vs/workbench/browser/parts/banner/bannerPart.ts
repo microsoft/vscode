@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/bannerpart';
-import { localize } from 'vs/nls';
 import { $, append, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
@@ -17,12 +16,11 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { Action } from 'vs/base/common/actions';
 import { Link } from 'vs/platform/opener/browser/link';
 import { attachLinkStyler } from 'vs/platform/theme/common/styler';
-import { editorInfoForeground, listActiveSelectionBackground, listActiveSelectionForeground, registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter } from 'vs/base/common/event';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 
 
 // Icons
@@ -30,31 +28,7 @@ import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 const bannerCloseIcon = registerCodicon('banner-close', Codicon.close);
 
 
-// Theme colors
-
-const BANNER_BACKGROUND = registerColor('banner.background', {
-	dark: listActiveSelectionBackground,
-	light: listActiveSelectionBackground,
-	hc: listActiveSelectionBackground
-}, localize('banner.background', ""));
-
-const BANNER_FOREGROUND = registerColor('banner.foreground', {
-	dark: listActiveSelectionForeground,
-	light: listActiveSelectionForeground,
-	hc: listActiveSelectionForeground
-}, localize('banner.foreground', ""));
-
-const BANNER_ICON_FOREGROUND = registerColor('banner.iconForeground', {
-	dark: editorInfoForeground,
-	light: editorInfoForeground,
-	hc: editorInfoForeground
-}, localize('banner.iconForeground', ""));
-
-const BANNER_TEXT_LINK_FOREGROUND = registerColor('banner.textLinkForeground', {
-	dark: textLinkForeground,
-	light: Color.white,
-	hc: Color.white
-}, localize('banner.textLinkForeground', ""));
+// Theme support
 
 registerThemingParticipant((theme, collector) => {
 	const backgroundColor = theme.getColor(BANNER_BACKGROUND);
@@ -189,7 +163,7 @@ export class BannerPart extends Part implements IBannerService {
 
 			for (const action of item.actions) {
 				const actionLink = this._register(this.instantiationService.createInstance(Link, action));
-				this._register(attachLinkStyler(actionLink, this.themeService, { textLinkForeground: BANNER_TEXT_LINK_FOREGROUND }));
+				this._register(attachLinkStyler(actionLink, this.themeService, { textLinkForeground: BANNER_FOREGROUND }));
 				actionContainer.appendChild(actionLink.el);
 			}
 		}
