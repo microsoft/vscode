@@ -1686,6 +1686,34 @@ declare module 'vscode' {
 	export namespace notebook {
 
 		/**
+		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
+		 * the notebook is loaded and the {@link notebook.onDidOpenNotebookDocument `onDidOpenNotebookDocument`}-event fires.
+		 *
+		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
+		 * {@link notebook.onDidCloseNotebookDocument `onDidCloseNotebookDocument`}-event can occur at any time after.
+		 *
+		 *
+		 * @param uri The resource to open.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
+		 */
+		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
+		 */
+		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is disposed.
+		 *
+		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed.
+		 *
+		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
+		 * for a notebook that has not been shown in an editor.
+		 */
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		/**
 		 * Register a {@link NotebookSerializer notebook serializer}.
 		 *
 		 * @param notebookType A notebook.
@@ -1839,10 +1867,7 @@ declare module 'vscode' {
 
 	export namespace notebook {
 
-		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
 
-		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
-		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
