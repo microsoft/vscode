@@ -647,6 +647,9 @@ export class Emitter<T> {
 	dispose() {
 		this._listeners?.clear();
 		this._deliveryQueue?.clear();
+		if (this._options?.onLastListenerRemove) {
+			this._options.onLastListenerRemove();
+		}
 		this._leakageMon?.dispose();
 		this._disposed = true;
 	}
