@@ -3160,6 +3160,7 @@ declare module 'vscode' {
 	export interface OpenEditorInfo {
 		name: string;
 		resource: Uri;
+		isActive: boolean;
 	}
 
 	export namespace window {

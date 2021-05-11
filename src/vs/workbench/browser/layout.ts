@@ -48,6 +48,7 @@ import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
+import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -150,6 +151,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private disposed: boolean | undefined;
 
 	private titleBarPartView!: ISerializableView;
+	private bannerPartView!: ISerializableView;
 	private activityBarPartView!: ISerializableView;
 	private sideBarPartView!: ISerializableView;
 	private panelPartView!: ISerializableView;
@@ -263,6 +265,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.notificationService = accessor.get(INotificationService);
 		this.activityBarService = accessor.get(IActivityBarService);
 		this.statusBarService = accessor.get(IStatusbarService);
+		accessor.get(IBannerService);
 
 		// Listeners
 		this.registerLayoutListeners();
@@ -900,7 +903,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();
 			default:
-				// Title Bar simply pass focus to container
+				// Title Bar & Banner simply pass focus to container
 				const container = this.getContainer(part);
 				if (container) {
 					container.focus();
@@ -912,6 +915,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getPart(Parts.TITLEBAR_PART).getContainer();
+			case Parts.BANNER_PART:
+				return this.getPart(Parts.BANNER_PART).getContainer();
 			case Parts.ACTIVITYBAR_PART:
 				return this.getPart(Parts.ACTIVITYBAR_PART).getContainer();
 			case Parts.SIDEBAR_PART:
@@ -1159,6 +1164,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	protected createWorkbenchLayout(): void {
 		const titleBar = this.getPart(Parts.TITLEBAR_PART);
+		const bannerPart = this.getPart(Parts.BANNER_PART);
 		const editorPart = this.getPart(Parts.EDITOR_PART);
 		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
 		const panelPart = this.getPart(Parts.PANEL_PART);
@@ -1167,6 +1173,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// View references for all parts
 		this.titleBarPartView = titleBar;
+		this.bannerPartView = bannerPart;
 		this.sideBarPartView = sideBar;
 		this.activityBarPartView = activityBar;
 		this.editorPartView = editorPart;
@@ -1175,6 +1182,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const viewMap = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
+			[Parts.BANNER_PART]: this.bannerPartView,
 			[Parts.TITLEBAR_PART]: this.titleBarPartView,
 			[Parts.EDITOR_PART]: this.editorPartView,
 			[Parts.PANEL_PART]: this.panelPartView,
@@ -1738,6 +1746,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelSize = panelDimension === this.state.panel.position ? this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, fallbackPanelSize) : fallbackPanelSize;
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
+		const bannerHeight = this.bannerPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
 		const activityBarWidth = this.activityBarPartView.minimumWidth;
 		const middleSectionHeight = height - titleBarHeight - statusBarHeight;
@@ -1789,6 +1798,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 						data: { type: Parts.TITLEBAR_PART },
 						size: titleBarHeight,
 						visible: this.isVisible(Parts.TITLEBAR_PART)
+					},
+					{
+						type: 'leaf',
+						data: { type: Parts.BANNER_PART },
+						size: bannerHeight
 					},
 					{
 						type: 'branch',

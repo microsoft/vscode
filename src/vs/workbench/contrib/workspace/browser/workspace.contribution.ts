@@ -23,7 +23,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
-import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
+import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
@@ -42,14 +42,19 @@ import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGRO
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 
+const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
-
 
 /*
  * Trust Request UX Handler
  */
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
+
+	private readonly entryId = `status.workspaceTrust.${this.workspaceContextService.getWorkspace().id}`;
+
+	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
@@ -57,14 +62,19 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IBannerService private readonly bannerService: IBannerService,
 		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
+		this.statusbarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
 		if (isWorkspaceTrustEnabled(configurationService)) {
 			this.registerListeners();
+			this.createStatusbarEntry();
 
 			if (this.hostService.hasFocus) {
 				this.showModalOnStart();
@@ -127,6 +137,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				}
 				break;
 			case 1:
+				this.updateWorkbenchIndicators(false);
 				this.workspaceTrustRequestService.cancelRequest();
 				break;
 		}
@@ -140,10 +151,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}
 
 		if (this.startupPromptSetting === 'never') {
+			this.updateWorkbenchIndicators(false);
 			return;
 		}
 
 		if (this.startupPromptSetting === 'once' && this.storageService.getBoolean(STARTUP_PROMPT_SHOWN_KEY, StorageScope.WORKSPACE, false)) {
+			this.updateWorkbenchIndicators(false);
 			return;
 		}
 
@@ -169,6 +182,64 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			],
 			checkboxText
 		);
+	}
+
+	private createStatusbarEntry(): void {
+		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
+		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+		this.statusbarService.updateEntryVisibility(this.entryId, false);
+	}
+
+	private getBannerItem(): IBannerItem {
+		return {
+			id: BANNER_RESTRICTED_MODE,
+			icon: shieldIcon,
+			message: localize('restrictedModeBannerMessage', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features."),
+			actions: [
+				{
+					label: localize('restrictedModeBannerManage', "Manage"),
+					href: 'command:workbench.trust.manage'
+				},
+				{
+					label: localize('restrictedModeBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-workspace-trust'
+				}
+			],
+			scope: StorageScope.WORKSPACE,
+		};
+	}
+
+	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
+		const text = workspaceTrustToString(trusted);
+		const backgroundColor = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
+		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
+
+		return {
+			text: trusted ? `$(shield)` : `$(shield) ${text}`,
+			ariaLabel: trusted ? localize('status.ariaTrusted', "This workspace is trusted.") : localize('status.ariaUntrusted', "Restricted Mode: Some features are disabled because this workspace is not trusted."),
+			tooltip: trusted ? localize('status.tooltipTrusted', "This workspace is trusted.") : localize('status.tooltipUntrusted', "Some features are disabled because this workspace is not trusted."),
+			command: 'workbench.trust.manage',
+			backgroundColor,
+			color
+		};
+	}
+
+	private updateStatusbarEntry(trusted: boolean): void {
+		this.statusbarEntryAccessor.value?.update(this.getStatusbarEntry(trusted));
+		this.updateStatusbarEntryVisibility(trusted);
+	}
+
+	private updateStatusbarEntryVisibility(trusted: boolean): void {
+		this.statusbarService.updateEntryVisibility(this.entryId, !trusted);
+	}
+
+	private updateWorkbenchIndicators(trusted: boolean): void {
+		this.updateStatusbarEntry(trusted);
+		if (!trusted) {
+			this.bannerService.show(this.getBannerItem());
+		} else {
+			this.bannerService.hide(BANNER_RESTRICTED_MODE);
+		}
 	}
 
 	private registerListeners(): void {
@@ -257,66 +328,14 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				resolve();
 			}));
 		}));
+
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => {
+			this.updateWorkbenchIndicators(trusted);
+		}));
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Ready);
-
-/*
- * Status Bar Entry
- */
-class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContribution {
-	private readonly entryId = `status.workspaceTrust.${this.workspaceService.getWorkspace().id}`;
-	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
-
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
-	) {
-		super();
-
-		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-
-		if (isWorkspaceTrustEnabled(configurationService)) {
-			const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
-			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
-			this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.updateStatusbarEntry(trusted)));
-
-			this.updateVisibility(this.workspaceTrustManagementService.isWorkpaceTrusted());
-		}
-	}
-
-	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
-		const text = workspaceTrustToString(trusted);
-		const backgroundColor = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
-		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
-
-		return {
-			text: trusted ? `$(shield)` : `$(shield) ${text}`,
-			ariaLabel: trusted ? localize('status.ariaTrusted', "This workspace is trusted.") : localize('status.ariaUntrusted', "Restricted Mode: Some features are disabled because this workspace is not trusted."),
-			tooltip: trusted ? localize('status.tooltipTrusted', "This workspace is trusted.") : localize('status.tooltipUntrusted', "Some features are disabled because this workspace is not trusted."),
-			command: 'workbench.trust.manage',
-			backgroundColor,
-			color
-		};
-	}
-
-	private updateVisibility(trusted: boolean): void {
-		this.statusbarService.updateEntryVisibility(this.entryId, !trusted);
-	}
-
-	private updateStatusbarEntry(trusted: boolean): void {
-		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(trusted));
-		this.updateVisibility(trusted);
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	WorkspaceTrustStatusbarItem,
-	LifecyclePhase.Starting
-);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Restored);
 
 /**
  * Trusted Workspace GUI Editor

@@ -24,6 +24,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
+import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -38,9 +39,10 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService private _terminalService: IExtHostTerminalService
+		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
+		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
+		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
 	}
 
 	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -145,7 +147,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._workspaceService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService);
 	}
 }
 

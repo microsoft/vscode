@@ -47,7 +47,7 @@ import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } f
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 
-const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
+export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
 const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
 const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
