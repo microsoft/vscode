@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.57.0",
-  "distro": "1f2d18b9a5fd2598d0a5f06d59d33e94be073f7e",
+  "distro": "9694f00d80b6ec29a893ece1971cb6875fcde634",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -71,7 +71,7 @@
     "native-watchdog": "1.3.0",
     "node-pty": "0.10.1",
     "nsfw": "2.1.2",
-    "spdlog": "^0.11.1",
+    "spdlog": "^0.13.0",
     "sudo-prompt": "9.2.1",
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.0.20",
