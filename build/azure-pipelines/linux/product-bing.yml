@@ -69,6 +69,8 @@ steps:
       VSCODE_ARCH: x64
     continueOnError: true
 
-  - publish: /tmp/configuration.json
+  - pwsh: Start-Sleep -Seconds 10
+
+  - publish: /home/vsts/work/_temp/configuration.json
     artifact: Bing Configuration
     displayName: Publish Bing Configuration artifact
