@@ -224,7 +224,10 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			} catch (backupError) {
 				error = backupError;
 			}
-		}, localize('backupBeforeShutdown', "Waiting for dirty editors to backup..."));
+		},
+			localize('backupBeforeShutdownMessage', "Backing up dirty editors is taking longer than expected..."),
+			localize('backupBeforeShutdownDetail', "Click 'Cancel' to stop waiting and to save or revert dirty editors.")
+		);
 
 		return { backups, error };
 	}
@@ -293,7 +296,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			if (result !== false) {
 				await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 			}
-		}, localize('saveBeforeShutdown', "Waiting for dirty editors to save..."));
+		}, localize('saveBeforeShutdown', "Saving dirty editors is taking longer than expected..."));
 	}
 
 	private doRevertAllBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[]): Promise<void> {
@@ -310,26 +313,35 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			// If we still have dirty working copies, revert those directly
 			// unless the revert operation was not successful (e.g. cancelled)
 			await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
-		}, localize('revertBeforeShutdown', "Waiting for dirty editors to revert..."));
+		}, localize('revertBeforeShutdown', "Reverting dirty editors is taking longer than expected..."));
 	}
 
-	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string): Promise<void> {
+	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		return this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			cancellable: true, // for issues such as https://github.com/microsoft/vscode/issues/112278
-			delay: 800, // delay notification so that it only appears when operation takes a long time
-			title
+			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
+			cancellable: true, 					// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
+			delay: 800, 						// delay notification so that it only appears when operation takes a long time
+			title,
+			detail
 		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));
 	}
 
-	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {
-		if (!this.editorGroupService.isRestored()) {
-			return false; // if editors have not restored, we are very likely not up to speed with backups and thus should not discard them
+	private async noVeto(backupsToDiscard: IWorkingCopy[]): Promise<boolean> {
+
+		// If we have proceeded enough that editors and dirty state
+		// has restored, we make sure that the dirty working copies
+		// that have been handled by the user get discarded.
+		if (this.editorGroupService.isRestored()) {
+			try {
+				await Promises.settled(backupsToDiscard.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy)));
+			} catch (error) {
+				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
+			}
 		}
 
-		return Promises.settled(backupsToDiscard.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy))).then(() => false, () => false);
+		return false; // no veto (no dirty)
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
@@ -344,13 +356,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// were not restored in the session.
 		if (this.editorGroupService.isRestored()) {
 			try {
-
-				// Backups without `typeId` are handed in the legacy backup
-				// restorer still and thus we explicitly don't want to keep
-				// them on shutdown, otherwise they would always come back.
-				// TODO@bpasero remove this check once typeId has been adopted.
-				const backupsToKeep = Array.from(this.unrestoredBackups).filter(unrestoredBackup => unrestoredBackup.typeId.length > 0);
-				await this.workingCopyBackupService.discardBackups(backupsToKeep);
+				await this.workingCopyBackupService.discardBackups({ except: Array.from(this.unrestoredBackups) });
 			} catch (error) {
 				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 			}

@@ -666,7 +666,7 @@ export class TestItemFilteredWrapper extends TestItemImpl {
 			}
 		}
 
-		const nowMatches = this.children.size > 0 || this.actual.uri.toString() === this.filterDocument.uri.toString();
+		const nowMatches = this.children.size > 0 || this.actual.uri?.toString() === this.filterDocument.uri.toString();
 		this._cachedMatchesFilter = nowMatches;
 
 		if (nowMatches !== didMatch) {

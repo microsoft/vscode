@@ -70,15 +70,23 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			});
 		}
 		const experiments = await this.experimentService.getCurrentExperiments();
-		const githubSessions = await this.authenticationService.getSessions('github');
-		const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
+
+		let githubAccessToken = '';
+		try {
+			const githubSessions = await this.authenticationService.getSessions('github');
+			const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
+			githubAccessToken = potentialSessions[0]?.accessToken;
+		} catch (e) {
+			// Ignore
+		}
+
 		const theme = this.themeService.getColorTheme();
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
 			zoomLevel: getZoomLevel(),
 			enabledExtensions: extensionData,
 			experiments: experiments?.join('\n'),
-			githubAccessToken: potentialSessions[0]?.accessToken
+			githubAccessToken,
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);
 	}

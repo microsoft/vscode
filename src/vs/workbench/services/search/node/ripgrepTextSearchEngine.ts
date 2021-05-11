@@ -576,9 +576,15 @@ export function fixRegexNewline(pattern: string): string {
 			} else if (context.some(isLookBehind)) {
 				// no-op in a lookbehind, see #100569
 			} else if (parent.type === 'CharacterClass') {
-				// in a bracket expr, [a-z\n] -> (?:[a-z]|\r?\n)
-				const otherContent = pattern.slice(parent.start + 1, char.start) + pattern.slice(char.end, parent.end - 1);
-				replace(parent.start, parent.end, otherContent === '' ? '\\r?\\n' : `(?:[${otherContent}]|\\r?\\n)`);
+				if (parent.negate) {
+					// negative bracket expr, [^a-z\n] -> (?![a-z]|\r?\n)
+					const otherContent = pattern.slice(parent.start + 2, char.start) + pattern.slice(char.end, parent.end - 1);
+					replace(parent.start, parent.end, '(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')');
+				} else {
+					// positive bracket expr, [a-z\n] -> (?:[a-z]|\r?\n)
+					const otherContent = pattern.slice(parent.start + 1, char.start) + pattern.slice(char.end, parent.end - 1);
+					replace(parent.start, parent.end, otherContent === '' ? '\\r?\\n' : `(?:[${otherContent}]|\\r?\\n)`);
+				}
 			} else if (parent.type === 'Quantifier') {
 				replace(char.start, char.end, '(?:\\r?\\n)');
 			}

@@ -545,7 +545,7 @@ export namespace WorkspaceEdit {
 						resource: entry.uri,
 						edit: entry.edit,
 						notebookMetadata: entry.notebookMetadata,
-						notebookVersionId: extHostNotebooks?.lookupNotebookDocument(entry.uri)?.apiNotebook.version
+						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version
 					});
 
 				} else if (entry._type === types.FileEditType.CellOutput) {
@@ -580,7 +580,7 @@ export namespace WorkspaceEdit {
 						_type: extHostProtocol.WorkspaceEditType.Cell,
 						metadata: entry.metadata,
 						resource: entry.uri,
-						notebookVersionId: extHostNotebooks?.lookupNotebookDocument(entry.uri)?.apiNotebook.version,
+						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version,
 						edit: {
 							editType: notebooks.CellEditType.Replace,
 							index: entry.index,
@@ -1466,8 +1466,8 @@ export namespace NotebookCellPreviousExecutionResult {
 export namespace NotebookCellKind {
 	export function from(data: vscode.NotebookCellKind): notebooks.CellKind {
 		switch (data) {
-			case types.NotebookCellKind.Markdown:
-				return notebooks.CellKind.Markdown;
+			case types.NotebookCellKind.Markup:
+				return notebooks.CellKind.Markup;
 			case types.NotebookCellKind.Code:
 			default:
 				return notebooks.CellKind.Code;
@@ -1476,8 +1476,8 @@ export namespace NotebookCellKind {
 
 	export function to(data: notebooks.CellKind): vscode.NotebookCellKind {
 		switch (data) {
-			case notebooks.CellKind.Markdown:
-				return types.NotebookCellKind.Markdown;
+			case notebooks.CellKind.Markup:
+				return types.NotebookCellKind.Markup;
 			case notebooks.CellKind.Code:
 			default:
 				return types.NotebookCellKind.Code;
@@ -1490,8 +1490,8 @@ export namespace NotebookCellData {
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
 		return {
 			cellKind: NotebookCellKind.from(data.kind),
-			language: data.language,
-			source: data.source,
+			language: data.languageId,
+			source: data.value,
 			metadata: {
 				...data.metadata,
 				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
@@ -1660,16 +1660,14 @@ export namespace NotebookKernelPreload {
 	export function from(preload: vscode.NotebookKernelPreload): { uri: UriComponents; provides: string[] } {
 		return {
 			uri: preload.uri,
+			// todo@connor4312: the conditional here can be removed after a migration period
 			provides: typeof preload.provides === 'string'
 				? [preload.provides]
 				: preload.provides ?? []
 		};
 	}
 	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookKernelPreload {
-		return {
-			uri: URI.revive(preload.uri),
-			provides: preload.provides
-		};
+		return new types.NotebookKernelPreload(URI.revive(preload.uri), preload.provides);
 	}
 }
 

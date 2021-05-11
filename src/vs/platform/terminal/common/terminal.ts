@@ -96,8 +96,12 @@ export interface IOffProcessTerminalService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getShellEnvironment(): Promise<IProcessEnvironment>;
+	getWslPath(original: string): Promise<string>;
+	getEnvironment(): Promise<IProcessEnvironment>;
+	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	updateTitle(id: number, title: string): Promise<void>;
+	updateIcon(id: number, icon: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 }
@@ -159,9 +163,11 @@ export interface IPtyService {
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
-
+	updateTitle(id: number, title: string): Promise<void>
+	updateIcon(id: number, icon: string): Promise<void>
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getShellEnvironment(): Promise<IProcessEnvironment>;
+	getEnvironment(): Promise<IProcessEnvironment>;
+	getWslPath(original: string): Promise<string>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
@@ -272,6 +278,14 @@ export interface IShellLaunchConfig {
 	strictEnv?: boolean;
 
 	/**
+	 * Whether the terminal process environment will inherit VS Code's "shell environment" that may
+	 * get sourced from running a login shell depnding on how the application was launched.
+	 * Consumers that rely on development tools being present in the $PATH should set this to true.
+	 * This will overwrite the value of the inheritEnv setting.
+	 */
+	useShellEnvironment?: boolean;
+
+	/**
 	 * When enabled the terminal will run the process as normal but not be surfaced to the user
 	 * until `Terminal.show` is called. The typical usage for this is when you need to run
 	 * something that may need interactivity but only want to tell the user about it when
@@ -304,6 +318,7 @@ export interface IShellLaunchConfigDto {
 	args?: string[] | string;
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
+	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
 }
 

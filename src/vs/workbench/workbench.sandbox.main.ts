@@ -101,6 +101,9 @@ import 'vs/workbench/contrib/codeEditor/electron-sandbox/codeEditor.contribution
 // Debug
 import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
 
+// Extensions Management
+import 'vs/workbench/contrib/extensions/electron-sandbox/extensions.contribution';
+
 // Telemetry Opt Out
 import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-sandbox/telemetryOptOut.contribution';
 
@@ -134,5 +137,8 @@ import 'vs/workbench/contrib/performance/electron-sandbox/performance.contributi
 
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-sandbox/taskService';
+
+// External terminal
+import 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.contribution';
 
 //#endregion

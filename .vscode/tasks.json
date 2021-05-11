@@ -56,38 +56,10 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-extension-mediad",
-			"label": "Ext Media - Build",
-			"isBackground": true,
-			"presentation": {
-				"reveal": "never",
-				"group": "buildWatchers"
-			},
-			"problemMatcher": {
-				"owner": "typescript",
-				"applyTo": "closedDocuments",
-				"fileLocation": [
-					"absolute"
-				],
-				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
-					"file": 1,
-					"location": 2,
-					"message": 3
-				},
-				"background": {
-					"beginsPattern": "Starting compilation",
-					"endsPattern": "Finished compilation"
-				}
-			}
-		},
-		{
 			"label": "VS Code - Build",
 			"dependsOn": [
 				"Core - Build",
-				"Ext - Build",
-				"Ext Media - Build",
+				"Ext - Build"
 			],
 			"group": {
 				"kind": "build",
@@ -102,7 +74,8 @@
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
-				"group": "buildKillers"
+				"group": "buildKillers",
+				"close": true
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -113,18 +86,8 @@
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
-				"group": "buildKillers"
-			},
-			"problemMatcher": "$tsc"
-		},
-		{
-			"type": "npm",
-			"script": "kill-watch-extension-mediad",
-			"label": "Kill Ext Media - Build",
-			"group": "build",
-			"presentation": {
-				"reveal": "never",
-				"group": "buildKillers"
+				"group": "buildKillers",
+				"close": true
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -132,8 +95,7 @@
 			"label": "Kill VS Code - Build",
 			"dependsOn": [
 				"Kill Core - Build",
-				"Kill Ext - Build",
-				"Kill Ext Media - Build",
+				"Kill Ext - Build"
 			],
 			"group": "build",
 			"problemMatcher": []
@@ -238,7 +200,8 @@
 			"command": "node build/lib/preLaunch.js",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
-				"reveal": "silent"
+				"reveal": "silent",
+				"close": true
 			}
 		},
 		{

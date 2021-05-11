@@ -15,7 +15,6 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorInput } from 'vs/workbench/common/editor';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 /**
  * The working copy backup tracker deals with:
@@ -254,7 +253,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Otherwise, make sure to create at least one editor
 			// for the backup to show
 			if (!hasOpenedEditorForBackup) {
-				nonOpenedEditorsForBackups.push(handler.createEditor(unrestoredBackup));
+				nonOpenedEditorsForBackups.push(await handler.createEditor(unrestoredBackup));
 			}
 
 			// Remember as (potentially) restored
@@ -269,8 +268,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				options: {
 					pinned: true,
 					preserveFocus: true,
-					inactive: true,
-					override: EditorOverride.DISABLED
+					inactive: true
 				}
 			})));
 

@@ -445,6 +445,10 @@ export abstract class ViewPane extends Pane implements IView {
 		this.scrollableElement.scanDomNode();
 	}
 
+	onRootScroll() {
+		// noop
+	}
+
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
 			// Progress bar

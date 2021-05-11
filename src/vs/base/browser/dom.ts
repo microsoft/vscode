@@ -17,6 +17,7 @@ import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -347,16 +348,7 @@ export function getClientArea(element: HTMLElement): Dimension {
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
 	if (platform.isIOS && window.visualViewport) {
-		const width = window.visualViewport.width;
-		const height = window.visualViewport.height - (
-			browser.isStandalone
-				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
-				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
-				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
-				? (20 + 4) // + 4px for body margin
-				: 0
-		);
-		return new Dimension(width, height);
+		return new Dimension(window.visualViewport.width, window.visualViewport.height);
 	}
 
 	// Try innerWidth / innerHeight
@@ -1266,6 +1258,29 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	setTimeout(() => document.body.removeChild(anchor));
 }
 
+export function triggerUpload(): Promise<FileList | undefined> {
+	return new Promise<FileList | undefined>(resolve => {
+
+		// In order to upload to the browser, create a
+		// input element of type `file` and click it
+		// to gather the selected files
+		const input = document.createElement('input');
+		document.body.appendChild(input);
+		input.type = 'file';
+		input.multiple = true;
+
+		// Resolve once the input event has fired once
+		Event.once(Event.fromDOMEventEmitter(input, 'input'))(() => {
+			resolve(withNullAsUndefined(input.files));
+		});
+
+		input.click();
+
+		// Ensure to remove the element from DOM eventually
+		setTimeout(() => document.body.removeChild(input));
+	});
+}
+
 export enum DetectedFullscreenMode {
 
 	/**
@@ -1450,6 +1465,9 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		};
 
 		this._subscriptions.add(domEvent(window, 'keydown', true)(e => {
+			if (e.defaultPrevented) {
+				return;
+			}
 
 			const event = new StandardKeyboardEvent(e);
 			// If Alt-key keydown event is repeated, ignore it #112347
@@ -1484,6 +1502,10 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		}));
 
 		this._subscriptions.add(domEvent(window, 'keyup', true)(e => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {

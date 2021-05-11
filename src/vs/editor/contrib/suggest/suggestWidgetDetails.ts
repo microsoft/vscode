@@ -320,6 +320,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	dispose(): void {
+		this._resizable.dispose();
 		this._disposables.dispose();
 		this.hide();
 	}

@@ -16,6 +16,7 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { localize } from 'vs/nls';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
@@ -444,6 +445,7 @@ export class PaneView extends Disposable {
 
 	orientation: Orientation;
 	readonly onDidSashChange: Event<number>;
+	readonly onScroll: Event<ScrollEvent>;
 
 	constructor(container: HTMLElement, options: IPaneViewOptions = {}) {
 		super();
@@ -453,6 +455,7 @@ export class PaneView extends Disposable {
 		this.element = append(container, $('.monaco-pane-view'));
 		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
 		this.onDidSashChange = this.splitview.onDidSashChange;
+		this.onScroll = this.splitview.onScroll;
 	}
 
 	addPane(pane: Pane, size: number, index = this.splitview.length): void {

@@ -15,7 +15,7 @@ import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { EditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('NotebookProviderInfoStore', function () {
@@ -41,24 +41,22 @@ suite('NotebookProviderInfoStore', function () {
 		);
 
 		const fooInfo = new NotebookProviderInfo({
+			extension: nullExtensionDescription.identifier,
 			id: 'foo',
 			displayName: 'foo',
 			selectors: [{ filenamePattern: '*.foo' }],
 			priority: ContributedEditorPriority.default,
-			dynamicContribution: false,
 			exclusive: false,
 			providerDisplayName: 'foo',
-			providerExtensionLocation: null!
 		});
 		const barInfo = new NotebookProviderInfo({
+			extension: nullExtensionDescription.identifier,
 			id: 'bar',
 			displayName: 'bar',
 			selectors: [{ filenamePattern: '*.bar' }],
 			priority: ContributedEditorPriority.default,
-			dynamicContribution: false,
 			exclusive: false,
 			providerDisplayName: 'bar',
-			providerExtensionLocation: null!
 		});
 
 		store.add(fooInfo);

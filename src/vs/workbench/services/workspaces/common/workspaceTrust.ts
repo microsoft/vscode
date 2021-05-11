@@ -5,10 +5,10 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { splitName } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
-import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -17,7 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
@@ -27,7 +27,6 @@ export const WORKSPACE_TRUST_EXTENSION_SUPPORT = 'extensions.supportUntrustedWor
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 
 export const WorkspaceTrustContext = {
-	PendingRequest: new RawContextKey<boolean>('workspaceTrustPendingRequest', false),
 	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false, localize('workspaceTrustCtx', "Whether the current workspace has been trusted by the user."))
 };
 
@@ -54,8 +53,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _isWorkspaceTrusted: boolean = false;
 	private _trustStateInfo: IWorkspaceTrustInfo;
 
+	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
+
 	constructor(
-		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -66,25 +67,21 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._trustStateInfo = this.loadTrustInfo();
 		this._isWorkspaceTrusted = this.calculateWorkspaceTrust();
 
+		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
+
 		this.registerListeners();
 	}
 
-	private set currentTrustState(trusted: boolean) {
-		if (this._isWorkspaceTrusted === trusted) { return; }
-		this._isWorkspaceTrusted = trusted;
-
-		this._onDidChangeTrust.fire(trusted);
-	}
-
 	private registerListeners(): void {
-		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrust()));
-		this._register(this.workspaceService.onDidChangeWorkbenchState(() => this.currentTrustState = this.calculateWorkspaceTrust()));
-		this._register(this.storageService.onDidChangeValue(changeEvent => {
-			if (changeEvent.key === this.storageKey) {
+		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
+		this._register(this.workspaceService.onDidChangeWorkbenchState(async () => await this.updateWorkspaceTrust()));
+		this._register(this.storageService.onDidChangeValue(async changeEvent => {
+			/* This will only execute if storage was changed by a user action in a separate window */
+			if (changeEvent.key === this.storageKey && JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
 				this._trustStateInfo = this.loadTrustInfo();
-				this.currentTrustState = this.calculateWorkspaceTrust();
-
 				this._onDidChangeTrustedFolders.fire();
+
+				await this.updateWorkspaceTrust();
 			}
 		}));
 	}
@@ -115,8 +112,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return result;
 	}
 
-	private saveTrustInfo(): void {
+	private async saveTrustInfo(): Promise<void> {
 		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._onDidChangeTrustedFolders.fire();
+
+		await this.updateWorkspaceTrust();
 	}
 
 	private calculateWorkspaceTrust(): boolean {
@@ -132,16 +132,16 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true;
 		}
 
-		const workspaceFolders = this.getWorkspaceFolders();
-		const trusted = this.getFoldersTrust(workspaceFolders);
+		const workspaceUris = this.getWorkspaceUris();
+		const trusted = this.getUrisTrust(workspaceUris);
 
 		return trusted;
 	}
 
-	private getFoldersTrust(folders: URI[]): boolean {
+	private getUrisTrust(uris: URI[]): boolean {
 		let state = true;
-		for (const folder of folders) {
-			const { trusted } = this.getFolderTrustInfo(folder);
+		for (const uri of uris) {
+			const { trusted } = this.getUriTrustInfo(uri);
 
 			if (!trusted) {
 				state = trusted;
@@ -152,24 +152,39 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return state;
 	}
 
-	private getWorkspaceFolders(): URI[] {
-		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
+	private getWorkspaceUris(): URI[] {
+		const workspaceUris = this.workspaceService.getWorkspace().folders.map(f => f.uri);
 		const workspaceConfiguration = this.workspaceService.getWorkspace().configuration;
 		if (workspaceConfiguration && !isUntitledWorkspace(workspaceConfiguration, this.environmentService)) {
-			folderURIs.push(dirname(workspaceConfiguration));
+			workspaceUris.push(workspaceConfiguration);
 		}
 
-		return folderURIs;
+		return workspaceUris;
 	}
 
-	public getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
+	private async updateWorkspaceTrust(): Promise<void> {
+		const trusted = this.calculateWorkspaceTrust();
+		if (this.isWorkpaceTrusted() === trusted) { return; }
+
+		// Run workspace trust transition participants
+		await this._trustTransitionManager.participate(trusted);
+
+		this._isWorkspaceTrusted = trusted;
+		this._onDidChangeTrust.fire(trusted);
+	}
+
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		return this._trustTransitionManager.addWorkspaceTrustTransitionParticipant(participant);
+	}
+
+	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
 		let resultState = false;
 		let maxLength = -1;
 
-		let resultUri = folder;
+		let resultUri = uri;
 
 		for (const trustInfo of this._trustStateInfo.uriTrustInfo) {
-			if (this.uriIdentityService.extUri.isEqualOrParent(folder, trustInfo.uri)) {
+			if (this.uriIdentityService.extUri.isEqualOrParent(uri, trustInfo.uri)) {
 				const fsPath = trustInfo.uri.fsPath;
 				if (fsPath.length > maxLength) {
 					maxLength = fsPath.length;
@@ -182,19 +197,19 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return { trusted: resultState, uri: resultUri };
 	}
 
-	setFoldersTrust(folders: URI[], trusted: boolean): void {
+	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
 		let changed = false;
 
-		for (const folder of folders) {
+		for (const uri of uris) {
 			if (trusted) {
-				const foundItem = this._trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
+				const foundItem = this._trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, uri));
 				if (!foundItem) {
-					this._trustStateInfo.uriTrustInfo.push({ uri: folder, trusted: true });
+					this._trustStateInfo.uriTrustInfo.push({ uri, trusted: true });
 					changed = true;
 				}
 			} else {
 				const previousLength = this._trustStateInfo.uriTrustInfo.length;
-				this._trustStateInfo.uriTrustInfo = this._trustStateInfo.uriTrustInfo.filter(trustInfo => !this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
+				this._trustStateInfo.uriTrustInfo = this._trustStateInfo.uriTrustInfo.filter(trustInfo => !this.uriIdentityService.extUri.isEqual(trustInfo.uri, uri));
 				if (previousLength !== this._trustStateInfo.uriTrustInfo.length) {
 					changed = true;
 				}
@@ -202,12 +217,44 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		if (changed) {
-			this.saveTrustInfo();
+			await this.saveTrustInfo();
 		}
 	}
 
 	canSetWorkspaceTrust(): boolean {
-		return this.workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		// Empty workspace
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return false;
+		}
+
+		// Untrusted workspace
+		if (!this.isWorkpaceTrusted()) {
+			return true;
+		}
+
+		// Trusted workspace
+		// Can only be trusted explicitly in the single folder scenario
+		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
+		if (!(isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file)) {
+			return false;
+		}
+
+		// If the current folder isn't trusted directly, return false
+		const trustInfo = this.getUriTrustInfo(workspaceIdentifier.uri);
+		if (!trustInfo.trusted || !this.uriIdentityService.extUri.isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
+			return false;
+		}
+
+		// Check if the parent is also trusted
+		if (this.canSetParentFolderTrust()) {
+			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
+			const parentIsTrusted = this.getUriTrustInfo(URI.file(parentPath)).trusted;
+			if (parentIsTrusted) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	canSetParentFolderTrust(): boolean {
@@ -224,29 +271,42 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
 			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
 
-			this.setFoldersTrust([URI.file(parentPath)], trusted);
+			this.setUrisTrust([URI.file(parentPath)], trusted);
 		}
 	}
 
-	setWorkspaceTrust(trusted: boolean): void {
-		const workspaceFolders = this.getWorkspaceFolders();
-		this.setFoldersTrust(workspaceFolders, trusted);
+	async setWorkspaceTrust(trusted: boolean): Promise<void> {
+		const workspaceFolders = this.getWorkspaceUris();
+		await this.setUrisTrust(workspaceFolders, trusted);
 	}
 
 	getTrustedFolders(): URI[] {
 		return this._trustStateInfo.uriTrustInfo.map(info => info.uri);
 	}
 
-	setTrustedFolders(folders: URI[]): void {
+	async setTrustedFolders(uris: URI[]): Promise<void> {
 		this._trustStateInfo.uriTrustInfo = [];
-		for (const folder of folders) {
+		for (const uri of uris) {
+			const cleanUri = this.uriIdentityService.extUri.removeTrailingPathSeparator(uri);
+			let added = false;
+			for (const addedUri of this._trustStateInfo.uriTrustInfo) {
+				if (this.uriIdentityService.extUri.isEqual(addedUri.uri, cleanUri)) {
+					added = true;
+					break;
+				}
+			}
+
+			if (added) {
+				continue;
+			}
+
 			this._trustStateInfo.uriTrustInfo.push({
 				trusted: true,
-				uri: folder
+				uri: cleanUri
 			});
 		}
 
-		this.saveTrustInfo();
+		await this.saveTrustInfo();
 	}
 }
 
@@ -254,18 +314,13 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	_serviceBrand: undefined;
 
 	private _trusted!: boolean;
-	private _trustRequestPromise?: Promise<boolean>;
-	private _trustRequestResolver?: (trusted: boolean) => void;
 	private _modalTrustRequestPromise?: Promise<boolean | undefined>;
 	private _modalTrustRequestResolver?: (trusted: boolean | undefined) => void;
 	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
-	private readonly _ctxWorkspaceTrustPendingRequest: IContextKey<boolean>;
 
-	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions>());
+	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions | undefined>());
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
 
-	private readonly _onDidCompleteWorkspaceTrustRequest = this._register(new Emitter<boolean>());
-	readonly onDidCompleteWorkspaceTrustRequest = this._onDidCompleteWorkspaceTrustRequest.event;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -273,10 +328,9 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	) {
 		super();
 
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.onTrustStateChanged(trusted)));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.trusted = trusted));
 
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
-		this._ctxWorkspaceTrustPendingRequest = WorkspaceTrustContext.PendingRequest.bindTo(contextKeyService);
 
 		this.trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 	}
@@ -290,21 +344,13 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._ctxWorkspaceTrustState.set(trusted);
 	}
 
-	private onTrustStateChanged(trusted: boolean): void {
-		// Resolve any pending soft requests for workspace trust
-		if (this._trustRequestResolver) {
-			this._trustRequestResolver(trusted);
+	private resolveRequest(trusted?: boolean): void {
+		if (this._modalTrustRequestResolver) {
+			this._modalTrustRequestResolver(trusted ?? this.trusted);
 
-			this._trustRequestResolver = undefined;
-			this._trustRequestPromise = undefined;
+			this._modalTrustRequestResolver = undefined;
+			this._modalTrustRequestPromise = undefined;
 		}
-
-		// Update context if there are no pending requests
-		if (!this._modalTrustRequestPromise && !this._trustRequestPromise) {
-			this._ctxWorkspaceTrustPendingRequest.set(false);
-		}
-
-		this.trusted = trusted;
 	}
 
 	cancelRequest(): void {
@@ -316,62 +362,56 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 	}
 
-	completeRequest(trusted?: boolean): void {
-		if (this._modalTrustRequestResolver) {
-			this._modalTrustRequestResolver(trusted ?? this.trusted);
-
-			this._modalTrustRequestResolver = undefined;
-			this._modalTrustRequestPromise = undefined;
-		}
-		if (this._trustRequestResolver) {
-			this._trustRequestResolver(trusted ?? this.trusted);
-
-			this._trustRequestResolver = undefined;
-			this._trustRequestPromise = undefined;
-		}
-
-		if (trusted === undefined) {
+	async completeRequest(trusted?: boolean): Promise<void> {
+		if (trusted === undefined || trusted === this.trusted) {
+			this.resolveRequest(trusted);
 			return;
 		}
 
-		this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
-		this._onDidCompleteWorkspaceTrustRequest.fire(trusted);
+		// Update storage, transition workspace, and resolve the promise
+		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
+		this.resolveRequest(trusted);
 	}
 
-	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: false }): Promise<boolean | undefined> {
+	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
 		// Trusted workspace
 		if (this.trusted) {
 			return this.trusted;
 		}
 
-		if (options.modal) {
-			// Modal request
-			if (!this._modalTrustRequestPromise) {
-				// Create promise
-				this._modalTrustRequestPromise = new Promise(resolve => {
-					this._modalTrustRequestResolver = resolve;
-				});
-			} else {
-				// Return existing promise
-				return this._modalTrustRequestPromise;
-			}
+		// Modal request
+		if (!this._modalTrustRequestPromise) {
+			// Create promise
+			this._modalTrustRequestPromise = new Promise(resolve => {
+				this._modalTrustRequestResolver = resolve;
+			});
 		} else {
-			// Soft request
-			if (!this._trustRequestPromise) {
-				// Create promise
-				this._trustRequestPromise = new Promise(resolve => {
-					this._trustRequestResolver = resolve;
-				});
-			} else {
-				// Return existing promise
-				return this._trustRequestPromise;
-			}
+			// Return existing promise
+			return this._modalTrustRequestPromise;
 		}
 
-		this._ctxWorkspaceTrustPendingRequest.set(true);
 		this._onDidInitiateWorkspaceTrustRequest.fire(options);
+		return this._modalTrustRequestPromise;
+	}
+}
 
-		return options.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
+export class WorkspaceTrustTransitionManager extends Disposable {
+
+	private readonly participants = new LinkedList<IWorkspaceTrustTransitionParticipant>();
+
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		const remove = this.participants.push(participant);
+		return toDisposable(() => remove());
+	}
+
+	async participate(trusted: boolean): Promise<void> {
+		for (const participant of this.participants) {
+			await participant.participate(trusted);
+		}
+	}
+
+	override dispose(): void {
+		this.participants.clear();
 	}
 }
 

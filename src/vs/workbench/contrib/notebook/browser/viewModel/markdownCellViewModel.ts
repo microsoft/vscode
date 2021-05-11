@@ -19,7 +19,7 @@ import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
-	readonly cellKind = CellKind.Markdown;
+	readonly cellKind = CellKind.Markup;
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
 
@@ -211,7 +211,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	getHTML(): HTMLElement | null {
-		if (this.cellKind === CellKind.Markdown) {
+		if (this.cellKind === CellKind.Markup) {
 			if (this._html) {
 				return this._html;
 			}

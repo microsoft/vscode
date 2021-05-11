@@ -238,6 +238,7 @@ async function processResourceRequest(event, requestUrl) {
 			status: 200,
 			headers: {
 				'Content-Type': entry.mime,
+				'Access-Control-Allow-Origin': '*',
 				...cacheHeaders
 			}
 		});

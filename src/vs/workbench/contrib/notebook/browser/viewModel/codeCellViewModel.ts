@@ -376,4 +376,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			matches
 		};
 	}
+
+	override dispose() {
+		super.dispose();
+
+		this._outputCollection = [];
+		this._outputsTop = null;
+		this._outputViewModels = [];
+	}
 }

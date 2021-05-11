@@ -26,7 +26,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -48,7 +48,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CodiconActionViewItem, createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { syncing } from 'vs/platform/theme/common/iconRegistry';
@@ -56,12 +56,14 @@ import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/re
 
 const $ = DOM.$;
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewModel> {
+export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel> {
 	private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		super();
+
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()).lineHeight;
 	}
@@ -75,7 +77,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<CellViewMo
 	}
 
 	getTemplateId(element: CellViewModel): string {
-		if (element.cellKind === CellKind.Markdown) {
+		if (element.cellKind === CellKind.Markup) {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
 			return CodeCellRenderer.TEMPLATE_ID;
@@ -96,7 +98,7 @@ abstract class AbstractCellRenderer {
 		private readonly notificationService: INotificationService,
 		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		language: string,
-		protected readonly dndController: CellDragAndDropController
+		protected dndController: CellDragAndDropController | undefined,
 	) {
 		this.editorOptions = new CellEditorOptions(configurationService, language);
 		this.cellMenus = this.instantiationService.createInstance(CellMenus);
@@ -104,6 +106,7 @@ abstract class AbstractCellRenderer {
 
 	dispose() {
 		this.editorOptions.dispose();
+		this.dndController = undefined;
 	}
 
 	protected createBetweenCellToolbar(container: HTMLElement, disposables: DisposableStore, contextKeyService: IContextKeyService): ToolBar {
@@ -117,11 +120,12 @@ abstract class AbstractCellRenderer {
 				return undefined;
 			}
 		});
+		disposables.add(toolbar);
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(menu, false);
+			const actions = this.getCellToolbarActions(menu);
 			toolbar.setActions(actions.primary, actions.secondary);
 		};
 
@@ -148,9 +152,6 @@ abstract class AbstractCellRenderer {
 		const toolbar = new ToolBar(container, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
-				if (action.id === VerticalSeparator.ID) {
-					return new VerticalSeparatorViewItem(undefined, action);
-				}
 				return createActionViewItem(this.instantiationService, action);
 			},
 			renderDropdownAsChildElement: true
@@ -163,19 +164,19 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	protected getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[] } {
+	protected getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, alwaysFillSecondaryActions, g => /^inline/.test(g));
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		return result;
 	}
 
 	protected setupCellToolbarActions(templateData: BaseCellRenderTemplate, disposables: DisposableStore): void {
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(templateData.titleMenu, true);
+			const actions = this.getCellToolbarActions(templateData.titleMenu);
 
 			const hadFocus = DOM.isAncestor(document.activeElement, templateData.toolbar.getElement());
 			templateData.toolbar.setActions(actions.primary, actions.secondary);
@@ -375,7 +376,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		};
 
 		if (!this.useRenderer) {
-			this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
+			this.dndController?.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
 		}
 
 		this.commonRenderTemplate(templateData);
@@ -763,7 +764,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			toJSON: () => { return {}; }
 		};
 
-		this.dndController.registerDragHandle(templateData, rootContainer, dragHandle, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
+		this.dndController?.registerDragHandle(templateData, rootContainer, dragHandle, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
 		disposables.add(this.addDoubleClickCollapseHandler(templateData));
 		disposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
@@ -824,9 +825,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const runToolbar = this.createToolbar(runButtonContainer);
 		const runMenu = this.cellMenus.getCellExecuteMenu(contextKeyService);
 		const update = () => {
-			const actions = this.getCellToolbarActions(runMenu, false);
+			const actions = this.getCellToolbarActions(runMenu);
 			runToolbar.setActions(actions.primary, actions.secondary);
 		};
+		disposables.add(runMenu);
 		disposables.add(runMenu.onDidChange(() => {
 			update();
 		}));
@@ -1196,7 +1198,7 @@ export class ListTopCellToolbar extends Disposable {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, alwaysFillSecondaryActions, g => /^inline/.test(g));
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		return result;
 	}

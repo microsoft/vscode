@@ -13,7 +13,7 @@ import { BUILTIN_RENDERER_ID, CellKind } from 'vs/workbench/contrib/notebook/com
 import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
-class NotebookClipboardContribution extends Disposable implements INotebookEditorContribution {
+class NotebookViewportContribution extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.viewportCustomMarkdown';
 	private readonly _warmupViewport: RunOnceScheduler;
 
@@ -29,11 +29,19 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 	}
 
 	private _warmupViewportNow() {
+		if (this._notebookEditor.isDisposed) {
+			return;
+		}
+
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
+
 		const visibleRanges = this._notebookEditor.getVisibleRangesPlusViewportAboveBelow();
 		cellRangesToIndexes(visibleRanges).forEach(index => {
 			const cell = this._notebookEditor.viewModel?.viewCells[index];
 
-			if (cell?.cellKind === CellKind.Markdown && cell?.getEditState() === CellEditState.Preview && !cell.metadata?.inputCollapsed) {
+			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata?.inputCollapsed) {
 				this._notebookEditor.createMarkdownPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
 				const viewCell = (cell as CodeCellViewModel);
@@ -50,10 +58,14 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 						return;
 					}
 
+					if (!this._notebookEditor.hasModel()) {
+						return;
+					}
+
 					if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
 						const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
 						if (renderer?.getType() === RenderOutputType.Html) {
-							const renderResult = renderer!.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), undefined) as IInsetRenderOutput;
+							const renderResult = renderer!.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), this._notebookEditor.viewModel.uri) as IInsetRenderOutput;
 							this._notebookEditor.createOutput(viewCell, renderResult, 0);
 						}
 						return;
@@ -72,4 +84,4 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 	}
 }
 
-registerNotebookContribution(NotebookClipboardContribution.id, NotebookClipboardContribution);
+registerNotebookContribution(NotebookViewportContribution.id, NotebookViewportContribution);

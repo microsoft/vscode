@@ -29,7 +29,7 @@ export interface IWorkingCopyEditorHandler {
 	/**
 	 * Create an editor that is suitable of opening the provided working copy.
 	 */
-	createEditor(workingCopy: IWorkingCopyIdentifier): IEditorInput;
+	createEditor(workingCopy: IWorkingCopyIdentifier): IEditorInput | Promise<IEditorInput>;
 }
 
 export interface IWorkingCopyEditorService {

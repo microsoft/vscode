@@ -30,7 +30,7 @@ import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWid
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { memoize, createMemoizer } from 'vs/base/common/decorators';
+import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { ITextModel } from 'vs/editor/common/model';
@@ -185,7 +185,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverRange: Range | null = null;
 	private mouseDown = false;
 	private exceptionWidgetVisible: IContextKey<boolean>;
-	private static readonly MEMOIZER = createMemoizer();
 
 	private exceptionWidget: ExceptionWidget | undefined;
 	private configurationWidget: FloatingClickWidget | undefined;
@@ -234,7 +233,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}));
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => {
-			DebugEditorContribution.MEMOIZER.clear();
+			this._wordToLineNumbersMap = undefined;
 			this.updateInlineValuesScheduler.schedule();
 		}));
 		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
@@ -247,7 +246,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
-			DebugEditorContribution.MEMOIZER.clear();
+			this._wordToLineNumbersMap = undefined;
 			await this.updateInlineValueDecorations(stackFrame);
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => {
@@ -266,9 +265,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}));
 	}
 
-	@DebugEditorContribution.MEMOIZER
+	private _wordToLineNumbersMap: Map<string, number[]> | undefined = undefined;
 	private get wordToLineNumbersMap(): Map<string, number[]> {
-		return getWordToLineNumbersMap(this.editor.getModel());
+		if (!this._wordToLineNumbersMap) {
+			this._wordToLineNumbersMap = getWordToLineNumbersMap(this.editor.getModel());
+		}
+		return this._wordToLineNumbersMap;
 	}
 
 	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {

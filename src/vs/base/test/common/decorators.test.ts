@@ -5,7 +5,7 @@
 
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import { memoize, createMemoizer, throttle } from 'vs/base/common/decorators';
+import { memoize, throttle } from 'vs/base/common/decorators';
 
 suite('Decorators', () => {
 	test('memoize should memoize methods', () => {
@@ -129,28 +129,6 @@ suite('Decorators', () => {
 		} catch (e) {
 			assert.strictEqual(foo.answer, 42);
 		}
-	});
-
-	test('memoize clear', () => {
-		const memoizer = createMemoizer();
-		let counter = 0;
-		class Foo {
-			@memoizer
-			get answer() {
-				return ++counter;
-			}
-		}
-
-		const foo = new Foo();
-		assert.strictEqual(foo.answer, 1);
-		assert.strictEqual(foo.answer, 1);
-		memoizer.clear();
-		assert.strictEqual(foo.answer, 2);
-		assert.strictEqual(foo.answer, 2);
-		memoizer.clear();
-		assert.strictEqual(foo.answer, 3);
-		assert.strictEqual(foo.answer, 3);
-		assert.strictEqual(foo.answer, 3);
 	});
 
 	test('throttle', () => {

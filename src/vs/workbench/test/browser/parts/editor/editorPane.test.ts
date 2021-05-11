@@ -5,14 +5,15 @@
 
 import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
+import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/workspaceTrustRequiredEditor';
 import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
@@ -21,6 +22,11 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { extUri } from 'vs/base/common/resources';
+import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 const NullThemeService = new TestThemeService();
 
@@ -94,7 +100,7 @@ class OtherTestInput extends EditorInput {
 		return null;
 	}
 }
-class TestResourceEditorInput extends ResourceEditorInput { }
+class TestResourceEditorInput extends TextResourceEditorInput { }
 
 suite('Workbench EditorPane', () => {
 
@@ -165,7 +171,7 @@ suite('Workbench EditorPane', () => {
 		const editor = EditorRegistry.getEditor(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'testEditor');
 
-		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
+		const otherEditor = EditorRegistry.getEditor(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
 		disposables.dispose();
@@ -392,5 +398,73 @@ suite('Workbench EditorPane', () => {
 		testInputB.dispose();
 		res = memento.loadEditorState(testGroup0, testInputB);
 		assert.ok(!res);
+	});
+
+	test('WorkspaceTrustRequiredEditor', async function () {
+		class TrustRequiredTestEditor extends EditorPane {
+			constructor(@ITelemetryService telemetryService: ITelemetryService) {
+				super('TestEditor', NullTelemetryService, NullThemeService, new TestStorageService());
+			}
+
+			override getId(): string { return 'trustRequiredTestEditor'; }
+			layout(): void { }
+			createEditor(): any { }
+		}
+
+		class TrustRequiredTestInput extends EditorInput {
+
+			readonly resource = undefined;
+
+			override get typeId(): string {
+				return 'trustRequiredTestInput';
+			}
+
+			override async requiresWorkspaceTrust(): Promise<boolean> {
+				return true;
+			}
+
+			override resolve(): any {
+				return null;
+			}
+		}
+
+
+		const disposables = new DisposableStore();
+
+		const instantiationService = workbenchInstantiationService();
+		const workspaceTrustService = instantiationService.createInstance(TestWorkspaceTrustManagementService);
+		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
+		workspaceTrustService.setWorkspaceTrust(false);
+
+		const editorPart = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, editorPart);
+
+		const editorService = instantiationService.createInstance(EditorService);
+		instantiationService.stub(IEditorService, editorService);
+
+		const group = editorPart.activeGroup;
+
+		let editorDescriptor = EditorDescriptor.create(TrustRequiredTestEditor, 'id1', 'name');
+		disposables.add(EditorRegistry.registerEditor(editorDescriptor, [new SyncDescriptor(TrustRequiredTestInput)]));
+
+		const testInput = new TrustRequiredTestInput();
+
+		await group.openEditor(testInput);
+		assert.strictEqual(group.activeEditorPane?.getId(), WorkspaceTrustRequiredEditor.ID);
+
+		const getEditorPaneIdAsync = () => new Promise(resolve => {
+			disposables.add(editorService.onDidActiveEditorChange(event => {
+				resolve(group.activeEditorPane?.getId());
+			}));
+		});
+
+		workspaceTrustService.setWorkspaceTrust(true);
+
+		assert.strictEqual(await getEditorPaneIdAsync(), 'trustRequiredTestEditor');
+
+		workspaceTrustService.setWorkspaceTrust(false);
+		assert.strictEqual(await getEditorPaneIdAsync(), WorkspaceTrustRequiredEditor.ID);
+
+		dispose(disposables);
 	});
 });
