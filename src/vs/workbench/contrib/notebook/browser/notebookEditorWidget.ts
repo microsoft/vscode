@@ -523,8 +523,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 						break;
 					case 'right':
 						cellToolbarLocationForCurrentView = 'right';
+						break;
 					case 'hidden':
 						cellToolbarLocationForCurrentView = 'hidden';
+						break;
 					default:
 						cellToolbarLocationForCurrentView = 'right';
 						break;
