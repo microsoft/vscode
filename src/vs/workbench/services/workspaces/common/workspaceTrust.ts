@@ -50,7 +50,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
-	private _isWorkspaceTransitionInProgress: boolean = false;
 	private _isWorkspaceTrusted: boolean = false;
 	private _trustStateInfo: IWorkspaceTrustInfo;
 
@@ -77,16 +76,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
 		this._register(this.workspaceService.onDidChangeWorkbenchState(async () => await this.updateWorkspaceTrust()));
 		this._register(this.storageService.onDidChangeValue(async changeEvent => {
-			if (changeEvent.key === this.storageKey) {
+			/* This will only execute if storage was changed by a user action in a separate window */
+			if (changeEvent.key === this.storageKey && JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
 				this._trustStateInfo = this.loadTrustInfo();
 				this._onDidChangeTrustedFolders.fire();
 
-				// Asynchronously update the workspace trust state so that if there is
-				// an attempt to synchronously update workspace trust state that would
-				// take precedence.
-				// Updating the workspace trust state asynchronously should only occur
-				// if the storage has been updated due to an action in a separate window.
-				setTimeout(async () => await this.updateWorkspaceTrust());
+				await this.updateWorkspaceTrust();
 			}
 		}));
 	}
@@ -119,6 +114,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private async saveTrustInfo(): Promise<void> {
 		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._onDidChangeTrustedFolders.fire();
+
 		await this.updateWorkspaceTrust();
 	}
 
@@ -168,12 +165,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private async updateWorkspaceTrust(): Promise<void> {
 		const trusted = this.calculateWorkspaceTrust();
 		if (this.isWorkpaceTrusted() === trusted) { return; }
-		if (this._isWorkspaceTransitionInProgress) { return; }
 
 		// Run workspace trust transition participants
-		this._isWorkspaceTransitionInProgress = true;
 		await this._trustTransitionManager.participate(trusted);
-		this._isWorkspaceTransitionInProgress = false;
 
 		this._isWorkspaceTrusted = trusted;
 		this._onDidChangeTrust.fire(trusted);
