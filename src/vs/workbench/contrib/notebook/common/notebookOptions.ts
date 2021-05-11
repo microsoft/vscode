@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookLayoutConfiguration } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-
 const CELL_STATUSBAR_HEIGHT = 22;
 const EDITOR_TOOLBAR_HEIGHT = 0;
 const CELL_OUTPUT_PADDING = 14;
@@ -25,6 +23,25 @@ const MARKDOWN_CELL_BOTTOM_MARGIN = 8;
 const COLLAPSED_INDICATOR_HEIGHT = 24;
 const EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR = 12;
 const EDITOR_BOTTOM_PADDING = 4;
+
+export interface NotebookLayoutConfiguration {
+	cellRightMargin: number,
+	cellRunGutter: number,
+	cellStatusBarHeight: number,
+	cellTopMargin: number,
+	cellBottomMargin: number,
+	cellOutputPadding: number,
+	codeCellLeftMargin: number,
+	markdownCellTopMargin: number,
+	markdownCellBottomMargin: number,
+	markdownPreviewPadding: number,
+	bottomCellToolbarGap: number,
+	bottomCellToolbarHeight: number,
+	editorToolbarHeight: number,
+	editorBottomPadding: number,
+	editorBottomPaddingWithoutStatusBar: number,
+	collapsedIndicatorHeight: number,
+}
 
 export class NotebookOptions {
 	private _layoutConfiguration: NotebookLayoutConfiguration;

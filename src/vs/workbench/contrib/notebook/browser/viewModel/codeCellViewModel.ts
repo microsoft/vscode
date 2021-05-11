@@ -144,18 +144,21 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private computeEditorWidth(outerWidth: number): number {
+		const notebookLayoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
+
 		return outerWidth - (
-			this.eventDispatcher.notebookOptions.getLayoutConfiguration().codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellRunGutter // CELL_RUN_GUTTER
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellRightMargin // CELL_RIGHT_MARGIN
+			notebookLayoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
+			+ notebookLayoutConfiguration.cellRunGutter // CELL_RUN_GUTTER
+			+ notebookLayoutConfiguration.cellRightMargin // CELL_RIGHT_MARGIN
 		);
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
 		// recompute
 		this._ensureOutputsTop();
+		const notebookLayoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.outputCollapsed ? this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight : this._outputsTop!.getTotalValue());
+		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalValue());
 
 		if (!this.metadata?.inputCollapsed) {
 			let newState: CodeCellLayoutState;
@@ -179,17 +182,17 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 			const statusbarHeight = this.getEditorStatusbarHeight();
 			const indicatorHeight = editorHeight + statusbarHeight + outputTotalHeight + outputShowMoreContainerHeight;
-			const outputContainerOffset = this.eventDispatcher.notebookOptions.getLayoutConfiguration().editorToolbarHeight
-				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellTopMargin // CELL_TOP_MARGIN
+			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
+				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 				+ editorHeight
 				+ statusbarHeight;
 			const outputShowMoreContainerOffset = totalHeight
-				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap
-				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2
+				- notebookLayoutConfiguration.bottomCellToolbarGap
+				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2
 				- outputShowMoreContainerHeight;
 			const bottomToolbarOffset = totalHeight
-				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap
-				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2;
+				- notebookLayoutConfiguration.bottomCellToolbarGap
+				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2;
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
@@ -207,22 +210,22 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			};
 		} else {
 			outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.inputCollapsed && this.metadata.outputCollapsed ? 0 : outputTotalHeight);
-			const indicatorHeight = this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight + outputTotalHeight + outputShowMoreContainerHeight;
+			const indicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight + outputTotalHeight + outputShowMoreContainerHeight;
 
-			const outputContainerOffset = this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellTopMargin + this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight;
+			const outputContainerOffset = notebookLayoutConfiguration.cellTopMargin + notebookLayoutConfiguration.collapsedIndicatorHeight;
 			const totalHeight =
-				this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellTopMargin
-				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight
-				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellBottomMargin //CELL_BOTTOM_MARGIN
-				+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
+				notebookLayoutConfiguration.cellTopMargin
+				+ notebookLayoutConfiguration.collapsedIndicatorHeight
+				+ notebookLayoutConfiguration.cellBottomMargin //CELL_BOTTOM_MARGIN
+				+ notebookLayoutConfiguration.bottomCellToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
 				+ outputTotalHeight + outputShowMoreContainerHeight;
 			const outputShowMoreContainerOffset = totalHeight
-				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap
-				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2
+				- notebookLayoutConfiguration.bottomCellToolbarGap
+				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2
 				- outputShowMoreContainerHeight;
 			const bottomToolbarOffset = totalHeight
-				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap
-				- this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight / 2;
+				- notebookLayoutConfiguration.bottomCellToolbarGap
+				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2;
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
@@ -311,14 +314,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private computeTotalHeight(editorHeight: number, outputsTotalHeight: number, outputShowMoreContainerHeight: number): number {
-		return this.eventDispatcher.notebookOptions.getLayoutConfiguration().editorToolbarHeight //EDITOR_TOOLBAR_HEIGHT
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellTopMargin // CELL_TOP_MARGIN
+		const layoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
+		return layoutConfiguration.editorToolbarHeight //EDITOR_TOOLBAR_HEIGHT
+			+ layoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 			+ editorHeight
 			+ this.getEditorStatusbarHeight()
 			+ outputsTotalHeight
 			+ outputShowMoreContainerHeight
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().bottomCellToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
-			+ this.eventDispatcher.notebookOptions.getLayoutConfiguration().cellBottomMargin; // CELL_BOTTOM_MARGIN;
+			+ layoutConfiguration.bottomCellToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
+			+ layoutConfiguration.cellBottomMargin; // CELL_BOTTOM_MARGIN;
 	}
 
 	protected onDidChangeTextModelContent(): void {

@@ -567,16 +567,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _createLayoutStyles(): void {
 		this._styleElement = DOM.createStyleSheet(this._body);
-		const cellRightMargin = this._notebookOptions.getLayoutConfiguration().cellRightMargin;
-		const cellTopMargin = this._notebookOptions.getLayoutConfiguration().cellTopMargin;
-		const cellRunGutter = this._notebookOptions.getLayoutConfiguration().cellRunGutter;
-		const cellBottomMargin = this._notebookOptions.getLayoutConfiguration().cellBottomMargin;
-		const codeCellLeftMargin = this._notebookOptions.getLayoutConfiguration().codeCellLeftMargin;
-		const markdownCellBottomMargin = this._notebookOptions.getLayoutConfiguration().markdownCellBottomMargin;
-		const markdownCellTopMargin = this._notebookOptions.getLayoutConfiguration().markdownCellTopMargin;
-		const bottomCellToolbarGap = this._notebookOptions.getLayoutConfiguration().bottomCellToolbarGap;
-		const bottomCellToolbarHeight = this._notebookOptions.getLayoutConfiguration().bottomCellToolbarHeight;
-		const collapsedIndicatorHeight = this._notebookOptions.getLayoutConfiguration().collapsedIndicatorHeight;
+		const {
+			cellRightMargin,
+			cellTopMargin,
+			cellRunGutter,
+			cellBottomMargin,
+			codeCellLeftMargin,
+			markdownCellBottomMargin,
+			markdownCellTopMargin,
+			bottomCellToolbarGap,
+			bottomCellToolbarHeight,
+			collapsedIndicatorHeight
+		} = this._notebookOptions.getLayoutConfiguration();
+
 		const styleSheets: string[] = [];
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row div.cell.code { margin-left: ${codeCellLeftMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
