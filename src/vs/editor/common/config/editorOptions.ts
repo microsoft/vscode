@@ -383,7 +383,7 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	/**
-	 * Smart select opptions;
+	 * Smart select options.
 	 */
 	smartSelect?: ISmartSelectOptions;
 	/**
