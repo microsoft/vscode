@@ -403,7 +403,7 @@ declare module 'vscode' {
 		/**
 		 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
 		 */
-		trusted: boolean,
+		trusted?: boolean,
 		/**
 		 * The message type, this affects how the message will be rendered.
 		 */
