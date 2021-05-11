@@ -166,10 +166,13 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		const trusted = this.calculateWorkspaceTrust();
 		if (this.isWorkpaceTrusted() === trusted) { return; }
 
+		// Update workspace trust
+		this._isWorkspaceTrusted = trusted;
+
 		// Run workspace trust transition participants
 		await this._trustTransitionManager.participate(trusted);
 
-		this._isWorkspaceTrusted = trusted;
+		// Fire workspace trust change event
 		this._onDidChangeTrust.fire(trusted);
 	}
 
