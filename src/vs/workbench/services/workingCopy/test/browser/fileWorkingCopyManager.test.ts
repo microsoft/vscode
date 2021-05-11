@@ -262,11 +262,11 @@ suite('FileWorkingCopyManager', () => {
 
 		assert.strictEqual(manager.workingCopies.length, 0);
 
-		// dispose does not remove from working copy service, only destroyWorkingCopies should
+		// dispose does not remove from working copy service, only `destroy` should
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
 	});
 
-	test('destroyWorkingCopies', async () => {
+	test('destroy', async () => {
 		const resource1 = URI.file('/test1.html');
 		const resource2 = URI.file('/test2.html');
 		const resource3 = URI.file('/test3.html');
@@ -282,10 +282,34 @@ suite('FileWorkingCopyManager', () => {
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
 		assert.strictEqual(manager.workingCopies.length, 3);
 
-		manager.destroyWorkingCopies();
+		await manager.destroy();
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 		assert.strictEqual(manager.workingCopies.length, 0);
+	});
+
+	test('destroy saves dirty working copies', async () => {
+		const resource = URI.file('/path/source.txt');
+
+		const workingCopy = await manager.resolve(resource);
+
+		let saved = false;
+		workingCopy.onDidSave(() => {
+			saved = true;
+		});
+
+		workingCopy.model?.updateContents('hello create');
+		assert.strictEqual(workingCopy.isDirty(), true);
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 1);
+		assert.strictEqual(manager.workingCopies.length, 1);
+
+		await manager.destroy();
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+		assert.strictEqual(manager.workingCopies.length, 0);
+
+		assert.strictEqual(saved, true);
 	});
 
 	test('file change event triggers working copy resolve', async () => {

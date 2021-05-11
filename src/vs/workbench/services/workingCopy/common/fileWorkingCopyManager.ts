@@ -120,12 +120,16 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	canDispose(workingCopy: IFileWorkingCopy<T>): true | Promise<true>;
 
 	/**
-	 * Disposes all working copies of the manager. A disposed working
-	 * copy will unregister from the `IWorkingCopyService` and no
-	 * longer participate in the application. Callers should make sure
-	 * to e.g. close any editors associated with the working copy.
+	 * Disposes all working copies of the manager and disposes the manager. This
+	 * method is different from `dispose` in that it will unregister any working
+	 * copy from the `IWorkingCopyService`. Since this impact things like backups,
+	 * the method is `async` because it needs to trigger `save` for any dirty
+	 * working copy to preserve the data.
+	 *
+	 * Callers should make sure to e.g. close any editors associated with the
+	 * working copy.
 	 */
-	destroyWorkingCopies(): void;
+	destroy(): Promise<void>;
 }
 
 export interface IFileWorkingCopySaveEvent<T extends IFileWorkingCopyModel> {
@@ -715,7 +719,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		// Note: we are not explicitly disposing the working copies
 		// known to the manager because this can have unwanted side
 		// effects such as backups getting discarded once the working
-		// copy unregisters. We have an explicit `destroyWorkingCopies`
+		// copy unregisters. We have an explicit `destroy`
 		// for that purpose (https://github.com/microsoft/vscode/pull/123555)
 		//
 		this.mapResourceToWorkingCopy.clear();
@@ -730,8 +734,20 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this.mapResourceToWorkingCopyListeners.clear();
 	}
 
-	destroyWorkingCopies(): void {
+	async destroy(): Promise<void> {
+
+		// Make sure all dirty working copies are saved to disk
+		await Promises.settled(this.workingCopies.map(async workingCopy => {
+			if (workingCopy.isDirty()) {
+				await workingCopy.save();
+			}
+		}));
+
+		// Dispose all working copies
 		dispose(this.mapResourceToWorkingCopy.values());
+
+		// Finally dispose manager
+		this.dispose();
 	}
 
 	//#endregion
