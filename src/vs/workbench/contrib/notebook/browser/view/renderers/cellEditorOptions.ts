@@ -11,7 +11,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorTopPaddingChangeEvent, getEditorTopPadding, getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -51,7 +50,14 @@ export class CellEditorOptions extends Disposable {
 	constructor(readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, language: string) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook') || e.affectsConfiguration(ShowCellStatusBarKey)) {
+			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
+				this._value = computeEditorOptions();
+				this._onDidChange.fire(this.value);
+			}
+		}));
+
+		this._register(notebookOptions.onDidChangeOptions(e => {
+			if (e.cellStatusBarVisibility) {
 				this._value = computeEditorOptions();
 				this._onDidChange.fire(this.value);
 			}
@@ -63,7 +69,7 @@ export class CellEditorOptions extends Disposable {
 		}));
 
 		const computeEditorOptions = () => {
-			const showCellStatusBar = configurationService.getValue<boolean>(ShowCellStatusBarKey);
+			const showCellStatusBar = this.notebookOptions.getLayoutConfiguration().showCellStatusBar;
 			const editorPadding = {
 				top: getEditorTopPadding(),
 				bottom: showCellStatusBar

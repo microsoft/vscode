@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -48,8 +49,13 @@ export interface NotebookLayoutConfiguration {
 	cellStatusBarHeight: number;
 }
 
+interface NotebookOptionsChangeEvent {
+	cellStatusBarVisibility?: boolean;
+}
 export class NotebookOptions {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
+	protected readonly _onDidChangeOptions = new Emitter<NotebookOptionsChangeEvent>();
+	readonly onDidChangeOptions = this._onDidChangeOptions.event;
 	private _disposables: IDisposable[];
 
 	constructor(readonly configurationService: IConfigurationService) {
@@ -82,6 +88,9 @@ export class NotebookOptions {
 				configuration.showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
 				this._layoutConfiguration = configuration;
 				// trigger event
+				this._onDidChangeOptions.fire({
+					cellStatusBarVisibility: true
+				});
 			}
 		}));
 	}
@@ -115,5 +124,13 @@ export class NotebookOptions {
 		return outerWidth
 			- this._layoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
 			- this._layoutConfiguration.cellRightMargin; // CELL_RIGHT_MARGIN;
+	}
+
+	computeStatusBarHeight(): number {
+		if (this._layoutConfiguration.showCellStatusBar) {
+			return this._layoutConfiguration.cellStatusBarHeight;
+		} else {
+			return 0;
+		}
 	}
 }

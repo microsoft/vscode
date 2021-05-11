@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions, getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, INotebookSearchOptions, ShowCellStatusBarKey, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookSearchOptions, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -139,11 +139,13 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._onDidChangeState.fire({ metadataChanged: true, runStateChanged: e.runStateChanged });
 		}));
 
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ShowCellStatusBarKey)) {
+		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {
+			if (e.cellStatusBarVisibility) {
 				this.layoutChange({});
 			}
+		}));
 
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('notebook.lineNumbers')) {
 				this.lineNumbers = 'inherit';
 			}
@@ -151,8 +153,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	getEditorStatusbarHeight() {
-		const showCellStatusBar = this._configurationService.getValue<boolean>(ShowCellStatusBarKey);
-		return showCellStatusBar ? this._viewContext.notebookOptions.getLayoutConfiguration().cellStatusBarHeight : 0;
+		return this._viewContext.notebookOptions.computeStatusBarHeight();
 	}
 
 	abstract hasDynamicHeight(): boolean;

@@ -58,7 +58,7 @@ import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbenc
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellToolbarLocKey, CellToolbarVisibility, ExperimentalUseMarkdownRenderer, SelectionStateType, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellToolbarVisibility, ExperimentalUseMarkdownRenderer, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
@@ -217,7 +217,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _listTopCellToolbar: ListTopCellToolbar | null = null;
 	private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
 	private _viewContext: ViewContext | undefined;
-	private _eventDispatcher: NotebookEventDispatcher | undefined;
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _localCellStateListeners: DisposableStore[] = [];
@@ -367,7 +366,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			if (e.affectsConfiguration(CellToolbarLocKey) || e.affectsConfiguration(ShowCellStatusBarKey) || e.affectsConfiguration(CellToolbarVisibility)) {
+			if (e.affectsConfiguration(CellToolbarLocKey) || e.affectsConfiguration(CellToolbarVisibility)) {
+				this._updateForNotebookConfiguration();
+			}
+		}));
+
+		this._register(this._notebookOptions.onDidChangeOptions(e => {
+			if (e.cellStatusBarVisibility) {
 				this._updateForNotebookConfiguration();
 			}
 		}));
@@ -531,7 +536,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}
 
-		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
+		const showCellStatusBar = this._notebookOptions.getLayoutConfiguration().showCellStatusBar;
 		this._overlayContainer.classList.toggle('cell-statusbar-hidden', !showCellStatusBar);
 
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
@@ -1519,7 +1524,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._webviewTransparentCover.style.width = `${dimension.width}px`;
 		}
 
-		this._eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
+		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 	//#endregion
 
@@ -2532,7 +2537,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webviewTransparentCover = null;
 		this._dndController = null;
 		this._listTopCellToolbar = null;
-		this._eventDispatcher = undefined;
+		this._viewContext = undefined;
 		this._notebookViewModel = undefined;
 		this._cellContextKeyManager = null;
 		this._renderedEditors.clear();
