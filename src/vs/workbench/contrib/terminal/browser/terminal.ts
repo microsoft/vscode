@@ -17,6 +17,7 @@ import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode1
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -115,7 +116,7 @@ export interface ITerminalService {
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
-	onPanelMovedToSide: Event<void>;
+	onPanelOrientationChanged: Event<Orientation>;
 
 	/**
 	 * Creates a terminal.

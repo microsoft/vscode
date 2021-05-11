@@ -245,8 +245,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	public readonly onDisposed: Event<ITerminalGroup> = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
-	private readonly _onPanelMovedToSide = new Emitter<void>();
-	get onPanelMovedToSide(): Event<void> { return this._onPanelMovedToSide.event; }
+	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
+	get onPanelOrientationChanged(): Event<Orientation> { return this._onPanelOrientationChanged.event; }
 	constructor(
 		private _container: HTMLElement | undefined,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
@@ -263,6 +263,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (this._container) {
 			this.attachToElement(this._container);
 		}
+		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL);
 	}
 
 	addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
@@ -465,14 +466,12 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._splitPaneContainer.setOrientation(newOrientation);
 				this._panelPosition = newPanelPosition;
 				this._terminalLocation = newTerminalLocation;
+				this._onPanelOrientationChanged.fire(this._splitPaneContainer.orientation);
 			}
 			this._splitPaneContainer.layout(width, height);
 			if (this._initialRelativeSizes && height > 0 && width > 0) {
 				this.resizePanes(this._initialRelativeSizes);
 				this._initialRelativeSizes = undefined;
-			}
-			if (terminalPositionChanged && this._splitPaneContainer.orientation === Orientation.VERTICAL) {
-				this._onPanelMovedToSide.fire();
 			}
 		}
 	}
