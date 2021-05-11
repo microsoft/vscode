@@ -175,7 +175,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		resource: vscode.Uri,
 		previewSettings: DynamicPreviewSettings
 	): DynamicMarkdownPreview {
-
 		const activeTextEditorURI = vscode.window.activeTextEditor?.document.uri;
 		const scrollLine = (activeTextEditorURI?.toString() === resource.toString()) ? vscode.window.activeTextEditor?.visibleRanges[0].start.line : undefined;
 		const preview = DynamicMarkdownPreview.create(
@@ -183,7 +182,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 				resource,
 				resourceColumn: previewSettings.resourceColumn,
 				locked: previewSettings.locked,
-				line: scrollLine, // Get the first visible line number from the most recent
+				line: scrollLine,
 			},
 			previewSettings.previewColumn,
 			this._contentProvider,
