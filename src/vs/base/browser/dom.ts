@@ -1194,21 +1194,15 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): boolean {
-	if (browser.isElectron || browser.isEdgeLegacyWebView) {
-		// In VSCode, window.open() always returns null...
-		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
-		// Also call directly window.open in sandboxed Electron (see https://github.com/microsoft/monaco-editor/issues/2220)
-		window.open(url);
+	// By using 'noopener' in the windowFeatures argument, the newly created window will
+	// not be able to use window.opener to reach back to the current page.
+	// See https://stackoverflow.com/a/46958731
+	// See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
+	const newTab = window.open(url, '_blank', 'noopener');
+	if (newTab) {
 		return true;
-	} else {
-		let newTab = window.open();
-		if (newTab) {
-			(newTab as any).opener = null;
-			newTab.location.href = url;
-			return true;
-		}
-		return false;
 	}
+	return false;
 }
 
 export function animate(fn: () => void): IDisposable {
