@@ -10,7 +10,7 @@ const fs = require('fs');
 const os = require('os');
 // const cp = require('child_process');
 const utilLib = require('util');
-const exec = utilLib.promisify(require('child_process').exec);
+const exec = utilLib.promisify(require('child_process').execFile);
 const path = require('path');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
@@ -495,7 +495,13 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 
 	const cmd = `${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`;
 	console.log(cmd);
-	const { stdout, stderr } = await exec(cmd, { timeout: 12 * 1000 });
+	const { stdout, stderr } = await execFile(appPath,
+		[
+			`'--export-default-configuration='${allConfigDetailsPath}'`,
+			'--wait',
+			`--user-data-dir='${userDataDir}'`,
+			`--extensions-dir='${extensionsDir}'`
+		], { timeout: 12 * 1000 });
 
 	if (stdout) {
 		console.log(`stdout: ${stdout}`);
