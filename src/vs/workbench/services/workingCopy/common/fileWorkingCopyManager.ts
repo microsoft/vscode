@@ -118,6 +118,14 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	 * it is dirty. Once the promise is settled, it is safe to dispose.
 	 */
 	canDispose(workingCopy: IFileWorkingCopy<T>): true | Promise<true>;
+
+	/**
+	 * Disposes all working copies of the manager. A disposed working
+	 * copy will unregister from the `IWorkingCopyService` and no
+	 * longer participate in the application. Callers should make sure
+	 * to e.g. close any editors associated with the working copy.
+	 */
+	destroyWorkingCopies(): void;
 }
 
 export interface IFileWorkingCopySaveEvent<T extends IFileWorkingCopyModel> {
@@ -702,20 +710,28 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 	override dispose(): void {
 		super.dispose();
 
-		// Working copy caches
-		this.mapResourceToWorkingCopy.forEach(workingCopy => workingCopy.dispose());
+		// Clear working copy caches
+		//
+		// Note: we are not explicitly disposing the working copies
+		// known to the manager because this can have unwanted side
+		// effects such as backups getting discarded once the working
+		// copy unregisters. We have an explicit `destroyWorkingCopies`
+		// for that purpose (https://github.com/microsoft/vscode/pull/123555)
+		//
 		this.mapResourceToWorkingCopy.clear();
-
-		// Pending working copy resolves
 		this.mapResourceToPendingWorkingCopyResolve.clear();
 
 		// Dispose the dispose listeners
-		this.mapResourceToDisposeListener.forEach(listener => listener.dispose());
+		dispose(Array.from(this.mapResourceToDisposeListener.values()));
 		this.mapResourceToDisposeListener.clear();
 
 		// Dispose the working copy change listeners
-		this.mapResourceToWorkingCopyListeners.forEach(listener => listener.dispose());
+		dispose(Array.from(this.mapResourceToWorkingCopyListeners.values()));
 		this.mapResourceToWorkingCopyListeners.clear();
+	}
+
+	destroyWorkingCopies(): void {
+		dispose(Array.from(this.mapResourceToWorkingCopy.values()));
 	}
 
 	//#endregion

@@ -260,6 +260,30 @@ suite('FileWorkingCopyManager', () => {
 
 		manager.dispose();
 
+		assert.strictEqual(manager.workingCopies.length, 0);
+
+		// dispose does not remove from working copy service, only destroyWorkingCopies should
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
+	});
+
+	test('destroyWorkingCopies', async () => {
+		const resource1 = URI.file('/test1.html');
+		const resource2 = URI.file('/test2.html');
+		const resource3 = URI.file('/test3.html');
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+
+		const firstPromise = manager.resolve(resource1);
+		const secondPromise = manager.resolve(resource2);
+		const thirdPromise = manager.resolve(resource3);
+
+		await Promise.all([firstPromise, secondPromise, thirdPromise]);
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
+		assert.strictEqual(manager.workingCopies.length, 3);
+
+		manager.destroyWorkingCopies();
+
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 		assert.strictEqual(manager.workingCopies.length, 0);
 	});

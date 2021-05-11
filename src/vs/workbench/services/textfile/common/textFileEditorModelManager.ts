@@ -462,11 +462,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	override dispose(): void {
 		super.dispose();
 
-		// Working copy caches
-		this.mapResourceToModel.forEach(model => model.dispose());
+		// model caches
 		this.mapResourceToModel.clear();
-
-		// Pending working copy resolves
 		this.mapResourceToPendingModelResolvers.clear();
 
 		// dispose the dispose listeners
