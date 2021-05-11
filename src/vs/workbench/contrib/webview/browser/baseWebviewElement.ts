@@ -10,7 +10,6 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -244,15 +243,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, ifNoneMatch?: string }) => {
 			const rawPath = entry.path;
-			const remoteAuthorityMatch = rawPath.match(/^\/([^\/]*)(\/.+)$/);
-			if (!remoteAuthorityMatch) {
-				throw new Error('Could not parse resource url');
-			}
-
-			const remoteAuthority = decodeURIComponent(remoteAuthorityMatch[1]);
-			const pathWithoutAuthority = remoteAuthorityMatch[2];
-
-			const uri = URI.parse(pathWithoutAuthority.replace(/^\/([\w\-]+)(\/{1,2})/, (_: string, scheme: string, sep: string) => {
+			const uri = URI.parse(rawPath.replace(/^\/([\w\-]+)(\/{1,2})/, (_: string, scheme: string, sep: string) => {
 				if (sep.length === 1) {
 					return `${scheme}:///`; // Add empty authority.
 				} else {
@@ -262,7 +253,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 				query: decodeURIComponent(entry.query),
 			});
 
-			this.loadResource(entry.id, rawPath, uri, remoteAuthority, entry.ifNoneMatch);
+			this.loadResource(entry.id, rawPath, uri, entry.ifNoneMatch);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
@@ -386,13 +377,18 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected abstract get webviewResourceEndpoint(): string;
 
 	private rewriteVsCodeResourceUrls(value: string): string {
-		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : '';
 		return value
-			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${remoteAuthority}/${scheme ?? 'file'}${path}${endQuote}`;
+			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
+				if (scheme) {
+					return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${scheme}${path}${endQuote}`;
+				}
+				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/file${path}${endQuote}`;
 			})
-			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${remoteAuthority}/${scheme ?? 'file'}${path}${endQuote}`;
+			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
+				if (scheme) {
+					return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${scheme}${path}${endQuote}`;
+				}
+				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/file${path}${endQuote}`;
 			});
 	}
 
@@ -518,16 +514,16 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}
 	}
 
-	private async loadResource(id: number, requestPath: string, uri: URI, remoteAuthority: string | undefined, ifNoneMatch: string | undefined) {
+	private async loadResource(id: number, requestPath: string, uri: URI, ifNoneMatch: string | undefined) {
 		try {
 			const remoteAuthority = this._environmentService.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 
 			const result = await loadLocalResource(uri, ifNoneMatch, {
+				extensionLocation: this.extension?.location,
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
-				useRootAuthority: this.content.options.useRootAuthority,
-				remoteAuthority: remoteAuthority,
+				useRootAuthority: this.content.options.useRootAuthority
 			}, this._fileService, this._requestService, this._logService, this._resourceLoadingCts.token);
 
 			switch (result.type) {

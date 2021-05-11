@@ -10,24 +10,17 @@ export interface WebviewInitData {
 	readonly isExtensionDevelopmentDebug: boolean;
 	readonly webviewResourceRoot: string;
 	readonly webviewCspSource: string;
-	readonly remote: { readonly authority: string | undefined };
 }
 
-/**
- * Construct a uri that can load resources inside a webview
- *
- * We encode the resource component of the uri so that on the main thread
- * we know where to load the resource from (remote or truly local):
- *
- * /authority?/scheme/path...
- */
 export function asWebviewUri(
 	initData: WebviewInitData,
 	uuid: string,
 	resource: vscode.Uri,
 ): vscode.Uri {
 	const uri = initData.webviewResourceRoot
-		.replace('{{resource}}', (initData.remote.authority ?? '') + '/' + resource.scheme + withoutScheme(resource))
+		// Make sure we preserve the scheme of the resource but convert it into a normal path segment
+		// The scheme is important as we need to know if we are requesting a local or a remote resource.
+		.replace('{{resource}}', resource.scheme + withoutScheme(resource))
 		.replace('{{uuid}}', uuid);
 	return URI.parse(uri);
 }

@@ -47,9 +47,9 @@ export async function loadLocalResource(
 	requestUri: URI,
 	ifNoneMatch: string | undefined,
 	options: {
+		extensionLocation: URI | undefined;
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
-		remoteAuthority: string | undefined;
 		useRootAuthority?: boolean;
 	},
 	fileService: IFileService,
@@ -59,7 +59,7 @@ export async function loadLocalResource(
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.remoteAuthority, options.useRootAuthority);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.extensionLocation, options.useRootAuthority);
 
 	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -118,24 +118,24 @@ export async function loadLocalResource(
 function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
-	remoteAuthority: string | undefined,
+	extensionLocation: URI | undefined,
 	useRootAuthority: boolean | undefined
 ): URI | undefined {
 	for (const root of roots) {
 		if (containsResource(root, requestUri)) {
-			return normalizeResourcePath(requestUri, remoteAuthority, useRootAuthority ? root.authority : undefined);
+			return normalizeResourcePath(requestUri, extensionLocation, useRootAuthority ? root.authority : undefined);
 		}
 	}
 
 	return undefined;
 }
 
-function normalizeResourcePath(resource: URI, remoteAuthority: string | undefined, useRemoteAuthority: string | undefined): URI {
-	// If the uri was from a remote authority, make we go to the remote to load it
-	if (useRemoteAuthority || (remoteAuthority && resource.scheme === Schemas.file)) {
+function normalizeResourcePath(resource: URI, extensionLocation: URI | undefined, useRemoteAuthority: string | undefined): URI {
+	// If we are loading a file resource from a webview created by a remote extension, rewrite the uri to go remote
+	if (useRemoteAuthority || (resource.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote)) {
 		return URI.from({
 			scheme: Schemas.vscodeRemote,
-			authority: useRemoteAuthority ?? remoteAuthority,
+			authority: useRemoteAuthority ?? extensionLocation!.authority,
 			path: '/vscode-resource',
 			query: JSON.stringify({
 				requestResourcePath: resource.path
