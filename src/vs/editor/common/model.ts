@@ -1220,7 +1220,6 @@ export interface ITextModel {
 	/**
 	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
 	 * @event
-	 * @internal
 	 */
 	onDidChangeAttached(listener: () => void): IDisposable;
 	/**
@@ -1247,7 +1246,6 @@ export interface ITextModel {
 
 	/**
 	 * Returns if this model is attached to an editor or not.
-	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
 

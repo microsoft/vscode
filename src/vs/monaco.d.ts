@@ -1984,6 +1984,11 @@ declare namespace monaco.editor {
 		 */
 		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+		 * @event
+		 */
+		onDidChangeAttached(listener: () => void): IDisposable;
+		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
@@ -1993,6 +1998,10 @@ declare namespace monaco.editor {
 		 * and make all necessary clean-up to release this object to the GC.
 		 */
 		dispose(): void;
+		/**
+		 * Returns if this model is attached to an editor or not.
+		 */
+		isAttachedToEditor(): boolean;
 	}
 
 	/**
