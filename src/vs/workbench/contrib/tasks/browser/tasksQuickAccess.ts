@@ -16,6 +16,7 @@ import { TaskQuickPick, TaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isString } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -28,7 +29,8 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		@ITaskService private taskService: ITaskService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickInputService private quickInputService: IQuickInputService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IDialogService private dialogService: IDialogService
 	) {
 		super(TasksQuickAccessProvider.PREFIX, {
 			noResultsPick: {
@@ -47,7 +49,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			return [];
 		}
 
-		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService);
+		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService, this.dialogService);
 		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
