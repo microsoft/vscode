@@ -158,8 +158,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
-		const notebookLayoutConfiguration = this.eventDispatcher.notebookOptions.getLayoutConfiguration();
-
 		if (!this.metadata?.inputCollapsed) {
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
 			const totalHeight = state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight;
@@ -168,18 +166,12 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
 				editorHeight: this._editorHeight,
-				bottomToolbarOffset: totalHeight
-					- notebookLayoutConfiguration.bottomCellToolbarGap /* BOTTOM_CELL_TOOLBAR_GAP */
-					- notebookLayoutConfiguration.bottomCellToolbarHeight /* BOTTOM_CELL_TOOLBAR_HEIGHT */ / 2,
+				bottomToolbarOffset: this.eventDispatcher.notebookOptions.computeBottomToolbarOffset(totalHeight),
 				totalHeight
 			};
 		} else {
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
-			const totalHeight =
-				notebookLayoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
-				+ notebookLayoutConfiguration.collapsedIndicatorHeight // COLLAPSED_INDICATOR_HEIGHT
-				+ notebookLayoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-				+ notebookLayoutConfiguration.markdownCellBottomMargin; // MARKDOWN_CELL_BOTTOM_MARGIN;
+			const totalHeight = this.eventDispatcher.notebookOptions.computeCollapsedMarkdownCellHeight();
 
 			state.totalHeight = totalHeight;
 
@@ -187,9 +179,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
 				editorHeight: this._editorHeight,
-				bottomToolbarOffset: totalHeight
-					- notebookLayoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-					- notebookLayoutConfiguration.bottomCellToolbarHeight / 2,
+				bottomToolbarOffset: this.eventDispatcher.notebookOptions.computeBottomToolbarOffset(totalHeight),
 				totalHeight
 			};
 		}

@@ -190,9 +190,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				- notebookLayoutConfiguration.bottomCellToolbarGap
 				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2
 				- outputShowMoreContainerHeight;
-			const bottomToolbarOffset = totalHeight
-				- notebookLayoutConfiguration.bottomCellToolbarGap
-				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2;
+			const bottomToolbarOffset = this.eventDispatcher.notebookOptions.computeBottomToolbarOffset(totalHeight);
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
@@ -223,9 +221,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				- notebookLayoutConfiguration.bottomCellToolbarGap
 				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2
 				- outputShowMoreContainerHeight;
-			const bottomToolbarOffset = totalHeight
-				- notebookLayoutConfiguration.bottomCellToolbarGap
-				- notebookLayoutConfiguration.bottomCellToolbarHeight / 2;
+			const bottomToolbarOffset = this.eventDispatcher.notebookOptions.computeBottomToolbarOffset(totalHeight);
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
