@@ -213,7 +213,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		[TerminalSettingId.ProfilesMacOs]: {
-			restricted: true,
+			// restricted: true,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.osx',

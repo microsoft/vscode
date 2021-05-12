@@ -42,6 +42,7 @@ export function detectAvailableProfiles(
 			workspaceFolder
 		);
 	}
+	console.log('config provider result', safeConfigProvider(`terminal.integrated.profiles.${isMacintosh ? 'osx' : 'linux'}`));
 	return detectAvailableUnixProfiles(
 		fsProvider,
 		logService,
@@ -288,6 +289,8 @@ async function detectAvailableUnixProfiles(
 	}
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
+
+	console.log('detected', detectedProfiles);
 
 	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver, workspaceFolder);
 }

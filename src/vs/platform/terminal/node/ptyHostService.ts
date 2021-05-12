@@ -225,9 +225,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string> {
 		// 	}
 		// } as any;
-		detectAvailableProfiles(!includeDetectedProfiles, this._buildSafeConfigProvider(), undefined, this._logService, this._resolveVariables.bind(this));
-		// TODO: Move profile resolving here
-		return [];
+		// TODO: invert config only arg
+		const r = await detectAvailableProfiles(!includeDetectedProfiles, this._buildSafeConfigProvider(), undefined, this._logService, this._resolveVariables.bind(this));
+		this._logService.info('profiles', r);
+		return r;
 		// return this._proxy.getProfiles?.(includeDetectedProfiles) || [];
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
@@ -334,11 +335,15 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private _buildSafeConfigProvider(): SafeConfigProvider {
 		return (key: string) => {
+			console.log('namespace', this._configurationService.getValue('terminal.integrated'));
 			const isWorkspaceConfigAllowed = this._configurationService.getValue('terminal.integrated.allowWorkspaceConfiguration');
+			console.log('isWorkspaceConfigAllowed?', isWorkspaceConfigAllowed);
 			if (isWorkspaceConfigAllowed) {
+				console.log('inspected 1', key, this._configurationService.getValue(key));
 				return this._configurationService.getValue(key) as any;
 			}
 			const inspected = this._configurationService.inspect(key);
+			console.log('inspected', key, inspected);
 			return inspected?.userValue || inspected?.defaultValue;
 		};
 	}
