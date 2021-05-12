@@ -38,13 +38,15 @@ export class MoveOperations {
 	}
 
 	private static leftPositionAtomicSoftTabs(model: ICursorSimpleModel, position: Position, tabSize: number): Position {
-		const minColumn = model.getLineMinColumn(position.lineNumber);
-		const lineContent = model.getLineContent(position.lineNumber);
-		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Left);
-		if (newPosition === -1 || newPosition + 1 < minColumn) {
-			return this.leftPosition(model, position);
+		if (position.column <= model.getLineIndentColumn(position.lineNumber)) {
+			const minColumn = model.getLineMinColumn(position.lineNumber);
+			const lineContent = model.getLineContent(position.lineNumber);
+			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Left);
+			if (newPosition !== -1 && newPosition + 1 >= minColumn) {
+				return new Position(position.lineNumber, newPosition + 1);
+			}
 		}
-		return new Position(position.lineNumber, newPosition + 1);
+		return this.leftPosition(model, position);
 	}
 
 	private static left(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
@@ -115,12 +117,14 @@ export class MoveOperations {
 	}
 
 	public static rightPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number): Position {
-		const lineContent = model.getLineContent(lineNumber);
-		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
-		if (newPosition === -1) {
-			return this.rightPosition(model, lineNumber, column);
+		if (column < model.getLineIndentColumn(lineNumber)) {
+			const lineContent = model.getLineContent(lineNumber);
+			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
+			if (newPosition !== -1) {
+				return new Position(lineNumber, newPosition + 1);
+			}
 		}
-		return new Position(lineNumber, newPosition + 1);
+		return this.rightPosition(model, lineNumber, column);
 	}
 
 	public static right(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
