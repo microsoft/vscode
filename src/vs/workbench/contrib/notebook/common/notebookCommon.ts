@@ -688,6 +688,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidChangeDirty: Event<void>;
 	readonly onDidSave: Event<void>;
 	readonly onDidChangeOrphaned: Event<void>;
+	readonly onDidChangeReadonly: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel | undefined;
