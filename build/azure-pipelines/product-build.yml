@@ -343,5 +343,7 @@ stages:
       jobs:
         - job: TranslationsJob
           displayName: Publish Translations Job
+          variables:
+            VSCODE_ARCH: x64
           steps:
             - template: jobs/product-translations.yml
