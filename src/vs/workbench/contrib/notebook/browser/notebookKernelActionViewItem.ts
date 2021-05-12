@@ -3,11 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+
+registerThemingParticipant((theme, collector) => {
+	const value = theme.getColor(toolbarHoverBackground);
+	collector.addRule(`:root {
+		--code-toolbarHoverBackground: ${value};
+	}`);
+});
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
@@ -18,8 +29,8 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	) {
 		super(
 			undefined,
-			new Action('fakeAction', undefined, undefined, true, (event) => actualAction.run(event)),
-			{ label: true, icon: false }
+			new Action('fakeAction', undefined, ThemeIcon.asClassName(selectKernelIcon), true, (event) => actualAction.run(event)),
+			{ label: false, icon: true }
 		);
 		this._register(_editor.onDidChangeModel(this._update, this));
 	}
@@ -27,7 +38,12 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	override render(container: HTMLElement): void {
 		this._update();
 		super.render(container);
-		this.label!.style.display = 'inline-block';
+		container.classList.add('kernel-action-view-item');
+		const label = document.createElement('a');
+		label.classList.add('kernel-label');
+		label.innerText = this._action.label;
+		label.title = this._action.tooltip;
+		container.appendChild(label);
 	}
 
 	private _update(): void {
