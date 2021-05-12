@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocKey, CellToolbarVisibility, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const CELL_STATUSBAR_HEIGHT = 22;
 const EDITOR_TOOLBAR_HEIGHT = 0;
@@ -47,10 +47,14 @@ export interface NotebookLayoutConfiguration {
 	collapsedIndicatorHeight: number;
 	showCellStatusBar: boolean;
 	cellStatusBarHeight: number;
+	cellToolbarLocation: string | { [key: string]: string };
+	cellToolbarInteraction: string;
 }
 
 interface NotebookOptionsChangeEvent {
 	cellStatusBarVisibility?: boolean;
+	cellToolbarLocation?: boolean;
+	cellToolbarInteraction?: boolean;
 }
 export class NotebookOptions {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
@@ -60,6 +64,8 @@ export class NotebookOptions {
 
 	constructor(readonly configurationService: IConfigurationService) {
 		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
+		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
+		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
 
 		this._disposables = [];
 		this._layoutConfiguration = {
@@ -79,19 +85,42 @@ export class NotebookOptions {
 			collapsedIndicatorHeight: COLLAPSED_INDICATOR_HEIGHT,
 			markdownPreviewPadding: MARKDOWN_PREVIEW_PADDING,
 			cellStatusBarHeight: CELL_STATUSBAR_HEIGHT,
-			showCellStatusBar
+			showCellStatusBar,
+			cellToolbarLocation,
+			cellToolbarInteraction
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ShowCellStatusBarKey)) {
-				const configuration = Object.assign({}, this._layoutConfiguration);
-				configuration.showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
-				this._layoutConfiguration = configuration;
-				// trigger event
-				this._onDidChangeOptions.fire({
-					cellStatusBarVisibility: true
-				});
+			let cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBarKey);
+			let cellToolbarLocation = e.affectsConfiguration(CellToolbarLocKey);
+			let cellToolbarInteraction = e.affectsConfiguration(CellToolbarVisibility);
+
+			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction) {
+				return;
 			}
+
+			const configuration = Object.assign({}, this._layoutConfiguration);
+
+			if (cellStatusBarVisibility) {
+				configuration.showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
+			}
+
+			if (cellToolbarLocation) {
+				configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
+			}
+
+			if (cellToolbarInteraction) {
+				configuration.cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
+			}
+
+			this._layoutConfiguration = configuration;
+
+			// trigger event
+			this._onDidChangeOptions.fire({
+				cellStatusBarVisibility: cellStatusBarVisibility,
+				cellToolbarLocation: cellToolbarLocation,
+				cellToolbarInteraction: cellToolbarInteraction
+			});
 		}));
 	}
 
@@ -132,5 +161,39 @@ export class NotebookOptions {
 		} else {
 			return 0;
 		}
+	}
+
+	computeCellToolbarLocation(viewType?: string): 'right' | 'left' | 'hidden' {
+		const cellToolbarLocation = this._layoutConfiguration.cellToolbarLocation;
+
+		if (typeof cellToolbarLocation === 'string') {
+			if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right' || cellToolbarLocation === 'hidden') {
+				return cellToolbarLocation;
+			}
+		} else {
+			if (viewType) {
+				const notebookSpecificSetting = cellToolbarLocation[viewType] ?? cellToolbarLocation['default'];
+				let cellToolbarLocationForCurrentView: 'right' | 'left' | 'hidden' = 'right';
+
+				switch (notebookSpecificSetting) {
+					case 'left':
+						cellToolbarLocationForCurrentView = 'left';
+						break;
+					case 'right':
+						cellToolbarLocationForCurrentView = 'right';
+						break;
+					case 'hidden':
+						cellToolbarLocationForCurrentView = 'hidden';
+						break;
+					default:
+						cellToolbarLocationForCurrentView = 'right';
+						break;
+				}
+
+				return cellToolbarLocationForCurrentView;
+			}
+		}
+
+		return 'right';
 	}
 }

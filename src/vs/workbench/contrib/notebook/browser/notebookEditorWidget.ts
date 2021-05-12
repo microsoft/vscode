@@ -58,7 +58,7 @@ import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbenc
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellToolbarLocKey, CellToolbarVisibility, ExperimentalUseMarkdownRenderer, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ExperimentalUseMarkdownRenderer, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
@@ -365,14 +365,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					this.layout(this._dimension);
 				}
 			}
-
-			if (e.affectsConfiguration(CellToolbarLocKey) || e.affectsConfiguration(CellToolbarVisibility)) {
-				this._updateForNotebookConfiguration();
-			}
 		}));
 
 		this._register(this._notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility) {
+			if (e.cellStatusBarVisibility || e.cellToolbarLocation || e.cellToolbarInteraction) {
 				this._updateForNotebookConfiguration();
 			}
 		}));
@@ -503,45 +499,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
 		this._overlayContainer.classList.remove('cell-title-toolbar-left');
 		this._overlayContainer.classList.remove('cell-title-toolbar-right');
 		this._overlayContainer.classList.remove('cell-title-toolbar-hidden');
-
-		if (typeof cellToolbarLocation === 'string') {
-			if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right' || cellToolbarLocation === 'hidden') {
-				this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
-			}
-		} else {
-			if (this.viewModel) {
-				const notebookSpecificSetting = cellToolbarLocation[this.viewModel.viewType] ?? cellToolbarLocation['default'];
-				let cellToolbarLocationForCurrentView = 'right';
-
-				switch (notebookSpecificSetting) {
-					case 'left':
-						cellToolbarLocationForCurrentView = 'left';
-						break;
-					case 'right':
-						cellToolbarLocationForCurrentView = 'right';
-						break;
-					case 'hidden':
-						cellToolbarLocationForCurrentView = 'hidden';
-						break;
-					default:
-						cellToolbarLocationForCurrentView = 'right';
-						break;
-				}
-
-				this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocationForCurrentView}`);
-			} else {
-				this._overlayContainer.classList.add(`cell-title-toolbar-right`);
-			}
-		}
+		const cellToolbarLocation = this._notebookOptions.computeCellToolbarLocation(this.viewModel?.viewType);
+		this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
 
 		const showCellStatusBar = this._notebookOptions.getLayoutConfiguration().showCellStatusBar;
 		this._overlayContainer.classList.toggle('cell-statusbar-hidden', !showCellStatusBar);
 
-		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
+		const cellToolbarInteraction = this._notebookOptions.getLayoutConfiguration().cellToolbarInteraction;
 		let cellToolbarInteractionState = 'hover';
 		this._overlayContainer.classList.remove('cell-toolbar-hover');
 		this._overlayContainer.classList.remove('cell-toolbar-click');
