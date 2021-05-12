@@ -167,6 +167,10 @@ suite('Workbench editor', () => {
 		return testWhenEditorClosed(true, false, toResource.call(this, '/path/index.txt'));
 	});
 
+	test('whenEditorClosed (multiple editor, diff editor)', async function () {
+		return testWhenEditorClosed(true, false, toResource.call(this, '/path/index.txt'), toResource.call(this, '/test.html'));
+	});
+
 	test('whenEditorClosed (single custom editor)', async function () {
 		return testWhenEditorClosed(false, true, toResource.call(this, '/path/index.txt'));
 	});
@@ -182,7 +186,7 @@ suite('Workbench editor', () => {
 			if (custom) {
 				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true });
 			} else if (sideBySide) {
-				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')));
+				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true });
 			} else {
 				await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 			}

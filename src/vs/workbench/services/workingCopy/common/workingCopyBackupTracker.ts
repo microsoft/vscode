@@ -208,7 +208,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	//#region Backup Restorer
 
 	protected readonly unrestoredBackups = new Set<IWorkingCopyIdentifier>();
-	private readonly whenReady = this.resolveBackupsToRestore();
+	protected readonly whenReady = this.resolveBackupsToRestore();
 
 	private _isReady = false;
 	protected get isReady(): boolean { return this._isReady; }
