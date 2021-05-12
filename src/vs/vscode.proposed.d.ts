@@ -1271,9 +1271,17 @@ declare module 'vscode' {
 		// static textplain(value:string): NotebookCellOutputItem;
 		// static errortrace(value:any): NotebookCellOutputItem;
 
+		/**
+		 * Creates `application/x.notebook.error`
+		 *
+		 * @param err An error for which an output item is wanted
+		 */
+		static error(err: Error): NotebookCellOutputItem;
+
 		mime: string;
 
 		//todo@API string or Unit8Array?
+		// value: string | Uint8Array | unknown;
 		value: unknown;
 
 		metadata?: { [key: string]: any };

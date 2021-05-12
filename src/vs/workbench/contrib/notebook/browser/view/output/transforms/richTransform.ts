@@ -14,6 +14,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
@@ -277,6 +278,64 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 	}
 }
 
+class JSErrorRendererContrib implements IOutputRendererContribution {
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	dispose(): void {
+		// nothing
+	}
+
+	getType() {
+		return RenderOutputType.Mainframe;
+	}
+
+	getMimetypes() {
+		return ['application/x.notebook.error'];
+	}
+
+	render(_output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, _notebookUri: URI): IRenderOutput {
+		const linkDetector = this._instantiationService.createInstance(LinkDetector);
+
+		for (let item of items) {
+
+			if (typeof item.value !== 'string') {
+				this._logService.warn('INVALID output item (not a string)', item.value);
+				continue;
+			}
+
+			let err: Error;
+			try {
+				err = <Error>JSON.parse(item.value);
+			} catch (e) {
+				this._logService.warn('INVALID output item (failed to parse)', e);
+				continue;
+			}
+
+			const header = document.createElement('div');
+			const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
+			if (headerMessage) {
+				header.innerText = headerMessage;
+				container.appendChild(header);
+			}
+			const stack = document.createElement('pre');
+			stack.classList.add('traceback');
+			if (err.stack) {
+				stack.appendChild(handleANSIOutput(err.stack, linkDetector, this._themeService, undefined));
+			}
+			container.appendChild(stack);
+			container.classList.add('error');
+		}
+
+		return { type: RenderOutputType.Mainframe };
+	}
+}
+
 class PlainTextRendererContrib extends Disposable implements IOutputRendererContribution {
 	getType() {
 		return RenderOutputType.Mainframe;
@@ -459,6 +518,7 @@ NotebookRegistry.registerOutputTransform('jpeg', JPEGRendererContrib);
 NotebookRegistry.registerOutputTransform('plain', PlainTextRendererContrib);
 NotebookRegistry.registerOutputTransform('code', CodeRendererContrib);
 NotebookRegistry.registerOutputTransform('error-trace', ErrorRendererContrib);
+NotebookRegistry.registerOutputTransform('jserror', JSErrorRendererContrib);
 NotebookRegistry.registerOutputTransform('stream-text', StreamRendererContrib);
 NotebookRegistry.registerOutputTransform('stderr', StderrRendererContrib);
 

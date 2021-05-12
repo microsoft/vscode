@@ -3087,6 +3087,13 @@ export class NotebookCellOutputItem {
 		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
 	}
 
+	static error(err: Error): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(
+			'application/x.notebook.error',
+			JSON.stringify({ name: err.name, message: err.message, stack: err.stack })
+		);
+	}
+
 	constructor(
 		public mime: string,
 		public value: unknown, // JSON'able

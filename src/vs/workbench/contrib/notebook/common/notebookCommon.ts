@@ -551,6 +551,7 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/jpeg', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
 	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+	['application/x.notebook.error', { alwaysSecure: true, supportedByCore: true }],
 	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
