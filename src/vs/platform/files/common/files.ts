@@ -343,7 +343,7 @@ export interface IStat {
 	/**
 	 * The size of the file in bytes.
 	 */
-	size: number;
+	readonly size: number;
 
 	/**
 	 * The file permissions.
