@@ -104,6 +104,7 @@ export interface IOffProcessTerminalService {
 	updateIcon(id: number, icon: string, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
+	requiresWindowsMode(): Promise<boolean>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
@@ -171,6 +172,7 @@ export interface IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
+	requiresWindowsMode(): Promise<boolean>;
 }
 
 export enum HeartbeatConstants {

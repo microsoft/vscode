@@ -1606,6 +1606,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateIcon(id: number, icon: string, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
+	requiresWindowsMode(): Promise<boolean> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {

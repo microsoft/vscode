@@ -171,4 +171,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	private _getWorkspaceName(): string {
 		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
+
+	async requiresWindowsMode(): Promise<boolean> {
+		return this._localPtyService.requiresWindowsMode();
+	}
 }

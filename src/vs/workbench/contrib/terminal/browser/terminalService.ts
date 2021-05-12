@@ -67,6 +67,7 @@ export class TerminalService implements ITerminalService {
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
+	private _requiresWindowsMode: boolean = false;
 
 	public get activeGroupIndex(): number { return this._activeGroupIndex; }
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
@@ -76,6 +77,7 @@ export class TerminalService implements ITerminalService {
 		this._refreshAvailableProfiles();
 		return this._availableProfiles || [];
 	}
+	get requiresWindowsMode(): boolean { return this._requiresWindowsMode; }
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	private get _terminalInstances(): ITerminalInstance[] {
 		return this._terminalGroups.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
@@ -211,6 +213,11 @@ export class TerminalService implements ITerminalService {
 		this._offProcessTerminalService = isPersistentRemote ? this._remoteTerminalService :
 			enableTerminalReconnection ? this._localTerminalService : undefined;
 		initPromise.then(() => this._setConnected());
+		this._initRequiresWindowsMode();
+	}
+
+	private async _initRequiresWindowsMode(): Promise<void> {
+		this._requiresWindowsMode = await this._offProcessTerminalService?.requiresWindowsMode() || false;
 	}
 
 	private _setConnected() {
@@ -901,7 +908,8 @@ export class TerminalService implements ITerminalService {
 			this._terminalShellTypeContextKey,
 			this._terminalAltBufferActiveContextKey,
 			this._configHelper,
-			shellLaunchConfig
+			shellLaunchConfig,
+			this._requiresWindowsMode
 		);
 		this._onInstanceCreated.fire(instance);
 		return instance;

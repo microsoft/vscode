@@ -212,6 +212,10 @@ export class PtyService extends Disposable implements IPtyService {
 		return undefined;
 	}
 
+	async requiresWindowsMode(): Promise<boolean> {
+		return isWindows && getWindowsBuildNumber() <= 19041;
+	}
+
 	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
 		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
 		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IProcessDetails>[];
