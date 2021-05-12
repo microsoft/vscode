@@ -14,19 +14,16 @@ import { IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider, ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ITerminalProfile, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { detectAvailableProfiles } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 import type * as vscode from 'vscode';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _variableResolver: ExtHostVariableResolverService | undefined;
-	private _variableResolverPromise: Promise<ExtHostVariableResolverService>;
 	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
 	private _defaultShell: string | undefined;
@@ -36,8 +33,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		@IExtHostConfiguration private _extHostConfiguration: ExtHostConfiguration,
 		@IExtHostWorkspace private _extHostWorkspace: ExtHostWorkspace,
 		@IExtHostDocumentsAndEditors private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		@ILogService private _logService: ILogService,
-		@IExtHostEditorTabs private _extHostEditorTabs: IExtHostEditorTabs
+		@ILogService private _logService: ILogService
 	) {
 		super(true, extHostRpc);
 
@@ -47,7 +43,6 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		getSystemShell(platform.OS, process.env as platform.IProcessEnvironment).then(s => this._defaultShell = s);
 
 		this._updateLastActiveWorkspace();
-		this._variableResolverPromise = this._updateVariableResolver();
 		this._registerListeners();
 	}
 
@@ -77,6 +72,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		return terminal.value;
 	}
 
+	// TODO: Replace get shell/args calls with cached default shell given from renderer
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
 		return terminalEnvironment.getDefaultShell(
 			this._buildSafeConfigProvider(configProvider),
@@ -100,9 +96,6 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _registerListeners(): void {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(() => this._updateLastActiveWorkspace());
-		this._extHostWorkspace.onDidChangeWorkspace(() => {
-			this._variableResolverPromise = this._updateVariableResolver();
-		});
 	}
 
 	private _updateLastActiveWorkspace(): void {
@@ -110,18 +103,6 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		if (activeEditor) {
 			this._lastActiveWorkspace = this._extHostWorkspace.getWorkspaceFolder(activeEditor.document.uri) as IWorkspaceFolder;
 		}
-	}
-
-	private async _updateVariableResolver(): Promise<ExtHostVariableResolverService> {
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider, this._extHostEditorTabs);
-		return this._variableResolver;
-	}
-
-	public async $getAvailableProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
-		const safeConfigProvider = this._buildSafeConfigProvider(await this._extHostConfiguration.getConfigProvider());
-		return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
 	}
 
 	public async getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {

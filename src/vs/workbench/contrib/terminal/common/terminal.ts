@@ -283,10 +283,6 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
 
-export interface IAvailableProfilesRequest {
-	callback: (shells: ITerminalProfile[]) => void;
-	configuredProfilesOnly: boolean;
-}
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;
 	callback: (shell: string, args: string[] | string | undefined) => void;
