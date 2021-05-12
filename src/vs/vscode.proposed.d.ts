@@ -3261,4 +3261,28 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region FileSystemProvider stat readonly - https://github.com/microsoft/vscode/issues/73122
+
+	export enum FilePermission {
+		/**
+		 * The file is readonly.
+		 */
+		Readonly = 1
+	}
+
+	/**
+	 * The `FileStat`-type represents metadata about a file
+	 */
+	export interface FileStat {
+
+		/**
+		 * The permissions of the file, e.g. whether the file is readonly.
+		 *
+		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
+		 */
+		permissions?: FilePermission;
+	}
+
+	//#endregion
 }

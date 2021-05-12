@@ -67,6 +67,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
 	readonly onDidChangeOrphaned = Event.None;
+	readonly onDidChangeReadonly = Event.None;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;

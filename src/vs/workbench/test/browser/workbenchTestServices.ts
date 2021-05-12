@@ -353,7 +353,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			etag: content.etag,
 			encoding: 'utf8',
 			value: await createTextBufferFactoryFromStream(content.value),
-			size: 10
+			size: 10,
+			readonly: false
 		};
 	}
 
@@ -836,6 +837,8 @@ export class TestFileService implements IFileService {
 	private content = 'Hello Html';
 	private lastReadFileUri!: URI;
 
+	readonly = false;
+
 	setContent(content: string): void { this.content = content; }
 	getContent(): string { return this.content; }
 	getLastReadFileUri(): URI { return this.lastReadFileUri; }
@@ -855,6 +858,7 @@ export class TestFileService implements IFileService {
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
+			readonly: this.readonly,
 			name: basename(resource)
 		});
 	}
@@ -886,6 +890,7 @@ export class TestFileService implements IFileService {
 			mtime: Date.now(),
 			ctime: Date.now(),
 			name: basename(resource),
+			readonly: this.readonly,
 			size: 1
 		});
 	}
@@ -905,6 +910,7 @@ export class TestFileService implements IFileService {
 			mtime: Date.now(),
 			ctime: Date.now(),
 			size: 1,
+			readonly: this.readonly,
 			name: basename(resource)
 		});
 	}
@@ -927,6 +933,7 @@ export class TestFileService implements IFileService {
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
+			readonly: this.readonly,
 			name: basename(resource)
 		});
 	}
