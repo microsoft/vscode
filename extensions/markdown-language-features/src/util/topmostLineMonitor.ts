@@ -7,19 +7,42 @@ import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from './file';
 
+export interface LastScrollLocation {
+	readonly line: number;
+	readonly uri: vscode.Uri | undefined;
+}
+
 export class TopmostLineMonitor extends Disposable {
 
 	private readonly pendingUpdates = new Map<string, number>();
 	private readonly throttle = 50;
+	public previousMDTextEditor: vscode.TextEditor | undefined;
+	public previousStaticEditorInfo: LastScrollLocation = { line: 0, uri: undefined };
 
 	constructor() {
 		super();
+		this.previousMDTextEditor = vscode.window.activeTextEditor;
 		this._register(vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 			if (isMarkdownFile(event.textEditor.document)) {
 				const line = getVisibleLine(event.textEditor);
 				if (typeof line === 'number') {
 					this.updateLine(event.textEditor.document.uri, line);
 				}
+			}
+		}));
+
+		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
+
+			// When at a markdown file, apply existing scroll settings from static preview if applicable.
+			// Also save reference to text editor for line number reference later
+			if (textEditor && isMarkdownFile(textEditor.document!)) {
+
+				if (this.previousStaticEditorInfo.uri?.toString() === textEditor.document.uri.toString()) {
+					const line = this.previousStaticEditorInfo.line ? this.previousStaticEditorInfo.line : 0;
+					scrollEditorToLine(line, textEditor);
+				}
+
+				this.previousMDTextEditor = textEditor;
 			}
 		}));
 	}
@@ -67,4 +90,19 @@ export function getVisibleLine(
 	const line = editor.document.lineAt(lineNumber);
 	const progress = firstVisiblePosition.character / (line.text.length + 2);
 	return lineNumber + progress;
+}
+/**
+ * Change the top-most visible line of `editor` to be at `line`
+ */
+export function scrollEditorToLine(
+	line: number,
+	editor: vscode.TextEditor
+) {
+	const sourceLine = Math.floor(line);
+	const fraction = line - sourceLine;
+	const text = editor.document.lineAt(sourceLine).text;
+	const start = Math.floor(fraction * text.length);
+	editor.revealRange(
+		new vscode.Range(sourceLine, start, sourceLine + 1, 0),
+		vscode.TextEditorRevealType.AtTop);
 }

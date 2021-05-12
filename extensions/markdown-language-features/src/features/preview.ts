@@ -12,7 +12,7 @@ import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { normalizeResource, WebviewResourceProvider } from '../util/resources';
-import { getVisibleLine, TopmostLineMonitor } from '../util/topmostLineMonitor';
+import { getVisibleLine, scrollEditorToLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
 import { MarkdownEngine } from '../markdownEngine';
@@ -120,6 +120,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private imageInfo: { readonly id: string, readonly width: number, readonly height: number; }[] = [];
 
 	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
+	private readonly _onScrollEmitter = this._register(new vscode.EventEmitter<LastScrollLocation>());
+	public readonly onScroll = this._onScrollEmitter.event;
 
 	constructor(
 		webview: vscode.WebviewPanel,
@@ -324,7 +326,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	private onDidScrollPreview(line: number) {
 		this.line = line;
-
+		this._onScrollEmitter.fire({ line: this.line, uri: this._resource });
 		const config = this._previewConfigurations.loadAndCacheConfiguration(this._resource);
 		if (!config.scrollEditorWithPreview) {
 			return;
@@ -336,13 +338,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 
 			this.isScrolling = true;
-			const sourceLine = Math.floor(line);
-			const fraction = line - sourceLine;
-			const text = editor.document.lineAt(sourceLine).text;
-			const start = Math.floor(fraction * text.length);
-			editor.revealRange(
-				new vscode.Range(sourceLine, start, sourceLine + 1, 0),
-				vscode.TextEditorRevealType.AtTop);
+			scrollEditorToLine(line, editor);
 		}
 	}
 
@@ -500,8 +496,9 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		logger: Logger,
 		contributionProvider: MarkdownContributionProvider,
 		engine: MarkdownEngine,
+		scrollLine?: number,
 	): StaticMarkdownPreview {
-		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, logger, contributionProvider, engine);
+		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, logger, contributionProvider, engine, scrollLine);
 	}
 
 	private readonly preview: MarkdownPreview;
@@ -514,10 +511,11 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		logger: Logger,
 		contributionProvider: MarkdownContributionProvider,
 		engine: MarkdownEngine,
+		scrollLine?: number,
 	) {
 		super();
-
-		this.preview = this._register(new MarkdownPreview(this._webviewPanel, resource, undefined, {
+		const topScrollLocation = scrollLine ? new StartingScrollLine(scrollLine) : undefined;
+		this.preview = this._register(new MarkdownPreview(this._webviewPanel, resource, topScrollLocation, {
 			getAdditionalState: () => { return {}; },
 			openPreviewLinkToMarkdownFile: () => { /* todo */ }
 		}, engine, contentProvider, _previewConfigurations, logger, contributionProvider));
@@ -529,6 +527,12 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		this._register(this._webviewPanel.onDidChangeViewState(e => {
 			this._onDidChangeViewState.fire(e);
 		}));
+		this._register(this.preview.onScroll((scrollInfo) => {
+			this._onScrollEmitter.fire(scrollInfo);
+		}));
+
+		const currentLine = this.preview.state.line ? this.preview.state.line : 0;
+		this._onScrollEmitter.fire({ line: currentLine, uri: this.preview.resource });
 	}
 
 	private readonly _onDispose = this._register(new vscode.EventEmitter<void>());
@@ -536,6 +540,9 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 
 	private readonly _onDidChangeViewState = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState = this._onDidChangeViewState.event;
+
+	private readonly _onScrollEmitter = this._register(new vscode.EventEmitter<LastScrollLocation>());
+	public readonly onScroll = this._onScrollEmitter.event;
 
 	override dispose() {
 		this._onDispose.fire();

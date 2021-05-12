@@ -160,6 +160,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
+		const lineNumber = this._topmostLineMonitor.previousMDTextEditor?.document.uri.toString() === document.uri.toString() ? this._topmostLineMonitor.previousMDTextEditor?.visibleRanges[0].start.line : undefined;
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,
@@ -167,7 +168,9 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._previewConfigurations,
 			this._logger,
 			this._contributions,
-			this._engine);
+			this._engine,
+			lineNumber
+		);
 		this.registerStaticPreview(preview);
 	}
 
@@ -218,6 +221,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 		preview.onDispose(() => {
 			this._staticPreviews.delete(preview);
+		});
+
+		// Continuously update the scroll info in case user changes the editor.
+		preview.onScroll((scrollInfo) => {
+			this._topmostLineMonitor.previousStaticEditorInfo = scrollInfo;
 		});
 
 		this.trackActive(preview);
