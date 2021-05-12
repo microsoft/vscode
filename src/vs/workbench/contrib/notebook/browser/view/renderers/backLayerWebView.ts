@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import { preloadsScriptStr, WebviewPreloadRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { INotebookKernel, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -707,17 +707,19 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script type="module">${preloadsScriptStr(this.options, markupRenderer[0])}</script>
+				<script type="module">${preloadsScriptStr(this.options, markupRenderer)}</script>
 			</body>
 		</html>`;
 	}
 
-	private getMarkdownRenderer(): Array<{ entrypoint: string, dependencies: Array<{ entrypoint: string }> }> {
+	private getMarkdownRenderer(): WebviewPreloadRenderer[] {
 		const allRenderers = this.notebookService.getMarkupRendererInfo();
+
+		const markdownMimeType = 'text/markdown';
 
 		const topLevelMarkdownRenderers = allRenderers
 			.filter(renderer => !renderer.dependsOn)
-			.filter(renderer => renderer.mimeTypes?.includes('text/markdown'));
+			.filter(renderer => renderer.mimeTypes?.includes(markdownMimeType));
 
 		const subRenderers = new Map<string, Array<{ entrypoint: string }>>();
 		for (const renderer of allRenderers) {
@@ -730,10 +732,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			}
 		}
 
-		return topLevelMarkdownRenderers.map((renderer) => {
+		return topLevelMarkdownRenderers.map((renderer): WebviewPreloadRenderer => {
 			const src = this.asWebviewUri(renderer.entrypoint);
 			return {
 				entrypoint: src.toString(),
+				mimeTypes: [markdownMimeType],
 				dependencies: subRenderers.get(renderer.id) || [],
 			};
 		});
