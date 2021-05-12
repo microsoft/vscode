@@ -208,9 +208,9 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	private static _asIStat(stat: vscode.FileStat, enableProposedApi: boolean): files.IStat {
-		const { type, ctime, mtime, size, readonly } = stat;
+		const { type, ctime, mtime, size, permissions } = stat;
 		if (enableProposedApi) {
-			return { type, ctime, mtime, size, readonly };
+			return { type, ctime, mtime, size, permissions };
 		} else {
 			return { type, ctime, mtime, size };
 		}

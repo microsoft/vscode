@@ -1175,6 +1175,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FileDecoration: extHostTypes.FileDecoration,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,
+			FilePermission: files.FilePermission,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind,
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,

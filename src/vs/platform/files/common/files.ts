@@ -315,6 +315,14 @@ export enum FileType {
 	SymbolicLink = 64
 }
 
+export enum FilePermission {
+
+	/**
+	 * File is readonly.
+	 */
+	Readonly = 1
+}
+
 export interface IStat {
 
 	/**
@@ -338,9 +346,9 @@ export interface IStat {
 	size: number;
 
 	/**
-	 * The file is read-only.
+	 * The file permissions.
 	 */
-	readonly readonly?: boolean;
+	readonly permissions?: FilePermission;
 }
 
 export interface IWatchOptions {
