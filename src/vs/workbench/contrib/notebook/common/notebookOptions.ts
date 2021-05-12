@@ -229,4 +229,26 @@ export class NotebookOptions {
 				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar // EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR
 		};
 	}
+
+	computeWebviewOptions() {
+		return {
+			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
+			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
+			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			leftMargin: this._layoutConfiguration.codeCellLeftMargin, // CODE_CELL_LEFT_MARGIN,
+			rightMargin: this._layoutConfiguration.cellRightMargin, // CELL_RIGHT_MARGIN,
+			runGutter: this._layoutConfiguration.cellRunGutter, // CELL_RUN_GUTTER,
+		};
+	}
+
+	computeDiffWebviewOptions() {
+		return {
+			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
+			outputNodeLeftPadding: 32,
+			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			leftMargin: 0,
+			rightMargin: 0,
+			runGutter: 0
+		};
+	}
 }

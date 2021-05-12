@@ -1119,15 +1119,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _createWebview(id: string, resource: URI): Promise<void> {
-		const layoutConfiguration = this._notebookOptions.getLayoutConfiguration();
-		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
-			outputNodePadding: layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
-			outputNodeLeftPadding: layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
-			previewNodePadding: layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
-			leftMargin: layoutConfiguration.codeCellLeftMargin, // CODE_CELL_LEFT_MARGIN,
-			rightMargin: layoutConfiguration.cellRightMargin, // CELL_RIGHT_MARGIN,
-			runGutter: layoutConfiguration.cellRunGutter, // CELL_RUN_GUTTER,
-		});
+		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeWebviewOptions());
 		this._webview.element.style.width = '100%';
 
 		// attach the webview container to the DOM tree first

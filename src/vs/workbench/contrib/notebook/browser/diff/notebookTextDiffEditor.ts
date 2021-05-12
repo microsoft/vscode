@@ -377,14 +377,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._modifiedWebview.dispose();
 		}
 
-		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
-			outputNodePadding: this._notebookOptions.getLayoutConfiguration().cellOutputPadding, // CELL_OUTPUT_PADDING,
-			outputNodeLeftPadding: 32,
-			previewNodePadding: this._notebookOptions.getLayoutConfiguration().markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
-			leftMargin: 0,
-			rightMargin: 0,
-			runGutter: 0
-		}) as BackLayerWebView<IDiffCellInfo>;
+		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions()) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		await this._modifiedWebview.createWebview();
@@ -397,14 +390,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._originalWebview.dispose();
 		}
 
-		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
-			outputNodePadding: this._notebookOptions.getLayoutConfiguration().cellOutputPadding, // CELL_OUTPUT_PADDING,
-			outputNodeLeftPadding: 32,
-			previewNodePadding: this._notebookOptions.getLayoutConfiguration().markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
-			leftMargin: 0,
-			rightMargin: 0,
-			runGutter: 0
-		}) as BackLayerWebView<IDiffCellInfo>;
+		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions()) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		await this._originalWebview.createWebview();
