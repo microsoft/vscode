@@ -173,10 +173,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook.metadata;
 	}
 
-	get trusted() {
-		return !!this._notebook.metadata?.trusted;
-	}
-
 	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
 	get onDidChangeViewCells(): Event<INotebookViewCellsUpdateEvent> { return this._onDidChangeViewCells.event; }
 
