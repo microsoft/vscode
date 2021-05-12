@@ -904,8 +904,8 @@ abstract class RunOrDebugExtsById extends Action2 {
 		const workspaceTests = accessor.get(IWorkspaceTestCollectionService).subscribeToWorkspaceTests();
 
 		try {
-			const todo = Promise.all(workspaceTests.workspaceFolderCollections.map(
-				([, c]) => Promise.all(paths.map(p => getTestByPath(c, p))),
+			const todo = Promise.all([...workspaceTests.workspaceFolderCollections.values()].map(
+				c => Promise.all(paths.map(p => getTestByPath(c, p))),
 			));
 
 			const tests = flatten(await showDiscoveringWhile(accessor.get(IProgressService), todo)).filter(isDefined);
