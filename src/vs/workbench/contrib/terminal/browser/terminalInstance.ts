@@ -21,7 +21,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -316,23 +316,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	private _getIcon(): ThemeIcon | undefined {
-		const colorId = this._getColor();
-		const themeColor = colorId ? themeColorFromId(colorId) : undefined;
+	private _getIcon(): Codicon | undefined {
 		if (this.shellLaunchConfig.icon) {
-			const iconId = iconRegistry.get(this.shellLaunchConfig.icon)?.id;
-			if (iconId) {
-				return { id: iconId, color: themeColor };
-			}
+			return iconRegistry.get(this.shellLaunchConfig.icon);
 		}
 		if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
-			const iconId = iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon)?.id;
-			if (iconId) {
-				return { id: iconId, color: themeColor };
-			}
+			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon);
 		}
 		if (this._processManager.processState >= ProcessState.Launching) {
-			return { id: Codicon.terminal.id, color: themeColor };
+			return Codicon.terminal;
 		}
 		return undefined;
 	}
