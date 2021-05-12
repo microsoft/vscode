@@ -8,7 +8,7 @@ import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/li
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -255,7 +255,13 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		// Extension is not installed
 		else {
-			const galleryExtension = await this.galleryService.getCompatibleExtension(extensionIdentifier);
+			let galleryExtension: IGalleryExtension | undefined;
+
+			try {
+				galleryExtension = await this.galleryService.getCompatibleExtension(extensionIdentifier) ?? undefined;
+			} catch (err) {
+				return;
+			}
 
 			if (!galleryExtension) {
 				return;
