@@ -143,7 +143,7 @@ export function registerColors() {
 			}
 
 			/* Info "badge" shown when the debugger pauses due to a thrown exception. */
-			.debug-pane .debug-call-stack-title > .call-stack-state-message > .label.exception {
+			.debug-pane .call-stack-state-message > .label.exception {
 				background-color: ${debugViewExceptionLabelBackgroundColor};
 				color: ${debugViewExceptionLabelForegroundColor};
 			}
