@@ -444,24 +444,20 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	public getThemeSpecificColors(colors: IThemeSpecificColorCustomizations): IThemeSpecificColorCustomizations | undefined {
 		let themeSpecificColors;
 		for (let key in colors) {
-			const subColors = colors[key];
-			if (types.isObject(subColors) && this.isThemeIdScope(key)) {
+			const scopedColors = colors[key];
+			if (this.isThemeIdScope(key) && scopedColors instanceof Object && !types.isArray(scopedColors)) {
 				const themeIdList = key.match(THEME_ID_REGEX) || [];
 				for (let themeId of themeIdList) {
 					if (this.isThemeIdScopeMatch(themeId)) {
 						themeSpecificColors = themeSpecificColors || {} as IThemeSpecificColorCustomizations;
-						if (types.isObject(subColors)) {
-							let themeSpecificSubColors = subColors as Iterable<IThemeSpecificColorCustomizations>;
-							for (let subkey of themeSpecificSubColors) {
-								if (typeof subkey === 'string') {
-									const overrideColors = themeSpecificSubColors[subkey];
-									if (types.isArray(overrideColors) && types.isArray(themeSpecificColors[subkey])) {
-										const originalColors = themeSpecificColors[subkey] as ITextMateThemingRule[];
-										themeSpecificColors[subkey] = originalColors.concat(overrideColors);
-									} else if (overrideColors) {
-										themeSpecificColors[subkey] = overrideColors;
-									}
-								}
+						const scopedThemeSpecificColors = scopedColors as IThemeSpecificColorCustomizations;
+						for (let subkey in scopedThemeSpecificColors) {
+							const originalColors = themeSpecificColors[subkey];
+							const overrideColors = scopedThemeSpecificColors[subkey];
+							if (types.isArray(originalColors) && types.isArray(overrideColors)) {
+								themeSpecificColors[subkey] = originalColors.concat(overrideColors);
+							} else if (overrideColors) {
+								themeSpecificColors[subkey] = overrideColors;
 							}
 						}
 					}
