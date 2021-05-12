@@ -58,7 +58,6 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { Color } from 'vs/base/common/color';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1828,7 +1827,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const items: IQuickPickItem[] = [];
 		for (const color of colors) {
 			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${color.name.replace('terminal.ansi', '')}`, id: `${color.name.replace(/\./g, '_')}`, description: `${color.name}`, iconClasses: [`terminal-icon-${color.name.replace(/\./g, '_')}`]
+				label: `$(${Codicon.circleFilled.id}) ${color.replace('terminal.ansi', '')}`, id: `${color.replace(/\./g, '_')}`, description: `${color}`, iconClasses: [`terminal-icon-${color.replace(/\./g, '_')}`]
 			});
 		}
 
@@ -1843,18 +1842,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 }
 
-interface ColorObject {
-	id: Color,
-	name: string
-}
-let colors: ColorObject[] = [];
+let colors: string[] = [];
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	// add icon colors
 	colors = [];
 	for (const colorKey in ansiColorMap) {
 		const color = theme.getColor(colorKey);
 		if (color && !colorKey.toLowerCase().includes('bright')) {
-			colors.push({ id: color, name: colorKey });
+			colors.push(colorKey);
 			collector.addRule(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan) { color: ${color} !important; }`);
 		}
 	}

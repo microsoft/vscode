@@ -393,11 +393,13 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 			}
 			label.style.color = colorStyle;
 			reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
+			if (this._color) {
+				label.classList.remove(this._color);
+				this._color = undefined;
+			}
 			if (instance?.color) {
 				this._color = `terminal-icon-${instance.color}`;
 				label.classList.add(this._color);
-			} else if (this._color) {
-				label.classList.remove(this._color);
 			}
 		}
 	}
