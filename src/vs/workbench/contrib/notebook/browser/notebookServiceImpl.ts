@@ -27,7 +27,7 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebookMarkupRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { INotebookEditorContribution, notebookMarkupRendererExtensionPoint, notebooksExtensionPoint, notebookRendererExtensionPoint, notebooksExtensionPoint2 } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -80,7 +80,8 @@ export class NotebookProviderInfoStore extends Disposable {
 			}
 		}));
 
-		notebookProviderExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
+		notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
+		notebooksExtensionPoint2.setHandler(extensions => this._setupHandler(extensions));
 	}
 
 	override dispose(): void {

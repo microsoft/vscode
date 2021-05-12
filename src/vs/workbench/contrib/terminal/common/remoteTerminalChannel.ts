@@ -142,10 +142,10 @@ export class RemoteTerminalChannelClient {
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		let allResolvedVariables: Map<string, string> | undefined = undefined;
 		try {
-			allResolvedVariables = await this._resolverService.resolveWithInteraction(lastActiveWorkspace, {
+			allResolvedVariables = (await this._resolverService.resolveAnyMap(lastActiveWorkspace, {
 				shellLaunchConfig,
 				configuration
-			});
+			})).resolvedVariables;
 		} catch (err) {
 			this._logService.error(err);
 		}

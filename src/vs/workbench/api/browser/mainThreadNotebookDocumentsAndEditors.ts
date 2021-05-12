@@ -30,7 +30,7 @@ interface INotebookAndEditorDelta {
 }
 
 class NotebookAndEditorState {
-	static compute(before: NotebookAndEditorState | undefined, after: NotebookAndEditorState): INotebookAndEditorDelta {
+	static delta(before: NotebookAndEditorState | undefined, after: NotebookAndEditorState): INotebookAndEditorDelta {
 		if (!before) {
 			return {
 				addedDocuments: [...after.documents],
@@ -170,7 +170,7 @@ export class MainThreadNotebooksAndEditors {
 		}
 
 		const newState = new NotebookAndEditorState(new Set(this._notebookService.listNotebookDocuments()), editors, activeEditor, visibleEditorsMap);
-		this._onDelta(NotebookAndEditorState.compute(this._currentState, newState));
+		this._onDelta(NotebookAndEditorState.delta(this._currentState, newState));
 		this._currentState = newState;
 	}
 

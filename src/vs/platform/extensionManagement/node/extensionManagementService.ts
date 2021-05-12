@@ -170,7 +170,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			const manifest = await getManifest(zipPath);
 			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 			let operation: InstallOperation = InstallOperation.Install;
-			if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, product.version)) {
+			if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, product.version, product.date)) {
 				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", identifier.id, product.version));
 			}
 

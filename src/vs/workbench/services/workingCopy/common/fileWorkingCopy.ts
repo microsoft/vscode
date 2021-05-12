@@ -166,6 +166,11 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IReso
 	readonly onDidRevert: Event<void>;
 
 	/**
+	 * An event for when the readonly state of the file working copy changes.
+	 */
+	readonly onDidChangeReadonly: Event<void>;
+
+	/**
 	 * Provides access to the underlying model of this file
 	 * based working copy. As long as the file working copy
 	 * has not been resolved, the model is `undefined`.
@@ -337,6 +342,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
+
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	//#endregion
 
@@ -511,7 +519,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 			ctime,
 			size,
 			etag,
-			value: buffer
+			value: buffer,
+			readonly: false
 		}, true /* dirty (resolved from buffer) */);
 	}
 
@@ -550,7 +559,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			value: backup.value
+			value: backup.value,
+			readonly: false
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
@@ -636,6 +646,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 			ctime: content.ctime,
 			size: content.size,
 			etag: content.etag,
+			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false
@@ -1125,6 +1136,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
+		const oldReadonly = this.isReadonly();
 
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
@@ -1138,6 +1150,11 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 		// sync.
 		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
 			this.lastResolvedFileStat = newFileStat;
+		}
+
+		// Signal that the readonly state changed
+		if (this.isReadonly() !== oldReadonly) {
+			this._onDidChangeReadonly.fire();
 		}
 	}
 
@@ -1218,7 +1235,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 	}
 
 	isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.lastResolvedFileStat?.readonly ?? this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	private trace(msg: string): void {

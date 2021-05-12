@@ -208,7 +208,10 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	//#region Backup Restorer
 
 	protected readonly unrestoredBackups = new Set<IWorkingCopyIdentifier>();
-	private readonly whenReady = this.resolveBackupsToRestore();
+	protected readonly whenReady = this.resolveBackupsToRestore();
+
+	private _isReady = false;
+	protected get isReady(): boolean { return this._isReady; }
 
 	private async resolveBackupsToRestore(): Promise<void> {
 
@@ -219,6 +222,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		for (const backup of await this.workingCopyBackupService.getBackups()) {
 			this.unrestoredBackups.add(backup);
 		}
+
+		this._isReady = true;
 	}
 
 	protected async restoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {

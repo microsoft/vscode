@@ -43,6 +43,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -147,6 +148,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private showModalOnStart(): void {
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+			return;
+		}
+
+		// Don't show modal prompt for virtual workspaces by default
+		if (getVirtualWorkspaceScheme(this.workspaceContextService.getWorkspace()) !== undefined) {
+			this.updateWorkbenchIndicators(false);
 			return;
 		}
 

@@ -94,4 +94,10 @@ suite('vscode', function () {
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'NotebookEditorDecorationType']);
 	});
+
+	test('no rpc, createNotebookController(...)', function () {
+		const ctrl = vscode.notebook.createNotebookController('foo', 'bar', '');
+		dispo.push(ctrl);
+		assertNoRpcFromEntry([ctrl, 'NotebookController']);
+	});
 });

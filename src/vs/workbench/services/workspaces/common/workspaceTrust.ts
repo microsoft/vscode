@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { Emitter } from 'vs/base/common/event';
 import { splitName } from 'vs/base/common/labels';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -16,6 +17,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -33,6 +35,10 @@ export const WorkspaceTrustContext = {
 export function isWorkspaceTrustEnabled(configurationService: IConfigurationService): boolean {
 	if (isWeb) {
 		return false;
+	}
+
+	if (verifyMicrosoftInternalDomain(product.msftInternalDomains || [])) {
+		return true;
 	}
 
 	return configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
@@ -166,10 +172,13 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		const trusted = this.calculateWorkspaceTrust();
 		if (this.isWorkpaceTrusted() === trusted) { return; }
 
+		// Update workspace trust
+		this._isWorkspaceTrusted = trusted;
+
 		// Run workspace trust transition participants
 		await this._trustTransitionManager.participate(trusted);
 
-		this._isWorkspaceTrusted = trusted;
+		// Fire workspace trust change event
 		this._onDidChangeTrust.fire(trusted);
 	}
 

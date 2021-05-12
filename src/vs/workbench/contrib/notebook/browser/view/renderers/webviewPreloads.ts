@@ -39,7 +39,9 @@ interface PreloadStyles {
 	readonly outputNodeLeftPadding: number;
 }
 
-async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any, markdownDeps: any) {
+declare function __import(path: string): Promise<any>;
+
+async function webviewPreloads(style: PreloadStyles, rendererData: readonly WebviewPreloadRenderer[]) {
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -486,14 +488,16 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 
 	window.addEventListener('wheel', handleWheel);
 
-	window.addEventListener('message', rawEvent => {
+	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: ToWebviewMessage; });
 
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
-				ensureMarkdownPreviewCells(event.data.cells);
-				dimensionUpdater.updateImmediately();
-				postNotebookMessage('initializedMarkdownPreview', {});
+				{
+					await ensureMarkdownPreviewCells(event.data.cells);
+					dimensionUpdater.updateImmediately();
+					postNotebookMessage('initializedMarkdownPreview', {});
+				}
 				break;
 			case 'createMarkdownPreview':
 				ensureMarkdownPreviewCells([event.data.cell]);
@@ -785,16 +789,57 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 		}
 	});
 
-	const markdownRenderer: {
-		renderMarkup: (context: { element: HTMLElement, content: string }) => void,
-	} = await markdownRendererModule.activate(markdownDeps);
+	interface MarkupRenderer {
+		renderMarkup: (context: { element: HTMLElement, content: string }) => void;
+	}
+
+	const markupRenderers = new class {
+
+		private readonly mimeTypesToRenderers = new Map<string, {
+			load: () => Promise<MarkupRenderer>;
+		}>();
+
+		constructor() {
+			for (const renderer of rendererData) {
+				let loadPromise: Promise<MarkupRenderer> | undefined;
+
+				const entry = {
+					load: () => {
+						if (!loadPromise) {
+							loadPromise = __import(renderer.entrypoint).then(module => {
+								return module.activate({ dependencies: renderer.dependencies });
+							});
+						}
+						return loadPromise;
+					},
+					renderer: undefined,
+				};
+
+				for (const mime of renderer.mimeTypes || []) {
+					if (!this.mimeTypesToRenderers.has(mime)) {
+						this.mimeTypesToRenderers.set(mime, entry);
+					}
+				}
+			}
+		}
+
+		async renderMarkdown(element: HTMLElement, content: string): Promise<void> {
+			const entry = this.mimeTypesToRenderers.get('text/markdown');
+			if (!entry) {
+				throw new Error('Could not find renderer');
+			}
+			const renderer = await entry.load();
+			renderer.renderMarkup({ element, content });
+		}
+	}();
+
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
 
-	function createMarkdownPreview(cellId: string, content: string, top: number): HTMLElement {
+	async function createMarkdownPreview(cellId: string, content: string, top: number): Promise<HTMLElement> {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
 
@@ -869,24 +914,24 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 		previewNode.id = 'preview';
 		previewRoot.appendChild(previewNode);
 
-		updateMarkdownPreview(cellContainer, cellId, content);
+		await updateMarkdownPreview(cellContainer, cellId, content);
 
 		resizeObserver.observe(cellContainer, cellId, false);
 
 		return cellContainer;
 	}
 
-	function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]) {
-		for (const cell of update) {
+	async function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]): Promise<void> {
+		await Promise.all(update.map(async cell => {
 			let container = document.getElementById(cell.cellId);
 			if (container) {
-				updateMarkdownPreview(container, cell.cellId, cell.content);
+				await updateMarkdownPreview(container, cell.cellId, cell.content);
 			} else {
-				container = createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+				container = await createMarkdownPreview(cell.cellId, cell.content, cell.offset);
 			}
 
 			container.style.visibility = cell.visible ? 'visible' : 'hidden';
-		}
+		}));
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -901,9 +946,9 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 	}
 
 	let hasPostedRenderedMathTelemetry = false;
-	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/g;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
 
-	function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
+	async function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
 		const previewRoot = previewContainerNode.shadowRoot;
 		const previewNode = previewRoot?.getElementById('preview');
 		if (!previewNode) {
@@ -917,10 +962,7 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				markdownRenderer.renderMarkup({
-					element: previewNode,
-					content: content
-				});
+				await markupRenderers.renderMarkdown(previewNode, content);
 
 				if (!hasPostedRenderedMathTelemetry) {
 					const hasRenderedMath = previewNode.querySelector('.katex');
@@ -1019,18 +1061,19 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 	}();
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, markdownRenderer: {
-	entrypoint: string,
-	dependencies: Array<{ entrypoint: string }>,
-}) {
-	const markdownCtx = {
-		dependencies: markdownRenderer.dependencies,
-	};
+export interface WebviewPreloadRenderer {
+	readonly entrypoint: string;
+	readonly mimeTypes: readonly string[];
+	readonly dependencies: ReadonlyArray<{ entrypoint: string }>;
+}
 
-	return `import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
+export function preloadsScriptStr(styleValues: PreloadStyles, renderers: readonly WebviewPreloadRenderer[]) {
+	// TS will try compiling `import()` in webviePreloads, so use an helper function instead
+	// of using `import(...)` directly
+	return `
+		const __import = (x) => import(x);
 		(${webviewPreloads})(
-			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
-			markdownRendererModule,
-			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}"))
-		)\n//# sourceURL=notebookWebviewPreloads.js\n`;
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(renderers))}"))
+			)\n//# sourceURL=notebookWebviewPreloads.js\n`;
 }

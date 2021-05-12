@@ -2600,6 +2600,12 @@ export const cellSymbolHighlight = registerColor('notebook.symbolHighlightBackgr
 	hc: null
 }, nls.localize('notebook.symbolHighlightBackground', "Background color of highlighted cell"));
 
+export const cellEditorBackground = registerColor('notebook.cellEditorBackground', {
+	light: null,
+	dark: null,
+	hc: null
+}, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
+
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
 	.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
@@ -2647,7 +2653,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .output-show-more-container { background-color: ${containerBackground}; }`);
 	}
 
-	const editorBackgroundColor = theme.getColor(editorBackground);
+	const editorBackgroundColor = theme.getColor(cellEditorBackground) ?? theme.getColor(editorBackground);
 	if (editorBackgroundColor) {
 		collector.addRule(`.notebookOverlay .cell .monaco-editor-background,
 			.notebookOverlay .cell .margin-view-overlays,

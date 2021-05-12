@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestDiffEditor, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -53,7 +53,7 @@ suite('Workbench editor', () => {
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		disposables.add(registerTestFileEditor());
-		disposables.add(registerTestDiffEditor());
+		disposables.add(registerTestSideBySideEditor());
 		disposables.add(registerTestResourceEditor());
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)]));
 	});
@@ -186,7 +186,7 @@ suite('Workbench editor', () => {
 			if (custom) {
 				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true });
 			} else if (sideBySide) {
-				await accessor.editorService.openEditor({ leftResource: resource, rightResource: resource, options: { pinned: true } });
+				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true });
 			} else {
 				await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 			}
