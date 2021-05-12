@@ -5,7 +5,9 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -16,7 +18,9 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export class LocalTerminalService extends Disposable implements ILocalTerminalService {
 	declare _serviceBrand: undefined;
@@ -38,7 +42,9 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService notificationService: INotificationService,
-		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IHistoryService historyService: IHistoryService
 	) {
 		super();
 
@@ -96,6 +102,17 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 				this._onPtyHostResponsive.fire();
 			}));
 		}
+		if (this._localPtyService.onPtyHostRequestResolveVariables) {
+			this._register(this._localPtyService.onPtyHostRequestResolveVariables(async e => {
+				this._logService.info('localTerminalService request', e.id, e.text);
+				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const resolveCalls: Promise<string>[] = e.text.map(t => configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t));
+				const result = await Promise.all(resolveCalls);
+				this._logService.info('resolved', result);
+				this._localPtyService.acceptPtyHostResolvedVariables?.(e.id, result);
+			}));
+		}
 	}
 	async updateTitle(id: number, title: string): Promise<void> {
 		await this._localPtyService.updateTitle(id, title);
@@ -138,7 +155,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	}
 
 	async getProfiles(includeDetectedProfiles?: boolean) {
-		return this._localPtyService.getProfiles(includeDetectedProfiles);
+		return this._localPtyService.getProfiles?.(includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {

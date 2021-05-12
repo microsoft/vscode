@@ -7,19 +7,26 @@ import * as fs from 'fs';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
-import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalProfile, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
-export function detectAvailableProfiles(configuredProfilesOnly: boolean, safeConfigProvider: SafeConfigProvider, fsProvider?: IFsProvider, logService?: ILogService, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, testPaths?: string[]): Promise<ITerminalProfile[]> {
+export function detectAvailableProfiles(
+	configuredProfilesOnly: boolean,
+	safeConfigProvider: SafeConfigProvider,
+	fsProvider?: IFsProvider,
+	logService?: ILogService,
+	variableResolver?: (text: string[]) => Promise<string[]>,
+	workspaceFolder?: IWorkspaceFolder,
+	testPaths?: string[]
+): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
 		readFile: fs.promises.readFile
@@ -48,7 +55,16 @@ export function detectAvailableProfiles(configuredProfilesOnly: boolean, safeCon
 	);
 }
 
-async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, fsProvider: IFsProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, defaultProfileName?: string, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(
+	configuredProfilesOnly: boolean,
+	fsProvider: IFsProvider,
+	logService?: ILogService,
+	useWslProfiles?: boolean,
+	configProfiles?: { [key: string]: ITerminalProfileObject },
+	defaultProfileName?: string,
+	variableResolver?: (text: string[]) => Promise<string[]>,
+	workspaceFolder?: IWorkspaceFolder
+): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -115,7 +131,7 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 	return resultProfiles;
 }
 
-async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, defaultProfileName: string | undefined, fsProvider: IFsProvider, logService?: ILogService, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, defaultProfileName: string | undefined, fsProvider: IFsProvider, logService?: ILogService, variableResolver?: (text: string[]) => Promise<string[]>, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const resultProfiles: ITerminalProfile[] = [];
 	for (const [profileName, profile] of entries) {
 		if (profile === null) { continue; }
@@ -138,11 +154,12 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 			icon = profile.icon;
 		}
 
-		const paths = originalPaths.slice();
+		// const paths = originalPaths.slice();
 
-		for (let i = 0; i < paths.length; i++) {
-			paths[i] = await variableResolver?.resolveAsync(workspaceFolder, paths[i]) || paths[i];
-		}
+		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
+		// for (let i = 0; i < paths.length; i++) {
+		// 	paths[i] = await variableResolver?.resolveAsync(workspaceFolder, paths[i]) || paths[i];
+		// }
 		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
@@ -242,7 +259,16 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 	return profiles;
 }
 
-async function detectAvailableUnixProfiles(fsProvider: IFsProvider, logService?: ILogService, configuredProfilesOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, defaultProfileName?: string, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(
+	fsProvider: IFsProvider,
+	logService?: ILogService,
+	configuredProfilesOnly?: boolean,
+	configProfiles?: { [key: string]: ITerminalProfileObject },
+	defaultProfileName?: string,
+	testPaths?: string[],
+	variableResolver?: (text: string[]) => Promise<string[]>,
+	workspaceFolder?: IWorkspaceFolder
+): Promise<ITerminalProfile[]> {
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add non-quick launch profiles
@@ -313,6 +339,10 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 export interface IFsProvider {
 	existsFile(path: string): Promise<boolean>,
 	readFile(path: string, options: { encoding: BufferEncoding, flag?: string | number } | BufferEncoding): Promise<string>;
+}
+
+export interface IProfileVariableResolver {
+	resolve(text: string[]): Promise<string[]>;
 }
 
 interface IPotentialTerminalProfile {

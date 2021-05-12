@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -14,6 +14,9 @@ import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { detectAvailableProfiles } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 
 enum Constants {
 	MaxRestarts = 5
@@ -24,6 +27,8 @@ enum Constants {
  * restarted and avoid ID conflicts.
  */
 let lastPtyId = 0;
+
+let lastResolveVariablesRequestId = 0;
 
 /**
  * This service implements IPtyService by launching a pty host process, forwarding messages to and
@@ -51,6 +56,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
 	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
+	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
+	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
+
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
@@ -70,7 +78,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
+	// TODO: Event for requesting variable resolving, track via id - this will be a round trip but
+	//       seems like the only reasonable way to do this
+
 	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
@@ -206,9 +218,18 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		// TODO: Evaluate here?
-		return this._proxy.getProfiles(includeDetectedProfiles);
+	async getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
+		const vars = this._resolveVariables([`Path: \${env:PATH}`, 'b']);
+		this._logService.info('vars', await vars);
+		// return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
+		// const variableResolver: IConfigurationResolverService {
+		// 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string> {
+		// 	}
+		// } as any;
+		detectAvailableProfiles(!includeDetectedProfiles, this._buildSafeConfigProvider(), undefined, this._logService, this._resolveVariables.bind(this));
+		// TODO: Move profile resolving here
+		return [];
+		// return this._proxy.getProfiles?.(includeDetectedProfiles) || [];
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
@@ -292,5 +313,34 @@ export class PtyHostService extends Disposable implements IPtyService {
 			clearTimeout(this._heartbeatSecondTimeout);
 			this._heartbeatSecondTimeout = undefined;
 		}
+	}
+
+	private _pendingResolveVariablesRequests: Map<number, (resolved: string[]) => void> = new Map();
+	private _resolveVariables(text: string[]): Promise<string[]> {
+		return new Promise<string[]>(resolve => {
+			const id = ++lastResolveVariablesRequestId;
+			this._pendingResolveVariablesRequests.set(id, resolve);
+			this._onPtyHostRequestResolveVariables.fire({ id, text });
+		});
+	}
+	async acceptPtyHostResolvedVariables(id: number, resolved: string[]) {
+		const request = this._pendingResolveVariablesRequests.get(id);
+		if (request) {
+			request(resolved);
+			this._pendingResolveVariablesRequests.delete(id);
+		} else {
+			this._logService.warn(`Resolved variables received without matching request ${id}`);
+		}
+	}
+
+	private _buildSafeConfigProvider(): SafeConfigProvider {
+		return (key: string) => {
+			const isWorkspaceConfigAllowed = this._configurationService.getValue(TerminalSettingId.AllowWorkspaceConfiguration);
+			if (isWorkspaceConfigAllowed) {
+				return this._configurationService.getValue(key) as any;
+			}
+			const inspected = this._configurationService.inspect(key);
+			return inspected?.userValue || inspected?.defaultValue;
+		};
 	}
 }

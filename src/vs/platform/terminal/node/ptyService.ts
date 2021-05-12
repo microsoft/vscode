@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -17,7 +17,6 @@ import { getSystemShell } from 'vs/base/node/shell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { execFile } from 'child_process';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { detectAvailableProfiles } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 
 type WorkspaceId = string;
 
@@ -178,11 +177,11 @@ export class PtyService extends Disposable implements IPtyService {
 		return getSystemShell(osOverride, process.env);
 	}
 
-	async getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
+	// async getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
 
-		const safeConfigProvider = this._buildSafeConfigProvider(await this._extHostConfiguration.getConfigProvider());
-		return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
-	}
+	// 	const safeConfigProvider = this._buildSafeConfigProvider(await this._extHostConfiguration.getConfigProvider());
+	// 	return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
+	// }
 
 	async getEnvironment(): Promise<IProcessEnvironment> {
 		return { ...process.env };

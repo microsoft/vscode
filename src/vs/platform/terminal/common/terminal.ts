@@ -120,6 +120,8 @@ export interface IPtyService {
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
 	readonly onPtyHostResponsive?: Event<void>;
+	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
+
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;
@@ -132,6 +134,7 @@ export interface IPtyService {
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
+	acceptPtyHostResolvedVariables?(id: number, resolved: string[]): Promise<void>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
@@ -168,12 +171,17 @@ export interface IPtyService {
 	updateIcon(id: number, icon: string): Promise<void>
 
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getProfiles?(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
+}
+
+export interface IRequestResolveVariablesEvent {
+	id: number;
+	text: string[];
 }
 
 export enum HeartbeatConstants {
