@@ -727,13 +727,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				if (!subRenderers.has(renderer.dependsOn)) {
 					subRenderers.set(renderer.dependsOn, []);
 				}
-				const entryPoint = this.asWebviewUri(renderer.entrypoint);
+				const entryPoint = this.asWebviewUri(renderer.entrypoint, renderer.extensionLocation);
 				subRenderers.get(renderer.dependsOn)!.push({ entrypoint: entryPoint.toString(true) });
 			}
 		}
 
 		return topLevelMarkdownRenderers.map((renderer): WebviewPreloadRenderer => {
-			const src = this.asWebviewUri(renderer.entrypoint);
+			const src = this.asWebviewUri(renderer.entrypoint, renderer.extensionLocation);
 			return {
 				entrypoint: src.toString(),
 				mimeTypes: [markdownMimeType],
@@ -742,12 +742,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 	}
 
-	private asWebviewUri(uri: URI) {
+	private asWebviewUri(uri: URI, fromExtension: URI | undefined) {
+		const remoteAuthority = fromExtension?.scheme === Schemas.vscodeRemote ? fromExtension.authority : undefined;
 		return asWebviewUri({
 			isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
 			webviewCspSource: this.environmentService.webviewCspSource,
 			webviewResourceRoot: this.environmentService.webviewResourceRoot,
-			remote: { authority: undefined } // TODO
+			remote: { authority: remoteAuthority }
 		}, this.id, uri);
 	}
 
@@ -781,11 +782,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			resolveFunc = resolve;
 		});
 
-		const baseUrl = this.asWebviewUri(dirname(this.documentUri));
+		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
 
 		if (!isWeb) {
 			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
-			const loader = this.asWebviewUri(loaderUri);
+			const loader = this.asWebviewUri(loaderUri, undefined);
 
 			coreDependencies = `<script src="${loader}"></script><script>
 			var requirejs = (function() {
@@ -1145,7 +1146,6 @@ var requirejs = (function() {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache,
-			useRootAuthority: true
 		}, undefined);
 
 		webview.html = content;
@@ -1572,7 +1572,7 @@ var requirejs = (function() {
 		const resources: IPreloadResource[] = [];
 		for (const preload of kernel.preloadUris) {
 			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
-				? preload : this.asWebviewUri(preload);
+				? preload : this.asWebviewUri(preload, undefined);
 
 			if (!this._preloadsCache.has(uri.toString())) {
 				resources.push({ uri: uri.toString(), originalUri: preload.toString(), source: 'kernel' });
@@ -1598,7 +1598,7 @@ var requirejs = (function() {
 		for (const rendererInfo of renderers) {
 			extensionLocations.push(rendererInfo.extensionLocation);
 			for (const preload of [rendererInfo.entrypoint, ...rendererInfo.preloads]) {
-				const uri = this.asWebviewUri(preload);
+				const uri = this.asWebviewUri(preload, rendererInfo.extensionLocation);
 				const resource: IPreloadResource = {
 					uri: uri.toString(),
 					originalUri: preload.toString(),
