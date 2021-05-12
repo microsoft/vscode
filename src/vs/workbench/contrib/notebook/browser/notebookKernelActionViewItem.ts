@@ -22,6 +22,8 @@ registerThemingParticipant((theme, collector) => {
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
+	private _kernelLabel?: HTMLAnchorElement;
+
 	constructor(
 		actualAction: IAction,
 		private readonly _editor: NotebookEditor,
@@ -33,17 +35,25 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			{ label: false, icon: true }
 		);
 		this._register(_editor.onDidChangeModel(this._update, this));
+		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
+		this._register(_notebookKernelService.onDidChangeNotebookKernelBinding(this._update, this));
 	}
 
 	override render(container: HTMLElement): void {
 		this._update();
 		super.render(container);
 		container.classList.add('kernel-action-view-item');
-		const label = document.createElement('a');
-		label.classList.add('kernel-label');
-		label.innerText = this._action.label;
-		label.title = this._action.tooltip;
-		container.appendChild(label);
+		this._kernelLabel = document.createElement('a');
+		container.appendChild(this._kernelLabel);
+		this.updateLabel();
+	}
+
+	override updateLabel() {
+		if (this._kernelLabel) {
+			this._kernelLabel.classList.add('kernel-label');
+			this._kernelLabel.innerText = this._action.label;
+			this._kernelLabel.title = this._action.tooltip;
+		}
 	}
 
 	private _update(): void {
