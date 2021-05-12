@@ -101,8 +101,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		await this._localPtyService.updateTitle(id, title);
 	}
 
-	async updateIcon(id: number, icon: string): Promise<void> {
-		await this._localPtyService.updateIcon(id, icon);
+	async updateIcon(id: number, icon: string, color?: string): Promise<void> {
+		await this._localPtyService.updateIcon(id, icon, color);
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {

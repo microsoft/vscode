@@ -117,7 +117,7 @@
         ]
       }
     ],
-    "notebookProvider": [
+    "notebooks": [
       {
         "viewType": "notebookCoreTest",
         "displayName": "Notebook Core Test",

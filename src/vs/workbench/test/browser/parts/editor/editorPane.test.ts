@@ -400,7 +400,7 @@ suite('Workbench EditorPane', () => {
 		assert.ok(!res);
 	});
 
-	test.skip('WorkspaceTrustRequiredEditor', async function () {
+	test('WorkspaceTrustRequiredEditor', async function () {
 		class TrustRequiredTestEditor extends EditorPane {
 			constructor(@ITelemetryService telemetryService: ITelemetryService) {
 				super('TestEditor', NullTelemetryService, NullThemeService, new TestStorageService());
@@ -419,7 +419,7 @@ suite('Workbench EditorPane', () => {
 				return 'trustRequiredTestInput';
 			}
 
-			override async requiresWorkspaceTrust(): Promise<boolean> {
+			override requiresWorkspaceTrust(): boolean {
 				return true;
 			}
 

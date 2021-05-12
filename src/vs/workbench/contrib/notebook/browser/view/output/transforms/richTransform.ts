@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { dirname } from 'vs/base/common/resources';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -14,6 +14,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
@@ -120,6 +121,8 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		return ['text/x-javascript'];
 	}
 
+	private readonly _cellDisposables = new Map<number, DisposableStore>();
+
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -129,7 +132,19 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
+	override dispose(): void {
+		dispose(this._cellDisposables.values());
+		this._cellDisposables.clear();
+		super.dispose();
+	}
+
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
+
+		let cellDisposables = this._cellDisposables.get(output.cellViewModel.handle);
+		cellDisposables?.dispose();
+		cellDisposables = new DisposableStore();
+		this._cellDisposables.set(output.cellViewModel.handle, cellDisposables);
+
 		const str = items.map(item => getStringValue(item.value)).join('');
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -154,6 +169,9 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 			height,
 			width
 		});
+
+		cellDisposables.add(editor);
+		cellDisposables.add(textModel);
 
 		container.style.height = `${height + 8}px`;
 
@@ -257,6 +275,64 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 	}
 
 	_render() {
+	}
+}
+
+class JSErrorRendererContrib implements IOutputRendererContribution {
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	dispose(): void {
+		// nothing
+	}
+
+	getType() {
+		return RenderOutputType.Mainframe;
+	}
+
+	getMimetypes() {
+		return ['application/x.notebook.error'];
+	}
+
+	render(_output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, _notebookUri: URI): IRenderOutput {
+		const linkDetector = this._instantiationService.createInstance(LinkDetector);
+
+		for (let item of items) {
+
+			if (typeof item.value !== 'string') {
+				this._logService.warn('INVALID output item (not a string)', item.value);
+				continue;
+			}
+
+			let err: Error;
+			try {
+				err = <Error>JSON.parse(item.value);
+			} catch (e) {
+				this._logService.warn('INVALID output item (failed to parse)', e);
+				continue;
+			}
+
+			const header = document.createElement('div');
+			const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
+			if (headerMessage) {
+				header.innerText = headerMessage;
+				container.appendChild(header);
+			}
+			const stack = document.createElement('pre');
+			stack.classList.add('traceback');
+			if (err.stack) {
+				stack.appendChild(handleANSIOutput(err.stack, linkDetector, this._themeService, undefined));
+			}
+			container.appendChild(stack);
+			container.classList.add('error');
+		}
+
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -442,6 +518,7 @@ NotebookRegistry.registerOutputTransform('jpeg', JPEGRendererContrib);
 NotebookRegistry.registerOutputTransform('plain', PlainTextRendererContrib);
 NotebookRegistry.registerOutputTransform('code', CodeRendererContrib);
 NotebookRegistry.registerOutputTransform('error-trace', ErrorRendererContrib);
+NotebookRegistry.registerOutputTransform('jserror', JSErrorRendererContrib);
 NotebookRegistry.registerOutputTransform('stream-text', StreamRendererContrib);
 NotebookRegistry.registerOutputTransform('stderr', StderrRendererContrib);
 

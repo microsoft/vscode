@@ -1071,8 +1071,10 @@ declare module 'vscode' {
 		 */
 		readonly outputs: ReadonlyArray<NotebookCellOutput>;
 
-		// todo@API maybe just executionSummary or lastExecutionSummary?
-		readonly latestExecutionSummary: NotebookCellExecutionSummary | undefined;
+		/**
+		 * The most recent {@link NotebookCellExecutionSummary excution summary} for this cell.
+		 */
+		readonly executionSummary?: NotebookCellExecutionSummary;
 	}
 
 	/**
@@ -1269,9 +1271,17 @@ declare module 'vscode' {
 		// static textplain(value:string): NotebookCellOutputItem;
 		// static errortrace(value:any): NotebookCellOutputItem;
 
+		/**
+		 * Creates `application/x.notebook.error`
+		 *
+		 * @param err An error for which an output item is wanted
+		 */
+		static error(err: Error): NotebookCellOutputItem;
+
 		mime: string;
 
 		//todo@API string or Unit8Array?
+		// value: string | Uint8Array | unknown;
 		value: unknown;
 
 		metadata?: { [key: string]: any };
@@ -1320,8 +1330,10 @@ declare module 'vscode' {
 		 */
 		metadata?: NotebookCellMetadata;
 
-		// todo@API just executionSummary or lastExecutionSummary
-		latestExecutionSummary?: NotebookCellExecutionSummary;
+		/**
+		 * The execution summary of this cell data.
+		 */
+		executionSummary?: NotebookCellExecutionSummary;
 
 		/**
 		 * Create new cell data. Minimal cell data specifies its kind, its source value, and the
@@ -1332,9 +1344,9 @@ declare module 'vscode' {
 		 * @param languageId The language identifier of the source value.
 		 * @param outputs //TODO@API remove ctor?
 		 * @param metadata //TODO@API remove ctor?
-		 * @param latestExecutionSummary //TODO@API remove ctor?
+		 * @param executionSummary //TODO@API remove ctor?
 		 */
-		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: NotebookCellExecutionSummary);
+		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
 	}
 
 	/**
