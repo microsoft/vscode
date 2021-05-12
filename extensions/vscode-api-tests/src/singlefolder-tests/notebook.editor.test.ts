@@ -40,9 +40,7 @@ suite('Notebook Editor', function () {
 	});
 
 
-	test.skip('showNotebookDocment', async function () {
-
-		const count1 = vscode.notebook.notebookDocuments.length;
+	test('showNotebookDocment', async function () {
 
 		const p = utils.asPromise(vscode.notebook.onDidOpenNotebookDocument);
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
@@ -53,9 +51,8 @@ suite('Notebook Editor', function () {
 		const event = await p;
 		assert.strictEqual(event.uri.toString(), uri.toString());
 
-		const count2 = vscode.notebook.notebookDocuments.length;
-		assert.strictEqual(count1 + 1, count2);
-
+		const includes = vscode.notebook.notebookDocuments.includes(editor.document);
+		assert.strictEqual(true, includes);
 	});
 
 	test('notebook editor has viewColumn', async function () {
