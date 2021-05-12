@@ -169,6 +169,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					throw new Error('notebook controller is DISPOSED');
 				}
 				if (!associatedNotebooks.has(cell.notebook.uri)) {
+					that._logService.trace(`NotebookController[${handle}] NOT associated to notebook, associated to THESE notebooks:`, Array.from(associatedNotebooks.keys()).map(u => u.toString()));
 					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
 				}
 				return that._createNotebookCellExecution(cell);
@@ -218,6 +219,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			} else {
 				obj.associatedNotebooks.delete(notebook.uri);
 			}
+			this._logService.trace(`NotebookController[${handle}]`, notebook.uri.toString(), value);
 			// send event
 			obj.onDidChangeSelection.fire({
 				selected: value,
