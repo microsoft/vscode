@@ -429,12 +429,12 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return key.charAt(0) === THEME_ID_OPEN_PAREN && key.charAt(key.length - 1) === THEME_ID_CLOSE_PAREN;
 	}
 
-	public isThemeIdSettingMatch(themeId: string): boolean {
-		const themeIdPrefix = themeId.slice(0, -1),
-			  themeIdFirstChar = themeId.slice(0, 1),
-			  themeIdInfix = themeId.slice(1, -1),
-			  themeIdSuffix = themeId.slice(1),
-			  themeIdLastChar = themeId.slice(-1);
+	public isThemeIdScopeMatch(themeId: string): boolean {
+		const themeIdFirstChar = themeId.charAt(0);
+		const themeIdLastChar = themeId.charAt(themeId.length - 1);
+		const themeIdPrefix = themeId.slice(0, -1);
+		const themeIdInfix = themeId.slice(1, -1);
+		const themeIdSuffix = themeId.slice(1);
 		return themeId === this.settingsId
 			|| (this.settingsId.includes(themeIdInfix) && themeIdFirstChar === THEME_ID_WILDCARD && themeIdLastChar === THEME_ID_WILDCARD)
 			|| (this.settingsId.startsWith(themeIdPrefix) && themeIdLastChar === THEME_ID_WILDCARD)
@@ -448,7 +448,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			if (types.isObject(subColors) && this.isThemeIdScope(key)) {
 				const themeIdList = key.match(THEME_ID_REGEX) || [];
 				for (let themeId of themeIdList) {
-					if (this.isThemeIdSettingMatch(themeId)) {
+					if (this.isThemeIdScopeMatch(themeId)) {
 						themeSpecificColors = themeSpecificColors || {} as IThemeSpecificColorCustomizations;
 						if (types.isObject(subColors)) {
 							let themeSpecificSubColors = subColors as Iterable<IThemeSpecificColorCustomizations>;
@@ -473,7 +473,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	private readSemanticTokenRules(tokenStylingRuleSection: ISemanticTokenRules) {
 		for (let key in tokenStylingRuleSection) {
-			if (key[0] !== '[') { // still do this test until experimental settings are gone
+			if (!this.isThemeIdScope(key)) { // still do this test until experimental settings are gone
 				try {
 					const rule = readSemanticTokenRule(key, tokenStylingRuleSection[key]);
 					if (rule) {
