@@ -508,11 +508,10 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private updateForLayout(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
-		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - layoutInfo.bottomCellToolbarGap - layoutInfo.cellBottomMargin}px`;
-		const focusSideHeight = element.layoutInfo.totalHeight - layoutInfo.bottomCellToolbarGap;
-		templateData.focusIndicatorLeft.style.height = `${focusSideHeight}px`;
-		templateData.focusIndicatorRight.style.height = `${focusSideHeight}px`;
+		const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight);
+		templateData.focusIndicatorBottom.style.top = `${indicatorPostion.bottomIndicatorTop}px`;
+		templateData.focusIndicatorLeft.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
+		templateData.focusIndicatorRight.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
 	}
 
 	private updateForHover(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {

@@ -252,6 +252,13 @@ export class NotebookOptions {
 		};
 	}
 
+	computeIndicatorPosition(totalHeight: number) {
+		return {
+			bottomIndicatorTop: totalHeight - this._layoutConfiguration.bottomCellToolbarGap - this._layoutConfiguration.cellBottomMargin,
+			verticalIndicatorHeight: totalHeight - this._layoutConfiguration.bottomCellToolbarGap
+		};
+	}
+
 	dispose() {
 		this._disposables.forEach(d => d.dispose());
 		this._disposables = [];
