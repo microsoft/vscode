@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import * as dom from 'vs/base/browser/dom';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -25,18 +26,12 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 
 	private registerListeners(): void {
 
-		const matchPrefersColorSchemeDark = window.matchMedia('(prefers-color-scheme: dark)');
-		const matchForcedColors = window.matchMedia('(forced-colors: active)');
-		const listener = () => {
+		dom.addMatchMediaChangeListener('(prefers-color-scheme: dark)', () => {
 			this._onDidSchemeChangeEvent.fire();
-		};
-		if (typeof matchForcedColors.addEventListener === 'function') {
-			matchPrefersColorSchemeDark.addEventListener('change', listener);
-			matchForcedColors.addEventListener('change', listener);
-		} else {
-			matchPrefersColorSchemeDark.addListener(listener);
-			matchForcedColors.addListener(listener);
-		}
+		});
+		dom.addMatchMediaChangeListener('(forced-colors: active)', () => {
+			this._onDidSchemeChangeEvent.fire();
+		});
 	}
 
 	get onDidChangeColorScheme(): Event<void> {
