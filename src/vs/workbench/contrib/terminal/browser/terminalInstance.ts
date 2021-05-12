@@ -25,7 +25,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { ansiColorIdentifiers, ansiColorMap, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -58,6 +58,7 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { Color } from 'vs/base/common/color';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1833,21 +1834,40 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const items: IQuickPickItem[] = [];
-		for (const color in this._getXtermTheme()) {
-			items.push({ label: `$(${icon.id})`, description: `${color}` });
+		for (const color of colors) {
+			items.push({
+				label: `$(${Codicon.circleFilled.id}) ${color.name.replace('terminal.ansi', '')}`, id: `${color.id}`, description: `${color.name}`, iconClasses: [`terminal-icon-${color.name.replace(/\./g, '_')}`]
+			});
 		}
+
 		const result = await this._quickInputService.pick(items, {
 			title: nls.localize('changeTerminalColor', "Change Color"),
 			matchOnDescription: true
 		});
 		if (result) {
-			this.shellLaunchConfig.color = result.description;
+			this.shellLaunchConfig.color = result.id;
 			this._onIconChanged.fire(this);
 		}
 	}
 }
 
+interface ColorObject {
+	id: Color,
+	name: string
+}
+let colors: ColorObject[] = [];
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	// add icon colors
+	colors = [];
+	for (const colorKey in ansiColorMap) {
+		const color = theme.getColor(colorKey);
+		if (color && !colorKey.toLowerCase().includes('bright')) {
+			colors.push({ id: color, name: colorKey });
+			console.log(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon { color: ${color} !important; }`);
+			collector.addRule(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon { color: ${color} !important; }`);
+		}
+	}
+
 	// Border
 	const border = theme.getColor(activeContrastBorder);
 	if (border) {
