@@ -1494,7 +1494,7 @@ export namespace NotebookCellData {
 			source: data.value,
 			metadata: {
 				...data.metadata,
-				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
+				...NotebookCellPreviousExecutionResult.from(data.executionSummary ?? {})
 			},
 			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};

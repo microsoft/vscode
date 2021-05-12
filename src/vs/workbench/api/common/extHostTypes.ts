@@ -3049,15 +3049,15 @@ export class NotebookCellData {
 	languageId: string;
 	outputs?: NotebookCellOutput[];
 	metadata?: NotebookCellMetadata;
-	latestExecutionSummary?: vscode.NotebookCellExecutionSummary;
+	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.value = value;
 		this.languageId = languageId;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
-		this.latestExecutionSummary = latestExecutionSummary;
+		this.executionSummary = executionSummary;
 
 		NotebookCellData.validate(this);
 	}
@@ -3085,6 +3085,13 @@ export class NotebookCellOutputItem {
 			return false;
 		}
 		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
+	}
+
+	static error(err: Error): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(
+			'application/x.notebook.error',
+			JSON.stringify({ name: err.name, message: err.message, stack: err.stack })
+		);
 	}
 
 	constructor(

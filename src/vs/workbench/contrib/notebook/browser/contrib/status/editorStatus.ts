@@ -5,11 +5,11 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -26,16 +26,23 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import { Schemas } from 'vs/base/common/network';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.selectKernel',
+			id: SELECT_KERNEL_ID,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
+			menu: {
+				id: MenuId.EditorTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), ContextKeyExpr.equals('config.notebook.experimental.showKernelInEditorTitle', true),),
+				group: 'navigation',
+				order: -10
+			},
 			description: {
 				description: nls.localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
 				args: [
@@ -57,7 +64,6 @@ registerAction2(class extends Action2 {
 					}
 				]
 			},
-
 		});
 	}
 
@@ -265,7 +271,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					text: `$(notebook-kernel-select) ${kernel.label}`,
 					ariaLabel: kernel.label,
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
-					command: 'notebook.selectKernel',
+					command: SELECT_KERNEL_ID,
 				},
 				'notebook.selectKernel',
 				nls.localize('notebook.info', "Notebook Kernel Info"),
@@ -282,7 +288,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 				{
 					text: nls.localize('kernel.select.label', "Select Kernel"),
 					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
-					command: 'notebook.selectKernel',
+					command: SELECT_KERNEL_ID,
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
 				'notebook.selectKernel',

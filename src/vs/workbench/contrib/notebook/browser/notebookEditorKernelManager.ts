@@ -10,6 +10,7 @@ import { CellKind, INotebookKernel, INotebookTextModel, NotebookCellExecutionSta
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 
 export class NotebookEditorKernelManager extends Disposable {
 
@@ -36,7 +37,7 @@ export class NotebookEditorKernelManager extends Disposable {
 
 		let kernel = this.getSelectedOrSuggestedKernel(notebook);
 		if (!kernel) {
-			await this._commandService.executeCommand('notebook.selectKernel');
+			await this._commandService.executeCommand(SELECT_KERNEL_ID);
 			kernel = this.getSelectedOrSuggestedKernel(notebook);
 		}
 

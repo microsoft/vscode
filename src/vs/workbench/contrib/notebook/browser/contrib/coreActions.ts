@@ -35,6 +35,9 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { Iterable } from 'vs/base/common/iterator';
 import { flatten } from 'vs/base/common/arrays';
 
+// Kernel Command
+export const SELECT_KERNEL_ID = 'notebook.selectKernel';
+
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';

@@ -149,12 +149,6 @@ const notebookRendererContribution: IJSONSchema = {
 	}
 };
 
-export const notebooksExtensionPoint2 = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
-	{
-		extensionPoint: 'notebookProvider',
-		jsonSchema: { deprecationMessage: 'Use \'notebooks\' instead' }
-	});
-
 export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
 	{
 		extensionPoint: 'notebooks',
