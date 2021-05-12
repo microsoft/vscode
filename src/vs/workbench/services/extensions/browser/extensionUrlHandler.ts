@@ -283,7 +283,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				await this.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name)
-				}, () => this.extensionManagementService.installFromGallery(galleryExtension));
+				}, () => this.extensionManagementService.installFromGallery(galleryExtension!));
 
 				this.notificationService.prompt(
 					Severity.Info,
