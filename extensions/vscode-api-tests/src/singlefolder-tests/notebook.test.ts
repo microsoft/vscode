@@ -780,7 +780,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('set outputs on cancel', async () => {
+	test.skip('set outputs on cancel', async () => {
 
 		const cancelableKernel = new class extends Kernel {
 
@@ -825,7 +825,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('set outputs on interrupt', async () => {
+	test.skip('set outputs on interrupt', async () => {
 		const interruptableKernel = new class extends Kernel {
 
 
