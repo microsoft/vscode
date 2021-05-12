@@ -140,17 +140,17 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 0), [{
-				kind: vscode.NotebookCellKind.Markdown,
-				language: 'markdown',
+				kind: vscode.NotebookCellKind.Markup,
+				languageId: 'markdown',
 				metadata: undefined,
 				outputs: [],
-				source: 'new_markdown'
+				value: 'new_markdown'
 			}, {
 				kind: vscode.NotebookCellKind.Code,
-				language: 'fooLang',
+				languageId: 'fooLang',
 				metadata: undefined,
 				outputs: [],
-				source: 'new_code'
+				value: 'new_code'
 			}]);
 
 			const success = await vscode.workspace.applyEdit(edit);
@@ -177,17 +177,17 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 1), [{
-				kind: vscode.NotebookCellKind.Markdown,
-				language: 'markdown',
+				kind: vscode.NotebookCellKind.Markup,
+				languageId: 'markdown',
 				metadata: undefined,
 				outputs: [],
-				source: 'new2_markdown'
+				value: 'new2_markdown'
 			}, {
 				kind: vscode.NotebookCellKind.Code,
-				language: 'fooLang',
+				languageId: 'fooLang',
 				metadata: undefined,
 				outputs: [],
-				source: 'new2_code'
+				value: 'new2_code'
 			}]);
 			const success = await vscode.workspace.applyEdit(edit);
 			assert.strictEqual(success, true);
@@ -213,17 +213,17 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 0), [{
-			kind: vscode.NotebookCellKind.Markdown,
-			language: 'markdown',
+			kind: vscode.NotebookCellKind.Markup,
+			languageId: 'markdown',
 			metadata: undefined,
 			outputs: [],
-			source: 'new_markdown'
+			value: 'new_markdown'
 		}, {
 			kind: vscode.NotebookCellKind.Code,
-			language: 'fooLang',
+			languageId: 'fooLang',
 			metadata: undefined,
 			outputs: [],
-			source: 'new_code'
+			value: 'new_code'
 		}]);
 
 		const event = utils.asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
@@ -260,17 +260,17 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(notebook.uri, new vscode.NotebookRange(0, 0), [{
-			kind: vscode.NotebookCellKind.Markdown,
-			language: 'markdown',
+			kind: vscode.NotebookCellKind.Markup,
+			languageId: 'markdown',
 			metadata: undefined,
 			outputs: [],
-			source: 'new_markdown'
+			value: 'new_markdown'
 		}, {
 			kind: vscode.NotebookCellKind.Code,
-			language: 'fooLang',
+			languageId: 'fooLang',
 			metadata: undefined,
 			outputs: [],
-			source: 'new_code'
+			value: 'new_code'
 		}]);
 
 		const success = await vscode.workspace.applyEdit(edit);

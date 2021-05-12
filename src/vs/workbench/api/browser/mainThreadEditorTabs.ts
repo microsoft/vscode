@@ -9,6 +9,7 @@ import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { Verbosity } from 'vs/workbench/common/editor';
 import { GroupChangeKind, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface ITabInfo {
 	name: string;
@@ -27,6 +28,7 @@ export class MainThreadEditorTabs {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
@@ -41,6 +43,7 @@ export class MainThreadEditorTabs {
 				this._pushEditorTabs();
 			}
 		}));
+		this._dispoables.add(editorService.onDidActiveEditorChange(this._pushEditorTabs, this));
 		this._pushEditorTabs();
 	}
 
@@ -69,7 +72,8 @@ export class MainThreadEditorTabs {
 				tabs.push({
 					group: group.id,
 					name: editor.getTitle(Verbosity.SHORT) ?? '',
-					resource: editor.resource
+					resource: editor.resource,
+					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
 				});
 			}
 		}

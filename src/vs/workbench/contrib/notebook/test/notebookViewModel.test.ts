@@ -333,14 +333,14 @@ suite('NotebookViewModel API', () => {
 	test('#115432, get nearest code cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['b = 2;', 'python', CellKind.Code, [], {}],
 				['var c = 3', 'javascript', CellKind.Code, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'TypeScript', CellKind.Code, [], {}],
-				['# header f', 'markdown', CellKind.Markdown, [], {}]
+				['# header f', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -357,9 +357,9 @@ suite('NotebookViewModel API', () => {
 	test('#108464, get nearest code cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}]
+				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -371,9 +371,9 @@ suite('NotebookViewModel API', () => {
 	test('getCells', async () => {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}]
+				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;

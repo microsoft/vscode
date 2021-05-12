@@ -1256,6 +1256,27 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getAttachedEditorCount(): number;
+
+	/**
+	 * Among all positions that are projected to the same position in the underlying text model as
+	 * the given position, select a unique position as indicated by the affinity.
+	 * @internal
+	 */
+	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+}
+
+/**
+ * @internal
+ */
+export const enum PositionNormalizationAffinity {
+	/**
+	 * Prefers the left most position.
+	*/
+	Left = 0,
+	/**
+	 * Prefers the right most position.
+	*/
+	Right = 1,
 }
 
 /**

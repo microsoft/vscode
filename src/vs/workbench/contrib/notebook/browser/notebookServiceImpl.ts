@@ -27,7 +27,7 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebookMarkupRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { INotebookEditorContribution, notebookMarkupRendererExtensionPoint, notebooksExtensionPoint, notebookRendererExtensionPoint, notebooksExtensionPoint2 } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -80,7 +80,8 @@ export class NotebookProviderInfoStore extends Disposable {
 			}
 		}));
 
-		notebookProviderExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
+		notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
+		notebooksExtensionPoint2.setHandler(extensions => this._setupHandler(extensions));
 	}
 
 	override dispose(): void {
@@ -95,6 +96,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		for (const extension of extensions) {
 			for (const notebookContribution of extension.value) {
 				this.add(new NotebookProviderInfo({
+					extension: extension.description.identifier,
 					id: notebookContribution.viewType,
 					displayName: notebookContribution.displayName,
 					selectors: notebookContribution.selector || [],
@@ -303,13 +305,15 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _markdownRenderersInfos = new Set<INotebookMarkupRendererInfo>();
 	private readonly _models = new ResourceMap<ModelData>();
 
-	private readonly _onDidCreateNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 	private readonly _onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+	private readonly _onWillRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
 
-	readonly onDidCreateNotebookDocument = this._onDidCreateNotebookDocument.event;
+	readonly onWillAddNotebookDocument = this._onWillAddNotebookDocument.event;
 	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
 	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
+	readonly onWillRemoveNotebookDocument = this._onWillRemoveNotebookDocument.event;
 
 	private readonly _onWillRemoveViewType = this._register(new Emitter<string>());
 	readonly onWillRemoveViewType = this._onWillRemoveViewType.event;
@@ -484,6 +488,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable {
 
 		const info = new NotebookProviderInfo({
+			extension: data.extension,
 			id: viewType,
 			displayName: data.displayName,
 			providerDisplayName: data.providerDisplayName,
@@ -559,7 +564,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
 		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
-		this._onDidCreateNotebookDocument.fire(notebookModel);
+		this._onWillAddNotebookDocument.fire(notebookModel);
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		return notebookModel;
 	}
@@ -579,6 +584,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	private _onWillDisposeDocument(model: INotebookTextModel): void {
 		const modelData = this._models.get(model.uri);
 		if (modelData) {
+			this._onWillRemoveNotebookDocument.fire(modelData.model);
 			this._models.delete(model.uri);
 			modelData.dispose();
 			this._onDidRemoveNotebookDocument.fire(modelData.model);

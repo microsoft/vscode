@@ -3023,6 +3023,18 @@ export class NotebookDocumentMetadata {
 
 export class NotebookCellData {
 
+	static validate(data: NotebookCellData): void {
+		if (typeof data.kind !== 'number') {
+			throw new Error('NotebookCellData MUST have \'kind\' property');
+		}
+		if (typeof data.value !== 'string') {
+			throw new Error('NotebookCellData MUST have \'value\' property');
+		}
+		if (typeof data.languageId !== 'string') {
+			throw new Error('NotebookCellData MUST have \'languageId\' property');
+		}
+	}
+
 	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
 		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
 	}
@@ -3033,19 +3045,21 @@ export class NotebookCellData {
 	}
 
 	kind: NotebookCellKind;
-	source: string;
-	language: string;
+	value: string;
+	languageId: string;
 	outputs?: NotebookCellOutput[];
 	metadata?: NotebookCellMetadata;
 	latestExecutionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
-		this.source = source;
-		this.language = language;
+		this.value = value;
+		this.languageId = languageId;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
 		this.latestExecutionSummary = latestExecutionSummary;
+
+		NotebookCellData.validate(this);
 	}
 }
 
@@ -3064,7 +3078,13 @@ export class NotebookData {
 export class NotebookCellOutputItem {
 
 	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
-		return obj instanceof NotebookCellOutputItem;
+		if (obj instanceof NotebookCellOutputItem) {
+			return true;
+		}
+		if (!obj) {
+			return false;
+		}
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
 	}
 
 	constructor(
@@ -3101,7 +3121,7 @@ export class NotebookCellOutput {
 }
 
 export enum NotebookCellKind {
-	Markdown = 1,
+	Markup = 1,
 	Code = 2
 }
 
@@ -3208,6 +3228,25 @@ export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
 	}
 }
+
+//#region ports
+export class PortAttributes {
+	private _port: number;
+	private _autoForwardAction: PortAutoForwardAction;
+	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
+		this._port = port;
+		this._autoForwardAction = autoForwardAction;
+	}
+
+	get port(): number {
+		return this._port;
+	}
+
+	get autoForwardAction(): PortAutoForwardAction {
+		return this._autoForwardAction;
+	}
+}
+//#endregion ports
 
 //#region Testing
 export enum TestResultState {

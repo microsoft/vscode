@@ -16,7 +16,7 @@ import { INotificationHandle, INotificationService, IPromptChoice, Severity } fr
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
-import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -36,7 +36,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
 
 	constructor(
-		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -145,7 +144,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			executable: shellLaunchConfig.executable,
 			args: shellLaunchConfig.args,
 			cwd: shellLaunchConfig.cwd,
-			env: shellLaunchConfig.env
+			env: shellLaunchConfig.env,
+			useShellEnvironment: shellLaunchConfig.useShellEnvironment
 		};
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,

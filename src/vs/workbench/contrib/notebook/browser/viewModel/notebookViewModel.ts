@@ -339,7 +339,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this._layoutInfo = e.value;
 
 			this._viewCells.forEach(cell => {
-				if (cell.cellKind === CellKind.Markdown) {
+				if (cell.cellKind === CellKind.Markup) {
 					if (e.source.width || e.source.fontInfo) {
 						cell.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
 					}
@@ -491,7 +491,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		this._viewCells.forEach(cell => {
-			if (cell.cellKind === CellKind.Markdown) {
+			if (cell.cellKind === CellKind.Markup) {
 				cell.triggerfoldingStateChange();
 			}
 		});

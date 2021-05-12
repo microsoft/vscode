@@ -35,7 +35,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, locale } from 'vs/base/common/platform';
 import { Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -56,9 +56,9 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
-import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -234,7 +234,8 @@ export class GettingStartedPage extends EditorPane {
 		setTimeout(() => this.container.classList.add('animationReady'), 0);
 	}
 
-	makeCategoryVisibleWhenAvailable(categoryID: string) {
+	async makeCategoryVisibleWhenAvailable(categoryID: string) {
+		await this.extensionService.whenInstalledExtensionsRegistered();
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
@@ -350,7 +351,25 @@ export class GettingStartedPage extends EditorPane {
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
 				try {
-					const bytes = await this.fileService.readFile(path);
+					const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${locale}.md`) });
+
+					const generalizedLocale = locale?.replace(/-.*$/, '');
+					const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
+
+					const fileExists = (file: URI) => this.fileService.resolve(file).then(() => true).catch(() => false);
+
+					const [localizedFileExists, generalizedLocalizedFileExists] = await Promise.all([
+						fileExists(localizedPath),
+						fileExists(generalizedLocalizedPath),
+					]);
+
+					const bytes = await this.fileService.readFile(
+						localizedFileExists
+							? localizedPath
+							: generalizedLocalizedFileExists
+								? generalizedLocalizedPath
+								: path);
+
 					const markdown = bytes.value.toString();
 					return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
 				} catch (e) {
@@ -374,11 +393,54 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
-	private async selectStep(id: string | undefined, delayFocus = true) {
-		if (id && this.editorInput.selectedStep === id) { return; }
+	private async buildMediaComponent(stepId: string) {
+		if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
+			throw Error('cannot expand step for category of non steps type' + this.currentCategory?.id);
+		}
+		const stepToExpand = assertIsDefined(this.currentCategory.content.steps.find(step => step.id === stepId));
 
 		this.stepDisposables.clear();
 		clearNode(this.stepMediaComponent);
+
+		if (stepToExpand.media.type === 'image') {
+
+			this.stepMediaComponent.classList.add('image');
+			this.stepMediaComponent.classList.remove('markdown');
+
+			const media = stepToExpand.media;
+			const mediaElement = $<HTMLImageElement>('img');
+			this.stepMediaComponent.appendChild(mediaElement);
+			mediaElement.setAttribute('alt', media.altText);
+			this.updateMediaSourceForColorMode(mediaElement, media.path);
+
+			this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
+
+		} else if (stepToExpand.media.type === 'markdown') {
+
+			this.stepMediaComponent.classList.remove('image');
+			this.stepMediaComponent.classList.add('markdown');
+
+			const media = stepToExpand.media;
+
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root] }, undefined));
+			webview.mountTo(this.stepMediaComponent);
+			webview.html = await this.renderMarkdown(media.path, media.base);
+
+			let isDisposed = false;
+			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
+
+			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+				// Render again since syntax highlighting of code blocks may have changed
+				const body = await this.renderMarkdown(media.path, media.base);
+				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+					webview.html = body;
+				}
+			}));
+		}
+	}
+
+	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
+		if (id && this.editorInput.selectedStep === id && !forceRebuild) { return; }
 
 		if (id) {
 			const stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`));
@@ -392,49 +454,12 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.style.height = ``;
 			stepElement.style.height = `${stepElement.scrollHeight}px`;
 
-			if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
-				throw Error('cannot expand step for category of non steps type' + this.currentCategory?.id);
-			}
 			this.editorInput.selectedStep = id;
 			this.selectedStepElement = stepElement;
-			const stepToExpand = assertIsDefined(this.currentCategory.content.steps.find(step => step.id === id));
-			if (stepToExpand.media.type === 'image') {
 
-				this.stepMediaComponent.classList.add('image');
-				this.stepMediaComponent.classList.remove('markdown');
-
-				const media = stepToExpand.media;
-				const mediaElement = $<HTMLImageElement>('img');
-				this.stepMediaComponent.appendChild(mediaElement);
-				mediaElement.setAttribute('alt', media.altText);
-				this.updateMediaSourceForColorMode(mediaElement, media.path);
-
-				this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
-
-			} else if (stepToExpand.media.type === 'markdown') {
-
-				this.stepMediaComponent.classList.remove('image');
-				this.stepMediaComponent.classList.add('markdown');
-
-				const media = stepToExpand.media;
-
-				const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root] }, undefined));
-				webview.mountTo(this.stepMediaComponent);
-				webview.html = await this.renderMarkdown(media.path, media.base);
-
-				let isDisposed = false;
-				this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
-
-				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-					// Render again since syntax highlighting of code blocks may have changed
-					const body = await this.renderMarkdown(media.path, media.base);
-					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-						webview.html = body;
-					}
-				}));
-			}
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
+			this.buildMediaComponent(id);
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
@@ -457,9 +482,15 @@ export class GettingStartedPage extends EditorPane {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 
-		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src) => {
+		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src: string) => {
+			if (src.startsWith('https://')) { return `src="${src}"`; }
+
 			const path = joinPath(base, src);
-			const transformed = asWebviewUri(this.environmentService, this.webviewID, path).toString();
+			const transformed = asWebviewUri({
+				isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
+				...this.environmentService,
+				remote: { authority: undefined },
+			}, this.webviewID, path).toString();
 			return `src="${transformed}"`;
 		});
 
@@ -470,6 +501,13 @@ export class GettingStartedPage extends EditorPane {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
+					img[centered] {
+						margin: 0 auto;
+					}
+					body {
+						display: flex;
+						flex-direction: column;
+					}
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
 				</style>
@@ -944,7 +982,7 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent);
 
 		const toExpand = category.content.steps.find(step => !step.done) ?? category.content.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id);
+		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, true);
 
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();

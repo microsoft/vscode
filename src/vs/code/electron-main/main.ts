@@ -57,6 +57,7 @@ import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { cwd } from 'vs/base/common/process';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
+import { Promises } from 'vs/base/common/async';
 
 /**
  * The main VS Code entry point.
@@ -163,7 +164,7 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// State
-		const stateMainService = new StateMainService(environmentMainService, logService);
+		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
 		services.set(IStateMainService, stateMainService);
 
 		// Request
@@ -202,24 +203,24 @@ class CodeMain {
 	}
 
 	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
+		return Promises.settled<unknown>([
 
-		// Environment service (paths)
-		const environmentServiceInitialization = Promise.all<string | undefined>([
-			environmentMainService.extensionsPath,
-			environmentMainService.nodeCachedDataDir,
-			environmentMainService.logsPath,
-			environmentMainService.globalStorageHome.fsPath,
-			environmentMainService.workspaceStorageHome.fsPath,
-			environmentMainService.backupHome
-		].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined));
+			// Environment service (paths)
+			Promise.all<string | undefined>([
+				environmentMainService.extensionsPath,
+				environmentMainService.nodeCachedDataDir,
+				environmentMainService.logsPath,
+				environmentMainService.globalStorageHome.fsPath,
+				environmentMainService.workspaceStorageHome.fsPath,
+				environmentMainService.backupHome
+			].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined)),
 
-		// Configuration service
-		const configurationServiceInitialization = configurationService.initialize();
+			// Configuration service
+			configurationService.initialize(),
 
-		// State service
-		const stateMainServiceInitialization = stateMainService.init();
-
-		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateMainServiceInitialization]);
+			// State service
+			stateMainService.init()
+		]);
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

@@ -619,7 +619,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 						const index = this.viewModel.getCellIndex(element);
 
 						if (index >= 0) {
-							return `Cell ${index}, ${element.cellKind === CellKind.Markdown ? 'markdown' : 'code'}  cell`;
+							return `Cell ${index}, ${element.cellKind === CellKind.Markup ? 'markdown' : 'code'}  cell`;
 						}
 
 						return '';
@@ -1151,7 +1151,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const deletedCells: MarkdownCellViewModel[] = [];
 
 			for (const cell of cells) {
-				if (cell.cellKind === CellKind.Markdown) {
+				if (cell.cellKind === CellKind.Markup) {
 					const mdCell = cell as MarkdownCellViewModel;
 					if (this.viewModel?.viewCells.find(cell => cell.handle === mdCell.handle)) {
 						// Cell has been folded but is still in model
@@ -1224,7 +1224,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}));
 		}
 
-		if (cell.cellKind === CellKind.Markdown) {
+		if (cell.cellKind === CellKind.Markup) {
 			store.add((cell as MarkdownCellViewModel).onDidHideInput(() => {
 				this.hideMarkdownPreviews([(cell as MarkdownCellViewModel)]);
 			}));
@@ -1278,7 +1278,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					offset += (totalHeightCache ? totalHeightCache[i] : 0);
 					continue;
 				} else {
-					if (cell.cellKind === CellKind.Markdown) {
+					if (cell.cellKind === CellKind.Markup) {
 						requests.push([cell, offset]);
 					}
 				}
@@ -1298,7 +1298,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				visible: false,
 			})));
 		} else {
-			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markdown).slice(0, 5).map(cell => ({ cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false }));
+			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markup).slice(0, 5).map(cell => ({ cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false }));
 			await this._webview!.initializeMarkdown(initRequests);
 
 			// no cached view state so we are rendering the first viewport
@@ -1307,7 +1307,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const offsetUpdateRequests: { id: string, top: number }[] = [];
 			const scrollBottom = Math.max(this._dimension?.height ?? 0, 1080);
 			for (const cell of viewModel.viewCells) {
-				if (cell.cellKind === CellKind.Markdown) {
+				if (cell.cellKind === CellKind.Markup) {
 					offsetUpdateRequests.push({ id: cell.id, top: offset });
 				}
 
@@ -1832,7 +1832,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const defaultLanguage = supportedLanguages[0] || 'plaintext';
 			if (cell?.cellKind === CellKind.Code) {
 				language = cell.language;
-			} else if (cell?.cellKind === CellKind.Markdown) {
+			} else if (cell?.cellKind === CellKind.Markup) {
 				const nearestCodeCellIndex = this._nearestCodeCellIndex(index);
 				if (nearestCodeCellIndex > -1) {
 					language = this.viewModel.cellAt(nearestCodeCellIndex)!.language;
@@ -2010,13 +2010,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			let position = '';
 			switch (focusItem) {
 				case 'editor':
-					position = `the inner ${cell.cellKind === CellKind.Markdown ? 'markdown' : 'code'} editor is focused, press escape to focus the cell container`;
+					position = `the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor is focused, press escape to focus the cell container`;
 					break;
 				case 'output':
 					position = `the cell output is focused, press escape to focus the cell container`;
 					break;
 				case 'container':
-					position = `the ${cell.cellKind === CellKind.Markdown ? 'markdown preview' : 'cell container'} is focused, press enter to focus the inner ${cell.cellKind === CellKind.Markdown ? 'markdown' : 'code'} editor`;
+					position = `the ${cell.cellKind === CellKind.Markup ? 'markdown preview' : 'cell container'} is focused, press enter to focus the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor`;
 					break;
 				default:
 					break;
@@ -2600,6 +2600,12 @@ export const cellSymbolHighlight = registerColor('notebook.symbolHighlightBackgr
 	hc: null
 }, nls.localize('notebook.symbolHighlightBackground', "Background color of highlighted cell"));
 
+export const cellEditorBackground = registerColor('notebook.cellEditorBackground', {
+	light: null,
+	dark: null,
+	hc: null
+}, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
+
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
 	.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
@@ -2647,7 +2653,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .output-show-more-container { background-color: ${containerBackground}; }`);
 	}
 
-	const editorBackgroundColor = theme.getColor(editorBackground);
+	const editorBackgroundColor = theme.getColor(cellEditorBackground) ?? theme.getColor(editorBackground);
 	if (editorBackgroundColor) {
 		collector.addRule(`.notebookOverlay .cell .monaco-editor-background,
 			.notebookOverlay .cell .margin-view-overlays,

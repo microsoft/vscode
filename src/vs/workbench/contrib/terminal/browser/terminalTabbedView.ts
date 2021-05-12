@@ -7,7 +7,7 @@ import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -23,14 +23,15 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
 const FIND_FOCUS_CLASS = 'find-focused';
-const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
+const TABS_WIDGET_WIDTH_HORIZONTAL_KEY = 'tabs-widget-width-horizontal';
+const TABS_WIDGET_WIDTH_VERTICAL_KEY = 'tabs-widget-width-vertical';
 const MAX_TABS_WIDGET_WIDTH = 500;
 const STATUS_ICON_WIDTH = 30;
 const SPLIT_ANNOTATION_WIDTH = 30;
@@ -65,10 +66,14 @@ export class TerminalTabbedView extends Disposable {
 
 	private _terminalIsTabsNarrowContextKey: IContextKey<boolean>;
 	private _terminalTabsFocusContextKey: IContextKey<boolean>;
+	private _terminalTabsMouseContextKey: IContextKey<boolean>;
+
+	private _panelOrientation: Orientation | undefined;
 
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -109,6 +114,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._terminalIsTabsNarrowContextKey = KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS.bindTo(contextKeyService);
 		this._terminalTabsFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS.bindTo(contextKeyService);
+		this._terminalTabsMouseContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE.bindTo(contextKeyService);
 
 		_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.TabsEnabled) ||
@@ -133,22 +139,19 @@ export class TerminalTabbedView extends Disposable {
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
+		this._terminalService.onPanelOrientationChanged((orientation) => {
+			this._panelOrientation = orientation;
+		});
+
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
 
 		this._setupSplitView();
-
-		this._terminalService.onPanelMovedToSide(() => {
-			try {
-				this._updateWidgetWidth(MIN_TABS_WIDGET_WIDTH);
-			} catch (e) {
-			}
-		});
 	}
 
 	private _shouldShowTabs(): boolean {
 		const enable = this._terminalService.configHelper.config.tabs.enabled;
 		const hideForSingle = this._terminalService.configHelper.config.tabs.hideCondition === 'singleTerminal';
-		return enable && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
+		return enable && this._terminalService.terminalInstances.length > 0 && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
 	}
 
 	private _refreshShowTabs() {
@@ -160,7 +163,7 @@ export class TerminalTabbedView extends Disposable {
 				this._rerenderTabs();
 			}
 		} else {
-			if (this._splitView.length === 2) {
+			if (this._splitView.length === 2 && !this._terminalTabsMouseContextKey.get()) {
 				this._splitView.removeView(this._tabTreeIndex);
 				if (this._plusButton) {
 					this._tabTreeContainer.removeChild(this._plusButton);
@@ -171,9 +174,13 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _getLastWidgetWidth(): number {
-		const storedValue = this._storageService.get(TABS_WIDGET_WIDTH_KEY, StorageScope.WORKSPACE);
+		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_WIDGET_WIDTH_VERTICAL_KEY : TABS_WIDGET_WIDTH_HORIZONTAL_KEY;
+		const storedValue = this._storageService.get(widthKey, StorageScope.WORKSPACE);
+
 		if (!storedValue || !parseInt(storedValue)) {
-			return DEFAULT_TABS_WIDGET_WIDTH;
+			// we want to use the min width by default for the vertical orientation bc
+			// there is such a limited width for the terminal panel to begin w there.
+			return this._panelOrientation === Orientation.VERTICAL ? MIN_TABS_WIDGET_WIDTH : DEFAULT_TABS_WIDGET_WIDTH;
 		}
 		return parseInt(storedValue);
 	}
@@ -225,7 +232,8 @@ export class TerminalTabbedView extends Disposable {
 			this._splitView.resizeView(this._tabTreeIndex, width);
 		}
 		this._rerenderTabs();
-		this._storageService.store(TABS_WIDGET_WIDTH_KEY, width, StorageScope.WORKSPACE, StorageTarget.USER);
+		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_WIDGET_WIDTH_VERTICAL_KEY : TABS_WIDGET_WIDTH_HORIZONTAL_KEY;
+		this._storageService.store(widthKey, width, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private _setupSplitView(): void {
@@ -309,6 +317,15 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
+		this._register(dom.addDisposableListener(this._tabTreeContainer, 'mouseleave', async (event: MouseEvent) => {
+			this._terminalTabsMouseContextKey.set(false);
+			this._refreshShowTabs();
+			event.stopPropagation();
+		}));
+		this._register(dom.addDisposableListener(this._tabTreeContainer, 'mouseenter', async (event: MouseEvent) => {
+			this._terminalTabsMouseContextKey.set(true);
+			event.stopPropagation();
+		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
@@ -414,7 +431,7 @@ export class TerminalTabbedView extends Disposable {
 
 				const terminal = this._terminalService.getActiveInstance();
 				if (terminal) {
-					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType, terminal.isRemote);
+					const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType, terminal.isRemote);
 					terminal.sendText(preparedPath, false);
 					terminal.focus();
 				}

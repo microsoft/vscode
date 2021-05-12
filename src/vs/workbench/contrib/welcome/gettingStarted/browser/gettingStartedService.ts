@@ -23,7 +23,7 @@ import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, BuiltinGettin
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
@@ -312,7 +312,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			return;
 		}
 
-		if (!this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions')) {
+		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
 			console.warn('Extension', extension.identifier.value, 'contributes welcome page content but the welcome page extension contribution feature flag has not been set. Set `workbench.welcomePage.experimental.extensionContributions` to begin using this experimental feature.');
 			return;
 		}
@@ -401,20 +401,34 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				}));
 		});
 
-		if (sectionToOpen) {
+		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') !== 'hide') {
+
+			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
 			for (const group of this.editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
-					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(sectionToOpen);
-					return;
+					if (!group.activeEditor.selectedCategory) {
+						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(sectionToOpen);
+						return;
+					}
 				}
 			}
 
-			if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openToSide') {
-				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {}, SIDE_GROUP);
-			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'open') {
+			// Otherwise, try to find a getting started input somewhere with no selected walkthrough, and open it to this one.
+			for (const group of this.editorGroupsService.groups) {
+				for (const editor of group.editors) {
+					if (editor instanceof GettingStartedInput) {
+						if (!editor.selectedCategory) {
+							editor.selectedCategory = sectionToOpen;
+							group.openEditor(editor, { revealIfOpened: true });
+							return;
+						}
+					}
+				}
+			}
+
+			// Otherwise, just make a new one.
+			if (this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
 				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {});
-			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openInBackground') {
-				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), { inactive: true });
 			}
 		}
 	}

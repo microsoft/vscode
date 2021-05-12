@@ -47,7 +47,7 @@ import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } f
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 
-const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
+export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
 const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
 const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
@@ -331,9 +331,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private addTrustButtonToElement(parent: HTMLElement): void {
 		const trustUris = async (uris?: URI[]) => {
 			if (!uris) {
-				this.workspaceTrustManagementService.setWorkspaceTrust(true);
+				await this.workspaceTrustManagementService.setWorkspaceTrust(true);
 			} else {
-				this.workspaceTrustManagementService.setUrisTrust(uris, true);
+				await this.workspaceTrustManagementService.setUrisTrust(uris, true);
 			}
 		};
 

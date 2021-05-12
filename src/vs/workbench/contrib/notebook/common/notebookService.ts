@@ -59,8 +59,11 @@ export interface INotebookService {
 	canResolve(viewType: string): Promise<boolean>;
 
 	readonly onWillRemoveViewType: Event<string>;
-	readonly onDidCreateNotebookDocument: Event<NotebookTextModel>;
+
+	readonly onWillAddNotebookDocument: Event<NotebookTextModel>;
 	readonly onDidAddNotebookDocument: Event<NotebookTextModel>;
+
+	readonly onWillRemoveNotebookDocument: Event<NotebookTextModel>;
 	readonly onDidRemoveNotebookDocument: Event<NotebookTextModel>;
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
