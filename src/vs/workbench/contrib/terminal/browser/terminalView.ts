@@ -343,6 +343,8 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 }
 
 class SingleTerminalTabActionViewItem extends ActionViewItem {
+	private _color: string | undefined;
+
 	constructor(
 		action: IAction,
 		private readonly _actions: IAction[],
@@ -391,6 +393,14 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 			}
 			label.style.color = colorStyle;
 			reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
+			if (this._color) {
+				label.classList.remove(this._color);
+				this._color = undefined;
+			}
+			if (instance?.color) {
+				this._color = `terminal-icon-${instance.color}`;
+				label.classList.add(this._color);
+			}
 		}
 	}
 
