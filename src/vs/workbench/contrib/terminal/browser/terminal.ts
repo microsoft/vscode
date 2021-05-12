@@ -256,6 +256,7 @@ export interface ITerminalInstance {
 	readonly maxCols: number;
 	readonly maxRows: number;
 	readonly icon?: ThemeIcon;
+	readonly color?: string;
 
 	readonly statusList: ITerminalStatusList;
 

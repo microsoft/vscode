@@ -259,12 +259,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			if (instance.icon) {
 				label += ` ${instance.title}`;
 			}
-
-			const codicon = template.element.querySelector<HTMLElement>('.codicon');
-			if (codicon) {
-				codicon.style.color = instance && instance.icon && instance.icon.color ? instance.icon.color.id : '';
-			}
 		}
+
+		const codicon = template.element.querySelector<HTMLElement>('.codicon');
+		if (codicon) {
+			codicon.style.color = instance?.icon?.color?.id || '';
+		}
+
 
 		if (!hasActionbar) {
 			template.actionBar.clear();
@@ -293,7 +294,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			title: {
 				markdown: new MarkdownString(title),
 				markdownNotSupportedFallback: undefined
-			}
+			},
+			extraClasses: instance.color ? [`terminal-icon-${instance.color}`] : undefined
 		});
 	}
 

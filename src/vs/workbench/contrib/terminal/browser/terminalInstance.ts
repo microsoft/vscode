@@ -1836,7 +1836,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const items: IQuickPickItem[] = [];
 		for (const color of colors) {
 			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${color.name.replace('terminal.ansi', '')}`, id: `${color.id}`, description: `${color.name}`, iconClasses: [`terminal-icon-${color.name.replace(/\./g, '_')}`]
+				label: `$(${Codicon.circleFilled.id}) ${color.name.replace('terminal.ansi', '')}`, id: `${color.name.replace(/\./g, '_')}`, description: `${color.name}`, iconClasses: [`terminal-icon-${color.name.replace(/\./g, '_')}`]
 			});
 		}
 
@@ -1863,8 +1863,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		const color = theme.getColor(colorKey);
 		if (color && !colorKey.toLowerCase().includes('bright')) {
 			colors.push({ id: color, name: colorKey });
-			console.log(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon { color: ${color} !important; }`);
-			collector.addRule(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon { color: ${color} !important; }`);
+			collector.addRule(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan) { color: ${color} !important; }`);
 		}
 	}
 
