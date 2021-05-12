@@ -149,12 +149,16 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// If either shell or shellArgs are specified, they will take priority for now until we
 		// allow users to migrate, see https://github.com/microsoft/vscode/issues/123171
 		const shellSettingProfile = await this._getUnresolvedShellSettingDefaultProfile(options);
+		console.log('shellSettingProfile', shellSettingProfile);
 		if (shellSettingProfile) {
 			return shellSettingProfile;
 		}
 
-		// Return the real default profile if it exists and is valid
+		// Return the real default profile if it exists and is valid, wait for profiles to be ready
+		// if the window just opened
+		await this._terminalService.profilesReady;
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
+		console.log('defaultProfile', defaultProfile);
 		if (defaultProfile) {
 			return defaultProfile;
 		}
@@ -166,7 +170,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
 		const defaultProfileName = this.getSafeConfigValue('defaultProfile', os);
+		console.log('defaultProfileName', defaultProfileName);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
+			console.log('this._terminalService.availableProfiles', this._terminalService.availableProfiles);
 			return this._terminalService.availableProfiles.find(e => e.profileName === defaultProfileName);
 		}
 		return undefined;

@@ -218,8 +218,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
 	async getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		const vars = this._resolveVariables([`Path: \${env:PATH}`, 'b']);
-		this._logService.info('vars', await vars);
 		// return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
 		// const variableResolver: IConfigurationResolverService {
 		// 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string> {
@@ -335,15 +333,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private _buildSafeConfigProvider(): SafeConfigProvider {
 		return (key: string) => {
-			console.log('namespace', this._configurationService.getValue('terminal.integrated'));
 			const isWorkspaceConfigAllowed = this._configurationService.getValue('terminal.integrated.allowWorkspaceConfiguration');
-			console.log('isWorkspaceConfigAllowed?', isWorkspaceConfigAllowed);
 			if (isWorkspaceConfigAllowed) {
-				console.log('inspected 1', key, this._configurationService.getValue(key));
 				return this._configurationService.getValue(key) as any;
 			}
 			const inspected = this._configurationService.inspect(key);
-			console.log('inspected', key, inspected);
 			return inspected?.userValue || inspected?.defaultValue;
 		};
 	}

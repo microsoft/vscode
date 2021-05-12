@@ -94,6 +94,7 @@ export interface ITerminalService {
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly availableProfiles: ITerminalProfile[];
+	readonly profilesReady: Promise<void>;
 
 	initializeTerminals(): Promise<void>;
 	onActiveGroupChanged: Event<void>;

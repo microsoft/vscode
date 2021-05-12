@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
+import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -60,6 +60,7 @@ export class TerminalService implements ITerminalService {
 	private _processSupportContextKey: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
 	private readonly _offProcessTerminalService?: IOffProcessTerminalService;
+	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
@@ -71,6 +72,7 @@ export class TerminalService implements ITerminalService {
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
 	public get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
+	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
 	get availableProfiles(): ITerminalProfile[] {
 		this._refreshAvailableProfiles();
 		return this._availableProfiles || [];
@@ -188,23 +190,26 @@ export class TerminalService implements ITerminalService {
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
-		const conn = this._remoteAgentService.getConnection();
-		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
-		this._whenExtHostReady(remoteAuthority).then(() => {
-			this._refreshAvailableProfiles();
-		});
+		// const conn = this._remoteAgentService.getConnection();
+		// const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+		// this._whenExtHostReady(remoteAuthority).then(() => {
+		// });
 
 		// Connect to the extension host if it's there, set the connection state to connected when
 		// it's done. This should happen even when there is no extension host.
 		this._connectionState = TerminalConnectionState.Connecting;
 
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
-		let initPromise: Promise<any> = isPersistentRemote ? this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals() :
-			enableTerminalReconnection ? this._localTerminalsInitPromise = this._reconnectToLocalTerminals() :
-				Promise.resolve();
-		this._offProcessTerminalService = isPersistentRemote ? this._remoteTerminalService :
-			enableTerminalReconnection ? this._localTerminalService : undefined;
+		let initPromise: Promise<any> = isPersistentRemote
+			? this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals()
+			: enableTerminalReconnection
+				? this._localTerminalsInitPromise = this._reconnectToLocalTerminals()
+				: Promise.resolve();
+		this._offProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
 		initPromise.then(() => this._setConnected());
+
+		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
+		this._refreshAvailableProfiles();
 	}
 
 	private _setConnected() {
@@ -325,24 +330,28 @@ export class TerminalService implements ITerminalService {
 	@throttle(10000)
 	private async _refreshAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles(true);
+		console.log('detectProfiles result', result);
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
+			this._profilesReadyBarrier.open();
 		}
 	}
 
+	// TODO: Invert arg
 	private async _detectProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
 		const offProcService = this._offProcessTerminalService;
+		console.log('offProcService?', offProcService);
 		if (!offProcService) {
 			return this._availableProfiles || [];
 		}
-		return offProcService?.getProfiles();
+		return offProcService?.getProfiles(!configuredProfilesOnly);
 	}
 
-	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
-		this._createExtHostReadyEntry(remoteAuthority);
-		return this._extHostsReady[remoteAuthority]!.promise;
-	}
+	// private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
+	// 	this._createExtHostReadyEntry(remoteAuthority);
+	// 	return this._extHostsReady[remoteAuthority]!.promise;
+	// }
 
 	private _createExtHostReadyEntry(remoteAuthority: string): void {
 		if (this._extHostsReady[remoteAuthority]) {
@@ -405,6 +414,9 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _saveState(): void {
+		if (!this.configHelper.config.enablePersistentSessions) {
+			return;
+		}
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalGroups.map(g => g.getLayoutInfo(g === this.getActiveGroup()))
 		};
@@ -413,7 +425,7 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _updateTitle(instance?: ITerminalInstance): void {
-		if (!instance || !instance.persistentProcessId || !instance.title) {
+		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
 		this._offProcessTerminalService?.updateTitle(instance.persistentProcessId, instance.title);
@@ -421,7 +433,7 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _updateIcon(instance?: ITerminalInstance): void {
-		if (!instance || !instance.persistentProcessId || !instance.icon) {
+		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
 		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon.id);

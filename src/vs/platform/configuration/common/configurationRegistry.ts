@@ -195,7 +195,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
-		console.trace('registerConfiguration', configuration);
 		this.registerConfigurations([configuration], validate);
 	}
 

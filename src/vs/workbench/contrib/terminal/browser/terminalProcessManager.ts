@@ -172,9 +172,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	detachFromProcess(): void {
-		if (this._process?.detach) {
-			this._process.detach();
-		}
+		this._process?.detach?.();
 	}
 
 	async createProcess(
