@@ -86,6 +86,7 @@ import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 
 class SharedProcessMain extends Disposable {
 
@@ -115,6 +116,7 @@ class SharedProcessMain extends Disposable {
 
 		// Config
 		registerUserDataSyncConfiguration();
+		registerTerminalPlatformConfiguration();
 
 		instantiationService.invokeFunction(accessor => {
 			const logService = accessor.get(ILogService);

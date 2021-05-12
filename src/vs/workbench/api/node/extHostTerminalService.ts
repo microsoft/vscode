@@ -8,7 +8,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
-import { SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
+import { SafeConfigProvider, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider, ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
@@ -17,7 +17,6 @@ import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/work
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import type * as vscode from 'vscode';
 

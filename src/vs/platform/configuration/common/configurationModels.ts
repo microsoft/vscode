@@ -210,6 +210,7 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 				});
 			}
 		}
+		console.log({ contents, keys, overrides });
 		super(contents, keys, overrides);
 	}
 }
