@@ -38,7 +38,16 @@ export class TestFileWorkingCopyModel extends Disposable implements IFileWorking
 		this.doUpdate(newContents);
 	}
 
+	private throwOnSnapshot = false;
+	setThrowOnSnapshot(): void {
+		this.throwOnSnapshot = true;
+	}
+
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+		if (this.throwOnSnapshot) {
+			throw new Error('Fail');
+		}
+
 		const stream = newWriteableBufferStream();
 		stream.end(VSBuffer.fromString(this.contents));
 

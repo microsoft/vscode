@@ -12,7 +12,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, SideBySideEditorInput, IEditorMoveEvent, EditorExtensions as Extensions } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -74,7 +74,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -987,6 +987,8 @@ export class TestFileService implements IFileService {
 
 export class TestWorkingCopyBackupService extends InMemoryWorkingCopyBackupService {
 
+	readonly resolved: Set<IWorkingCopyIdentifier> = new Set();
+
 	constructor() {
 		super();
 	}
@@ -997,6 +999,12 @@ export class TestWorkingCopyBackupService extends InMemoryWorkingCopyBackupServi
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
+	}
+
+	override async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
+		this.resolved.add(identifier);
+
+		return super.resolve(identifier);
 	}
 }
 
