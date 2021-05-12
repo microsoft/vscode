@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { dirname } from 'vs/base/common/resources';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -120,6 +120,8 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		return ['text/x-javascript'];
 	}
 
+	private readonly _cellDisposables = new Map<number, DisposableStore>();
+
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -129,7 +131,19 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
+	override dispose(): void {
+		dispose(this._cellDisposables.values());
+		this._cellDisposables.clear();
+		super.dispose();
+	}
+
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
+
+		let cellDisposables = this._cellDisposables.get(output.cellViewModel.handle);
+		cellDisposables?.dispose();
+		cellDisposables = new DisposableStore();
+		this._cellDisposables.set(output.cellViewModel.handle, cellDisposables);
+
 		const str = items.map(item => getStringValue(item.value)).join('');
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -154,6 +168,9 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 			height,
 			width
 		});
+
+		cellDisposables.add(editor);
+		cellDisposables.add(textModel);
 
 		container.style.height = `${height + 8}px`;
 
