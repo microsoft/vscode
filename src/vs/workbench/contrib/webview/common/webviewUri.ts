@@ -15,9 +15,12 @@ export function asWebviewUri(
 	const uri = environmentService.webviewResourceRoot
 		// Make sure we preserve the scheme of the resource but convert it into a normal path segment
 		// The scheme is important as we need to know if we are requesting a local or a remote resource.
-		.replace('{{resource}}', resource.scheme + withoutScheme(resource))
 		.replace('{{uuid}}', uuid);
-	return URI.parse(uri);
+
+	const uri2 = URI.parse(uri);
+	return uri2.with({
+		path: uri2.path.replace('{{resource}}', resource.scheme + withoutScheme(resource))
+	});
 }
 
 function withoutScheme(resource: URI): string {
