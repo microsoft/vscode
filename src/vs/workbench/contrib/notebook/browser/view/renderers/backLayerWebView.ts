@@ -29,7 +29,7 @@ import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEd
 import { preloadsScriptStr, WebviewPreloadRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { INotebookKernel, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, INotebookRendererInfo, NotebookRendererMatch } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -713,22 +713,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 
 	private getMarkdownRenderer(): WebviewPreloadRenderer[] {
-		const allRenderers = this.notebookService.getMarkupRendererInfo();
-
 		const markdownMimeType = 'text/markdown';
+		const allRenderers = this.notebookService.getRenderers()
+			.filter(renderer => renderer.matchesWithoutKernel(markdownMimeType) !== NotebookRendererMatch.Never);
 
 		const topLevelMarkdownRenderers = allRenderers
-			.filter(renderer => !renderer.dependsOn)
-			.filter(renderer => renderer.mimeTypes?.includes(markdownMimeType));
+			.filter(renderer => renderer.dependencies.length === 0);
 
 		const subRenderers = new Map<string, Array<{ entrypoint: string }>>();
 		for (const renderer of allRenderers) {
-			if (renderer.dependsOn) {
-				if (!subRenderers.has(renderer.dependsOn)) {
-					subRenderers.set(renderer.dependsOn, []);
+			for (const dep of renderer.dependencies) {
+				if (!subRenderers.has(dep)) {
+					subRenderers.set(dep, []);
 				}
 				const entryPoint = this.asWebviewUri(renderer.entrypoint, renderer.extensionLocation);
-				subRenderers.get(renderer.dependsOn)!.push({ entrypoint: entryPoint.toString(true) });
+				subRenderers.get(dep)!.push({ entrypoint: entryPoint.toString(true) });
 			}
 		}
 
@@ -736,7 +735,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			const src = this.asWebviewUri(renderer.entrypoint, renderer.extensionLocation);
 			return {
 				entrypoint: src.toString(),
-				mimeTypes: [markdownMimeType],
+				mimeTypes: renderer.mimeTypes,
 				dependencies: subRenderers.get(renderer.id) || [],
 			};
 		});
@@ -1132,7 +1131,7 @@ var requirejs = (function() {
 
 		this.localResourceRootsCache = [
 			...this.notebookService.getNotebookProviderResourceRoots(),
-			...this.notebookService.getMarkupRendererInfo().map(x => dirname(x.entrypoint)),
+			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
 			...workspaceFolders,
 			rootPath,
 		];
