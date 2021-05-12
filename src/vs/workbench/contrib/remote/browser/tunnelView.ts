@@ -1332,7 +1332,7 @@ namespace ChangeLocalPortAction {
 							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue, context.name, undefined, true);
 							if (newForward && newForward.tunnelLocalPort !== numberValue) {
 								dialogService.show(Severity.Info,
-									nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available.\n\nThis usually happens when is already another process using port {0}.\n\nPort number {1} has been used instead.", value, newForward.tunnelLocalPort ?? newForward.localAddress),
+									nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available.\n\nThis usually happens when there is already another process using port {0}.\n\nPort number {1} has been used instead.", value, newForward.tunnelLocalPort ?? newForward.localAddress),
 									[nls.localize('remote.tunnel.changeLocalPortNumber.Ok', "Ok")]);
 							}
 						}
