@@ -21,6 +21,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 /**
  * The only one that should be dealing with `IFileWorkingCopy` and handle all
@@ -220,6 +221,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		@ILogService private readonly logService: ILogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
@@ -737,17 +739,40 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 	async destroy(): Promise<void> {
 
 		// Make sure all dirty working copies are saved to disk
-		await Promises.settled(this.workingCopies.map(async workingCopy => {
-			if (workingCopy.isDirty()) {
-				await workingCopy.save();
-			}
-		}));
+		try {
+			await Promises.settled(this.workingCopies.map(async workingCopy => {
+				if (workingCopy.isDirty()) {
+					await this.saveWithFallback(workingCopy);
+				}
+			}));
+		} catch (error) {
+			this.logService.error(error);
+		}
 
 		// Dispose all working copies
 		dispose(this.mapResourceToWorkingCopy.values());
 
 		// Finally dispose manager
 		this.dispose();
+	}
+
+	private async saveWithFallback(workingCopy: IFileWorkingCopy<T>): Promise<void> {
+
+		// First try regular save
+		let saveFailed = false;
+		try {
+			await workingCopy.save();
+		} catch (error) {
+			saveFailed = true;
+		}
+
+		// Then fallback to backup if that exists
+		if (saveFailed || workingCopy.isDirty()) {
+			const backup = await this.workingCopyBackupService.resolve(workingCopy);
+			if (backup) {
+				await this.fileService.writeFile(workingCopy.resource, backup.value, { unlock: true });
+			}
+		}
 	}
 
 	//#endregion

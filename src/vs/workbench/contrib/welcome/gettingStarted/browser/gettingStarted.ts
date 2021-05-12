@@ -56,9 +56,9 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
-import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -486,7 +486,11 @@ export class GettingStartedPage extends EditorPane {
 			if (src.startsWith('https://')) { return `src="${src}"`; }
 
 			const path = joinPath(base, src);
-			const transformed = asWebviewUri(this.environmentService, this.webviewID, path).toString();
+			const transformed = asWebviewUri({
+				isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
+				...this.environmentService,
+				remote: { authority: undefined },
+			}, this.webviewID, path).toString();
 			return `src="${transformed}"`;
 		});
 

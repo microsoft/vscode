@@ -27,7 +27,7 @@ suite('FileWorkingCopyManager', () => {
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const factory = new TestFileWorkingCopyModelFactory();
-		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>('testWorkingCopyType', factory, accessor.fileService, accessor.lifecycleService, accessor.labelService, instantiationService, accessor.logService, accessor.fileDialogService, accessor.workingCopyFileService, accessor.uriIdentityService);
+		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>('testWorkingCopyType', factory, accessor.fileService, accessor.lifecycleService, accessor.labelService, instantiationService, accessor.logService, accessor.fileDialogService, accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService);
 	});
 
 	teardown(() => {
@@ -310,6 +310,33 @@ suite('FileWorkingCopyManager', () => {
 		assert.strictEqual(manager.workingCopies.length, 0);
 
 		assert.strictEqual(saved, true);
+	});
+
+	test('destroy falls back to using backup when save fails', async () => {
+		const resource = URI.file('/path/source.txt');
+
+		const workingCopy = await manager.resolve(resource);
+		workingCopy.model?.setThrowOnSnapshot();
+
+		let unexpectedSave = false;
+		workingCopy.onDidSave(() => {
+			unexpectedSave = true;
+		});
+
+		workingCopy.model?.updateContents('hello create');
+		assert.strictEqual(workingCopy.isDirty(), true);
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 1);
+		assert.strictEqual(manager.workingCopies.length, 1);
+
+		assert.strictEqual(accessor.workingCopyBackupService.resolved.has(workingCopy), true);
+
+		await manager.destroy();
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+		assert.strictEqual(manager.workingCopies.length, 0);
+
+		assert.strictEqual(unexpectedSave, false);
 	});
 
 	test('file change event triggers working copy resolve', async () => {
