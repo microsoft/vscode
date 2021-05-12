@@ -1612,3 +1612,13 @@ export function getCookieValue(name: string): string | undefined {
 
 	return match ? match.pop() : undefined;
 }
+
+export function addMatchMediaChangeListener(query: string, callback: () => void): void {
+	const mediaQueryList = window.matchMedia(query);
+	if (typeof mediaQueryList.addEventListener === 'function') {
+		mediaQueryList.addEventListener('change', callback);
+	} else {
+		// Safari 13.x
+		mediaQueryList.addListener(callback);
+	}
+}
