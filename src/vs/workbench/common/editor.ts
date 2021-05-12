@@ -435,7 +435,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns if the input requires workspace trust or not.
 	 */
-	requiresWorkspaceTrust(): Promise<boolean>;
+	requiresWorkspaceTrust(): boolean
 
 	/**
 	 * Returns if this input is readonly or not.
@@ -577,7 +577,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return { typeId: this.typeId };
 	}
 
-	async requiresWorkspaceTrust(): Promise<boolean> {
+	requiresWorkspaceTrust(): boolean {
 		return false;
 	}
 
@@ -799,10 +799,8 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.description;
 	}
 
-	override async requiresWorkspaceTrust(): Promise<boolean> {
-		const requiresTrust = await Promise.all([this.primary.requiresWorkspaceTrust(), this.secondary.requiresWorkspaceTrust()]);
-
-		return requiresTrust.some(value => value === true);
+	override requiresWorkspaceTrust(): boolean {
+		return this.primary.requiresWorkspaceTrust() || this.secondary.requiresWorkspaceTrust();
 	}
 
 	override isReadonly(): boolean {

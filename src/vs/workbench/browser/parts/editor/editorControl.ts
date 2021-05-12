@@ -63,7 +63,7 @@ export class EditorControl extends Disposable {
 		this._register(this.workspaceTrustService.onDidChangeTrust(() => this.onDidChangeWorkspaceTrust()));
 	}
 
-	private async onDidChangeWorkspaceTrust(): Promise<void> {
+	private onDidChangeWorkspaceTrust() {
 
 		// If the active editor pane requires workspace trust
 		// we need to re-open it anytime trust changes to
@@ -72,7 +72,7 @@ export class EditorControl extends Disposable {
 		// to handle errors properly.
 		const editor = this._activeEditorPane?.input;
 		const options = this._activeEditorPane?.options;
-		if (editor && await editor.requiresWorkspaceTrust()) {
+		if (editor && editor.requiresWorkspaceTrust()) {
 			this.groupView.openEditor(editor, options);
 		}
 	}
@@ -91,7 +91,7 @@ export class EditorControl extends Disposable {
 	}
 
 	private async resolveEditorDescriptor(editor: EditorInput): Promise<IEditorDescriptor> {
-		const editorRequiresTrust = await editor.requiresWorkspaceTrust();
+		const editorRequiresTrust = editor.requiresWorkspaceTrust();
 		const editorBlockedByTrust = editorRequiresTrust && !this.workspaceTrustService.isWorkpaceTrusted();
 
 		// Workspace trust: if an editor signals it needs workspace trust
