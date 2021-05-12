@@ -128,7 +128,7 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
-          - template: product-compile.yml
+          - template: jobs/product-compile.yml
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
     - stage: Windows
@@ -317,7 +317,7 @@ stages:
           timeoutInMinutes: 180
           displayName: Publish Build
           steps:
-            - template: product-publish.yml
+            - template: jobs/product-publish.yml
 
     - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
       - stage: Release
@@ -329,4 +329,17 @@ stages:
           - job: ReleaseBuild
             displayName: Release Build
             steps:
-              - template: product-release.yml
+              - template: jobs/product-release.yml
+
+      - stage: Translations
+        displayName: Publish Translations
+        dependsOn:
+          - Windows
+          - Publish
+        pool:
+          vmImage: VS2017-Win2016
+        jobs:
+          - job: TranslationsJob
+            displayName: Publish Translations Job
+            steps:
+              - template: jobs/product-translations.yml

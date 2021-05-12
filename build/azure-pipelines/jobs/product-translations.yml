@@ -1,0 +1,74 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "14.x"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.x"
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "2.x"
+      addToPath: true
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: Compilation
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download compilation output
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { tar --force-local -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz }
+    displayName: Extract compilation output
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+
+      exec { git config user.email "vscode@microsoft.com" }
+      exec { git config user.name "VSCode" }
+    displayName: Prepare tooling
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
+    displayName: Merge distro
+
+  - pwsh: |
+      "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
+      "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js > .build/yarnlockhash
+    displayName: Prepare yarn cache flags
+
+  # We should always hit the cache because this stage depends on the Window stage
+  - task: Cache@2
+    inputs:
+      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { 7z.exe x .build/node_modules_cache/cache.7z -aos }
+    displayName: Extract node_modules cache
+
+  - pwsh: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { yarn run gulp vscode-translations-export }
+
+  - publish: $(Pipeline.Workspace)/vscode-translations-export
+    artifact: translations
