@@ -254,6 +254,7 @@ stages:
             container: vscode-x64
             variables:
                 VSCODE_ARCH: x64
+                DISPLAY: :10
             steps:
               - template: linux/product-bing.yml
 
