@@ -514,13 +514,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private async loadResource(id: number, requestPath: string, uri: URI, remoteAuthority: string | undefined, ifNoneMatch: string | undefined) {
 		try {
-			const remoteAuthority = this._environmentService.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 
 			const result = await loadLocalResource(uri, ifNoneMatch, {
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
-				useRootAuthority: this.content.options.useRootAuthority,
 				remoteAuthority: remoteAuthority,
 			}, this._fileService, this._requestService, this._logService, this._resourceLoadingCts.token);
 
