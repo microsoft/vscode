@@ -3049,15 +3049,15 @@ export class NotebookCellData {
 	languageId: string;
 	outputs?: NotebookCellOutput[];
 	metadata?: NotebookCellMetadata;
-	latestExecutionSummary?: vscode.NotebookCellExecutionSummary;
+	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.value = value;
 		this.languageId = languageId;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
-		this.latestExecutionSummary = latestExecutionSummary;
+		this.executionSummary = executionSummary;
 
 		NotebookCellData.validate(this);
 	}
