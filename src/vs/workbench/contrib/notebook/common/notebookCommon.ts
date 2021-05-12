@@ -549,7 +549,7 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['text/html', { supportedByCore: true }],
 	['image/svg+xml', { supportedByCore: true }],
 	['image/jpeg', { supportedByCore: true }],
-	['text/x-javascript', { supportedByCore: true }],
+	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
 	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
 	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
@@ -888,4 +888,3 @@ export class NotebookWorkingCopyTypeIdentifier {
 		return undefined;
 	}
 }
-
