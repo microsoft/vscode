@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker } from 'vs/platform/markers/common/markers';
@@ -22,8 +22,16 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { Codicon } from 'vs/base/common/codicons';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMarkerNavigationService, MarkerList } from 'vs/editor/contrib/gotoError/markerNavigationService';
+import { IMarkerNavigationService, MarkerCoordinate, MarkerList } from 'vs/editor/contrib/gotoError/markerNavigationService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+export interface IMarkerParticipant {
+	/**
+	 * Tries to peek the given marker. If it returns false, native handling
+	 * will be used instead.
+	 */
+	peekMarker(marker: IMarker, index: number, total: number): boolean;
+}
 
 export class MarkerController implements IEditorContribution {
 
@@ -33,6 +41,12 @@ export class MarkerController implements IEditorContribution {
 		return editor.getContribution<MarkerController>(MarkerController.ID);
 	}
 
+	static registerParticipant(participant: IMarkerParticipant): IDisposable {
+		this.participants.add(participant);
+		return toDisposable(() => this.participants.delete(participant));
+	}
+
+	private static readonly participants = new Set<IMarkerParticipant>();
 	private readonly _editor: ICodeEditor;
 
 	private readonly _widgetVisible: IContextKey<boolean>;
@@ -133,7 +147,7 @@ export class MarkerController implements IEditorContribution {
 			model.resetIndex();
 			model.move(true, this._editor.getModel(), new Position(marker.startLineNumber, marker.startColumn));
 			if (model.selected) {
-				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+				this.showAtCoordinate(model.selected);
 			}
 		}
 	}
@@ -160,9 +174,19 @@ export class MarkerController implements IEditorContribution {
 
 			} else {
 				// show in this editor
-				this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+				this.showAtCoordinate(model.selected);
 			}
 		}
+	}
+
+	private showAtCoordinate(coordinate: MarkerCoordinate) {
+		for (const participant of MarkerController.participants) {
+			if (participant.peekMarker(coordinate.marker, coordinate.index, coordinate.total)) {
+				return;
+			}
+		}
+
+		this._widget!.showAtMarker(coordinate.marker, coordinate.index, coordinate.total);
 	}
 }
 

@@ -13,6 +13,7 @@ export const enum Testing {
 	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
 	DecorationsContributionId = 'editor.contrib.testingDecorations',
 	FilterActionId = 'workbench.actions.treeView.testExplorer.filter',
+	MarkerOwner = 'nativeTesting',
 }
 
 export const enum TestExplorerViewMode {

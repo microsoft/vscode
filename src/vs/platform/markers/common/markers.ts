@@ -97,6 +97,10 @@ export interface IMarkerData {
 	endColumn: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
+	/** Whether editor decorations should be rendered for this marker */
+	decorate?: boolean;
+	/** Optional callback that can be provided to dismiss the marker */
+	dismiss?(): void;
 }
 
 export interface IResourceMarker {
@@ -117,6 +121,8 @@ export interface IMarker {
 	endColumn: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
+	decorate?: boolean;
+	dismiss?(): void;
 }
 
 export interface MarkerStatistics {

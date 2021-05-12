@@ -132,7 +132,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private _updateDecorations(markerDecorations: MarkerDecorations): void {
 		// Limit to the first 500 errors/warnings
 		const markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
-		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
+		let newModelDecorations: IModelDeltaDecoration[] = markers.filter((marker) => marker.decorate !== false).map((marker) => {
 			return {
 				range: this._createDecorationRange(markerDecorations.model, marker),
 				options: this._createDecorationOption(marker)

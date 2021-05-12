@@ -1268,6 +1268,8 @@ declare namespace monaco.editor {
 		endColumn: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
+		decorate?: boolean;
+		dismiss?(): void;
 	}
 
 	/**
@@ -1287,6 +1289,10 @@ declare namespace monaco.editor {
 		endColumn: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
+		/** Whether editor decorations should be rendered for this marker */
+		decorate?: boolean;
+		/** Optional callback that can be provided to dismiss the marker */
+		dismiss?(): void;
 	}
 
 	/**

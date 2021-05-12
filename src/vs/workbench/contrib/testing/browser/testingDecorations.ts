@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, dispose, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -20,6 +21,7 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMarkerData, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
@@ -27,6 +29,7 @@ import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
+import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IncrementalTestCollectionItem, IRichLocation, ITestMessage, TestDiffOpType, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -66,6 +69,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
+		@IMarkerService private readonly markers: IMarkerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -167,6 +171,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
+		let markers: IMarkerData[] = [];
+
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
 			for (const test of ref.object.all) {
@@ -199,17 +205,29 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 							});
 
 							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+
+							markers.push({
+								...m.location.range,
+								message: toPlainText(m.message),
+								severity: MarkerSeverity.Error,
+								decorate: false,
+								dismiss() {
+									console.log('todo');
+								},
+							});
 						}
 					}
 				}
 			}
 
-			accessor
-				.deltaDecorations(this.lastDecorations.map(d => d.id), newDecorations.map(d => d.editorDecoration))
-				.forEach((id, i) => newDecorations[i].id = id);
+			// accessor
+			// 	.deltaDecorations(this.lastDecorations.map(d => d.id), newDecorations.map(d => d.editorDecoration))
+			// 	.forEach((id, i) => newDecorations[i].id = id);
 
 			this.lastDecorations = newDecorations;
 		});
+
+		this.markers.changeOne(Testing.MarkerOwner, uri, markers);
 	}
 
 	private clearDecorations(): void {
@@ -374,6 +392,10 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		return breakpointActions.length ? [...testActions, new Separator(), ...breakpointActions] : testActions;
 	}
 }
+
+const toPlainText = (message: IMarkdownString | string) => typeof message === 'string'
+	? message
+	: renderMarkdownAsPlaintext(message);
 
 class TestMessageDecoration implements ITestDecoration {
 	public id = '';

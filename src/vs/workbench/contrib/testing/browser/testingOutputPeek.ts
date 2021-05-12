@@ -19,8 +19,10 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IMarkerParticipant, MarkerController } from 'vs/editor/contrib/gotoError/gotoError';
 import { getOuterEditor, IPeekViewService, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -28,6 +30,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IMarker } from 'vs/platform/markers/common/markers';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
@@ -164,7 +167,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 /**
  * Adds output/message peek functionality to code editors.
  */
-export class TestingOutputPeekController extends Disposable implements IEditorContribution {
+export class TestingOutputPeekController extends Disposable implements IEditorContribution, IMarkerParticipant {
 	/**
 	 * Gets the controller associated with the given code editor.
 	 */
@@ -205,6 +208,44 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		this._register(editor.onDidChangeModel(() => this.peek.clear()));
 		this._register(testResults.onResultsChanged(this.closePeekOnRunStart, this));
 		this._register(testResults.onTestChanged(this.closePeekOnTestChange, this));
+		this._register(MarkerController.registerParticipant(this));
+	}
+
+	public peekMarker(marker: IMarker, index: number, total: number): boolean {
+		if (marker.owner !== Testing.MarkerOwner || typeof marker.code !== 'string') {
+			return false;
+		}
+
+		// todo: this could go away if we could attach the URI to the marker directly
+		for (const result of this.testResults.results) {
+			for (const test of result.tests) {
+				for (let k = 0; k < test.tasks.length; k++) {
+					const task = test.tasks[k];
+					for (let i = 0; i < task.messages.length; i++) {
+						const message = task.messages[i];
+						if (message.location?.uri.toString() !== marker.resource.toString()) {
+							continue;
+						}
+
+						if (!Range.equalsRange(message.location.range, marker)) {
+							continue;
+						}
+
+						this.show(buildTestUri({
+							messageIndex: i,
+							resultId: result.id,
+							taskIndex: k,
+							testExtId: test.item.extId,
+							type: TestUriType.ResultMessage
+						}));
+
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	/**
