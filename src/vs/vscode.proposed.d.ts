@@ -393,8 +393,8 @@ declare module 'vscode' {
 	}
 
 	/**
- * A message regarding a completed search.
- */
+	 * A message regarding a completed search.
+	 */
 	export interface TextSearchCompleteMessage {
 		/**
 		 * Markdown text of the message.
