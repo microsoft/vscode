@@ -251,4 +251,9 @@ export class NotebookOptions {
 			runGutter: 0
 		};
 	}
+
+	dispose() {
+		this._disposables.forEach(d => d.dispose());
+		this._disposables = [];
+	}
 }

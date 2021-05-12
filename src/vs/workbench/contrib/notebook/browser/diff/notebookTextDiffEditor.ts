@@ -100,6 +100,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
 		this._notebookOptions = new NotebookOptions(this.configurationService);
+		this._register(this._notebookOptions);
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
 		this._revealFirst = true;
