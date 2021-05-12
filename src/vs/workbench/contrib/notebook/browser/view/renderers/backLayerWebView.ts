@@ -429,6 +429,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			outputNodePadding: number,
 			outputNodeLeftPadding: number,
 			previewNodePadding: number,
+			markdownLeftMargin: number,
 			leftMargin: number,
 			rightMargin: number,
 			runGutter: number,
@@ -610,7 +611,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					#container > div.preview {
 						width: 100%;
 						padding-right: ${this.options.previewNodePadding}px;
-						padding-left: ${this.options.leftMargin}px;
+						padding-left: ${this.options.markdownLeftMargin}px;
 						padding-top: ${this.options.previewNodePadding}px;
 						padding-bottom: ${this.options.previewNodePadding}px;
 
