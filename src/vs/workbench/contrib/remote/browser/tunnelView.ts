@@ -51,6 +51,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
@@ -1318,7 +1319,7 @@ namespace ChangeLocalPortAction {
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			const notificationService = accessor.get(INotificationService);
+			const dialogService = accessor.get(IDialogService);
 			const tunnelService = accessor.get(ITunnelService);
 			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
 			if (context instanceof TunnelItem) {
@@ -1330,7 +1331,9 @@ namespace ChangeLocalPortAction {
 							const numberValue = Number(value);
 							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue, context.name, undefined, true);
 							if (newForward && newForward.tunnelLocalPort !== numberValue) {
-								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort ?? newForward.localAddress));
+								dialogService.show(Severity.Info,
+									nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available.\n\nThis usually happens when is already another process using port {0}.\n\nPort number {1} has been used instead.", value, newForward.tunnelLocalPort ?? newForward.localAddress),
+									[nls.localize('remote.tunnel.changeLocalPortNumber.Ok', "Ok")]);
 							}
 						}
 					},
