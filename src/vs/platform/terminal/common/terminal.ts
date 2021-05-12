@@ -478,3 +478,26 @@ export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimension
 }
 
 export type SafeConfigProvider = <T>(key: string) => T | undefined;
+
+export const enum ProfileSource {
+	GitBash = 'Git Bash',
+	Pwsh = 'PowerShell'
+}
+
+export interface IBaseUnresolvedTerminalProfile {
+	args?: string | string[] | undefined;
+	isAutoDetected?: boolean;
+	overrideName?: boolean;
+	icon?: string;
+	env?: ITerminalEnvironment;
+}
+
+export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
+	path: string | string[];
+}
+
+export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
+	source: ProfileSource;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;

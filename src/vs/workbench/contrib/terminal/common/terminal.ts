@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -259,29 +259,6 @@ export interface IBeforeProcessDataEvent {
 	 */
 	data: string;
 }
-
-export const enum ProfileSource {
-	GitBash = 'Git Bash',
-	Pwsh = 'PowerShell'
-}
-
-export interface IBaseUnresolvedTerminalProfile {
-	args?: string | string[] | undefined;
-	isAutoDetected?: boolean;
-	overrideName?: boolean;
-	icon?: string;
-	env?: ITerminalEnvironment;
-}
-
-export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: string | string[];
-}
-
-export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
-	source: ProfileSource;
-}
-
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
 
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;

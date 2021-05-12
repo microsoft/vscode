@@ -7,12 +7,11 @@ import * as fs from 'fs';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalProfile, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
@@ -36,9 +35,9 @@ export function detectAvailableProfiles(
 			configuredProfilesOnly,
 			fsProvider,
 			logService,
-			safeConfigProvider(TerminalSettingId.UseWslProfiles) || true,
-			safeConfigProvider(TerminalSettingId.ProfilesWindows),
-			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
+			safeConfigProvider('terminal.integrated.useWslProfiles') || true,
+			safeConfigProvider('terminal.integrated.profiles.windows'),
+			safeConfigProvider('terminal.integrated.defaultProfile.windows'),
 			variableResolver,
 			workspaceFolder
 		);
@@ -47,8 +46,8 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		configuredProfilesOnly,
-		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
-		safeConfigProvider(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
+		safeConfigProvider(`terminal.integrated.profiles.${isMacintosh ? 'osx' : 'linux'}`),
+		safeConfigProvider(`terminal.integrated.defaultProfile.${isMacintosh ? 'osx' : 'linux'}`),
 		testPaths,
 		variableResolver,
 		workspaceFolder

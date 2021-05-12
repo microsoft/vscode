@@ -7,7 +7,7 @@ import { deepStrictEqual, fail, ok, strictEqual } from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { ITerminalProfile, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
 import { ITerminalConfiguration, ITerminalProfiles, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectAvailableProfiles, IFsProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
+import { detectAvailableProfiles, IFsProvider } from 'vs/platform/terminal/node/terminalProfiles';
 
 /**
  * Assets that two profiles objects are equal, this will treat explicit undefined and unset

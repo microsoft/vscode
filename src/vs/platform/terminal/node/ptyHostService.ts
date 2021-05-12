@@ -14,9 +14,8 @@ import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { detectAvailableProfiles } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
+import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 
 enum Constants {
 	MaxRestarts = 5
@@ -335,7 +334,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private _buildSafeConfigProvider(): SafeConfigProvider {
 		return (key: string) => {
-			const isWorkspaceConfigAllowed = this._configurationService.getValue(TerminalSettingId.AllowWorkspaceConfiguration);
+			const isWorkspaceConfigAllowed = this._configurationService.getValue('terminal.integrated.allowWorkspaceConfiguration');
 			if (isWorkspaceConfigAllowed) {
 				return this._configurationService.getValue(key) as any;
 			}
