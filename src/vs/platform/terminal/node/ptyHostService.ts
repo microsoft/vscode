@@ -16,6 +16,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 
 enum Constants {
 	MaxRestarts = 5
@@ -77,15 +78,16 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
-	// TODO: Event for requesting variable resolving, track via id - this will be a round trip but
-	//       seems like the only reasonable way to do this
-
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
+
+		// Platform configuration is required on the process running the pty host (shared process or
+		// remote server).
+		registerTerminalPlatformConfiguration();
 
 		this._register(toDisposable(() => this._disposePtyHost()));
 
@@ -218,16 +220,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
 	async getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		// return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
-		// const variableResolver: IConfigurationResolverService {
-		// 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string> {
-		// 	}
-		// } as any;
 		// TODO: invert config only arg
-		const r = await detectAvailableProfiles(!includeDetectedProfiles, this._buildSafeConfigProvider(), undefined, this._logService, this._resolveVariables.bind(this));
-		this._logService.info('profiles', r);
-		return r;
-		// return this._proxy.getProfiles?.(includeDetectedProfiles) || [];
+		return detectAvailableProfiles(!includeDetectedProfiles, this._buildSafeConfigProvider(), undefined, this._logService, this._resolveVariables.bind(this));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();

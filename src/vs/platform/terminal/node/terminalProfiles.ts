@@ -42,7 +42,6 @@ export function detectAvailableProfiles(
 			workspaceFolder
 		);
 	}
-	console.log('config provider result', safeConfigProvider(`terminal.integrated.profiles.${isMacintosh ? 'osx' : 'linux'}`));
 	return detectAvailableUnixProfiles(
 		fsProvider,
 		logService,
@@ -154,12 +153,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 			icon = profile.icon;
 		}
 
-		// const paths = originalPaths.slice();
-
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
-		// for (let i = 0; i < paths.length; i++) {
-		// 	paths[i] = await variableResolver?.resolveAsync(workspaceFolder, paths[i]) || paths[i];
-		// }
 		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
@@ -289,8 +283,6 @@ async function detectAvailableUnixProfiles(
 	}
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
-
-	console.log('detected', detectedProfiles);
 
 	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver, workspaceFolder);
 }

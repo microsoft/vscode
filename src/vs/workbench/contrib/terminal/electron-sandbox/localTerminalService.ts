@@ -104,12 +104,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 		if (this._localPtyService.onPtyHostRequestResolveVariables) {
 			this._register(this._localPtyService.onPtyHostRequestResolveVariables(async e => {
-				this._logService.info('localTerminalService request', e.id, e.text);
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.text.map(t => configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t));
 				const result = await Promise.all(resolveCalls);
-				this._logService.info('resolved', result);
 				this._localPtyService.acceptPtyHostResolvedVariables?.(e.id, result);
 			}));
 		}
