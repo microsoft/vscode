@@ -43,7 +43,7 @@ steps:
       $env:AZURE_STORAGE_ACCESS_KEY = "$(ticino-storage-key)"
       $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
       $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(vscode-mooncake-storage-key)"
-      build/azure-pipelines/product-publish.ps1
+      build/azure-pipelines/jobs/product-publish.ps1
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Process artifacts
