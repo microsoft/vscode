@@ -417,7 +417,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	private _initalized?: Promise<void>;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
@@ -452,7 +451,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 	}
-	private generateContent(coreDependencies: string, baseUrl: string) {
+	private generateContent(baseUrl: string) {
 		const markupRenderer = this.getMarkdownRenderer();
 		const outputWidth = `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`;
 		const outputMarginLeft = `${this.options.leftMargin + this.options.runGutter}px`;
@@ -702,10 +701,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</style>
 			</head>
 			<body style="overflow: hidden;">
-				<script>
-					self.require = {};
-				</script>
-				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<script type="module">${preloadsScriptStr(this.options, markupRenderer[0])}</script>
 			</body>
@@ -770,64 +765,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		return !!this.webview;
 	}
 
-	async createWebview(): Promise<void> {
-		let coreDependencies = '';
-		let resolveFunc: () => void;
-
-		this._initalized = new Promise<void>((resolve, reject) => {
-			resolveFunc = resolve;
-		});
-
+	createWebview(): void {
 		const baseUrl = this.asWebviewUri(dirname(this.documentUri));
-
-		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
-			const loader = this.asWebviewUri(loaderUri);
-
-			coreDependencies = `<script src="${loader}"></script><script>
-			var requirejs = (function() {
-				return require;
-			}());
-			</script>`;
-			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-			this._initialize(htmlContent);
-			resolveFunc!();
-		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
-
-			fetch(loaderUri.toString(true)).then(async response => {
-				if (response.status !== 200) {
-					throw new Error(response.statusText);
-				}
-
-				const loaderJs = await response.text();
-
-				coreDependencies = `
-<script>
-${loaderJs}
-</script>
-<script>
-var requirejs = (function() {
-	return require;
-}());
-</script>
-`;
-
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				resolveFunc!();
-			}, error => {
-				// the fetch request is rejected
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				resolveFunc!();
-			});
-		}
-
-		await this._initalized;
+		const htmlContent = this.generateContent(baseUrl.toString());
+		this._initialize(htmlContent);
 	}
 
-	private async _initialize(content: string) {
+	private _initialize(content: string): void {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
