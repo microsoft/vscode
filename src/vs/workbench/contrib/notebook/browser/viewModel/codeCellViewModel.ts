@@ -9,7 +9,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, getEditorTopPadding, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -299,9 +299,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
+		const editorPadding = this.viewContext.notebookOptions.computeEditorPadding();
 		return this.lineCount * lineHeight
-			+ getEditorTopPadding()
-			+ this.viewContext.notebookOptions.getLayoutConfiguration().editorBottomPadding // EDITOR_BOTTOM_PADDING
+			+ editorPadding.top
+			+ editorPadding.bottom // EDITOR_BOTTOM_PADDING
 			+ verticalScrollbarHeight;
 	}
 

@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorTopPaddingChangeEvent, getEditorTopPadding, getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -57,26 +57,14 @@ export class CellEditorOptions extends Disposable {
 		}));
 
 		this._register(notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility) {
+			if (e.cellStatusBarVisibility || e.editorTopPadding) {
 				this._value = computeEditorOptions();
 				this._onDidChange.fire(this.value);
 			}
 		}));
 
-		this._register(EditorTopPaddingChangeEvent(() => {
-			this._value = computeEditorOptions();
-			this._onDidChange.fire(this.value);
-		}));
-
 		const computeEditorOptions = () => {
-			const showCellStatusBar = this.notebookOptions.getLayoutConfiguration().showCellStatusBar;
-			const editorPadding = {
-				top: getEditorTopPadding(),
-				bottom: showCellStatusBar
-					? this.notebookOptions.getLayoutConfiguration().editorBottomPadding// EDITOR_BOTTOM_PADDING
-					: this.notebookOptions.getLayoutConfiguration().editorBottomPaddingWithoutStatusBar // EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR
-			};
-
+			const editorPadding = this.notebookOptions.computeEditorPadding();
 			const renderLiNumbers = configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
 			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 			const editorOptions = deepClone(configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));

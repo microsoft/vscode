@@ -25,7 +25,6 @@ import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/men
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Delayer } from 'vs/base/common/async';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
-import { getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -979,7 +978,8 @@ export class DeletedElement extends SingleSideDiffElement {
 		const originalCell = this.cell.original!;
 		const lineCount = originalCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + this.notebookEditor.notebookOptions.getLayoutConfiguration().editorBottomPadding;
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+		const editorHeight = lineCount * lineHeight + editorPadding.top + editorPadding.bottom;
 
 		this._editor = this.templateData.sourceEditor;
 		this._editor.layout({
@@ -1130,7 +1130,8 @@ export class InsertElement extends SingleSideDiffElement {
 		const modifiedCell = this.cell.modified!;
 		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + this.notebookEditor.notebookOptions.getLayoutConfiguration().editorBottomPadding;
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+		const editorHeight = lineCount * lineHeight + editorPadding.top + editorPadding.bottom;
 
 		this._editor = this.templateData.sourceEditor;
 		this._editor.layout(
@@ -1468,7 +1469,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const modifiedCell = this.cell.modified!;
 		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : lineCount * lineHeight + getEditorTopPadding() + this.notebookEditor.notebookOptions.getLayoutConfiguration().editorBottomPadding;
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+
+		const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : lineCount * lineHeight + editorPadding.top + editorPadding.bottom;
 		this._editorContainer = this.templateData.editorContainer;
 		this._editor = this.templateData.sourceEditor;
 

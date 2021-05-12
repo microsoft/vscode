@@ -29,6 +29,20 @@ const COLLAPSED_INDICATOR_HEIGHT = 24;
 const EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR = 12;
 const EDITOR_BOTTOM_PADDING = 4;
 
+let EDITOR_TOP_PADDING = 12;
+const editorTopPaddingChangeEmitter = new Emitter<void>();
+
+export const EditorTopPaddingChangeEvent = editorTopPaddingChangeEmitter.event;
+
+export function updateEditorTopPadding(top: number) {
+	EDITOR_TOP_PADDING = top;
+	editorTopPaddingChangeEmitter.fire();
+}
+
+export function getEditorTopPadding() {
+	return EDITOR_TOP_PADDING;
+}
+
 export interface NotebookLayoutConfiguration {
 	cellRightMargin: number;
 	cellRunGutter: number;
@@ -42,6 +56,7 @@ export interface NotebookLayoutConfiguration {
 	bottomCellToolbarGap: number;
 	bottomCellToolbarHeight: number;
 	editorToolbarHeight: number;
+	editorTopPadding: number;
 	editorBottomPadding: number;
 	editorBottomPaddingWithoutStatusBar: number;
 	collapsedIndicatorHeight: number;
@@ -55,6 +70,7 @@ interface NotebookOptionsChangeEvent {
 	cellStatusBarVisibility?: boolean;
 	cellToolbarLocation?: boolean;
 	cellToolbarInteraction?: boolean;
+	editorTopPadding?: boolean;
 }
 export class NotebookOptions {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
@@ -78,6 +94,7 @@ export class NotebookOptions {
 			markdownCellBottomMargin: MARKDOWN_CELL_BOTTOM_MARGIN,
 			bottomCellToolbarGap: BOTTOM_CELL_TOOLBAR_GAP,
 			bottomCellToolbarHeight: BOTTOM_CELL_TOOLBAR_HEIGHT,
+			editorTopPadding: EDITOR_TOP_PADDING,
 			editorBottomPadding: EDITOR_BOTTOM_PADDING,
 			editorBottomPaddingWithoutStatusBar: EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR,
 			editorToolbarHeight: EDITOR_TOOLBAR_HEIGHT,
@@ -121,6 +138,13 @@ export class NotebookOptions {
 				cellToolbarLocation: cellToolbarLocation,
 				cellToolbarInteraction: cellToolbarInteraction
 			});
+		}));
+
+		this._disposables.push(EditorTopPaddingChangeEvent(() => {
+			const configuration = Object.assign({}, this._layoutConfiguration);
+			configuration.editorTopPadding = getEditorTopPadding();
+			this._layoutConfiguration = configuration;
+			this._onDidChangeOptions.fire({ editorTopPadding: true });
 		}));
 	}
 
@@ -195,5 +219,14 @@ export class NotebookOptions {
 		}
 
 		return 'right';
+	}
+
+	computeEditorPadding() {
+		return {
+			top: getEditorTopPadding(),
+			bottom: this._layoutConfiguration.showCellStatusBar
+				? this._layoutConfiguration.editorBottomPadding// EDITOR_BOTTOM_PADDING
+				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar // EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR
+		};
 	}
 }

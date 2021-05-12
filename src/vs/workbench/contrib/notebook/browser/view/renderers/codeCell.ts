@@ -10,7 +10,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, CodeCellRenderTemplate, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -39,8 +39,10 @@ export class CodeCell extends Disposable {
 		const width = this.viewCell.layoutInfo.editorWidth;
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+
 		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
-			? lineNum * lineHeight + getEditorTopPadding() + this.notebookEditor.notebookOptions.getLayoutConfiguration().editorBottomPadding // EDITOR_BOTTOM_PADDING
+			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
 			: this.viewCell.layoutInfo.editorHeight;
 
 		this.layoutEditor(

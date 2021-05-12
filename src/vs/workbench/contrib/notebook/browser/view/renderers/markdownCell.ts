@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditState, CellFocusMode, MarkdownCellRenderTemplate, ICellViewModel, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, MarkdownCellRenderTemplate, ICellViewModel, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -294,7 +294,8 @@ export class StatefulMarkdownCell extends Disposable {
 			const width = this.viewCell.layoutInfo.editorWidth;
 			const lineNum = this.viewCell.lineCount;
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-			editorHeight = Math.max(lineNum, 1) * lineHeight + getEditorTopPadding() + this.notebookEditor.notebookOptions.getLayoutConfiguration().editorBottomPadding;
+			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+			editorHeight = Math.max(lineNum, 1) * lineHeight + editorPadding.top + editorPadding.bottom;
 
 			this.templateData.editorContainer.innerText = '';
 
