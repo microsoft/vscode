@@ -20,6 +20,7 @@ import { CellEditType, IImmediateCellEditOperation, NullablePartialNotebookCellM
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NotebookCellExecutionState } from 'vs/workbench/api/common/extHostTypes';
 import { asArray } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
@@ -40,7 +41,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	constructor(
 		private readonly _mainContext: IMainContext,
 		private readonly _initData: IExtHostInitDataService,
-		private readonly _extHostNotebook: ExtHostNotebookController
+		private readonly _extHostNotebook: ExtHostNotebookController,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = _mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
@@ -53,8 +55,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			}
 		}
 
+
 		const handle = this._handlePool++;
 		const that = this;
+
+		this._logService.trace(`NotebookController[${handle}], CREATED by ${extension.identifier.value}, ${id}`);
 
 		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
 
@@ -170,6 +175,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			dispose: () => {
 				if (!isDisposed) {
+					this._logService.trace(`NotebookController[${handle}], DISPOSED`);
 					isDisposed = true;
 					this._kernelData.delete(handle);
 					commandDisposables.dispose();
