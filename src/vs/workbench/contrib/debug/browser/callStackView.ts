@@ -165,7 +165,7 @@ export class CallStackView extends ViewPane {
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
 			if (thread && thread.stoppedDetails) {
 				this.stateMessageLabel.textContent = thread.stateLabel;
-				this.stateMessageLabel.title = thread.stateLabel;
+				this.stateMessageLabel.title = thread.stoppedDetails.text || thread.stateLabel;
 				this.stateMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
 				this.stateMessage.hidden = false;
 			} else if (sessions.length === 1 && sessions[0].state === State.Running) {
