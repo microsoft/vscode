@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -31,7 +32,6 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -344,7 +344,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 
 class SingleTerminalTabActionViewItem extends ActionViewItem {
 	private _color: string | undefined;
-
+	private _initializedListener: boolean = false;
 	constructor(
 		action: IAction,
 		private readonly _actions: IAction[],
@@ -355,7 +355,7 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 		super(undefined, {
 			...action,
 			dispose: () => action.dispose(),
-			run: async () => this._run(),
+			run: () => this._run(),
 			label: getSingleTabLabel(_terminalService.getActiveInstance())
 		});
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
@@ -373,11 +373,16 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 	}
 
 	override updateLabel(): void {
+		if (!this._initializedListener) {
+			// makes sure this.element is defined
+			this._initListener();
+			this._initializedListener = true;
+		}
 		if (this.label) {
 			const label = this.label;
 			const instance = this._terminalService.getActiveInstance();
 			if (!instance) {
-				reset(label, '');
+				dom.reset(label, '');
 				return;
 			}
 			label.classList.add('single-terminal-tab');
@@ -392,7 +397,7 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
+			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
 			if (this._color) {
 				label.classList.remove(this._color);
 				this._color = undefined;
@@ -410,6 +415,14 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 			getActions: () => this._actions,
 			getActionsContext: () => this.label
 		});
+	}
+
+	private _initListener(): void {
+		this._register(dom.addDisposableListener(this.element!, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			if (e.button === 2) {
+				this._run();
+			}
+		}));
 	}
 }
 
