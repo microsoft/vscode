@@ -219,7 +219,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			} else {
 				obj.associatedNotebooks.delete(notebook.uri);
 			}
-			this._logService.trace(`NotebookController[${handle}]`, notebook.uri.toString(), value);
+			this._logService.trace(`NotebookController[${handle}] ASSOCIATE notebook`, notebook.uri.toString(), value);
 			// send event
 			obj.onDidChangeSelection.fire({
 				selected: value,
@@ -244,9 +244,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		try {
+			this._logService.trace(`NotebookController[${handle}] EXECUTE cells`, document.uri.toString(), cells.length);
 			await obj.controller.executeHandler.call(obj.controller, cells, document.apiNotebook, obj.controller);
 		} catch (err) {
 			//
+			this._logService.error(`NotebookController[${handle}] execute cells FAILED`, err);
 			console.error(err);
 		}
 	}
