@@ -166,6 +166,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			webview,
 			this._contentProvider,
 			this._previewConfigurations,
+			this._topmostLineMonitor,
 			this._logger,
 			this._contributions,
 			this._engine,

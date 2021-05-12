@@ -493,12 +493,13 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		webview: vscode.WebviewPanel,
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
+		topmostLineMonitor: TopmostLineMonitor,
 		logger: Logger,
 		contributionProvider: MarkdownContributionProvider,
 		engine: MarkdownEngine,
 		scrollLine?: number,
 	): StaticMarkdownPreview {
-		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, logger, contributionProvider, engine, scrollLine);
+		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, engine, scrollLine);
 	}
 
 	private readonly preview: MarkdownPreview;
@@ -508,6 +509,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		resource: vscode.Uri,
 		contentProvider: MarkdownContentProvider,
 		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
+		topmostLineMonitor: TopmostLineMonitor,
 		logger: Logger,
 		contributionProvider: MarkdownContributionProvider,
 		engine: MarkdownEngine,
@@ -529,6 +531,12 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		}));
 		this._register(this.preview.onScroll((scrollInfo) => {
 			this._onScrollEmitter.fire(scrollInfo);
+		}));
+
+		this._register(topmostLineMonitor.onDidChanged(event => {
+			if (this.preview.isPreviewOf(event.resource)) {
+				this.preview.scrollTo(event.line);
+			}
 		}));
 
 		const currentLine = this.preview.state.line ? this.preview.state.line : 0;
