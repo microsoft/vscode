@@ -41,7 +41,7 @@ interface PreloadStyles {
 
 declare function __import(path: string): Promise<any>;
 
-async function webviewPreloads(style: PreloadStyles, rendererData: readonly WebviewPreloadRenderer[]) {
+async function webviewPreloads(style: PreloadStyles, rendererData: readonly RendererMetadata[]) {
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -111,30 +111,66 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 		}
 	};
 
-	const runScript = async (url: string, originalUri: string, globals: { [name: string]: unknown } = {}): Promise<() => (PreloadResult)> => {
-		let text: string;
-		try {
-			const res = await fetch(url);
-			text = await res.text();
-			if (!res.ok) {
-				throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
-			}
-
-			globals.scriptUrl = url;
-		} catch (e) {
-			return () => ({ state: PreloadState.Error, error: e.message });
+	async function loadScriptSource(url: string, originalUri = url): Promise<string> {
+		const res = await fetch(url);
+		const text = await res.text();
+		if (!res.ok) {
+			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
 		}
 
+		return text;
+	}
+
+	interface RendererContext {
+		getState<T>(): T | undefined;
+		setState<T>(newState: T): void;
+
+		getRenderer(id: string): any | undefined;
+	}
+
+	function createRendererContext(rendererId: string): RendererContext {
+		const api = acquireNotebookRendererApi<any>(rendererId);
+		return {
+			getState: api.getState.bind(api),
+			setState: api.setState.bind(api),
+			getRenderer: (id: string) => renderers.getRenderer(id),
+		};
+	}
+
+	interface ScriptModule {
+		activate: (ctx?: RendererContext) => any;
+	}
+
+	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
 		const args = Object.entries(globals);
-		return () => {
-			try {
-				new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
-				return { state: PreloadState.Ok };
-			} catch (e) {
-				console.error(e);
-				return { state: PreloadState.Error, error: e.message };
+		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
+	};
+
+	const runPreload = async (url: string, originalUri: string): Promise<ScriptModule> => {
+		const text = await loadScriptSource(url, originalUri);
+		return {
+			activate: () => {
+				return invokeSourceWithGlobals(text, kernelPreloadGlobals);
 			}
 		};
+	};
+
+	const runRenderScript = async (url: string, rendererId: string): Promise<ScriptModule> => {
+		const text = await loadScriptSource(url);
+		// TODO: Support both the new module based renderers and the old style global renderers
+		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+		if (isModule) {
+			return __import(url);
+		} else {
+			return {
+				activate: () => {
+					const globals = {
+						acquireNotebookRendererApi: () => acquireNotebookRendererApi(rendererId)
+					};
+					return invokeSourceWithGlobals(text, globals);
+				}
+			};
+		}
 	};
 
 	const dimensionUpdater = new class {
@@ -389,7 +425,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 	// the dontEmit symbol to skip emission.
 	function mapEmitter<T, R>(emitter: EmitterLike<T>, mapFn: (data: T) => R | typeof dontEmit) {
 		let listener: IDisposable;
-		const mapped = createEmitter(listeners => {
+		const mapped = createEmitter<R>(listeners => {
 			if (listeners.size && !listener) {
 				listener = emitter.event(data => {
 					const v = mapFn(data);
@@ -407,7 +443,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 
 	interface ICreateCellInfo {
 		element: HTMLElement;
-		outputId: string;
+		outputId?: string;
 
 		mime: string;
 		value: unknown;
@@ -422,7 +458,14 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 	const onDidCreateOutput = createEmitter<{ rendererId: string, info: ICreateCellInfo }>();
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const acquireNotebookRendererApi = <T>(id: string) => ({
+	interface GlobalNotebookRendererApi<T> {
+		setState: (newState: T) => void;
+		getState(): T | undefined;
+		readonly onWillDestroyOutput: Event<undefined | IDestroyCellInfo>;
+		readonly onDidCreateOutput: Event<ICreateCellInfo>;
+	}
+
+	const acquireNotebookRendererApi = <T>(id: string): GlobalNotebookRendererApi<T> => ({
 		setState(newState: T) {
 			vscode.setState({ ...vscode.getState(), [id]: newState });
 		},
@@ -632,6 +675,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 						cellOutputContainer.appendChild(outputContainer);
 						outputContainer.appendChild(outputNode);
 					} else {
+						// TODO: this should go through renderers instead
 						onDidCreateOutput.fire({
 							rendererId: data.rendererId!,
 							info: {
@@ -754,21 +798,32 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 				const resources = event.data.resources;
 				let queue: Promise<PreloadResult> = Promise.resolve({ state: PreloadState.Ok });
 				for (const { uri, originalUri, source } of resources) {
-					const globals = source === 'kernel'
-						? kernelPreloadGlobals
-						: { acquireNotebookRendererApi: () => acquireNotebookRendererApi(source.rendererId) };
-
 					// create the promise so that the scripts download in parallel, but
 					// only invoke them in series within the queue
-					const promise = runScript(uri, originalUri, globals);
-					queue = queue.then(() => promise.then(fn => {
-						const result = fn();
-						if (result.state === PreloadState.Error) {
-							console.error(result.error);
-						}
 
-						return result;
-					}));
+					if (source === 'kernel') {
+						const promise = runPreload(uri, originalUri);
+						queue = queue.then(() => promise.then(async module => {
+							try {
+								await module.activate();
+								return { state: PreloadState.Ok };
+							} catch (error) {
+								console.error(error);
+								return { state: PreloadState.Error, error: error.toString() };
+							}
+						}));
+					} else {
+						queue = queue.then(async () => {
+							try {
+								await renderers.load(source.rendererId);
+								return { state: PreloadState.Ok };
+							} catch (error) {
+								console.error(error);
+								return { state: PreloadState.Error, error: error.toString() };
+							}
+						});
+					}
+
 					preloadPromises.set(uri, queue);
 				}
 				break;
@@ -789,50 +844,87 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 		}
 	});
 
-	interface MarkupRenderer {
-		renderMarkup: (context: { element: HTMLElement, content: string }) => void;
+	interface RendererApi {
+		renderCell: (id: string, context: ICreateCellInfo) => void;
 	}
 
-	const markupRenderers = new class {
+	class Renderer {
+		constructor(
+			public readonly data: RendererMetadata,
+			private readonly loadDependency: (id: string) => Promise<void>,
+		) { }
 
-		private readonly mimeTypesToRenderers = new Map<string, {
-			load: () => Promise<MarkupRenderer>;
-		}>();
+		private _loadPromise: Promise<RendererApi> | undefined;
+		private _api: RendererApi | undefined;
+
+		public get api() { return this._api; }
+
+		public load(): Promise<RendererApi | undefined> {
+			if (!this._loadPromise) {
+				this._loadPromise = Promise.all(this.data.dependencies.map(dependencyId => this.loadDependency(dependencyId)))
+					.then(() => runRenderScript(this.data.entrypoint, this.data.id))
+					.then(module => {
+						if (module) {
+							const api = module.activate(createRendererContext(this.data.id));
+							this._api = api;
+							return api;
+						}
+						return undefined;
+					});
+			}
+			return this._loadPromise;
+		}
+	}
+
+	const renderers = new class {
+
+		private readonly _renderers = new Map</* id */ string, Renderer>();
 
 		constructor() {
 			for (const renderer of rendererData) {
-				let loadPromise: Promise<MarkupRenderer> | undefined;
-
-				const entry = {
-					load: () => {
-						if (!loadPromise) {
-							loadPromise = __import(renderer.entrypoint).then(module => {
-								return module.activate({ dependencies: renderer.dependencies });
-							});
-						}
-						return loadPromise;
-					},
-					renderer: undefined,
-				};
-
-				for (const mime of renderer.mimeTypes || []) {
-					if (!this.mimeTypesToRenderers.has(mime)) {
-						this.mimeTypesToRenderers.set(mime, entry);
+				this._renderers.set(renderer.id, new Renderer(renderer, async (dependencyId) => {
+					const parent = this._renderers.get(dependencyId);
+					if (!parent) {
+						throw new Error(`Could not find renderer dependency: ${dependencyId}`);
 					}
-				}
+					await parent.load();
+				}));
 			}
 		}
 
-		async renderMarkdown(element: HTMLElement, content: string): Promise<void> {
-			const entry = this.mimeTypesToRenderers.get('text/markdown');
-			if (!entry) {
+		public getRenderer(id: string): RendererApi | undefined {
+			return this._renderers.get(id)?.api;
+		}
+
+		public load(id: string) {
+			const renderer = this._renderers.get(id);
+			if (!renderer) {
 				throw new Error('Could not find renderer');
 			}
-			const renderer = await entry.load();
-			renderer.renderMarkup({ element, content });
+
+			return renderer.load();
+		}
+
+		public async renderMarkdown(id: string, element: HTMLElement, content: string): Promise<void> {
+			const markdownRenderers = Array.from(this._renderers.values())
+				.filter(renderer => renderer.data.mimeTypes.includes('text/markdown'));
+
+			if (!markdownRenderers.length) {
+				throw new Error('Could not find renderer');
+			}
+
+			await Promise.all(markdownRenderers.map(x => x.load()));
+
+			const renderer = Array.from(this._renderers.values()).find(x => x.data.mimeTypes.includes('text/markdown'));
+			renderer?.api?.renderCell(id, {
+				element,
+				value: content,
+				mime: 'text/markdown',
+				metadata: undefined,
+				outputId: undefined,
+			});
 		}
 	}();
-
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
@@ -961,7 +1053,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				await markupRenderers.renderMarkdown(previewNode, content);
+				await renderers.renderMarkdown(cellId, previewNode, content);
 
 				if (!hasPostedRenderedMathTelemetry) {
 					const hasRenderedMath = previewNode.querySelector('.katex');
@@ -1060,13 +1152,14 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 	}();
 }
 
-export interface WebviewPreloadRenderer {
+export interface RendererMetadata {
+	readonly id: string;
 	readonly entrypoint: string;
+	readonly dependencies: readonly string[]
 	readonly mimeTypes: readonly string[];
-	readonly dependencies: ReadonlyArray<{ entrypoint: string }>;
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, renderers: readonly WebviewPreloadRenderer[]) {
+export function preloadsScriptStr(styleValues: PreloadStyles, renderers: readonly RendererMetadata[]) {
 	// TS will try compiling `import()` in webviePreloads, so use an helper function instead
 	// of using `import(...)` directly
 	return `
