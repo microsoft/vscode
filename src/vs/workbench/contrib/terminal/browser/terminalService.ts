@@ -325,7 +325,7 @@ export class TerminalService implements ITerminalService {
 
 	@throttle(10000)
 	private async _refreshAvailableProfiles(): Promise<void> {
-		const result = await this._detectProfiles(true);
+		const result = await this._detectProfiles();
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
@@ -333,13 +333,12 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	// TODO: Invert arg
-	private async _detectProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
+	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
 		const offProcService = this._offProcessTerminalService;
 		if (!offProcService) {
 			return this._availableProfiles || [];
 		}
-		return offProcService?.getProfiles(!configuredProfilesOnly);
+		return offProcService?.getProfiles(includeDetectedProfiles);
 	}
 
 	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -748,7 +747,7 @@ export class TerminalService implements ITerminalService {
 
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
 		let keyMods: IKeyMods | undefined;
-		const profiles = await this._detectProfiles(false);
+		const profiles = await this._detectProfiles(true);
 		const platformKey = await this._getPlatformKey();
 
 		const options: IPickOptions<IProfileQuickPickItem> = {

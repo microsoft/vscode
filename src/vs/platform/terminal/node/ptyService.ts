@@ -177,12 +177,6 @@ export class PtyService extends Disposable implements IPtyService {
 		return getSystemShell(osOverride, process.env);
 	}
 
-	// async getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-
-	// 	const safeConfigProvider = this._buildSafeConfigProvider(await this._extHostConfiguration.getConfigProvider());
-	// 	return detectAvailableProfiles(configuredProfilesOnly, safeConfigProvider, undefined, this._logService, await this._variableResolverPromise, this._lastActiveWorkspace);
-	// }
-
 	async getEnvironment(): Promise<IProcessEnvironment> {
 		return { ...process.env };
 	}

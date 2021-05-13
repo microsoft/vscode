@@ -18,7 +18,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(
-	configuredProfilesOnly: boolean,
+	includeDetectedProfiles: boolean,
 	safeConfigProvider: SafeConfigProvider,
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
@@ -32,7 +32,7 @@ export function detectAvailableProfiles(
 	};
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
-			configuredProfilesOnly,
+			includeDetectedProfiles,
 			fsProvider,
 			logService,
 			safeConfigProvider('terminal.integrated.useWslProfiles') || true,
@@ -45,7 +45,7 @@ export function detectAvailableProfiles(
 	return detectAvailableUnixProfiles(
 		fsProvider,
 		logService,
-		configuredProfilesOnly,
+		includeDetectedProfiles,
 		safeConfigProvider(`terminal.integrated.profiles.${isMacintosh ? 'osx' : 'linux'}`),
 		safeConfigProvider(`terminal.integrated.defaultProfile.${isMacintosh ? 'osx' : 'linux'}`),
 		testPaths,
@@ -55,7 +55,7 @@ export function detectAvailableProfiles(
 }
 
 async function detectAvailableWindowsProfiles(
-	configuredProfilesOnly: boolean,
+	includeDetectedProfiles: boolean,
 	fsProvider: IFsProvider,
 	logService?: ILogService,
 	useWslProfiles?: boolean,
@@ -82,7 +82,7 @@ async function detectAvailableWindowsProfiles(
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add auto detected profiles
-	if (!configuredProfilesOnly) {
+	if (includeDetectedProfiles) {
 		detectedProfiles.set('PowerShell', {
 			source: ProfileSource.Pwsh,
 			icon: Codicon.terminalPowershell.id,
@@ -116,7 +116,7 @@ async function detectAvailableWindowsProfiles(
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver, workspaceFolder);
 
-	if (!configuredProfilesOnly || (configuredProfilesOnly && useWslProfiles)) {
+	if (includeDetectedProfiles || (!includeDetectedProfiles && useWslProfiles)) {
 		try {
 			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
 			if (result) {
@@ -256,7 +256,7 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 async function detectAvailableUnixProfiles(
 	fsProvider: IFsProvider,
 	logService?: ILogService,
-	configuredProfilesOnly?: boolean,
+	includeDetectedProfiles?: boolean,
 	configProfiles?: { [key: string]: ITerminalProfileObject },
 	defaultProfileName?: string,
 	testPaths?: string[],
@@ -266,7 +266,7 @@ async function detectAvailableUnixProfiles(
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add non-quick launch profiles
-	if (!configuredProfilesOnly) {
+	if (includeDetectedProfiles) {
 		const contents = await fsProvider.readFile('/etc/shells', 'utf8');
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		const counts: Map<string, number> = new Map();
