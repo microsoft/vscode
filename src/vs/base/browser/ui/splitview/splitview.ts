@@ -14,7 +14,7 @@ import { Color } from 'vs/base/common/color';
 import { domEvent } from 'vs/base/browser/event';
 import { $, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface ISplitViewStyles {
@@ -237,6 +237,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private _onDidSashReset = this._register(new Emitter<number>());
 	readonly onDidSashReset = this._onDidSashReset.event;
 
+	readonly onScroll: Event<ScrollEvent>;
+
 	get length(): number {
 		return this.viewItems.length;
 	}
@@ -317,7 +319,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
 		}, this.scrollable));
 
-		this._register(this.scrollableElement.onScroll(e => {
+		this.onScroll = this.scrollableElement.onScroll;
+		this._register(this.onScroll(e => {
 			this.viewContainer.scrollTop = e.scrollTop;
 			this.viewContainer.scrollLeft = e.scrollLeft;
 		}));

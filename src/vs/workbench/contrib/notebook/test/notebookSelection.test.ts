@@ -94,11 +94,11 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection from UI', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -130,11 +130,11 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection with folding regions', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -175,12 +175,12 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection with folding regions and applyEdits', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3', 'javascript', CellKind.Markdown, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['var c = 3', 'javascript', CellKind.Markup, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
@@ -229,11 +229,11 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list getModelIndex', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -259,7 +259,7 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook validate range', async () => {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
@@ -279,7 +279,7 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook updateSelectionState', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
@@ -292,7 +292,7 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell selection w/ cell deletion', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {

@@ -96,8 +96,12 @@ export interface IOffProcessTerminalService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getShellEnvironment(): Promise<IProcessEnvironment>;
+	getWslPath(original: string): Promise<string>;
+	getEnvironment(): Promise<IProcessEnvironment>;
+	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	updateTitle(id: number, title: string): Promise<void>;
+	updateIcon(id: number, icon: string, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 }
@@ -159,9 +163,11 @@ export interface IPtyService {
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
-
+	updateTitle(id: number, title: string): Promise<void>
+	updateIcon(id: number, icon: string, color?: string): Promise<void>
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getShellEnvironment(): Promise<IProcessEnvironment>;
+	getEnvironment(): Promise<IProcessEnvironment>;
+	getWslPath(original: string): Promise<string>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
@@ -260,7 +266,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; color?: string };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -270,6 +276,14 @@ export interface IShellLaunchConfig {
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
+
+	/**
+	 * Whether the terminal process environment will inherit VS Code's "shell environment" that may
+	 * get sourced from running a login shell depnding on how the application was launched.
+	 * Consumers that rely on development tools being present in the $PATH should set this to true.
+	 * This will overwrite the value of the inheritEnv setting.
+	 */
+	useShellEnvironment?: boolean;
 
 	/**
 	 * When enabled the terminal will run the process as normal but not be surfaced to the user
@@ -296,6 +310,11 @@ export interface IShellLaunchConfig {
 	 * icon.
 	 */
 	icon?: string;
+
+	/**
+	 * The color ID to use for this terminal. If not specified it will use the default fallback
+	 */
+	color?: string;
 }
 
 export interface IShellLaunchConfigDto {
@@ -304,6 +323,7 @@ export interface IShellLaunchConfigDto {
 	args?: string[] | string;
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
+	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
 }
 

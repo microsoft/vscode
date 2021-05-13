@@ -4,7 +4,7 @@
   "description": "%description%",
   "publisher": "vscode",
   "license": "MIT",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.41.0"
   },
@@ -19,7 +19,8 @@
     "web"
   ],
   "activationEvents": [
-    "onAuthenticationRequest:github"
+    "onAuthenticationRequest:github",
+    "onAuthenticationRequest:github-enterprise"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -31,13 +32,24 @@
     "commands": [
       {
         "command": "github.provide-token",
-        "title": "Manually Provide Token"
+        "title": "Manually Provide Token",
+        "category": "GitHub"
+      },
+      {
+        "command": "github-enterprise.provide-token",
+        "title": "Manually Provide Token",
+        "category": "GitHub Enterprise"
+
       }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "github.provide-token",
+          "when": "false"
+        },
+        {
+          "command": "github-enterprise.provide-token",
           "when": "false"
         }
       ]
@@ -46,8 +58,21 @@
       {
         "label": "GitHub",
         "id": "github"
+      },
+      {
+        "label": "GitHub Enterprise",
+        "id": "github-enterprise"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "GitHub Enterprise Authentication Provider",
+      "properties": {
+        "github-enterprise.uri" : {
+          "type": "string",
+          "description": "URI of your GitHub Enterprise Instanace"
+        }
+      }
+    }
   },
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "main": "./out/extension.js",
@@ -67,7 +92,7 @@
     "vscode-tas-client": "^0.1.22"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9",
+    "@types/node": "14.x",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "8.0.0"
   },

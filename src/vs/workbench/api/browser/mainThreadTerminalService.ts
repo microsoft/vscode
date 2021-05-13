@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
+import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, TerminalLaunchConfig, ITerminalDimensionsDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ExtHostContext, ExtHostTerminalServiceShape, IExtHostContext, ITerminalDimensionsDto, MainContext, MainThreadTerminalServiceShape, TerminalIdentifier, TerminalLaunchConfig } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IAvailableProfilesRequest as IAvailableProfilesRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest as IAvailableProfilesRequest, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -71,11 +71,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 		this._toDispose.add(_terminalService.onRequestAvailableProfiles(e => this._onRequestAvailableProfiles(e)));
-
-		// ITerminalInstanceService listeners
-		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
-			this._toDispose.add(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e)));
-		}
 
 		// Set initial ext host state
 		this._terminalService.terminalInstances.forEach(t => {
@@ -265,7 +260,15 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitTitle(title);
+		// Since title events can only come from vscode.Pseudoterminals right now, these are routed
+		// directly to the instance as API source events such that they will replace the initial
+		// `name` property provided for the Pseudoterminal. If we support showing both Api and
+		// Process titles at the same time we may want to pass this through as a Process source
+		// event.
+		const instance = this._terminalService.getInstanceFromId(terminalId);
+		if (instance) {
+			instance.setTitle(title, TitleEventSource.Api);
+		}
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
@@ -320,13 +323,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private async _onRequestAvailableProfiles(req: IAvailableProfilesRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
 			req.callback(await this._proxy.$getAvailableProfiles(req.configuredProfilesOnly));
-		}
-	}
-
-	private async _onRequestDefaultShellAndArgs(req: IDefaultShellAndArgsRequest): Promise<void> {
-		if (this._isPrimaryExtHost()) {
-			const res = await this._proxy.$getDefaultShellAndArgs(req.useAutomationShell);
-			req.callback(res.shell, res.args);
 		}
 	}
 

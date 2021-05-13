@@ -207,7 +207,7 @@ suite('QuickAccess', () => {
 			super('fast');
 		}
 
-		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IQuickPickItem> {
+		protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IQuickPickItem> {
 			fastProviderCalled = true;
 
 			return [{ label: 'Fast Pick' }];
@@ -220,7 +220,7 @@ suite('QuickAccess', () => {
 			super('slow');
 		}
 
-		protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IQuickPickItem>> {
+		protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IQuickPickItem>> {
 			slowProviderCalled = true;
 
 			await timeout(1);
@@ -239,7 +239,7 @@ suite('QuickAccess', () => {
 			super('bothFastAndSlow');
 		}
 
-		protected getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
+		protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
 			fastAndSlowProviderCalled = true;
 
 			return {

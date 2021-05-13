@@ -219,6 +219,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
+		this.hide();
 	}
 
 	dispose(): void {
@@ -312,6 +313,7 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(listener);
 		this._breadcrumbsDisposables.add(configListener);
+		this._breadcrumbsDisposables.add(toDisposable(() => this._widget.setItems([])));
 
 		const updateScrollbarSizing = () => {
 			const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';

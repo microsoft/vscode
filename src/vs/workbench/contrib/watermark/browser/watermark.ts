@@ -22,7 +22,7 @@ import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -46,7 +46,7 @@ const openFileOrFolderMacOnly: WatermarkEntry = { text: nls.localize('watermark.
 const openRecent: WatermarkEntry = { text: nls.localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
 const newUntitledFile: WatermarkEntry = { text: nls.localize('watermark.newUntitledFile', "New Untitled File"), id: NEW_UNTITLED_FILE_COMMAND_ID };
 const newUntitledFileMacOnly: WatermarkEntry = Object.assign({ mac: true }, newUntitledFile);
-const toggleTerminal: WatermarkEntry = { text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: TERMINAL_COMMAND_ID.TOGGLE };
+const toggleTerminal: WatermarkEntry = { text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: TerminalCommandId.Toggle };
 const findInFiles: WatermarkEntry = { text: nls.localize('watermark.findInFiles', "Find in Files"), id: FindInFilesActionId };
 const startDebugging: WatermarkEntry = { text: nls.localize('watermark.startDebugging', "Start Debugging"), id: DEBUG_START_COMMAND_ID };
 

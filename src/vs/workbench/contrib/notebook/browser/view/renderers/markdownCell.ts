@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { raceCancellation } from 'vs/base/common/async';
+import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, MarkdownCellRenderTemplate, ICellViewModel, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, MarkdownCellRenderTemplate, ICellViewModel, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -106,7 +105,9 @@ export class StatefulMarkdownCell extends Disposable {
 	private markdownContainer: HTMLElement;
 	private editorPart: HTMLElement;
 
-	private readonly localDisposables = new DisposableStore();
+	private readonly localDisposables = this._register(new DisposableStore());
+	private readonly focusSwitchDisposable = this._register(new MutableDisposable());
+	private readonly editorDisposables = this._register(new DisposableStore());
 	private foldingState: CellFoldingState;
 	private useRenderer: boolean = false;
 	private renderStrategy: IMarkdownRenderStrategy;
@@ -236,7 +237,6 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	override dispose() {
-		this.localDisposables.dispose();
 		this.viewCell.detachTextEditor();
 		super.dispose();
 	}
@@ -278,7 +278,7 @@ export class StatefulMarkdownCell extends Disposable {
 		if (this.editor && this.editor.hasModel()) {
 			editorHeight = this.editor.getContentHeight();
 
-			// not first time, we don't need to create editor or bind listeners
+			// not first time, we don't need to create editor
 			this.viewCell.attachTextEditor(this.editor);
 			this.focusEditorIfNeeded();
 
@@ -289,12 +289,13 @@ export class StatefulMarkdownCell extends Disposable {
 				height: editorHeight
 			});
 		} else {
-			this.editor?.dispose();
+			this.editorDisposables.clear();
 
 			const width = this.viewCell.layoutInfo.editorWidth;
 			const lineNum = this.viewCell.lineCount;
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-			editorHeight = Math.max(lineNum, 1) * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
+			const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+			editorHeight = Math.max(lineNum, 1) * lineHeight + editorPadding.top + editorPadding.bottom;
 
 			this.templateData.editorContainer.innerText = '';
 
@@ -302,9 +303,9 @@ export class StatefulMarkdownCell extends Disposable {
 			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
-			this._register(editorContextKeyService);
+			this.editorDisposables.add(editorContextKeyService);
 
-			this.editor = this._register(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
+			this.editor = this.editorDisposables.add(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
 				...this.editorOptions,
 				dimension: {
 					width: width,
@@ -315,7 +316,7 @@ export class StatefulMarkdownCell extends Disposable {
 			this.templateData.currentEditor = this.editor;
 
 			const cts = new CancellationTokenSource();
-			this._register({ dispose() { cts.dispose(true); } });
+			this.editorDisposables.add({ dispose() { cts.dispose(true); } });
 			raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
 				if (!model) {
 					return;
@@ -423,6 +424,7 @@ export class StatefulMarkdownCell extends Disposable {
 	private bindEditorListeners(editor: CodeEditorWidget) {
 
 		this.localDisposables.clear();
+		this.focusSwitchDisposable.clear();
 
 		this.localDisposables.add(editor.onDidContentSizeChange(e => {
 			const viewLayout = editor.getLayoutInfo();
@@ -461,9 +463,7 @@ export class StatefulMarkdownCell extends Disposable {
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
 			if (document.activeElement?.contains(this.templateData.container)) {
-				setTimeout(() => {
-					updateFocusMode();
-				}, 300);
+				this.focusSwitchDisposable.value = disposableTimeout(() => updateFocusMode(), 300);
 			} else {
 				updateFocusMode();
 			}

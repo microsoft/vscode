@@ -66,8 +66,8 @@ suite('StorageMainService', function () {
 		registerWindow(window: ICodeWindow): void { }
 		async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> { }
 		async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean> { return true; }
-		relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; }): void { }
-		async quit(fromUpdate?: boolean): Promise<boolean> { return true; }
+		async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; }): Promise<void> { }
+		async quit(willRestart?: boolean): Promise<boolean> { return true; }
 		async kill(code?: number): Promise<void> { }
 		async when(phase: LifecycleMainPhase): Promise<void> { }
 	}

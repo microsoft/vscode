@@ -22,11 +22,10 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export enum CellKind {
-	Markdown = 1,
+	Markup = 1,
 	Code = 2
 }
 
@@ -135,19 +134,14 @@ export interface INotebookRendererInfo {
 	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
 
+	readonly mimeTypes: readonly string[];
+
+	readonly dependencies: readonly string[];
+
 	matchesWithoutKernel(mimeType: string): NotebookRendererMatch;
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
-export interface INotebookMarkupRendererInfo {
-	readonly id: string;
-	readonly entrypoint: URI;
-	readonly extensionLocation: URI;
-	readonly extensionId: ExtensionIdentifier;
-	readonly extensionIsBuiltin: boolean;
-	readonly dependsOn: string | undefined;
-	readonly mimeTypes: readonly string[] | undefined;
-}
 
 export interface NotebookCellOutputMetadata {
 	/**
@@ -440,6 +434,16 @@ export interface NotebookDataDto {
 	readonly metadata: NotebookDocumentMetadata;
 }
 
+
+export interface INotebookContributionData {
+	extension: ExtensionIdentifier,
+	providerDisplayName: string;
+	displayName: string;
+	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
+	exclusive: boolean;
+}
+
+
 export function getCellUndoRedoComparisonKey(uri: URI) {
 	const data = CellUri.parse(uri);
 	if (!data) {
@@ -481,15 +485,33 @@ export namespace CellUri {
 		};
 	}
 
-	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
+	export function parseCellMetadataUri(metadata: URI) {
+		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
+			return undefined;
+		}
+		const match = _regex.exec(metadata.fragment);
+		if (!match) {
+			return undefined;
+		}
+		const handle = Number(match[1]);
+		return {
+			handle,
+			notebook: metadata.with({
+				scheme: metadata.fragment.substr(match[0].length) || Schemas.file,
+				fragment: null
+			})
+		};
+	}
+
+	export function generateCellUri(notebook: URI, handle: number, scheme: string): URI {
 		return notebook.with({
-			scheme: Schemas.vscodeNotebookCellMetadata,
+			scheme: scheme,
 			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
-	export function parseCellMetadataUri(metadata: URI) {
-		if (metadata.scheme !== Schemas.vscodeNotebookCellMetadata) {
+	export function parseCellUri(metadata: URI, scheme: string) {
+		if (metadata.scheme !== scheme) {
 			return undefined;
 		}
 		const match = _regex.exec(metadata.fragment);
@@ -522,8 +544,9 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['text/html', { supportedByCore: true }],
 	['image/svg+xml', { supportedByCore: true }],
 	['image/jpeg', { supportedByCore: true }],
-	['text/x-javascript', { supportedByCore: true }],
+	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
 	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+	['application/x.notebook.error', { alwaysSecure: true, supportedByCore: true }],
 	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
@@ -660,12 +683,15 @@ export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
 export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidChangeDirty: Event<void>;
 	readonly onDidSave: Event<void>;
+	readonly onDidChangeOrphaned: Event<void>;
+	readonly onDidChangeReadonly: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isReadonly(): boolean;
+	isOrphaned(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;
@@ -783,7 +809,7 @@ export interface INotebookKernel {
 }
 
 export interface INotebookCellStatusBarItemProvider {
-	selector: NotebookSelector;
+	viewType: string;
 	onDidChangeStatusBarItems?: Event<void>;
 	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
@@ -828,6 +854,7 @@ export interface INotebookCellStatusBarItemList {
 
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
+export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
@@ -843,4 +870,18 @@ export interface INotebookDecorationRenderOptions {
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
-export const NOTEBOOK_WORKING_COPY_TYPE_PREFIX = 'notebook/';
+export class NotebookWorkingCopyTypeIdentifier {
+
+	private static _prefix = 'notebook/';
+
+	static create(viewType: string): string {
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}/${viewType}`;
+	}
+
+	static parse(candidate: string): string | undefined {
+		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
+			return candidate.substr(NotebookWorkingCopyTypeIdentifier._prefix.length);
+		}
+		return undefined;
+	}
+}

@@ -19,6 +19,10 @@ class DependencyList {
 		this.defined = this.value.size > 0;
 	}
 
+	public values(): string[] {
+		return Array.from(this.value);
+	}
+
 	/** Gets whether any of the 'available' dependencies match the ones in this list */
 	public matches(available: ReadonlyArray<string>) {
 		// For now this is simple, but this may expand to support globs later
@@ -39,7 +43,7 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 	// todo: re-add preloads in pure renderer API
 	readonly preloads: ReadonlyArray<URI> = [];
 
-	private readonly mimeTypes: readonly string[];
+	readonly mimeTypes: readonly string[];
 	private readonly mimeTypeGlobs: glob.ParsedPattern[];
 
 	constructor(descriptor: {
@@ -60,6 +64,10 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		this.mimeTypeGlobs = this.mimeTypes.map(pattern => glob.parse(pattern));
 		this.hardDependencies = new DependencyList(descriptor.dependencies ?? Iterable.empty());
 		this.optionalDependencies = new DependencyList(descriptor.optionalDependencies ?? Iterable.empty());
+	}
+
+	get dependencies(): string[] {
+		return this.hardDependencies.values();
 	}
 
 	matchesWithoutKernel(mimeType: string) {

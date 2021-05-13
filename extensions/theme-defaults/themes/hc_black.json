@@ -10,7 +10,7 @@
 		"selection.background": "#008000",
 		"editor.selectionBackground": "#FFFFFF",
 		"statusBarItem.remoteBackground": "#00000000",
-		"ports.iconRunningProcessforeground": "#FFFFFF"
+		"ports.iconRunningProcessForeground": "#FFFFFF"
 	},
 	"tokenColors": [
 		{

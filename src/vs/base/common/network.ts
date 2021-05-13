@@ -61,6 +61,7 @@ export namespace Schemas {
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
+	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
 
 	export const vscodeSettings = 'vscode-settings';
 

@@ -10,14 +10,14 @@ import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
@@ -362,7 +362,7 @@ suite('EditorService', () => {
 
 		// Untyped Input (resource)
 		input = service.createEditorInput({ resource: URI.parse('custom:resource') });
-		assert(input instanceof ResourceEditorInput);
+		assert(input instanceof TextResourceEditorInput);
 
 		// Untyped Input (diff)
 		input = service.createEditorInput({
@@ -392,7 +392,7 @@ suite('EditorService', () => {
 
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		const inp = instantiationService.createInstance(ResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined);
+		const inp = instantiationService.createInstance(TextResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined);
 		const delegate = instantiationService.createInstance(DelegatingEditorService, async (group, delegate) => {
 			assert.ok(group);
 
@@ -956,7 +956,8 @@ suite('EditorService', () => {
 			mtime: 0,
 			name: 'resource2',
 			size: 0,
-			isSymbolicLink: false
+			isSymbolicLink: false,
+			readonly: false
 		}));
 		await activeEditorChangePromise;
 

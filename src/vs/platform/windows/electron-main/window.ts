@@ -800,6 +800,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Update window related properties
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
+		configuration.partsSplash = this.themeMainService.getWindowSplash();
 
 		// Update with latest perf marks
 		mark('code/willOpenNewWindow');

@@ -42,7 +42,7 @@
 }
 
 .workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
-	color: var(--workspace-trust-selected-state-color) !important;
+	color: var(--workspace-trust-selected-color) !important;
 }
 
 .workspace-trust-editor .workspace-trust-header .workspace-trust-description {
@@ -80,16 +80,17 @@
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations {
 	min-height: 315px;
+	border: 1px solid var(--workspace-trust-unselected-color);
+	margin: 4px 4px;
+	display: flex;
+	flex-direction: column;
+	padding: 10px 40px;
 }
 
-.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted {
-	border-width: 2px;
-	border-color: var(--workspace-trust-selected-state-color) !important;
-}
-
+.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted,
 .workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted {
 	border-width: 2px;
-	border-color: var(--workspace-trust-selected-state-color) !important;
+	border-color: var(--workspace-trust-selected-color) !important;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations ul {
@@ -108,12 +109,12 @@
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.trusted .list-item-icon {
-	color: var(--workspace-trust-trusted-color) !important;
+	color: var(--workspace-trust-check-color) !important;
 	font-size: 18px;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.untrusted .list-item-icon {
-	color: var(--workspace-trust-untrusted-color) !important;
+	color: var(--workspace-trust-x-color) !important;
 	font-size: 20px;
 }
 
@@ -142,14 +143,10 @@
 	display: none;
 }
 
-.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
-	display: unset;
-	color: var(--workspace-trust-selected-state-color) !important;
-}
-
+.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon,
 .workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
 	display: unset;
-	color: var(--workspace-trust-selected-state-color) !important;
+	color: var(--workspace-trust-selected-color) !important;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-untrusted-description {
@@ -180,21 +177,16 @@
 	padding: 5px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	margin: 4px 5px; /* allows button focus outline to be visible */
 	outline-offset: 2px !important;
 }
 
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown {
-	padding: 0 2px;
-}
-
-.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown .monaco-button {
-	margin-left: 1px;
-	margin-right: 1px;
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons > .monaco-button,
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons > .monaco-button-dropdown {
+	margin: 4px 5px; /* allows button focus outline to be visible */
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown .monaco-dropdown-button {
-	padding: 5px 0px;
+	padding: 5px;
 }
 
 .workspace-trust-limitations {

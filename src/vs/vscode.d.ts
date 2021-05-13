@@ -1269,7 +1269,7 @@ declare module 'vscode' {
 		 * Create an URI from a file system path. The {@link Uri.scheme scheme}
 		 * will be `file`.
 		 *
-		 * The *difference* between `Uri#parse` and `Uri#file` is that the latter treats the argument
+		 * The *difference* between {@link Uri.parse} and {@link Uri.file} is that the latter treats the argument
 		 * as path, not as stringified-uri. E.g. `Uri.file(path)` is *not* the same as
 		 * `Uri.parse('file://' + path)` because the path might contain characters that are
 		 * interpreted (# and ?). See the following sample:
@@ -6695,7 +6695,7 @@ declare module 'vscode' {
 
 	/**
 	 * A task provider allows to add tasks to the task service.
-	 * A task provider is registered via #tasks.registerTaskProvider.
+	 * A task provider is registered via {@link tasks.registerTaskProvider}.
 	 */
 	export interface TaskProvider<T extends Task = Task> {
 		/**
@@ -8119,7 +8119,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that the value is `undefined` when there is no remote extension host but that the
 		 * value is defined in all extension hosts (local and remote) in case a remote extension host
-		 * exists. Use {@link Extension.extensionKind `Extension#extensionKind`} to know if
+		 * exists. Use {@link Extension.extensionKind} to know if
 		 * a specific extension runs remote or not.
 		 */
 		export const remoteName: string | undefined;
@@ -9341,6 +9341,13 @@ declare module 'vscode' {
 		 * as normal.
 		 */
 		hideFromUser?: boolean;
+
+		/**
+		 * A message to write to the terminal on first launch, note that this is not sent to the
+		 * process but, rather written directly to the terminal. This supports escape sequences such
+		 * a setting text style.
+		 */
+		message?: string;
 	}
 
 	/**
@@ -10488,7 +10495,7 @@ declare module 'vscode' {
 		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
 
 		/**
-		 * All text documents currently known to the system.
+		 * All text documents currently known to the editor.
 		 */
 		export const textDocuments: ReadonlyArray<TextDocument>;
 
@@ -11620,7 +11627,7 @@ declare module 'vscode' {
 	/**
 	 * A debug configuration provider allows to add debug configurations to the debug service
 	 * and to resolve launch configurations before they are used to start a debug session.
-	 * A debug configuration provider is registered via #debug.registerDebugConfigurationProvider.
+	 * A debug configuration provider is registered via {@link debug.registerDebugConfigurationProvider}.
 	 */
 	export interface DebugConfigurationProvider {
 		/**
@@ -11995,7 +12002,7 @@ declare module 'vscode' {
 	 * A DebugConfigurationProviderTriggerKind specifies when the `provideDebugConfigurations` method of a `DebugConfigurationProvider` is triggered.
 	 * Currently there are two situations: to provide the initial debug configurations for a newly created launch.json or
 	 * to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
-	 * A trigger kind is used when registering a `DebugConfigurationProvider` with #debug.registerDebugConfigurationProvider.
+	 * A trigger kind is used when registering a `DebugConfigurationProvider` with {@link debug.registerDebugConfigurationProvider}.
 	 */
 	export enum DebugConfigurationProviderTriggerKind {
 		/**

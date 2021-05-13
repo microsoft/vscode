@@ -29,6 +29,10 @@ import { NotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -37,7 +41,7 @@ export class NotebookEditor extends EditorPane {
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private readonly _groupListener = this._register(new DisposableStore());
-	private readonly _widgetDisposableStore: DisposableStore = new DisposableStore();
+	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
 	private _rootElement!: HTMLElement;
 	private _dimension?: DOM.Dimension;
@@ -101,6 +105,14 @@ export class NotebookEditor extends EditorPane {
 
 	getDomNode() {
 		return this._rootElement;
+	}
+
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === SELECT_KERNEL_ID) {
+			// this is being disposed by the consumer
+			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this);
+		}
+		return undefined;
 	}
 
 	override getControl(): NotebookEditorWidget | undefined {

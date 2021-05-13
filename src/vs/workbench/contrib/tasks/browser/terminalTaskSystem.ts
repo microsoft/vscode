@@ -14,7 +14,7 @@ import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isUNC } from 'vs/base/common/extpath';
 
 import { IFileService } from 'vs/platform/files/common/files';
@@ -27,7 +27,7 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ITerminalProfileResolverService, TERMINAL_SETTING_ID, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TerminalSettingId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
@@ -49,6 +49,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
+import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
+import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -141,7 +143,7 @@ export class VerifiedTask {
 	}
 }
 
-export class TerminalTaskSystem implements ITaskSystem {
+export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
@@ -196,6 +198,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private isRerun: boolean = false;
 	private previousPanelId: string | undefined;
 	private previousTerminalInstance: ITerminalInstance | undefined;
+	private terminalStatusManager: TaskTerminalStatus;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -216,8 +219,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private viewDescriptorService: IViewDescriptorService,
 		private logService: ILogService,
 		private configurationService: IConfigurationService,
+		taskService: ITaskService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
+		super();
 
 		this.activeTasks = Object.create(null);
 		this.instances = Object.create(null);
@@ -228,6 +233,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		this._onDidStateChange = new Emitter();
 		this.taskSystemInfoResolver = taskSystemInfoResolver;
+		this._register(this.terminalStatusManager = new TaskTerminalStatus(taskService));
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {
@@ -781,6 +787,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (!terminal) {
 				return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 			}
+			this.terminalStatusManager.addTerminal(task, terminal, watchingProblemMatcher);
 
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
@@ -883,6 +890,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 			let problemMatchers = await this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
+			this.terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
 			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
 				if (skipLine) {
@@ -1074,7 +1082,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					// Under Mac remove -l to not start it as a login shell.
 					if (platform === Platform.Platform.Mac) {
 						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
-						const osxShellArgs = this.configurationService.inspect(TERMINAL_SETTING_ID.ShellArgsMacOs);
+						const osxShellArgs = this.configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
 						if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
 							&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
 							&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
@@ -1149,20 +1157,21 @@ export class TerminalTaskSystem implements ITaskSystem {
 			shellLaunchConfig.env = options.env;
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
+		shellLaunchConfig.useShellEnvironment = true;
 		return shellLaunchConfig;
 	}
 
 	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = await this.resolveOptions(resolver, task.command.options);
-
-		let waitOnExit: boolean | string = false;
 		const presentationOptions = task.command.presentation;
+
+		let waitOnExit: boolean | string = presentationOptions?.close ? !presentationOptions.close : false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
 
-		if (presentationOptions.reveal !== RevealKind.Never || !task.configurationProperties.isBackground) {
+		if ((presentationOptions.close === undefined) && ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground)) {
 			if (presentationOptions.panel === PanelKind.New) {
 				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
 			} else if (presentationOptions.showReuseMessage) {

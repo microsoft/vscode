@@ -153,7 +153,7 @@ export const openNewSearchEditor =
 			else { editor.selectQuery(); }
 			editor.setSearchConfig(args);
 		} else {
-			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: args, text: '' });
+			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: args, resultsContents: '', from: 'rawData' });
 			editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;
 		}
 
@@ -192,11 +192,11 @@ export const createEditorFromSearchResult =
 		const contextLines = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines;
 
 		if (searchResult.isDirty || contextLines === 0 || contextLines === null) {
-			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text, config });
+			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { resultsContents: text, config, from: 'rawData' });
 			await editorService.openEditor(input, { pinned: true });
 			input.setMatchRanges(matchRanges);
 		} else {
-			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text: '', config: { ...config, contextLines } });
+			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'rawData', resultsContents: '', config: { ...config, contextLines } });
 			const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
 			editor.triggerSearch({ focusResults: true });
 		}

@@ -254,7 +254,7 @@ class CellStatusBarItem extends Disposable {
 				}
 			}));
 		} else {
-			this.container.tabIndex = -1;
+			this.container.removeAttribute('tabIndex');
 		}
 
 		this._currentItem = item;

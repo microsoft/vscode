@@ -9,9 +9,10 @@ import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, LayoutPriority, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
-import { tail2 as tail } from 'vs/base/common/arrays';
+import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { clamp } from 'vs/base/common/numbers';
+import { isUndefined } from 'vs/base/common/types';
 
 export { Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -646,6 +647,25 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 }
 
+/**
+ * Creates a latched event that avoids being fired when the view
+ * constraints do not change at all.
+ */
+function createLatchedOnDidChangeViewEvent(view: IView): Event<IViewSize | undefined> {
+	const [onDidChangeViewConstraints, onDidSetViewSize] = Event.split<undefined, IViewSize>(view.onDidChange, isUndefined);
+
+	return Event.any(
+		onDidSetViewSize,
+		Event.map(
+			Event.latch(
+				Event.map(onDidChangeViewConstraints, _ => ([view.minimumWidth, view.maximumWidth, view.minimumHeight, view.maximumHeight])),
+				arrayEquals
+			),
+			_ => undefined
+		)
+	);
+}
+
 class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	private _size: number = 0;
@@ -691,7 +711,8 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._orthogonalSize = orthogonalSize;
 		this._size = size;
 
-		this._onDidViewChange = Event.map(this.view.onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height));
+		const onDidChange = createLatchedOnDidChangeViewEvent(view);
+		this._onDidViewChange = Event.map(onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height));
 		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
 	}
 
@@ -778,7 +799,25 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._orthogonalSize = ctx.orthogonalSize;
 		this.absoluteOffset = ctx.absoluteOffset + offset;
 		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
-		this.view.layout(this.width, this.height, this.top, this.left);
+
+		this._layout(this.width, this.height, this.top, this.left);
+	}
+
+	private cachedWidth: number = 0;
+	private cachedHeight: number = 0;
+	private cachedTop: number = 0;
+	private cachedLeft: number = 0;
+
+	private _layout(width: number, height: number, top: number, left: number): void {
+		if (this.cachedWidth === width && this.cachedHeight === height && this.cachedTop === top && this.cachedLeft === left) {
+			return;
+		}
+
+		this.cachedWidth = width;
+		this.cachedHeight = height;
+		this.cachedTop = top;
+		this.cachedLeft = left;
+		this.view.layout(width, height, top, left);
 	}
 
 	setVisible(visible: boolean): void {

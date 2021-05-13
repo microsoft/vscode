@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 
 export class BrowserPathService extends AbstractPathService {
 
@@ -27,6 +28,11 @@ export class BrowserPathService extends AbstractPathService {
 function defaultUriScheme(environmentService: IWorkbenchEnvironmentService, contextService: IWorkspaceContextService): string {
 	if (environmentService.remoteAuthority) {
 		return Schemas.vscodeRemote;
+	}
+
+	const virtualWorkspace = getVirtualWorkspaceScheme(contextService.getWorkspace());
+	if (virtualWorkspace) {
+		return virtualWorkspace;
 	}
 
 	const firstFolder = contextService.getWorkspace().folders[0];

@@ -15,7 +15,6 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorInput } from 'vs/workbench/common/editor';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 /**
  * The working copy backup tracker deals with:
@@ -209,7 +208,10 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	//#region Backup Restorer
 
 	protected readonly unrestoredBackups = new Set<IWorkingCopyIdentifier>();
-	private readonly whenReady = this.resolveBackupsToRestore();
+	protected readonly whenReady = this.resolveBackupsToRestore();
+
+	private _isReady = false;
+	protected get isReady(): boolean { return this._isReady; }
 
 	private async resolveBackupsToRestore(): Promise<void> {
 
@@ -220,6 +222,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		for (const backup of await this.workingCopyBackupService.getBackups()) {
 			this.unrestoredBackups.add(backup);
 		}
+
+		this._isReady = true;
 	}
 
 	protected async restoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {
@@ -254,7 +258,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Otherwise, make sure to create at least one editor
 			// for the backup to show
 			if (!hasOpenedEditorForBackup) {
-				nonOpenedEditorsForBackups.push(handler.createEditor(unrestoredBackup));
+				nonOpenedEditorsForBackups.push(await handler.createEditor(unrestoredBackup));
 			}
 
 			// Remember as (potentially) restored
@@ -269,8 +273,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				options: {
 					pinned: true,
 					preserveFocus: true,
-					inactive: true,
-					override: EditorOverride.DISABLED
+					inactive: true
 				}
 			})));
 

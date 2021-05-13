@@ -14,11 +14,11 @@ suite('NotebookCellList', () => {
 	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
@@ -59,11 +59,11 @@ suite('NotebookCellList', () => {
 	test('revealElementsInView: reveal partially visible cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
@@ -101,11 +101,11 @@ suite('NotebookCellList', () => {
 	test('revealElementsInView: reveal cell out of viewport', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
@@ -136,11 +136,11 @@ suite('NotebookCellList', () => {
 	test('updateElementHeight', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
@@ -176,11 +176,11 @@ suite('NotebookCellList', () => {
 	test('updateElementHeight with anchor #121723', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			async (editor) => {
 				// await new Promise(c => setTimeout(c, 3000));
@@ -229,11 +229,11 @@ suite('NotebookCellList', () => {
 	test('updateElementHeight with anchor #121723: focus element out of viewport', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			async (editor) => {
 				// await new Promise(c => setTimeout(c, 3000));
@@ -265,11 +265,11 @@ suite('NotebookCellList', () => {
 	test('updateElementHeight of cells out of viewport should not trigger scroll #121140', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
