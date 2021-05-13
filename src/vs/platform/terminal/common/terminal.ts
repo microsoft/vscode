@@ -252,7 +252,7 @@ export interface IPtyService {
 
 export interface IRequestResolveVariablesEvent {
 	id: number;
-	text: string[];
+	originalText: string[];
 }
 
 export enum HeartbeatConstants {

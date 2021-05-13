@@ -311,7 +311,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return new Promise<string[]>(resolve => {
 			const id = ++lastResolveVariablesRequestId;
 			this._pendingResolveVariablesRequests.set(id, resolve);
-			this._onPtyHostRequestResolveVariables.fire({ id, text });
+			this._onPtyHostRequestResolveVariables.fire({ id, originalText: text });
 		});
 	}
 	async acceptPtyHostResolvedVariables(id: number, resolved: string[]) {

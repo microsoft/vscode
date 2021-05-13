@@ -135,7 +135,9 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._register(channel.onPtyHostRequestResolveVariables(async e => {
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-				const resolveCalls: Promise<string>[] = e.text.map(t => configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t));
+				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
+					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
+				});
 				const result = await Promise.all(resolveCalls);
 				channel.acceptPtyHostResolvedVariables(e.id, result);
 			}));
