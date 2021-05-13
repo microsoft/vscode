@@ -162,7 +162,6 @@ sw.addEventListener('message', async (event) => {
 			}
 		case 'did-load-localhost':
 			{
-				const webviewId = getWebviewIdForClient(event.source);
 				const data = event.data.data;
 				if (!localhostRequestStore.resolve(data.id, data.location)) {
 					console.log('Could not resolve unknown localhost', data.origin);
@@ -293,9 +292,14 @@ async function processLocalhostRequest(event, requestUrl) {
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
 		// that are not spawned by vs code
-		return undefined;
+		return fetch(event.request);
 	}
 	const webviewId = getWebviewIdForClient(client);
+	if (!webviewId) {
+		console.error('Could not resolve webview id');
+		return fetch(event.request);
+	}
+
 	const origin = requestUrl.origin;
 
 	/**
