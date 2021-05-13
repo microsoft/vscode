@@ -20,12 +20,6 @@ export class TopmostLineMonitor extends Disposable {
 	private previousStaticEditorInfo = new Map<string, LastScrollLocation>();
 	private isPrevEditorCustom = false;
 
-	private readonly _onChanged = this._register(new vscode.EventEmitter<{ readonly resource: vscode.Uri, readonly line: number }>());
-	public readonly onDidChanged = this._onChanged.event;
-
-	private readonly _onEditorNeedsScrolling = this._register(new vscode.EventEmitter<{ readonly line: number, readonly editor: vscode.TextEditor }>());
-	public readonly onEditorNeedsScrolling = this._onEditorNeedsScrolling.event;
-
 	constructor() {
 		super();
 
@@ -59,6 +53,12 @@ export class TopmostLineMonitor extends Disposable {
 			this.isPrevEditorCustom = (textEditor === undefined);
 		}));
 	}
+
+	private readonly _onChanged = this._register(new vscode.EventEmitter<{ readonly resource: vscode.Uri, readonly line: number }>());
+	public readonly onDidChanged = this._onChanged.event;
+
+	private readonly _onEditorNeedsScrolling = this._register(new vscode.EventEmitter<{ readonly line: number, readonly editor: vscode.TextEditor }>());
+	public readonly onEditorNeedsScrolling = this._onEditorNeedsScrolling.event;
 
 	public setPreviousMDTextEditorLine(editor: vscode.TextEditor) {
 		const uri = editor.document.uri;
