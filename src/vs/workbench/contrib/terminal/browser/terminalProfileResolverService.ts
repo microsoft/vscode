@@ -13,8 +13,8 @@ import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/t
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -153,7 +153,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			return shellSettingProfile;
 		}
 
-		// Return the real default profile if it exists and is valid
+		// Return the real default profile if it exists and is valid, wait for profiles to be ready
+		// if the window just opened
+		await this._terminalService.profilesReady;
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
 		if (defaultProfile) {
 			return defaultProfile;
