@@ -332,7 +332,6 @@ export class TerminalService implements ITerminalService {
 	@throttle(10000)
 	private async _refreshAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles(true);
-		console.log('detectProfiles result', result);
 		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
@@ -343,17 +342,11 @@ export class TerminalService implements ITerminalService {
 	// TODO: Invert arg
 	private async _detectProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
 		const offProcService = this._offProcessTerminalService;
-		console.log('offProcService?', offProcService);
 		if (!offProcService) {
 			return this._availableProfiles || [];
 		}
 		return offProcService?.getProfiles(!configuredProfilesOnly);
 	}
-
-	// private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
-	// 	this._createExtHostReadyEntry(remoteAuthority);
-	// 	return this._extHostsReady[remoteAuthority]!.promise;
-	// }
 
 	private _createExtHostReadyEntry(remoteAuthority: string): void {
 		if (this._extHostsReady[remoteAuthority]) {
