@@ -8,7 +8,6 @@ import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import * as cp from 'child_process';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
 import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
@@ -23,7 +22,6 @@ export function detectAvailableProfiles(
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
-	workspaceFolder?: IWorkspaceFolder,
 	testPaths?: string[]
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
@@ -38,8 +36,7 @@ export function detectAvailableProfiles(
 			safeConfigProvider('terminal.integrated.useWslProfiles') || true,
 			safeConfigProvider('terminal.integrated.profiles.windows'),
 			safeConfigProvider('terminal.integrated.defaultProfile.windows'),
-			variableResolver,
-			workspaceFolder
+			variableResolver
 		);
 	}
 	return detectAvailableUnixProfiles(
@@ -49,8 +46,7 @@ export function detectAvailableProfiles(
 		safeConfigProvider(`terminal.integrated.profiles.${isMacintosh ? 'osx' : 'linux'}`),
 		safeConfigProvider(`terminal.integrated.defaultProfile.${isMacintosh ? 'osx' : 'linux'}`),
 		testPaths,
-		variableResolver,
-		workspaceFolder
+		variableResolver
 	);
 }
 
@@ -61,8 +57,7 @@ async function detectAvailableWindowsProfiles(
 	useWslProfiles?: boolean,
 	configProfiles?: { [key: string]: ITerminalProfileObject },
 	defaultProfileName?: string,
-	variableResolver?: (text: string[]) => Promise<string[]>,
-	workspaceFolder?: IWorkspaceFolder
+	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
@@ -114,7 +109,7 @@ async function detectAvailableWindowsProfiles(
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver, workspaceFolder);
+	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver);
 
 	if (includeDetectedProfiles || (!includeDetectedProfiles && useWslProfiles)) {
 		try {
@@ -130,7 +125,13 @@ async function detectAvailableWindowsProfiles(
 	return resultProfiles;
 }
 
-async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, defaultProfileName: string | undefined, fsProvider: IFsProvider, logService?: ILogService, variableResolver?: (text: string[]) => Promise<string[]>, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function transformToTerminalProfiles(
+	entries: IterableIterator<[string, ITerminalProfileObject]>,
+	defaultProfileName: string | undefined,
+	fsProvider: IFsProvider,
+	logService?: ILogService,
+	variableResolver?: (text: string[]) => Promise<string[]>
+): Promise<ITerminalProfile[]> {
 	const resultProfiles: ITerminalProfile[] = [];
 	for (const [profileName, profile] of entries) {
 		if (profile === null) { continue; }
@@ -260,8 +261,7 @@ async function detectAvailableUnixProfiles(
 	configProfiles?: { [key: string]: ITerminalProfileObject },
 	defaultProfileName?: string,
 	testPaths?: string[],
-	variableResolver?: (text: string[]) => Promise<string[]>,
-	workspaceFolder?: IWorkspaceFolder
+	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
@@ -284,7 +284,7 @@ async function detectAvailableUnixProfiles(
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver, workspaceFolder);
+	return await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, logService, variableResolver);
 }
 
 function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProfileObject } | undefined, profilesMap: Map<string, ITerminalProfileObject>) {
