@@ -108,6 +108,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// an issue
 		shellLaunchConfig.icon = this._verifyIcon(shellLaunchConfig.icon) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
 
+		// Override the name if specified
+		if (resolvedProfile.overrideName) {
+			shellLaunchConfig.name = resolvedProfile.profileName;
+		}
+
 		// Resolve useShellEnvironment based on the setting if it's not set
 		if (shellLaunchConfig.useShellEnvironment === undefined) {
 			shellLaunchConfig.useShellEnvironment = this._configurationService.getValue(TerminalSettingId.InheritEnv);

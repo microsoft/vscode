@@ -278,7 +278,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
-			this._createProcess();
+			await this._createProcess();
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
@@ -1056,8 +1056,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
 		this._processManager.onProcessReady(() => {
 			this._onProcessIdReady.fire(this);
-			// Re-fire the title change event to ensure a slow resolved icon gets applied
-			this._onTitleChanged.fire(this);
+			// Set the initial name based on the _resolved_ shell launch config, this will also
+			// ensure the resolved icon gets shown
+			if (this._shellLaunchConfig.name) {
+				this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+			} else {
+				// Only listen for process title changes when a name is not provided
+				if (this._configHelper.config.experimentalUseTitleEvent) {
+					// Set the title to the first event if the sequence hasn't set it yet
+					Event.once(this._processManager.onProcessTitle)(e => {
+						if (!this._title) {
+							this.setTitle(e, TitleEventSource.Sequence);
+						}
+					});
+					// Listen to xterm.js' sequence title change event, trigger this async to ensure
+					// _xtermReadyPromise is ready constructed since this is called from the ctor
+					setTimeout(() => {
+						this._xtermReadyPromise.then(xterm => {
+							this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
+						});
+					});
+				} else {
+					this.setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
+					this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', TitleEventSource.Process));
+				}
+			}
 		});
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(ev => {
@@ -1068,30 +1091,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
 		this._processManager.onProcessShellTypeChanged(type => this.setShellType(type));
-		if (this._shellLaunchConfig.name) {
-			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
-		} else {
-			// Only listen for process title changes when a name is not provided
-			if (this._configHelper.config.experimentalUseTitleEvent) {
-				// Set the title to the first event if the sequence hasn't set it yet
-				Event.once(this._processManager.onProcessTitle)(e => {
-					if (!this._title) {
-						this.setTitle(this._title, TitleEventSource.Sequence);
-					}
-				});
-				// Listen to xterm.js' sequence title change event, trigger this async to ensure
-				// xterm is constructed since this is called from TerminalInstance's ctor
-				setTimeout(() => {
-					this._xtermReadyPromise.then(xterm => {
-						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
-					});
-				});
-			} else {
-				this.setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
-				this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', TitleEventSource.Process));
-			}
-		}
-
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
 			this.statusList.add({
@@ -1107,11 +1106,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	private _createProcess(): void {
+	private async _createProcess(): Promise<void> {
 		if (this._isDisposed) {
 			return;
 		}
-		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
+		await this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
 			}
@@ -1307,8 +1306,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized(), reset);
 
 		// Set title again as when creating the first process
-		if (this._shellLaunchConfig.name) {
-			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+		if (this._shellLaunchConfig.name || this._shellLaunchConfig.executable) {
+			this.setTitle(this._shellLaunchConfig.name || this._shellLaunchConfig.executable, TitleEventSource.Api);
 		}
 
 		this._xtermTypeAhead?.reset();
