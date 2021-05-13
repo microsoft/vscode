@@ -16,7 +16,10 @@ import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceServ
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -39,15 +42,19 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	 */
 	private _linkProvider: IDisposable | undefined;
 
+	private _os: OperatingSystem = OS;
+
 	constructor(
-		extHostContext: IExtHostContext,
+		private readonly _extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ILogService private readonly _logService: ILogService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
+		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
 		// ITerminalService listeners
 		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
@@ -80,12 +87,25 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
 
-		this._terminalService.extHostReady(extHostContext.remoteAuthority!); // TODO@Tyriar: remove null assertion
+		remoteAgentService.getEnvironment().then(async env => {
+			this._os = env?.os || OS;
+			this._updateDefaultProfile();
+		});
+		this._terminalService.onDidChangeAvailableProfiles(() => this._updateDefaultProfile());
+
+		this._terminalService.extHostReady(_extHostContext.remoteAuthority!); // TODO@Tyriar: remove null assertion
 	}
 
 	public dispose(): void {
 		this._toDispose.dispose();
 		this._linkProvider?.dispose();
+	}
+
+	private async _updateDefaultProfile() {
+		const remoteAuthority = withNullAsUndefined(this._extHostContext.remoteAuthority);
+		const defaultProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os });
+		const defaultAutomationProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os, allowAutomationShell: true });
+		this._proxy.$acceptDefaultProfile(...await Promise.all([defaultProfile, defaultAutomationProfile]));
 	}
 
 	private _getTerminalId(id: TerminalIdentifier): number | undefined {

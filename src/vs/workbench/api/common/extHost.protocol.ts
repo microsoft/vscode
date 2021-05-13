@@ -39,7 +39,7 @@ import { IRemoteConnectionData, RemoteAuthorityResolverErrorCode, ResolverResult
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
@@ -1708,6 +1708,7 @@ export interface ExtHostTerminalServiceShape {
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
+	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 }
 
 export interface ExtHostSCMShape {
