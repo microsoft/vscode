@@ -8,6 +8,7 @@ import { localize } from 'vs/nls';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { iconRegistry } from 'vs/base/common/codicons';
 
 const terminalProfileSchema: IJSONSchema = {
 	type: 'object',
@@ -33,7 +34,9 @@ const terminalProfileSchema: IJSONSchema = {
 		},
 		icon: {
 			description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
-			type: 'string'
+			type: 'string',
+			enum: Array.from(iconRegistry.all, icon => icon.id),
+			markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
 		},
 		env: {
 			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
@@ -189,7 +192,9 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 							},
 							icon: {
 								description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
-								type: 'string'
+								type: 'string',
+								enum: Array.from(iconRegistry.all, icon => icon.id),
+								markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
 							},
 							env: {
 								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
