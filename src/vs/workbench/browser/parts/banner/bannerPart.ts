@@ -162,7 +162,7 @@ export class BannerPart extends Part implements IBannerService {
 			const actionContainer = append(this.element, $('div.message-actions-container'));
 
 			for (const action of item.actions) {
-				const actionLink = this._register(this.instantiationService.createInstance(Link, action));
+				const actionLink = this._register(this.instantiationService.createInstance(Link, action, {}));
 				this._register(attachLinkStyler(actionLink, this.themeService, { textLinkForeground: BANNER_FOREGROUND }));
 				actionContainer.appendChild(actionLink.el);
 			}

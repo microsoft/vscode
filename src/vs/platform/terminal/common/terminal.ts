@@ -9,6 +9,78 @@ import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
+export const enum TerminalSettingId {
+	ShellLinux = 'terminal.integrated.shell.linux',
+	ShellMacOs = 'terminal.integrated.shell.osx',
+	ShellWindows = 'terminal.integrated.shell.windows',
+	SendKeybindingsToShell = 'terminal.integrated.sendKeybindingsToShell',
+	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
+	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
+	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
+	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
+	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
+	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
+	ProfilesWindows = 'terminal.integrated.profiles.windows',
+	ProfilesMacOs = 'terminal.integrated.profiles.osx',
+	ProfilesLinux = 'terminal.integrated.profiles.linux',
+	DefaultProfileLinux = 'terminal.integrated.defaultProfile.linux',
+	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
+	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
+	UseWslProfiles = 'terminal.integrated.useWslProfiles',
+	TabsEnabled = 'terminal.integrated.tabs.enabled',
+	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
+	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
+	TabsLocation = 'terminal.integrated.tabs.location',
+	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
+	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
+	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
+	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
+	CopyOnSelection = 'terminal.integrated.copyOnSelection',
+	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
+	FontFamily = 'terminal.integrated.fontFamily',
+	FontSize = 'terminal.integrated.fontSize',
+	LetterSpacing = 'terminal.integrated.letterSpacing',
+	LineHeight = 'terminal.integrated.lineHeight',
+	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
+	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
+	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
+	BellDuration = 'terminal.integrated.bellDuration',
+	FontWeight = 'terminal.integrated.fontWeight',
+	FontWeightBold = 'terminal.integrated.fontWeightBold',
+	CursorBlinking = 'terminal.integrated.cursorBlinking',
+	CursorStyle = 'terminal.integrated.cursorStyle',
+	CursorWidth = 'terminal.integrated.cursorWidth',
+	Scrollback = 'terminal.integrated.scrollback',
+	DetectLocale = 'terminal.integrated.detectLocale',
+	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
+	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
+	Cwd = 'terminal.integrated.cwd',
+	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
+	EnableBell = 'terminal.integrated.enableBell',
+	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
+	AllowChords = 'terminal.integrated.allowChords',
+	AllowMnemonics = 'terminal.integrated.allowMnemonics',
+	EnvMacOs = 'terminal.integrated.env.osx',
+	EnvLinux = 'terminal.integrated.env.linux',
+	EnvWindows = 'terminal.integrated.env.windows',
+	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
+	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
+	ShowExitAlert = 'terminal.integrated.showExitAlert',
+	SplitCwd = 'terminal.integrated.splitCwd',
+	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
+	WordSeparators = 'terminal.integrated.wordSeparators',
+	ExperimentalUseTitleEvent = 'terminal.integrated.experimentalUseTitleEvent',
+	EnableFileLinks = 'terminal.integrated.enableFileLinks',
+	UnicodeVersion = 'terminal.integrated.unicodeVersion',
+	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
+	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
+	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
+	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
+	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
+	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration',
+	InheritEnv = 'terminal.integrated.inheritEnv'
+}
+
 export enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
@@ -96,6 +168,7 @@ export interface IOffProcessTerminalService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getWslPath(original: string): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
@@ -120,6 +193,8 @@ export interface IPtyService {
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
 	readonly onPtyHostResponsive?: Event<void>;
+	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
+
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;
@@ -132,6 +207,7 @@ export interface IPtyService {
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
+	acceptPtyHostResolvedVariables?(id: number, resolved: string[]): Promise<void>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
@@ -164,15 +240,21 @@ export interface IPtyService {
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
-	updateTitle(id: number, title: string): Promise<void>
-	updateIcon(id: number, icon: string, color?: string): Promise<void>
+	updateTitle(id: number, title: string): Promise<void>;
+	updateIcon(id: number, icon: string, color?: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getProfiles?(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 	requiresWindowsMode(): Promise<boolean>;
+}
+
+export interface IRequestResolveVariablesEvent {
+	id: number;
+	originalText: string[];
 }
 
 export enum HeartbeatConstants {
@@ -455,6 +537,17 @@ export interface ITerminalDimensions {
 	rows: number;
 }
 
+export interface ITerminalProfile {
+	profileName: string;
+	path: string;
+	isDefault: boolean;
+	isAutoDetected?: boolean;
+	args?: string | string[] | undefined;
+	env?: ITerminalEnvironment;
+	overrideName?: boolean;
+	icon?: string;
+}
+
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
 	/**
 	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
@@ -463,3 +556,26 @@ export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimension
 }
 
 export type SafeConfigProvider = <T>(key: string) => T | undefined;
+
+export const enum ProfileSource {
+	GitBash = 'Git Bash',
+	Pwsh = 'PowerShell'
+}
+
+export interface IBaseUnresolvedTerminalProfile {
+	args?: string | string[] | undefined;
+	isAutoDetected?: boolean;
+	overrideName?: boolean;
+	icon?: string;
+	env?: ITerminalEnvironment;
+}
+
+export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
+	path: string | string[];
+}
+
+export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
+	source: ProfileSource;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
