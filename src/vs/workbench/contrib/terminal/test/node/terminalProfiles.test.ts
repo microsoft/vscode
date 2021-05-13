@@ -14,7 +14,7 @@ import { detectAvailableProfiles, IFsProvider } from 'vs/platform/terminal/node/
  * properties the same. Order of the profiles is ignored.
  */
 function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITerminalProfile[]) {
-	strictEqual(actualProfiles.length, expectedProfiles.length);
+	strictEqual(actualProfiles.length, expectedProfiles.length, `Actual: ${actualProfiles.map(e => e.profileName).join(',')}\nExpected: ${expectedProfiles.map(e => e.profileName).join(',')}`);
 	for (const expected of expectedProfiles) {
 		const actual = actualProfiles.find(e => e.profileName === expected.profileName);
 		ok(actual, `Expected profile ${expected.profileName} not found`);
