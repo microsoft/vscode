@@ -46,7 +46,7 @@ export class TopmostLineMonitor extends Disposable {
 
 			// When at a markdown file, apply existing scroll settings from static preview if last editor was custom.
 			// Also save reference to text editor for line number reference later
-			if (textEditor && isMarkdownFile(textEditor.document!)) {
+			if (textEditor && textEditor.document && isMarkdownFile(textEditor.document)) {
 				if (this.isPrevEditorCustom) {
 					const line = this.getPreviousStaticEditorLineByUri(textEditor.document.uri);
 					if (line) {
