@@ -3,6 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Scrollable Element
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
-export const SCROLLABLE_ELEMENT_PADDING_TOP = 20;
+export class ViewContext {
+	constructor(
+		readonly notebookOptions: NotebookOptions,
+		readonly eventDispatcher: NotebookEventDispatcher
+	) {
+	}
+}

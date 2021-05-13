@@ -50,7 +50,6 @@ export async function loadLocalResource(
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
 		remoteAuthority: string | undefined;
-		useRootAuthority?: boolean;
 	},
 	fileService: IFileService,
 	requestService: IRequestService,
@@ -59,7 +58,7 @@ export async function loadLocalResource(
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.remoteAuthority, options.useRootAuthority);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.remoteAuthority);
 
 	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -119,23 +118,22 @@ function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
 	remoteAuthority: string | undefined,
-	useRootAuthority: boolean | undefined
 ): URI | undefined {
 	for (const root of roots) {
 		if (containsResource(root, requestUri)) {
-			return normalizeResourcePath(requestUri, remoteAuthority, useRootAuthority ? root.authority : undefined);
+			return normalizeResourcePath(requestUri, remoteAuthority);
 		}
 	}
 
 	return undefined;
 }
 
-function normalizeResourcePath(resource: URI, remoteAuthority: string | undefined, useRemoteAuthority: string | undefined): URI {
+function normalizeResourcePath(resource: URI, remoteAuthority: string | undefined): URI {
 	// If the uri was from a remote authority, make we go to the remote to load it
-	if (useRemoteAuthority || (remoteAuthority && resource.scheme === Schemas.file)) {
+	if (remoteAuthority && resource.scheme === Schemas.file) {
 		return URI.from({
 			scheme: Schemas.vscodeRemote,
-			authority: useRemoteAuthority ?? remoteAuthority,
+			authority: remoteAuthority,
 			path: '/vscode-resource',
 			query: JSON.stringify({
 				requestResourcePath: resource.path

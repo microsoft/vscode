@@ -749,6 +749,34 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.ChangeColor,
+				title: { value: localize('workbench.action.terminal.changeColor', "Change Color..."), original: 'Change Color...' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalService).getActiveInstance()?.changeColor();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.ChangeColorInstance,
+				title: { value: localize('workbench.action.terminal.changeColor', "Change Color..."), original: 'Change Color...' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION)
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return getSelectedInstances(accessor)?.[0].changeColor();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.Rename,
 				title: { value: localize('workbench.action.terminal.rename', "Rename..."), original: 'Rename...' },
 				f1: true,

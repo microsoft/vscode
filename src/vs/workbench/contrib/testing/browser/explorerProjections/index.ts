@@ -9,8 +9,6 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { InternalTestItem, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -37,17 +35,6 @@ export interface ITestTreeProjection extends IDisposable {
 	 * Gets an element by its extension-assigned ID.
 	 */
 	getElementByTestId(testId: string): TestItemTreeElement | undefined;
-
-	/**
-	 * Gets the test at the given position in th editor. Should be fast,
-	 * since it is called on each cursor move.
-	 */
-	getTestAtPosition(uri: URI, position: Position): TestItemTreeElement | undefined;
-
-	/**
-	 * Gets whether any test is defined in the given URI.
-	 */
-	hasTestInDocument(uri: URI): boolean;
 
 	/**
 	 * Applies pending update to the tree.

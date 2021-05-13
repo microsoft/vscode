@@ -14,7 +14,7 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
 
 /**
  * The working copy backup tracker deals with:
@@ -247,7 +247,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 			// Collect already opened editors for backup
 			let hasOpenedEditorForBackup = false;
-			for (const editor of this.editorService.editors) {
+			for (const { editor } of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 				const isUnrestoredBackupOpened = handler.isOpen(unrestoredBackup, editor);
 				if (isUnrestoredBackupOpened) {
 					openedEditorsForBackups.push(editor);

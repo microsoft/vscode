@@ -87,7 +87,7 @@ export class ExtHostCell {
 				document: data.document,
 				get outputs() { return that._outputs.slice(0); },
 				get metadata() { return that._metadata; },
-				get latestExecutionSummary() { return that._previousResult; }
+				get executionSummary() { return that._previousResult; }
 			});
 		}
 		return this._apiCell;

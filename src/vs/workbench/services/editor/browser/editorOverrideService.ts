@@ -130,9 +130,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const input = await this.doOverrideEditorInput(editor, options, group, selectedContribution);
 		if (conflictingDefault && input) {
 			// Wait one second to give the user ample time to see the current editor then ask them to configure a default
-			setTimeout(() => {
-				this.doHandleConflictingDefaults(selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
-			}, 1200);
+			this.doHandleConflictingDefaults(selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
 		}
 		// Dispose of the passed in editor as we will return a new one
 		if (!input?.editor.matches(editor)) {

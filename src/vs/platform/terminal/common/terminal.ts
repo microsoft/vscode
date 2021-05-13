@@ -174,7 +174,7 @@ export interface IOffProcessTerminalService {
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	updateTitle(id: number, title: string): Promise<void>;
-	updateIcon(id: number, icon: string): Promise<void>;
+	updateIcon(id: number, icon: string, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 }
@@ -239,9 +239,8 @@ export interface IPtyService {
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
-	updateTitle(id: number, title: string): Promise<void>
-	updateIcon(id: number, icon: string): Promise<void>
-
+	updateTitle(id: number, title: string): Promise<void>;
+	updateIcon(id: number, icon: string, color?: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles?(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
@@ -349,7 +348,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; color?: string };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -393,6 +392,11 @@ export interface IShellLaunchConfig {
 	 * icon.
 	 */
 	icon?: string;
+
+	/**
+	 * The color ID to use for this terminal. If not specified it will use the default fallback
+	 */
+	color?: string;
 }
 
 export interface IShellLaunchConfigDto {

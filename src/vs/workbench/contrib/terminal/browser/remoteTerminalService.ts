@@ -203,7 +203,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				cwd: termDto.cwd,
 				workspaceId: termDto.workspaceId,
 				workspaceName: termDto.workspaceName,
-				icon: termDto.icon
+				icon: termDto.icon,
+				color: termDto.color
 			};
 		});
 	}
@@ -212,8 +213,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		await this._remoteTerminalChannel?.updateTitle(id, title);
 	}
 
-	async updateIcon(id: number, icon: string): Promise<void> {
-		await this._remoteTerminalChannel?.updateIcon(id, icon);
+	async updateIcon(id: number, icon: string, color?: string): Promise<void> {
+		await this._remoteTerminalChannel?.updateIcon(id, icon, color);
 	}
 
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {

@@ -105,12 +105,12 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 		}));
 
 		if (getTestingConfiguration(this.configuration, TestingConfigKeys.AutoRunMode) === AutoRunMode.AllInWorkspace) {
-			const sub = this.workspaceTests.subscribeToWorkspaceTests();
-			store.add(sub);
+			const listener = this.workspaceTests.subscribeToWorkspaceTests();
+			store.add(listener);
 
-			sub.waitForAllRoots(cts.token).then(() => {
+			listener.waitForAllRoots(cts.token).then(() => {
 				if (!cts.token.isCancellationRequested) {
-					for (const [, collection] of sub.workspaceFolderCollections) {
+					for (const collection of listener.workspaceFolderCollections.values()) {
 						for (const rootId of collection.rootIds) {
 							const root = collection.getNodeById(rootId);
 							if (root) { addToRerun({ testId: root.item.extId, src: root.src }); }
@@ -119,7 +119,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 				}
 			});
 
-			store.add(sub.onDiff(([, diff]) => {
+			store.add(listener.onDiff(([, diff]) => {
 				for (const entry of diff) {
 					if (entry[0] === TestDiffOpType.Add) {
 						addToRerun({ testId: entry[1].item.extId, src: entry[1].src });

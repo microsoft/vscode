@@ -114,7 +114,8 @@ suite('NotebookKernel', function () {
 		extHostNotebookKernels = new ExtHostNotebookKernels(
 			rpcProtocol,
 			new class extends mock<IExtHostInitDataService>() { },
-			extHostNotebooks
+			extHostNotebooks,
+			new NullLogService()
 		);
 	});
 
