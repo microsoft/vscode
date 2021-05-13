@@ -1019,20 +1019,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const description = nls.localize('TerminalTaskSystem.terminalDescription', 'Task');
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			let defaultConfig: { shell: string, args: string[] | string | undefined };
-			if (variableResolver.taskSystemInfo) {
-				defaultConfig = await variableResolver.taskSystemInfo.getDefaultShellAndArgs();
-			} else {
-				const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({
-					allowAutomationShell: true,
-					os: Platform.OS,
-					remoteAuthority: this.environmentService.remoteAuthority
-				});
-				defaultConfig = {
-					shell: defaultProfile.path,
-					args: defaultProfile.args
-				};
-			}
+			const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({
+				allowAutomationShell: true,
+				os: Platform.OS,
+				remoteAuthority: this.environmentService.remoteAuthority
+			});
+			const defaultConfig = {
+				shell: defaultProfile.path,
+				args: defaultProfile.args
+			};
 			shellLaunchConfig = { name: terminalName, description, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
@@ -1043,9 +1038,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 				if (shellOptions.args) {
 					shellLaunchConfig.args = await this.resolveVariables(variableResolver, shellOptions.args.slice());
-				} else {
-					shellLaunchConfig.args = [];
 				}
+			}
+			if (shellLaunchConfig.args === undefined) {
+				shellLaunchConfig.args = [];
 			}
 			let shellArgs = Array.isArray(shellLaunchConfig.args!) ? <string[]>shellLaunchConfig.args!.slice(0) : [shellLaunchConfig.args!];
 			let toAdd: string[] = [];
