@@ -344,16 +344,19 @@ export class CellDragAndDropController extends Disposable {
 			return;
 		}
 
-		const viewRect = this.notebookEditor.getDomNode().getBoundingClientRect();
+		const notebookViewRect = this.notebookEditor.getDomNode().getBoundingClientRect();
 		const eventPositionInView = position.clientY - this.list.scrollTop;
 
-		const scrollMargin = 0.2;
-		const maxScrollPerFrame = 20;
-		const eventPositionRatio = eventPositionInView / viewRect.height;
-		if (eventPositionRatio < scrollMargin) {
-			this.list.scrollTop -= maxScrollPerFrame * (1 - eventPositionRatio / scrollMargin);
-		} else if (eventPositionRatio > 1 - scrollMargin) {
-			this.list.scrollTop += maxScrollPerFrame * (1 - ((1 - eventPositionRatio) / scrollMargin));
+		// Percentage from the top/bottom of the screen where we start scrolling while dragging
+		const notebookViewScrollMargins = 0.2;
+
+		const maxScrollDeltaPerFrame = 20;
+
+		const eventPositionRatio = eventPositionInView / notebookViewRect.height;
+		if (eventPositionRatio < notebookViewScrollMargins) {
+			this.list.scrollTop -= maxScrollDeltaPerFrame * (1 - eventPositionRatio / notebookViewScrollMargins);
+		} else if (eventPositionRatio > 1 - notebookViewScrollMargins) {
+			this.list.scrollTop += maxScrollDeltaPerFrame * (1 - ((1 - eventPositionRatio) / notebookViewScrollMargins));
 		}
 	}
 
