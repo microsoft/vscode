@@ -71,7 +71,7 @@ export class NotebookEditorContextKeys {
 				}
 				if (c.internalMetadata.runState === NotebookCellExecutionState.Pending) {
 					executionCount++;
-				} else if (c.internalMetadata.runState === NotebookCellExecutionState.Idle) {
+				} else if (!c.internalMetadata.runState) {
 					executionCount--;
 				}
 				this._someCellRunning.set(executionCount > 0);

@@ -1070,7 +1070,7 @@ export class RunStateRenderer {
 		}
 	}
 
-	renderState(runState: NotebookCellExecutionState = NotebookCellExecutionState.Idle, getCellIndex: () => number, lastRunSuccess: boolean | undefined = undefined) {
+	renderState(runState: NotebookCellExecutionState | undefined, getCellIndex: () => number, lastRunSuccess: boolean | undefined = undefined) {
 		if (this.spinnerTimer) {
 			this.pendingNewState = runState;
 			this.pendingLastRunSuccess = lastRunSuccess;
@@ -1078,10 +1078,10 @@ export class RunStateRenderer {
 		}
 
 		let runStateTooltip: string | undefined;
-		if (runState === NotebookCellExecutionState.Idle && lastRunSuccess) {
+		if (!runState && lastRunSuccess) {
 			aria.alert(`Code cell at ${getCellIndex()} finishes running successfully`);
 			DOM.reset(this.element, renderIcon(successStateIcon));
-		} else if (runState === NotebookCellExecutionState.Idle && !lastRunSuccess) {
+		} else if (!runState && !lastRunSuccess) {
 			aria.alert(`Code cell at ${getCellIndex()} finishes running with errors`);
 			DOM.reset(this.element, renderIcon(errorStateIcon));
 		} else if (runState === NotebookCellExecutionState.Executing) {
@@ -1105,7 +1105,7 @@ export class RunStateRenderer {
 			this.element.innerText = '';
 		}
 
-		if (runState === NotebookCellExecutionState.Idle && typeof lastRunSuccess !== 'boolean') {
+		if (!runState && typeof lastRunSuccess !== 'boolean') {
 			DOM.hide(this.element);
 		} else {
 			this.element.style.display = 'flex';

@@ -1254,12 +1254,12 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 		if (context.cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.viewModel.notebookDocument.applyEdits([{
 				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
-					runState: NotebookCellExecutionState.Idle,
-					runStartTime: undefined,
-					runStartTimeAdjustment: undefined,
-					runEndTime: undefined,
-					executionOrder: undefined,
-					lastRunSuccess: undefined
+					runState: null,
+					runStartTime: null,
+					runStartTimeAdjustment: null,
+					runEndTime: null,
+					executionOrder: null,
+					lastRunSuccess: null
 				}
 			}], true, undefined, () => undefined, undefined);
 		}
@@ -1467,12 +1467,12 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 				return {
 					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
-						runState: NotebookCellExecutionState.Idle,
-						runStartTime: undefined,
-						runStartTimeAdjustment: undefined,
-						runEndTime: undefined,
-						executionOrder: undefined,
-						lastRunSuccess: undefined
+						runState: null,
+						runStartTime: null,
+						runStartTimeAdjustment: null,
+						runEndTime: null,
+						executionOrder: null,
+						lastRunSuccess: null
 					}
 				};
 			} else {

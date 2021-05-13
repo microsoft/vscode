@@ -67,10 +67,10 @@ export interface NotebookDocumentMetadata {
 	[key: string]: unknown;
 }
 
+// Aligns with the vscode.d.ts version
 export enum NotebookCellExecutionState {
-	Idle = 1,
 	Pending = 2,
-	Executing = 3,
+	Executing = 3
 }
 
 export interface INotebookCellPreviousExecutionResult {
@@ -412,6 +412,7 @@ export interface ICellMetadataEdit {
 	metadata: NotebookCellMetadata;
 }
 
+// These types are nullable because we need to use 'null' on the EH side so it is JSON-stringified
 export type NullablePartialNotebookCellMetadata = {
 	[Key in keyof Partial<NotebookCellMetadata>]: NotebookCellMetadata[Key] | null
 };
@@ -425,7 +426,7 @@ export interface ICellPartialMetadataEdit {
 export interface ICellPartialMetadataEditByHandle {
 	editType: CellEditType.PartialMetadata;
 	handle: number;
-	metadata: Partial<NullablePartialNotebookCellMetadata>;
+	metadata: NullablePartialNotebookCellMetadata;
 }
 
 export type NullablePartialNotebookCellInternalMetadata = {
@@ -440,7 +441,7 @@ export interface ICellPartialInternalMetadataEdit {
 export interface ICellPartialInternalMetadataEditByHandle {
 	editType: CellEditType.PartialInternalMetadata;
 	handle: number;
-	internalMetadata: Partial<NullablePartialNotebookCellInternalMetadata>;
+	internalMetadata: NullablePartialNotebookCellInternalMetadata;
 }
 
 export interface ICellLanguageEdit {

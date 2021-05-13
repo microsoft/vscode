@@ -118,21 +118,19 @@ export class CellContextKeyManager extends Disposable {
 		const internalMetadata = this.element.internalMetadata;
 		this.cellEditable.set(!this.notebookEditor.viewModel?.options.isReadOnly);
 
-		const runState = internalMetadata.runState ?? NotebookCellExecutionState.Idle;
+		const runState = internalMetadata.runState;
 		if (this.element instanceof MarkdownCellViewModel) {
 			this.cellRunState.reset();
-		} else if (runState === NotebookCellExecutionState.Idle) {
-			if (internalMetadata.lastRunSuccess === true) {
-				this.cellRunState.set('succeeded');
-			} else if (internalMetadata.lastRunSuccess === false) {
-				this.cellRunState.set('failed');
-			} else {
-				this.cellRunState.set('idle');
-			}
 		} else if (runState === NotebookCellExecutionState.Executing) {
 			this.cellRunState.set('executing');
 		} else if (runState === NotebookCellExecutionState.Pending) {
 			this.cellRunState.set('pending');
+		} else if (internalMetadata.lastRunSuccess === true) {
+			this.cellRunState.set('succeeded');
+		} else if (internalMetadata.lastRunSuccess === false) {
+			this.cellRunState.set('failed');
+		} else {
+			this.cellRunState.set('idle');
 		}
 	}
 

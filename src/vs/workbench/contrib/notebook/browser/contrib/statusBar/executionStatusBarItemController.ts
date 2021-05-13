@@ -107,7 +107,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 			return;
 		}
 
-		const item = this._getItemForState(cell.internalMetadata.runState ?? NotebookCellExecutionState.Idle, cell.internalMetadata.lastRunSuccess);
+		const item = this._getItemForState(cell.internalMetadata.runState, cell.internalMetadata.lastRunSuccess);
 
 		// Show the execution spinner for a minimum time
 		if (cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
@@ -123,7 +123,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 	}
 
 	private _getItemForState(runState: NotebookCellExecutionState | undefined, lastRunSuccess: boolean | undefined): INotebookCellStatusBarItem | undefined {
-		if (runState === NotebookCellExecutionState.Idle && lastRunSuccess) {
+		if (!runState && lastRunSuccess) {
 			return <INotebookCellStatusBarItem>{
 				text: '$(notebook-state-success)',
 				color: themeColorFromId(cellStatusIconSuccess),
@@ -131,7 +131,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
 			};
-		} else if (runState === NotebookCellExecutionState.Idle && lastRunSuccess === false) {
+		} else if (!runState && lastRunSuccess === false) {
 			return <INotebookCellStatusBarItem>{
 				text: '$(notebook-state-error)',
 				color: themeColorFromId(cellStatusIconError),
@@ -184,7 +184,7 @@ class TimerCellStatusBarHelper extends Disposable {
 
 	private async _update() {
 		let item: INotebookCellStatusBarItem | undefined;
-		const state = this._cell.internalMetadata.runState ?? NotebookCellExecutionState.Idle;
+		const state = this._cell.internalMetadata.runState;
 		if (state === NotebookCellExecutionState.Executing) {
 			const startTime = this._cell.internalMetadata.runStartTime;
 			const adjustment = this._cell.internalMetadata.runStartTimeAdjustment;
@@ -192,7 +192,7 @@ class TimerCellStatusBarHelper extends Disposable {
 				item = this._getTimeItem(startTime, Date.now(), adjustment);
 				this._scheduler.schedule();
 			}
-		} else if (state === NotebookCellExecutionState.Idle) {
+		} else if (!state) {
 			const startTime = this._cell.internalMetadata.runStartTime;
 			const endTime = this._cell.internalMetadata.runEndTime;
 			if (typeof startTime === 'number' && typeof endTime === 'number') {
