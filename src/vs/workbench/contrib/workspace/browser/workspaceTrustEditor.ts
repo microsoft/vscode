@@ -9,7 +9,6 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { Action } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { Color, RGBA } from 'vs/base/common/color';
 import { debounce } from 'vs/base/common/decorators';
 import { Iterable } from 'vs/base/common/iterator';
 import { splitName } from 'vs/base/common/labels';
@@ -27,21 +26,21 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
 import product from 'vs/platform/product/common/product';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
-import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
+import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { trustedForegroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
 import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
@@ -104,18 +103,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.createAffectedFeaturesElement(scrollableContent);
 		this.createConfigurationElement(scrollableContent);
 
-		this._register(attachStylerCallback(this.themeService, { ACTIVITY_BAR_BADGE_BACKGROUND, trustedForegroundColor, untrustedForegroundColor }, colors => {
-			this.rootElement.style.setProperty('--workspace-trust-trusted-color', colors.trustedForegroundColor?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-selected-state-color', colors.ACTIVITY_BAR_BADGE_BACKGROUND?.toString() || '');
-		}));
-
-		this._register(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-			const foregroundColor = theme.getColor(foreground);
-			if (foregroundColor) {
-				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.3));
-				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 4px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
-			}
+		this._register(attachStylerCallback(this.themeService, { debugIconStartForeground, editorErrorForeground, buttonBackground, buttonSecondaryBackground }, colors => {
+			this.rootElement.style.setProperty('--workspace-trust-selected-color', colors.buttonBackground?.toString() || '');
+			this.rootElement.style.setProperty('--workspace-trust-unselected-color', colors.buttonSecondaryBackground?.toString() || '');
+			this.rootElement.style.setProperty('--workspace-trust-check-color', colors.debugIconStartForeground?.toString() || '');
+			this.rootElement.style.setProperty('--workspace-trust-x-color', colors.editorErrorForeground?.toString() || '');
 		}));
 	}
 
@@ -195,7 +187,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			if (typeof node === 'string') {
 				append(p, document.createTextNode(node));
 			} else {
-				const link = this.instantiationService.createInstance(Link, node);
+				const link = this.instantiationService.createInstance(Link, node, {});
 				append(p, link.el);
 				this.rerenderDisposables.add(link);
 				this.rerenderDisposables.add(attachLinkStyler(link, this.themeService));
@@ -227,7 +219,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const filtered = extensions.filter(ext => this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(ext.local.manifest) === trustRequestType);
 		const set = new Set<string>();
 		for (const ext of filtered) {
-			set.add(ext.identifier.id);
+			const isVirtualWorkspace = getVirtualWorkspaceScheme(this.workspaceService.getWorkspace()) !== undefined;
+			if (!isVirtualWorkspace || this.extensionManifestPropertiesService.canSupportVirtualWorkspace(ext.local.manifest)) {
+				set.add(ext.identifier.id);
+			}
 		}
 
 		return set.size;
@@ -284,7 +279,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			localize('untrustedTasks', "Tasks are disabled"),
 			localize('untrustedDebugging', "Debugging is disabled"),
 			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) are not applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
+			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listWorkspaceUnsupportedExtensions')
 		], xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
@@ -399,7 +394,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				if (typeof node === 'string') {
 					append(text, document.createTextNode(node));
 				} else {
-					const link = this.instantiationService.createInstance(Link, node);
+					const link = this.instantiationService.createInstance(Link, node, {});
 					append(text, link.el);
 					this.rerenderDisposables.add(link);
 					this.rerenderDisposables.add(attachLinkStyler(link, this.themeService));

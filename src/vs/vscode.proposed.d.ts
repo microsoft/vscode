@@ -393,6 +393,25 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A message regarding a completed search.
+	 */
+	export interface TextSearchCompleteMessage {
+		/**
+		 * Markdown text of the message.
+		 */
+		text: string,
+		/**
+		 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+		 * Messaged are untrusted by default.
+		 */
+		trusted?: boolean,
+		/**
+		 * The message type, this affects how the message will be rendered.
+		 */
+		type: TextSearchCompleteMessageType,
+	}
+
+	/**
 	 * Information collected when text search is complete.
 	 */
 	export interface TextSearchComplete {
@@ -411,8 +430,10 @@ declare module 'vscode' {
 		 * Messages with "Information" tyle support links in markdown syntax:
 		 * - Click to [run a command](command:workbench.action.OpenQuickPick)
 		 * - Click to [open a website](https://aka.ms)
+		 *
+		 * Commands may optionally return { triggerSearch: true } to signal to VS Code that the original search should run be agian.
 		 */
-		message?: { text: string, type: TextSearchCompleteMessageType } | { text: string, type: TextSearchCompleteMessageType }[];
+		message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 	}
 
 	/**
@@ -3279,6 +3300,11 @@ declare module 'vscode' {
 	export enum FilePermission {
 		/**
 		 * The file is readonly.
+		 *
+		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered  with
+		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
+		 * is set. As a consequence, it is not possible to have a readonly file system provider
+		 * registered where some `FileStat` are not readonly.
 		 */
 		Readonly = 1
 	}

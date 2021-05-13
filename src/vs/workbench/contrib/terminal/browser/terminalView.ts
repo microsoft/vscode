@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -21,7 +22,8 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ITerminalProfile, ITerminalProfileResolverService, TerminalCommandId, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -31,12 +33,12 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -344,7 +346,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 
 class SingleTerminalTabActionViewItem extends ActionViewItem {
 	private _color: string | undefined;
-
+	private _contextMenuListener: IDisposable | undefined;
 	constructor(
 		action: IAction,
 		private readonly _actions: IAction[],
@@ -355,7 +357,7 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 		super(undefined, {
 			...action,
 			dispose: () => action.dispose(),
-			run: async () => this._run(),
+			run: () => this._run(),
 			label: getSingleTabLabel(_terminalService.getActiveInstance())
 		});
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
@@ -370,14 +372,22 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 				this.updateLabel();
 			}
 		}));
+		this._register(toDisposable(() => this._contextMenuListener?.dispose()));
 	}
 
 	override updateLabel(): void {
+		if (!this._contextMenuListener) {
+			this._contextMenuListener = dom.addDisposableListener(this.element!, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+				if (e.button === 2) {
+					this._run();
+				}
+			});
+		}
 		if (this.label) {
 			const label = this.label;
 			const instance = this._terminalService.getActiveInstance();
 			if (!instance) {
-				reset(label, '');
+				dom.reset(label, '');
 				return;
 			}
 			label.classList.add('single-terminal-tab');
@@ -392,7 +402,7 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
+			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
 			if (this._color) {
 				label.classList.remove(this._color);
 				this._color = undefined;

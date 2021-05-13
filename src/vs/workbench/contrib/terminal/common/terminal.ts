@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -261,44 +261,6 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
-export interface ITerminalProfile {
-	profileName: string;
-	path: string;
-	isDefault: boolean;
-	isAutoDetected?: boolean;
-	args?: string | string[] | undefined;
-	env?: ITerminalEnvironment;
-	overrideName?: boolean;
-	icon?: string;
-}
-
-export const enum ProfileSource {
-	GitBash = 'Git Bash',
-	Pwsh = 'PowerShell'
-}
-
-export interface IBaseUnresolvedTerminalProfile {
-	args?: string | string[] | undefined;
-	isAutoDetected?: boolean;
-	overrideName?: boolean;
-	icon?: string;
-	env?: ITerminalEnvironment;
-}
-
-export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: string | string[];
-}
-
-export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
-	source: ProfileSource;
-}
-
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
-
-export interface IAvailableProfilesRequest {
-	callback: (shells: ITerminalProfile[]) => void;
-	configuredProfilesOnly: boolean;
-}
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;
 	callback: (shell: string, args: string[] | string | undefined) => void;
@@ -411,78 +373,6 @@ export enum TitleEventSource {
 }
 
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
-
-export const enum TerminalSettingId {
-	ShellLinux = 'terminal.integrated.shell.linux',
-	ShellMacOs = 'terminal.integrated.shell.osx',
-	ShellWindows = 'terminal.integrated.shell.windows',
-	SendKeybindingsToShell = 'terminal.integrated.sendKeybindingsToShell',
-	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
-	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
-	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
-	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
-	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
-	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
-	ProfilesWindows = 'terminal.integrated.profiles.windows',
-	ProfilesMacOs = 'terminal.integrated.profiles.osx',
-	ProfilesLinux = 'terminal.integrated.profiles.linux',
-	DefaultProfileLinux = 'terminal.integrated.defaultProfile.linux',
-	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
-	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
-	UseWslProfiles = 'terminal.integrated.useWslProfiles',
-	TabsEnabled = 'terminal.integrated.tabs.enabled',
-	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
-	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
-	TabsLocation = 'terminal.integrated.tabs.location',
-	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
-	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
-	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
-	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
-	CopyOnSelection = 'terminal.integrated.copyOnSelection',
-	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
-	FontFamily = 'terminal.integrated.fontFamily',
-	FontSize = 'terminal.integrated.fontSize',
-	LetterSpacing = 'terminal.integrated.letterSpacing',
-	LineHeight = 'terminal.integrated.lineHeight',
-	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
-	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
-	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
-	BellDuration = 'terminal.integrated.bellDuration',
-	FontWeight = 'terminal.integrated.fontWeight',
-	FontWeightBold = 'terminal.integrated.fontWeightBold',
-	CursorBlinking = 'terminal.integrated.cursorBlinking',
-	CursorStyle = 'terminal.integrated.cursorStyle',
-	CursorWidth = 'terminal.integrated.cursorWidth',
-	Scrollback = 'terminal.integrated.scrollback',
-	DetectLocale = 'terminal.integrated.detectLocale',
-	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
-	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
-	Cwd = 'terminal.integrated.cwd',
-	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
-	EnableBell = 'terminal.integrated.enableBell',
-	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
-	AllowChords = 'terminal.integrated.allowChords',
-	AllowMnemonics = 'terminal.integrated.allowMnemonics',
-	EnvMacOs = 'terminal.integrated.env.osx',
-	EnvLinux = 'terminal.integrated.env.linux',
-	EnvWindows = 'terminal.integrated.env.windows',
-	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
-	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
-	ShowExitAlert = 'terminal.integrated.showExitAlert',
-	SplitCwd = 'terminal.integrated.splitCwd',
-	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
-	WordSeparators = 'terminal.integrated.wordSeparators',
-	ExperimentalUseTitleEvent = 'terminal.integrated.experimentalUseTitleEvent',
-	EnableFileLinks = 'terminal.integrated.enableFileLinks',
-	UnicodeVersion = 'terminal.integrated.unicodeVersion',
-	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
-	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
-	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
-	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
-	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration',
-	InheritEnv = 'terminal.integrated.inheritEnv'
-}
 
 export const enum TerminalCommandId {
 	FindNext = 'workbench.action.terminal.findNext',

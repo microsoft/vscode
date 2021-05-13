@@ -17,6 +17,7 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -26,7 +27,8 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHostService private readonly hostService: IHostService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService
 	) {
 		super();
 
@@ -57,19 +59,24 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false; // resource must be dirty
 			}
 
-			const model = this.textFileService.files.get(resource);
-			if (model?.hasState(TextFileEditorModelState.PENDING_SAVE)) {
+			const fileModel = this.textFileService.files.get(resource);
+			if (fileModel?.hasState(TextFileEditorModelState.PENDING_SAVE)) {
 				return false; // resource must not be pending to save
 			}
 
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY && !model?.hasState(TextFileEditorModelState.ERROR)) {
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY && !fileModel?.hasState(TextFileEditorModelState.ERROR)) {
 				// leave models auto saved after short delay unless
 				// the save resulted in an error
 				return false;
 			}
 
 			if (this.editorService.isOpened({ resource, typeId: resource.scheme === Schemas.untitled ? UntitledTextEditorInput.ID : FILE_EDITOR_INPUT_ID })) {
-				return false; // model must not be opened already as file
+				return false; // model must not be opened already as file (fast check via editor type)
+			}
+
+			const model = fileModel ?? this.textFileService.untitled.get(resource);
+			if (model && this.workingCopyEditorService.findEditor(model)) {
+				return false; // model must not be opened already as file (slower check via working copy)
 			}
 
 			return true;
