@@ -250,6 +250,7 @@ export class NotebookOptions {
 			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
 			outputNodeLeftPadding: 32,
 			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			markdownLeftMargin: 0,
 			leftMargin: 0,
 			rightMargin: 0,
 			runGutter: 0
