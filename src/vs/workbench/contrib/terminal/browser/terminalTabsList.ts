@@ -31,9 +31,9 @@ import { IListRenderer } from 'vs/base/browser/ui/list/list';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
-export const MIN_TABS_WIDGET_WIDTH = 46;
-export const DEFAULT_TABS_WIDGET_WIDTH = 80;
-export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
+export const MIN_TABS_LIST_WIDTH = 46;
+export const DEFAULT_TABS_LIST_WIDTH = 80;
+export const MIDPOINT_LIST_WIDTH = (MIN_TABS_LIST_WIDTH + DEFAULT_TABS_LIST_WIDTH) / 2;
 export const THRESHOLD_ACTIONBAR_WIDTH = 105;
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
@@ -205,7 +205,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < MIDPOINT_WIDGET_WIDTH : false;
+		return this._container ? this._container.clientWidth < MIDPOINT_LIST_WIDTH : false;
 	}
 
 	shouldHideActionBar(): boolean {
