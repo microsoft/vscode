@@ -23,9 +23,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
+import { asWebviewUri, webviewResourceOrigin } from 'vs/workbench/api/common/shared/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -100,7 +100,6 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _fileService: IFileService;
 	private readonly _logService: ILogService;
 	private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService;
-	private readonly _requestService: IRequestService;
 	private readonly _telemetryService: ITelemetryService;
 	private readonly _tunnelService: ITunnelService;
 	protected readonly _environmentService: IWorkbenchEnvironmentService;
@@ -122,7 +121,6 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			menuService: IMenuService,
 			notificationService: INotificationService,
 			remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-			requestService: IRequestService,
 			telemetryService: ITelemetryService,
 			tunnelService: ITunnelService,
 		}
@@ -133,7 +131,6 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._fileService = services.fileService;
 		this._logService = services.logService;
 		this._remoteAuthorityResolverService = services.remoteAuthorityResolverService;
-		this._requestService = services.requestService;
 		this._telemetryService = services.telemetryService;
 		this._tunnelService = services.tunnelService;
 
@@ -244,19 +241,19 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, ifNoneMatch?: string }) => {
 			const rawPath = entry.path;
-			// ext-authority / scheme / path-authority / ...path
-			const match = rawPath.match(/^\/([^\/]*)\/([^\/]*)\/([^\/]*)(\/.+)$/);
+			// scheme / path-authority / ...path
+			const match = rawPath.match(/^\/([^\/]*)\/([^\/]*)(\/.+)$/);
 			if (!match) {
 				throw new Error('Could not parse resource url');
 			}
 
-			const [_, remoteAuthority, scheme, pathAuthority, paths] = match;
+			const [_, scheme, pathAuthority, paths] = match;
 
 			const uri = URI.parse(`${scheme}://${decodeURIComponent(pathAuthority)}${paths}`).with({
 				query: decodeURIComponent(entry.query),
 			});
 
-			this.loadResource(entry.id, rawPath, uri, decodeURIComponent(remoteAuthority), entry.ifNoneMatch);
+			this.loadResource(entry.id, rawPath, uri, entry.ifNoneMatch);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
@@ -377,16 +374,31 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		});
 	}
 
-	protected abstract get webviewResourceEndpoint(): string;
+	protected get webviewResourceOrigin(): string {
+		return webviewResourceOrigin(this.id);
+	}
 
 	private rewriteVsCodeResourceUrls(value: string): string {
-		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : '';
+		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
+		const asUriContext = {
+			remote: { authority: remoteAuthority },
+		};
 		return value
 			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${remoteAuthority}/${scheme ?? 'file'}/${path}${endQuote}`;
+				const uri = URI.from({
+					scheme: scheme || 'file',
+					path: path,
+				});
+				const webviewUri = asWebviewUri(asUriContext, this.id, uri).toString();
+				return `${startQuote}${webviewUri}${endQuote}`;
 			})
 			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
-				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${remoteAuthority}/${scheme ?? 'file'}/${path}${endQuote}`;
+				const uri = URI.from({
+					scheme: scheme || 'file',
+					path: path,
+				});
+				const webviewUri = asWebviewUri(asUriContext, this.id, uri).toString();
+				return `${startQuote}${webviewUri}${endQuote}`;
 			});
 	}
 
@@ -433,7 +445,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			contents: this.content.html,
 			options: this.content.options,
 			state: this.content.state,
-			resourceEndpoint: this.webviewResourceEndpoint,
+			resourceEndpoint: this.webviewResourceOrigin,
 			...this.extraContentOptions
 		});
 	}
@@ -512,15 +524,12 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}
 	}
 
-	private async loadResource(id: number, requestPath: string, uri: URI, remoteAuthority: string | undefined, ifNoneMatch: string | undefined) {
+	private async loadResource(id: number, requestPath: string, uri: URI, ifNoneMatch: string | undefined) {
 		try {
-			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
-
-			const result = await loadLocalResource(uri, ifNoneMatch, {
+			const result = await loadLocalResource(uri, {
+				ifNoneMatch,
 				roots: this.content.options.localResourceRoots || [],
-				remoteConnectionData,
-				remoteAuthority: remoteAuthority,
-			}, this._fileService, this._requestService, this._logService, this._resourceLoadingCts.token);
+			}, this._fileService, this._logService, this._resourceLoadingCts.token);
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success:

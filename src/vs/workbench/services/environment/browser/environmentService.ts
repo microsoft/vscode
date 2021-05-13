@@ -237,17 +237,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	}
 
 	@memoize
-	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
-	}
-
-	@memoize
-	get webviewCspSource(): string {
-		const uri = URI.parse(this.webviewEndpoint.replace('{{uuid}}', '*'));
-		return `${uri.scheme}://${uri.authority}`;
-	}
-
-	@memoize
 	get telemetryLogResource(): URI { return joinPath(this.options.logsPath, 'telemetry.log'); }
 	get disableTelemetry(): boolean { return false; }
 

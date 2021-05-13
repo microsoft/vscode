@@ -6,14 +6,10 @@
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isUNC } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IHeaders } from 'vs/base/parts/request/common/request';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
 
 export namespace WebviewResourceResponse {
@@ -45,20 +41,17 @@ export namespace WebviewResourceResponse {
 
 export async function loadLocalResource(
 	requestUri: URI,
-	ifNoneMatch: string | undefined,
 	options: {
+		ifNoneMatch: string | undefined,
 		roots: ReadonlyArray<URI>;
-		remoteConnectionData?: IRemoteConnectionData | null;
-		remoteAuthority: string | undefined;
 	},
 	fileService: IFileService,
-	requestService: IRequestService,
 	logService: ILogService,
 	token: CancellationToken,
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.remoteAuthority);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots);
 
 	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -68,33 +61,8 @@ export async function loadLocalResource(
 
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 
-	if (resourceToLoad.scheme === Schemas.http || resourceToLoad.scheme === Schemas.https) {
-		const headers: IHeaders = {};
-		if (ifNoneMatch) {
-			headers['If-None-Match'] = ifNoneMatch;
-		}
-
-		const response = await requestService.request({
-			url: resourceToLoad.toString(true),
-			headers: headers
-		}, token);
-
-		logService.debug(`loadLocalResource - Loaded over http(s). requestUri=${requestUri}, response=${response.res.statusCode}`);
-
-		switch (response.res.statusCode) {
-			case 200:
-				return new WebviewResourceResponse.StreamSuccess(response.stream, response.res.headers['etag'], mime);
-
-			case 304: // Not modified
-				return new WebviewResourceResponse.NotModified(mime);
-
-			default:
-				return WebviewResourceResponse.Failed;
-		}
-	}
-
 	try {
-		const result = await fileService.readFileStream(resourceToLoad, { etag: ifNoneMatch });
+		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch });
 		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, mime);
 	} catch (err) {
 		if (err instanceof FileOperationError) {
@@ -117,30 +85,14 @@ export async function loadLocalResource(
 function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
-	remoteAuthority: string | undefined,
 ): URI | undefined {
 	for (const root of roots) {
 		if (containsResource(root, requestUri)) {
-			return normalizeResourcePath(requestUri, remoteAuthority);
+			return requestUri;
 		}
 	}
 
 	return undefined;
-}
-
-function normalizeResourcePath(resource: URI, remoteAuthority: string | undefined): URI {
-	// If the uri was from a remote authority, make we go to the remote to load it
-	if (remoteAuthority && resource.scheme === Schemas.file) {
-		return URI.from({
-			scheme: Schemas.vscodeRemote,
-			authority: remoteAuthority,
-			path: '/vscode-resource',
-			query: JSON.stringify({
-				requestResourcePath: resource.path
-			})
-		});
-	}
-	return resource;
 }
 
 function containsResource(root: URI, resource: URI): boolean {

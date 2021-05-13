@@ -767,9 +767,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private asWebviewUri(uri: URI, fromExtension: URI | undefined) {
 		const remoteAuthority = fromExtension?.scheme === Schemas.vscodeRemote ? fromExtension.authority : undefined;
 		return asWebviewUri({
-			isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
-			webviewCspSource: this.environmentService.webviewCspSource,
-			webviewResourceRoot: this.environmentService.webviewResourceRoot,
 			remote: { authority: remoteAuthority }
 		}, this.id, uri);
 	}
