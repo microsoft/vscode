@@ -187,7 +187,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			if (typeof node === 'string') {
 				append(p, document.createTextNode(node));
 			} else {
-				const link = this.instantiationService.createInstance(Link, node);
+				const link = this.instantiationService.createInstance(Link, node, {});
 				append(p, link.el);
 				this.rerenderDisposables.add(link);
 				this.rerenderDisposables.add(attachLinkStyler(link, this.themeService));
@@ -394,7 +394,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				if (typeof node === 'string') {
 					append(text, document.createTextNode(node));
 				} else {
-					const link = this.instantiationService.createInstance(Link, node);
+					const link = this.instantiationService.createInstance(Link, node, {});
 					append(text, link.el);
 					this.rerenderDisposables.add(link);
 					this.rerenderDisposables.add(attachLinkStyler(link, this.themeService));

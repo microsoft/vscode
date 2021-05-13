@@ -912,7 +912,7 @@ export class GettingStartedPage extends EditorPane {
 					if (typeof node === 'string') {
 						append(p, renderFormattedText(node, { inline: true, renderCodeSegements: true }));
 					} else {
-						const link = this.instantiationService.createInstance(Link, node);
+						const link = this.instantiationService.createInstance(Link, node, {});
 
 						append(p, link.el);
 						this.detailsPageDisposables.add(link);
