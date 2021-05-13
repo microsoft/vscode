@@ -460,6 +460,7 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
 			this.buildMediaComponent(id);
+			this.gettingStartedService.progressByEvent('stepSelected:' + id);
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
@@ -488,7 +489,8 @@ export class GettingStartedPage extends EditorPane {
 			const path = joinPath(base, src);
 			const transformed = asWebviewUri({
 				isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
-				...this.environmentService,
+				webviewResourceRoot: this.environmentService.webviewResourceRoot,
+				webviewCspSource: this.environmentService.webviewCspSource,
 				remote: { authority: undefined },
 			}, this.webviewID, path).toString();
 			return `src="${transformed}"`;
@@ -888,6 +890,10 @@ export class GettingStartedPage extends EditorPane {
 						}
 					}
 					this.openerService.open(command, { allowCommands: true });
+
+					if (!isCommand && node.href.startsWith('https://')) {
+						this.gettingStartedService.progressByEvent('onLink:' + node.href);
+					}
 
 				}, null, this.detailsPageDisposables);
 

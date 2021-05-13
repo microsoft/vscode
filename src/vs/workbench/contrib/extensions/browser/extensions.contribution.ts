@@ -877,8 +877,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.listTrustRequiredExtensions',
-			title: { value: localize('showTrustRequiredExtensions', "Show Extensions Requiring Trust"), original: 'Show Extensions Requiring Trust' },
+			id: 'workbench.extensions.action.listWorkspaceUnsupportedExtensions',
+			title: { value: localize('showWorkspaceUnsupportedExtensions', "Show Extensions Unsupported By Workspace"), original: 'Show Extensions Unsupported By Workspace' },
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -889,9 +889,9 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 6,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('trust required filter', "Trust Required")
+				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "Workspace Unsupported")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@trustRequired'))
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@workspaceUnsupported'))
 		});
 
 		this.registerExtensionAction({
