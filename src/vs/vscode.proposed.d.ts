@@ -2497,56 +2497,28 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * @stability experimental
+	 * A TestObserver is returned from `vscode.test.createWorkspaceTestObserver`
+	 * or `vscode.test.createDocumentTestObserver`. It can be used to introspect
+	 * tests published by other extensions.
 	 */
 	export interface TestObserver {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<TestItem<never>>;
+		readonly tests: ReadonlyArray<ObservedTestItem>;
 
 		/**
-		 * An event that fires when an existing test in the collection changes, or
-		 * null if a top-level test was added or removed. When fired, the consumer
-		 * should check the test item and all its children for changes.
+		 * An event that fires when an existing test in the collection changes or
+		 * its list of children change. If a root test was added or removed,
+		 * then `null` is returned.
 		 */
-		readonly onDidChangeTest: Event<TestsChangeEvent>;
-
-		/**
-		 * An event that fires when all test providers have signalled that the tests
-		 * the observer references have been discovered. Providers may continue to
-		 * watch for changes and cause {@link onDidChangeTest} to fire as files
-		 * change, until the observer is disposed.
-		 *
-		 * @todo as below
-		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
+		readonly onDidChangeTest: Event<ObservedTestItem | null>;
 
 		/**
 		 * Dispose of the observer, allowing VS Code to eventually tell test
 		 * providers that they no longer need to update tests.
 		 */
 		dispose(): void;
-	}
-
-	/**
-	 * @stability experimental
-	 */
-	export interface TestsChangeEvent {
-		/**
-		 * List of all tests that are newly added.
-		 */
-		readonly added: ReadonlyArray<TestItem<never>>;
-
-		/**
-		 * List of existing tests that have updated.
-		 */
-		readonly updated: ReadonlyArray<TestItem<never>>;
-
-		/**
-		 * List of existing tests that have been removed.
-		 */
-		readonly removed: ReadonlyArray<TestItem<never>>;
 	}
 
 	/**
@@ -2931,9 +2903,14 @@ declare module 'vscode' {
 		completedAt: number;
 
 		/**
+		 * Length of time the test run took.
+		 */
+		duration: number;
+
+		/**
 		 * Optional raw output from the test run.
 		 */
-		output?: string;
+		retrieveOutput(): Thenable<string>;
 
 		/**
 		 * List of test results. The items in this array are the items that
@@ -2946,7 +2923,7 @@ declare module 'vscode' {
 	 * A {@link TestItem}-like interface with an associated result, which appear
 	 * or can be provided in {@link TestResult} interfaces.
 	 */
-	export interface TestResultSnapshot {
+	export interface TestItemSnapshot {
 		/**
 		 * Unique identifier that matches that of the associated TestItem.
 		 * This is used to correlate test results and tests in the document with
@@ -2974,12 +2951,35 @@ declare module 'vscode' {
 		 * `uri` points to a file.
 		 */
 		readonly range?: Range;
+	}
 
+	/**
+	 * A {@link TestItem}-like interface returned in the {@link TestObserver}.
+	 */
+	export interface ObservedTestItem {
+		/**
+		 * The parent of the test item, or undefined if there is none.
+		 */
+		readonly parent?: ObservedTestItem;
+
+		/**
+		 * Requests and retrieves the children of the test item. This method will
+		 * not be present if there is no {@link TestItem.resolverHandler} on the
+		 * original item.
+		 */
+		getChildren?(): Thenable<ObservedTestItem[]>;
+	}
+
+	/**
+	 * A {@link TestItem}-like interface with an associated result, which appear
+	 * or can be provided in {@link TestResult} interfaces.
+	 */
+	export interface TestResultSnapshot extends TestItemSnapshot {
 		/**
 		 * State of the test in each task. In the common case, a test will only
 		 * be executed in a single task and the length of this array will be 1.
 		 */
-		readonly taskStates: ReadonlyArray<TestSnapshoptTaskState>;
+		readonly taskStates: readonly Readonly<TestTaskStateSnapshot>[];
 
 		/**
 		 * Optional list of nested tests for this item.
@@ -2987,7 +2987,7 @@ declare module 'vscode' {
 		readonly children: Readonly<TestResultSnapshot>[];
 	}
 
-	export interface TestSnapshoptTaskState {
+	export interface TestTaskStateSnapshot {
 		/**
 		 * Current result of the test.
 		 */
