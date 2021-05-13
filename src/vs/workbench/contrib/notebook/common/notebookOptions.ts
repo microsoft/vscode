@@ -156,30 +156,30 @@ export class NotebookOptions {
 	}
 
 	computeCollapsedMarkdownCellHeight(): number {
-		return this._layoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
-			+ this._layoutConfiguration.collapsedIndicatorHeight // COLLAPSED_INDICATOR_HEIGHT
-			+ this._layoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-			+ this._layoutConfiguration.markdownCellBottomMargin; // MARKDOWN_CELL_BOTTOM_MARGIN;
+		return this._layoutConfiguration.markdownCellTopMargin
+			+ this._layoutConfiguration.collapsedIndicatorHeight
+			+ this._layoutConfiguration.bottomCellToolbarGap
+			+ this._layoutConfiguration.markdownCellBottomMargin;
 	}
 
 	computeBottomToolbarOffset(totalHeight: number) {
 		return totalHeight
-			- this._layoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+			- this._layoutConfiguration.bottomCellToolbarGap
 			- this._layoutConfiguration.bottomCellToolbarHeight / 2;
 	}
 
 	computeCodeCellEditorWidth(outerWidth: number): number {
 		return outerWidth - (
-			this._layoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
-			+ this._layoutConfiguration.cellRunGutter // CELL_RUN_GUTTER
-			+ this._layoutConfiguration.cellRightMargin // CELL_RIGHT_MARGIN
+			this._layoutConfiguration.codeCellLeftMargin
+			+ this._layoutConfiguration.cellRunGutter
+			+ this._layoutConfiguration.cellRightMargin
 		);
 	}
 
 	computeMarkdownCellEditorWidth(outerWidth: number): number {
 		return outerWidth
-			- this._layoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
-			- this._layoutConfiguration.cellRightMargin; // CELL_RIGHT_MARGIN;
+			- this._layoutConfiguration.codeCellLeftMargin
+			- this._layoutConfiguration.cellRightMargin;
 	}
 
 	computeStatusBarHeight(): number {
@@ -228,28 +228,28 @@ export class NotebookOptions {
 		return {
 			top: getEditorTopPadding(),
 			bottom: this._layoutConfiguration.showCellStatusBar
-				? this._layoutConfiguration.editorBottomPadding// EDITOR_BOTTOM_PADDING
-				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar // EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR
+				? this._layoutConfiguration.editorBottomPadding
+				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar
 		};
 	}
 
 	computeWebviewOptions() {
 		return {
-			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
-			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
-			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
+			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding,
+			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
 			markdownLeftMargin: this._layoutConfiguration.markdownCellLeftMargin,
-			leftMargin: this._layoutConfiguration.codeCellLeftMargin, // CODE_CELL_LEFT_MARGIN,
-			rightMargin: this._layoutConfiguration.cellRightMargin, // CELL_RIGHT_MARGIN,
-			runGutter: this._layoutConfiguration.cellRunGutter, // CELL_RUN_GUTTER,
+			leftMargin: this._layoutConfiguration.codeCellLeftMargin,
+			rightMargin: this._layoutConfiguration.cellRightMargin,
+			runGutter: this._layoutConfiguration.cellRunGutter,
 		};
 	}
 
 	computeDiffWebviewOptions() {
 		return {
-			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
+			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
 			outputNodeLeftPadding: 32,
-			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
 			markdownLeftMargin: 0,
 			leftMargin: 0,
 			rightMargin: 0,
