@@ -18,7 +18,7 @@ import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 
-suite.only('ExtHostWebview', () => {
+suite('ExtHostWebview', () => {
 
 	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
 
