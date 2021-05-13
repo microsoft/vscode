@@ -1055,7 +1055,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	protected _createProcessManager(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
-		this._processManager.onProcessReady((requiresWindowsMode) => {
+		this._processManager.onProcessReady(() => {
 			this._onProcessIdReady.fire(this);
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown

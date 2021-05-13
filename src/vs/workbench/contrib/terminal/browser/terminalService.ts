@@ -204,6 +204,7 @@ export class TerminalService implements ITerminalService {
 				: Promise.resolve();
 		this._offProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
 		initPromise.then(() => this._setConnected());
+
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
 		// default terminal before launching the first terminal. This isn't expected to ever take
 		// this long.

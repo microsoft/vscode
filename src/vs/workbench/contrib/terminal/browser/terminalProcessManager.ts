@@ -300,8 +300,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			newProcess.onProcessReady(async (e: { pid: number, cwd: string }) => {
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
-				const requiresWindowsMode = this._hasRemoteAuthority ? await this._remoteTerminalService.requiresWindowsMode() : await this._localTerminalService?.requiresWindowsMode();
-				this._onProcessReady.fire(requiresWindowsMode || false);
+				const requiresWindowsMode = this._hasRemoteAuthority ? await this._remoteTerminalService.requiresWindowsMode() : await this._localTerminalService!.requiresWindowsMode();
+				this._onProcessReady.fire(requiresWindowsMode);
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
 					// Send any queued data that's waiting
