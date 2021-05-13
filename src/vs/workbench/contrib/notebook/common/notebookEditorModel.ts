@@ -465,7 +465,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	isReadonly(): boolean {
-		return this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this._workingCopy?.isReadonly() || this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	revert(options?: IRevertOptions): Promise<void> {

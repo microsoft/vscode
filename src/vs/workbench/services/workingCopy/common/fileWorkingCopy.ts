@@ -207,6 +207,11 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IReso
 	 * Whether we have a resolved model or not.
 	 */
 	isResolved(): this is IResolvedFileWorkingCopy<T>;
+
+	/**
+	 * Whether the file working copy is readonly or not.
+	 */
+	isReadonly(): boolean;
 }
 
 export interface IResolvedFileWorkingCopy<T extends IFileWorkingCopyModel> extends IFileWorkingCopy<T> {
@@ -1235,7 +1240,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 	}
 
 	isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly ?? this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	private trace(msg: string): void {
