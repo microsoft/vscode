@@ -50,7 +50,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 						defaultSnippets: [{
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
-								'doneOn': { 'command': '$5' },
+								'completionEvents': ['$5'],
 								'media': { 'path': '$6', 'type': '$7' }
 							}
 						}],
@@ -122,8 +122,38 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 									}
 								]
 							},
+							completionEvents: {
+								description: localize('walkthroughs.steps.completionEvents', "Events that should trigger this step to become checked off. If empty or not defined, the step will check off when any of the step's buttons or links are clicked; if the step has no buttons or links it will check on when it is selected."),
+								type: 'array',
+								items: {
+									type: 'string',
+									defaultSnippets: [
+										{
+											label: 'onCommand',
+											description: localize('walkthroughs.steps.completionEvents.onCommand', 'Check off step when a given command is executed anywhere in VS Code.'),
+											body: 'onCommand:${1:commandId}'
+										},
+										{
+											label: 'onLink',
+											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a Getting Started step.'),
+											body: 'onLink:${2:linkId}'
+										},
+										{
+											label: 'extensionInstalled',
+											description: localize('walkthroughs.steps.completionEvents.extensionInstalled', 'Check off step when an extension with the given id is installed. If the extension is already installed, the step will start off checked.'),
+											body: 'extensionInstalled:${3:extensionId}'
+										},
+										{
+											label: 'stepSelected',
+											description: localize('walkthroughs.steps.completionEvents.stepSelected', 'Check off step as soon as it is selected.'),
+											body: 'stepSelected'
+										},
+									]
+								}
+							},
 							doneOn: {
 								description: localize('walkthroughs.steps.doneOn', "Signal to mark step as complete."),
+								deprecationMessage: localize('walkthroughs.steps.doneOn.deprecation', "doneOn is deprecated, use completionEvents"),
 								type: 'object',
 								required: ['command'],
 								defaultSnippets: [{ 'body': { command: '$1' } }],

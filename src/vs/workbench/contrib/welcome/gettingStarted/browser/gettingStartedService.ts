@@ -28,10 +28,11 @@ import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
+import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -52,7 +53,9 @@ export interface IGettingStartedStep {
 	category: GettingStartedCategory | string
 	when: ContextKeyExpression
 	order: number
-	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
+	/** @deprecated */
+	doneOn?: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
+	completionEvents: string[]
 	media:
 	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
 	| { type: 'markdown', path: URI, base: URI, root: URI }
@@ -151,8 +154,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private memento: Memento;
 	private stepProgress: Record<string, StepProgress>;
 
-	private commandListeners = new Map<string, string[]>();
-	private eventListeners = new Map<string, string[]>();
+	private sessionEvents = new Set<string>();
+	private completionListeners = new Map<string, Set<string>>();
 
 	private gettingStartedContributions = new Map<string, IGettingStartedCategory>();
 	private steps = new Map<string, IGettingStartedStep>();
@@ -186,17 +189,22 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			removed.forEach(e => this.unregisterExtensionContributions(e.description));
 		});
 
-		this._register(this.commandService.onDidExecuteCommand(command => this.progressByCommand(command.commandId)));
+		this._register(this.commandService.onDidExecuteCommand(command => this.progressByEvent(`onCommand:${command.commandId}`)));
+
+		this.extensionManagementService.getInstalled().then(installed => {
+			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
+		});
 
 		this._register(this.extensionManagementService.onDidInstallExtension(async e => {
 			if (await this.hostService.hadLastFocus()) {
 				this.sessionInstalledExtensions.add(e.identifier.id);
 			}
+			this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 		}));
 
-		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
-			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		}));
 
 		startEntries.forEach(async (entry, index) => {
@@ -221,6 +229,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					this.getStepOverrides(step, category.id);
 					return ({
 						...step,
+						completionEvents: step.completionEvents ?? [],
 						description: parseDescription(step.description),
 						category: category.id,
 						order: index,
@@ -389,9 +398,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 					return ({
 						description, media,
-						doneOn: step.doneOn?.command
-							? { commandExecuted: step.doneOn.command }
-							: { eventFired: 'markDone:' + fullyQualifiedID },
+						completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
 						id: fullyQualifiedID,
 						title: step.title,
 						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
@@ -456,20 +463,69 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private registerDoneListeners(step: IGettingStartedStep) {
-		if (step.doneOn.commandExecuted) {
-			const existing = this.commandListeners.get(step.doneOn.commandExecuted);
-			if (existing) { existing.push(step.id); }
-			else {
-				this.commandListeners.set(step.doneOn.commandExecuted, [step.id]);
+		if (step.doneOn) {
+			if (step.doneOn.commandExecuted) { step.completionEvents.push(`onCommand:${step.doneOn.commandExecuted}`); }
+			if (step.doneOn.eventFired) { step.completionEvents.push(`onEvent:${step.doneOn.eventFired}`); }
+		}
+
+		if (!step.completionEvents.length) {
+			step.completionEvents = coalesce(flatten(
+				step.description
+					.filter(linkedText => linkedText.nodes.length === 1) // only buttons
+					.map(linkedText =>
+						linkedText.nodes
+							.filter(((node): node is ILink => typeof node !== 'string'))
+							.map(({ href }) => {
+								if (href.startsWith('command:')) {
+									return 'onCommand:' + href.slice('command:'.length, href.includes('?') ? href.indexOf('?') : undefined);
+								}
+								if (href.startsWith('https://')) {
+									return 'onLink:' + href;
+								}
+								return undefined;
+							}))));
+		}
+
+		if (!step.completionEvents.length) {
+			step.completionEvents.push('stepSelected');
+		}
+
+		for (let event of step.completionEvents) {
+			const [_, eventType, argument] = /^([^:]*):?(.*)$/.exec(event) ?? [];
+
+			if (!eventType) {
+				console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+				continue;
+			}
+
+			switch (eventType) {
+				case 'onLink': case 'onEvent': break;
+				case 'stepSelected':
+					event = eventType + ':' + step.id;
+					break;
+				case 'onCommand':
+					event = eventType + ':' + argument.replace(/^toSide:/, '');
+					break;
+				case 'extensionInstalled':
+					event = eventType + ':' + argument.toLowerCase();
+					break;
+				default:
+					console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+					continue;
+			}
+
+			this.registerCompletionListener(event, step);
+			if (this.sessionEvents.has(event)) {
+				this.progressStep(step.id);
 			}
 		}
-		if (step.doneOn.eventFired) {
-			const existing = this.eventListeners.get(step.doneOn.eventFired);
-			if (existing) { existing.push(step.id); }
-			else {
-				this.eventListeners.set(step.doneOn.eventFired, [step.id]);
-			}
+	}
+
+	private registerCompletionListener(event: string, step: IGettingStartedStep) {
+		if (!this.completionListeners.has(event)) {
+			this.completionListeners.set(event, new Set());
 		}
+		this.completionListeners.get(event)?.add(step.id);
 	}
 
 	getCategories(): IGettingStartedCategoryWithProgress[] {
@@ -539,14 +595,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidProgressStep.fire(this.getStepProgress(step));
 	}
 
-	private progressByCommand(command: string) {
-		const listening = this.commandListeners.get(command) ?? [];
-		listening.forEach(id => this.progressStep(id));
-	}
-
 	progressByEvent(event: string): void {
-		const listening = this.eventListeners.get(event) ?? [];
-		listening.forEach(id => this.progressStep(id));
+		this.sessionEvents.add(event);
+		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
 	}
 
 	private registerStartEntry(categoryDescriptor: IGettingStartedStartEntryDescriptor): void {
