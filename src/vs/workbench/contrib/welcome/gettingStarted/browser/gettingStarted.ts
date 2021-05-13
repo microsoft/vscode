@@ -492,9 +492,7 @@ export class GettingStartedPage extends EditorPane {
 			if (src.startsWith('https://')) { return `src="${src}"`; }
 
 			const path = joinPath(base, src);
-			const transformed = asWebviewUri({
-				remote: { authority: undefined },
-			}, this.webviewID, path).toString();
+			const transformed = asWebviewUri(this.webviewID, path, undefined).toString();
 			return `src="${transformed}"`;
 		});
 

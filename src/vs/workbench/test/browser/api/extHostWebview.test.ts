@@ -18,7 +18,7 @@ import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 
-suite('ExtHostWebview', () => {
+suite.only('ExtHostWebview', () => {
 
 	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
 
@@ -30,9 +30,7 @@ suite('ExtHostWebview', () => {
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
-			remote: { authority: undefined },
-		}, undefined, new NullLogService(), NullApiDeprecationService);
+		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { remote: { authority: undefined } }, undefined, new NullLogService(), NullApiDeprecationService);
 
 		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
 
@@ -130,7 +128,7 @@ function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | und
 
 	const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
 
-	const webview = extHostWebviewPanels.createWebviewPanel({} as any, 'type', 'title', 1, {});
+	const webview = extHostWebviewPanels.createWebviewPanel({} as IExtensionDescription, 'type', 'title', 1, {});
 	return webview;
 }
 
