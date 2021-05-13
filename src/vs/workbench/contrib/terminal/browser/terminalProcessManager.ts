@@ -139,11 +139,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dataFilter = this._instantiationService.createInstance(SeamlessRelaunchDataFilter);
 		this._dataFilter.onProcessData(ev => {
 			const data = (typeof ev === 'string' ? ev : ev.data);
-			const trackCommit = (typeof ev === 'string' ? false : ev.trackCommit);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
-				this._onProcessData.fire({ data: beforeProcessDataEvent.data, trackCommit });
+				// This event is used by the caller so the object must be reused
+				if (typeof ev !== 'string') {
+					ev.data = beforeProcessDataEvent.data;
+				}
+				this._onProcessData.fire(typeof ev !== 'string' ? ev : { data: beforeProcessDataEvent.data, trackCommit: false });
 			}
 		});
 	}
