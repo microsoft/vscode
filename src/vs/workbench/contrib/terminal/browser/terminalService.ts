@@ -321,7 +321,7 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	@throttle(10000)
+	@throttle(2000)
 	private async _refreshAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles();
 		if (!equals(result, this._availableProfiles)) {
