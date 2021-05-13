@@ -71,7 +71,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const config: ITestTerminalConfig = {
 					profiles: {
 						windows: {
-							'PowerShell NoProfile': { source: ProfileSource.Pwsh, args: ['-NoProfile'], overrideName: true }
+							'PowerShell': { source: ProfileSource.Pwsh, args: ['-NoProfile'], overrideName: true }
 						},
 						linux: {},
 						osx: {},
@@ -80,7 +80,7 @@ suite('Workbench - TerminalProfiles', () => {
 				};
 				const profiles = await detectAvailableProfiles(true, buildTestSafeConfigProvider(config), fsProvider, undefined, undefined, undefined);
 				const expected = [
-					{ profileName: 'PowerShell NoProfile', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, args: ['-NoProfile'], isDefault: true }
+					{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, args: ['-NoProfile'], isDefault: true }
 				];
 				profilesEqual(profiles, expected);
 			});
