@@ -19,10 +19,12 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
+export const WORKSPACE_TRUST_EMPTY_WORKSPACE = 'security.workspace.trust.emptyWorkspace';
 export const WORKSPACE_TRUST_EXTENSION_SUPPORT = 'extensions.supportUntrustedWorkspaces';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 
@@ -53,6 +55,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _isWorkspaceTrusted: boolean = false;
 	private _trustStateInfo: IWorkspaceTrustInfo;
 
+	private readonly _memento: WorkspaceTrustMemento;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
 	constructor(
@@ -64,10 +67,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	) {
 		super();
 
+		this._memento = new WorkspaceTrustMemento(this.storageService);
+		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
+
 		this._trustStateInfo = this.loadTrustInfo();
 		this._isWorkspaceTrusted = this.calculateWorkspaceTrust();
-
-		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this.registerListeners();
 	}
@@ -129,7 +133,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return true;
+			// Check memento, otherwise default to the setting value
+			return this._memento.isTrusted ?? this.configurationService.inspect<boolean>(WORKSPACE_TRUST_EMPTY_WORKSPACE).userValue ?? false;
 		}
 
 		const workspaceUris = this.getWorkspaceUris();
@@ -227,7 +232,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	canSetWorkspaceTrust(): boolean {
 		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return false;
+			return true;
 		}
 
 		// Untrusted workspace
@@ -279,6 +284,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
+		// Empty workspace
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this._memento.isTrusted = trusted;
+			await this.updateWorkspaceTrust();
+
+			return;
+		}
+
 		const workspaceFolders = this.getWorkspaceUris();
 		await this.setUrisTrust(workspaceFolders, trusted);
 	}
@@ -415,6 +428,25 @@ export class WorkspaceTrustTransitionManager extends Disposable {
 
 	override dispose(): void {
 		this.participants.clear();
+	}
+}
+
+class WorkspaceTrustMemento {
+	private readonly _memento: Memento;
+	private readonly _mementoObject: MementoObject;
+
+	constructor(storageService: IStorageService) {
+		this._memento = new Memento('workspaceTrust', storageService);
+		this._mementoObject = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	get isTrusted(): boolean | undefined {
+		return this._mementoObject['isTrusted'];
+	}
+
+	set isTrusted(value: boolean | undefined) {
+		this._mementoObject['isTrusted'] = value;
+		this._memento.saveMemento();
 	}
 }
 

@@ -25,10 +25,10 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EMPTY_WORKSPACE, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWeb } from 'vs/base/common/platform';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -154,6 +154,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		// Don't show modal prompt for virtual workspaces by default
 		if (getVirtualWorkspaceScheme(this.workspaceContextService.getWorkspace()) !== undefined) {
+			this.updateWorkbenchIndicators(false);
+			return;
+		}
+
+		// Don't show modal prompt for empty workspaces by default
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.updateWorkbenchIndicators(false);
 			return;
 		}
@@ -427,7 +433,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: verifyMicrosoftInternalDomain(product.msftInternalDomains || []),
 				included: !isWeb,
 				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
-				scope: ConfigurationScope.APPLICATION
+				scope: ConfigurationScope.APPLICATION,
 			},
 			[WORKSPACE_TRUST_STARTUP_PROMPT]: {
 				type: 'string',
@@ -441,6 +447,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('workspace.trust.startupPrompt.once', "Ask for trust the first time an untrusted workspace is opened."),
 					localize('workspace.trust.startupPrompt.never', "Do not ask for trust when an untrusted workspace is opened."),
 				]
+			},
+			[WORKSPACE_TRUST_EMPTY_WORKSPACE]: {
+				type: 'boolean',
+				default: false,
+				included: !isWeb,
+				description: localize('workspace.trust.emptyWorkspace.description', "Controls whether or not the empty workspace is trusted within VS Code."),
+				scope: ConfigurationScope.APPLICATION
 			}
 		}
 	});
