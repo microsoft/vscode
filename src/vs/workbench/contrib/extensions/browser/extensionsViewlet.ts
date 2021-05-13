@@ -410,14 +410,14 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.untrustedUnsupportedExtensions',
-			name: localize('untrustedUnsupportedExtensions', "Disabled in Untrusted Workspaces"),
+			name: localize('untrustedUnsupportedExtensions', "Disabled in Restricted Mode"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspaceUnsupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.has('unsupportedWorkspaceExtensions'),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.untrustedPartiallySupportedExtensions',
-			name: localize('untrustedPartiallySupportedExtensions', "Limited in Untrusted Workspaces"),
+			name: localize('untrustedPartiallySupportedExtensions', "Limited in Restricted Mode"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspacePartiallySupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.has('unsupportedWorkspaceExtensions'),
 		});
