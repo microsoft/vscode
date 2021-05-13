@@ -109,12 +109,13 @@ suite('ExtHostWebview', () => {
 			'Windows C drive'
 		);
 	});
+
 	test('asWebviewUri for remote file paths', () => {
 		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'remote');
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			'vscode-webview-test.com/vscode-resource/vscode-remote/remote/vscode-resource?%7B%22requestResourcePath%22%3A%22%2FUsers%2Fcodey%2Ffile.html%22%7D',
+			'vscode-webview-test.com/vscode-resource/vscode-remote/remote/Users/codey/file.html',
 			'Unix basic'
 		);
 	});
