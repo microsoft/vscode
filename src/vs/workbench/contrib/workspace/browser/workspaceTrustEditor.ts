@@ -26,6 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
 import product from 'vs/platform/product/common/product';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -218,7 +219,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const filtered = extensions.filter(ext => this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(ext.local.manifest) === trustRequestType);
 		const set = new Set<string>();
 		for (const ext of filtered) {
-			set.add(ext.identifier.id);
+			const isVirtualWorkspace = getVirtualWorkspaceScheme(this.workspaceService.getWorkspace()) !== undefined;
+			if (!isVirtualWorkspace || this.extensionManifestPropertiesService.canSupportVirtualWorkspace(ext.local.manifest)) {
+				set.add(ext.identifier.id);
+			}
 		}
 
 		return set.size;
@@ -275,7 +279,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			localize('untrustedTasks', "Tasks are disabled"),
 			localize('untrustedDebugging', "Debugging is disabled"),
 			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) are not applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
+			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listWorkspaceUnsupportedExtensions')
 		], xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
