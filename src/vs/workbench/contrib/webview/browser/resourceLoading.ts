@@ -6,6 +6,7 @@
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isUNC } from 'vs/base/common/extpath';
+import { Schemas } from 'vs/base/common/network';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
@@ -88,7 +89,7 @@ function getResourceToLoad(
 ): URI | undefined {
 	for (const root of roots) {
 		if (containsResource(root, requestUri)) {
-			return requestUri;
+			return normalizeResourcePath(requestUri);
 		}
 	}
 
@@ -105,4 +106,19 @@ function containsResource(root: URI, resource: URI): boolean {
 	}
 
 	return resourceFsPath.startsWith(rootPath);
+}
+
+function normalizeResourcePath(resource: URI): URI {
+	// Rewrite remote uris to a path that the remote file system can understand
+	if (resource.scheme === Schemas.vscodeRemote) {
+		return URI.from({
+			scheme: Schemas.vscodeRemote,
+			authority: resource.authority,
+			path: '/vscode-resource',
+			query: JSON.stringify({
+				requestResourcePath: resource.path
+			})
+		});
+	}
+	return resource;
 }

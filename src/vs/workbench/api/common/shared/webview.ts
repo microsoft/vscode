@@ -39,7 +39,6 @@ export function asWebviewUri(
 	resource: vscode.Uri,
 ): vscode.Uri {
 	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
-		// No need to rewrite anything
 		return resource;
 	}
 
@@ -47,12 +46,10 @@ export function asWebviewUri(
 		resource = URI.from({
 			scheme: Schemas.vscodeRemote,
 			authority: initData.remote.authority,
-			path: '/vscode-resource',
-			query: JSON.stringify({
-				requestResourcePath: resource.path
-			})
+			path: resource.path,
 		});
 	}
+
 	const uri = webviewResourceRoot(uuid)
 		.replace('{{resource}}', resource.scheme + '/' + encodeURIComponent(resource.authority) + resource.path)
 		.replace('{{uuid}}', uuid);
