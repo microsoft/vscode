@@ -66,9 +66,15 @@ class RequestStore {
 	create() {
 		const requestId = ++this.requestPool;
 
+		/** @type {undefined | ((x: T) => void)} */
 		let resolve;
+
+		/** @type {Promise<T>} */
 		const promise = new Promise(r => resolve = r);
-		const entry = { resolve, promise };
+
+		/** @type {RequestStoreEntry<T>} */
+		const entry = { resolve: /** @type {(x: T) => void} */ (resolve), promise };
+
 		this.map.set(requestId, entry);
 
 		const dispose = () => {
@@ -205,11 +211,16 @@ sw.addEventListener('activate', (event) => {
 async function processResourceRequest(event, requestUrl) {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
-		console.log('Could not find inner client for request');
+		console.error('Could not find inner client for request');
 		return notFound();
 	}
 
 	const webviewId = getWebviewIdForClient(client);
+	if (!webviewId) {
+		console.error('Could not resolve webview id');
+		return notFound();
+	}
+
 	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) : requestUrl.pathname;
 
 	/**
@@ -229,18 +240,18 @@ async function processResourceRequest(event, requestUrl) {
 			}
 		}
 
-		const cacheHeaders = entry.etag ? {
-			'ETag': entry.etag,
-			'Cache-Control': 'no-cache'
-		} : {};
-
+		/** @type {Record<String, string>} */
+		const headers = {
+			'Content-Type': entry.mime,
+			'Access-Control-Allow-Origin': '*',
+		};
+		if (entry.etag) {
+			headers['ETag'] = entry.etag;
+			headers['Cache-Control'] = 'no-cache';
+		}
 		const response = new Response(entry.body, {
 			status: 200,
-			headers: {
-				'Content-Type': entry.mime,
-				'Access-Control-Allow-Origin': '*',
-				...cacheHeaders
-			}
+			headers
 		});
 
 		if (entry.etag) {
@@ -273,8 +284,9 @@ async function processResourceRequest(event, requestUrl) {
 }
 
 /**
- * @param {*} event
+ * @param {FetchEvent} event
  * @param {URL} requestUrl
+ * @return {Promise<Response>}
  */
 async function processLocalhostRequest(event, requestUrl) {
 	const client = await sw.clients.get(event.clientId);
@@ -287,9 +299,10 @@ async function processLocalhostRequest(event, requestUrl) {
 	const origin = requestUrl.origin;
 
 	/**
-	 * @param {string} redirectOrigin
+	 * @param {string | undefined} redirectOrigin
+	 * @return {Promise<Response>}
 	 */
-	const resolveRedirect = (redirectOrigin) => {
+	const resolveRedirect = async (redirectOrigin) => {
 		if (!redirectOrigin) {
 			return fetch(event.request);
 		}
@@ -320,7 +333,7 @@ async function processLocalhostRequest(event, requestUrl) {
 
 /**
  * @param {Client} client
- * @returns {string | undefined}
+ * @returns {string | null}
  */
 function getWebviewIdForClient(client) {
 	const requesterClientUrl = new URL(client.url);
