@@ -549,9 +549,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// underlying process OS
 		this._processManager.onProcessReady(() => {
 			if (this._processManager.os === OperatingSystem.Windows) {
-				if (this._requiresWindowsMode) {
-					xterm.setOption('windowsMode', true);
-				}
+				xterm.setOption('windowsMode', this._requiresWindowsMode);
+
 				// Force line data to be sent when the cursor is moved, the main purpose for
 				// this is because ConPTY will often not do a line feed but instead move the
 				// cursor, in which case we still want to send the current line's data to tasks.
