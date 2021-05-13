@@ -557,7 +557,8 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 				cellKind: cell.cellKind,
 				language: cell.language,
 				source: cell.getValue(),
-				outputs: []
+				outputs: [],
+				internalMetadata: cell.internalMetadata
 			};
 
 			cellData.outputs = !this._notebookSerializer.options.transientOutputs ? cell.outputs : [];
