@@ -318,16 +318,24 @@ async function processLocalhostRequest(event, requestUrl) {
 	return promise.then(resolveRedirect);
 }
 
+/**
+ * @param {Client} client
+ * @returns {string | undefined}
+ */
 function getWebviewIdForClient(client) {
 	const requesterClientUrl = new URL(client.url);
-	return requesterClientUrl.search.match(/\bid=([a-z0-9-]+)/i)[1];
+	return requesterClientUrl.searchParams.get('id');
 }
 
+/**
+ * @param {string} webviewId
+ * @returns {Promise<Client | undefined>}
+ */
 async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.find(client => {
 		const clientUrl = new URL(client.url);
 		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/electron-browser-index.html`);
-		return hasExpectedPathName && clientUrl.search.match(new RegExp('\\bid=' + webviewId));
+		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
 	});
 }
