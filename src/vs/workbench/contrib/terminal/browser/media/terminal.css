@@ -203,7 +203,7 @@
 	flex-direction: column;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget-container {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
 	height: 100%;
 	overflow: hidden;
 }
@@ -221,21 +221,21 @@
 	text-align: left;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list {
 	height: 100%;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .terminal-tabs-entry {
 	text-align: center;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-widget .terminal-tabs-entry {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry {
 	padding-left: 10px;
 	padding-right: 10px;
 	text-align: left;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-widget .terminal-tabs-entry .monaco-icon-label::after {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label::after {
 	padding-right: 0
 }
 
@@ -249,21 +249,21 @@
 	display: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .codicon {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
 	vertical-align: text-bottom;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .actions {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .actions {
 	display: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .actions .action-label {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .actions .action-label {
 	padding: 2px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-list-row:hover .actions,
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget:focus-within .monaco-list-row.selected .actions,
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget:focus-within .monaco-list-row.focused .actions {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .monaco-list-row:hover .actions,
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.selected .actions,
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.focused .actions {
 	display: block;
 }
 
