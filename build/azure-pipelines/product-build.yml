@@ -327,6 +327,6 @@ stages:
           vmImage: "Ubuntu-18.04"
         jobs:
           - job: ReleaseBuild
-            displayName: Release Build
+            displayName: Release Builds
             steps:
               - template: product-release.yml
