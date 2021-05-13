@@ -1850,7 +1850,8 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		const color = theme.getColor(colorKey);
 		if (color && !colorKey.toLowerCase().includes('bright')) {
 			colors.push(colorKey);
-			collector.addRule(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan) { color: ${color} !important; }`);
+			// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
+			collector.addRule(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`);
 		}
 	}
 

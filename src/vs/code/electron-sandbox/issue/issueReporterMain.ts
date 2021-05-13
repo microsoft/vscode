@@ -85,6 +85,7 @@ export class IssueReporter extends Disposable {
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement);
+			this.updatePreviewButtonState();
 		}
 
 		const issueTitle = configuration.data.issueTitle;

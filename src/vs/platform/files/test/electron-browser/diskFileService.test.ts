@@ -89,8 +89,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		this.smallStatSize = enabled;
 	}
 
-	setReadonly(enabled: boolean): void {
-		this.readonly = true;
+	setReadonly(readonly: boolean): void {
+		this.readonly = readonly;
 	}
 
 	override async stat(resource: URI): Promise<IStat> {
@@ -446,18 +446,6 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(!resolvedLink?.isDirectory);
 		assert.ok(!resolvedLink?.isFile);
-	});
-
-	test('resolve - readonly', async () => {
-		fileProvider.setReadonly(true);
-
-		const resource = URI.file(join(testDir, 'index.html'));
-
-		const resolveResult = await service.resolve(resource);
-		assert.strictEqual(resolveResult.readonly, true);
-
-		const readResult = await service.readFile(resource);
-		assert.strictEqual(readResult.readonly, true);
 	});
 
 	test('deleteFile', async () => {
@@ -2410,5 +2398,33 @@ flakySuite('Disk File Service', function () {
 
 		await fileProvider.close(fdWrite);
 		await fileProvider.close(fdRead);
+	});
+
+	test('readonly - is handled properly for a single resource', async () => {
+		fileProvider.setReadonly(true);
+
+		const resource = URI.file(join(testDir, 'index.html'));
+
+		const resolveResult = await service.resolve(resource);
+		assert.strictEqual(resolveResult.readonly, true);
+
+		const readResult = await service.readFile(resource);
+		assert.strictEqual(readResult.readonly, true);
+
+		let writeFileError: Error | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString('Hello Test'));
+		} catch (error) {
+			writeFileError = error;
+		}
+		assert.ok(writeFileError);
+
+		let deleteFileError: Error | undefined = undefined;
+		try {
+			await service.del(resource);
+		} catch (error) {
+			deleteFileError = error;
+		}
+		assert.ok(deleteFileError);
 	});
 });
