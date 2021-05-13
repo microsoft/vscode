@@ -1025,8 +1025,8 @@ var requirejs = (function() {
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
 							if (data.shiftKey || (isMacintosh ? data.metaKey : data.ctrlKey)) {
-								// Add to selection
-								this.notebookEditor.toggleNotebookCellSelection(cell);
+								// Modify selection
+								this.notebookEditor.toggleNotebookCellSelection(cell, /* fromPrevious */ data.shiftKey);
 							} else {
 								// Normal click
 								this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
