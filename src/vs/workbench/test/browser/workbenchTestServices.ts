@@ -226,7 +226,6 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IKeybindingService, keybindingService);
 	instantiationService.stub(IDecorationsService, new TestDecorationsService());
 	instantiationService.stub(IExtensionService, new TestExtensionService());
-	instantiationService.stub(IWorkingCopyEditorService, disposables.add(instantiationService.createInstance(WorkingCopyEditorService)));
 	instantiationService.stub(IWorkingCopyFileService, disposables.add(instantiationService.createInstance(WorkingCopyFileService)));
 	instantiationService.stub(ITextFileService, overrides?.textFileService ? overrides.textFileService(instantiationService) : disposables.add(<ITextFileService>instantiationService.createInstance(TestTextFileService)));
 	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
@@ -237,6 +236,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ILabelService, <ILabelService>disposables.add(instantiationService.createInstance(LabelService)));
 	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
 	instantiationService.stub(IEditorService, editorService);
+	instantiationService.stub(IWorkingCopyEditorService, disposables.add(instantiationService.createInstance(WorkingCopyEditorService)));
 	instantiationService.stub(IEditorOverrideService, disposables.add(instantiationService.createInstance(EditorOverrideService)));
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IViewletService, new TestViewletService());
