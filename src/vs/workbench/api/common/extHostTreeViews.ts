@@ -84,7 +84,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dragAndDropController: options.dragAndDropController });
+		const canDragAndDrop = options.dragAndDropController !== undefined;
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, canDragAndDrop: canDragAndDrop });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -379,11 +380,11 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	onDrop(treeItemHandleOrNodes: TreeItemHandle[], newParentHandleOrNode: TreeItemHandle): Promise<void> {
+	onDrop(treeItemHandleOrNodes: TreeItemHandle[], targetHandleOrNode: TreeItemHandle): Promise<void> {
 		const elements = <T[]>treeItemHandleOrNodes.map(item => this.getExtensionElement(item)).filter(element => !isUndefinedOrNull(element));
-		const newParentElement = this.getExtensionElement(newParentHandleOrNode);
-		if (elements && newParentElement) {
-			return asPromise(() => this.dndController?.onDrop(elements, newParentElement));
+		const target = this.getExtensionElement(targetHandleOrNode);
+		if (elements && target) {
+			return asPromise(() => this.dndController?.onDrop(elements, target));
 		}
 		return Promise.resolve(undefined);
 	}

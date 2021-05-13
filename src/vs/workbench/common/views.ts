@@ -636,8 +636,6 @@ export interface ITreeView extends IDisposable {
 
 	canSelectMany: boolean;
 
-	canDragAndDrop: boolean;
-
 	message?: string;
 
 	title: string;
@@ -817,7 +815,7 @@ export interface ITreeViewDataProvider {
 }
 
 export interface ITreeViewDragAndDropController {
-	onDrop(elements: ITreeItem[], newParent: ITreeItem): Promise<void>;
+	onDrop(elements: ITreeItem[], target: ITreeItem): Promise<void>;
 }
 
 export interface IEditableData {

@@ -159,7 +159,6 @@ export class TreeView extends Disposable implements ITreeView {
 	private treeContainer!: HTMLElement;
 	private _messageValue: string | undefined;
 	private _canSelectMany: boolean = false;
-	private _canDragAndDrop = false;
 	private messageElement!: HTMLDivElement;
 	private tree: Tree | undefined;
 	private treeLabels: ResourceLabels | undefined;
@@ -338,14 +337,6 @@ export class TreeView extends Disposable implements ITreeView {
 
 	set canSelectMany(canSelectMany: boolean) {
 		this._canSelectMany = canSelectMany;
-	}
-
-	get canDragAndDrop(): boolean {
-		return this._canDragAndDrop;
-	}
-
-	set canDragAndDrop(canDragAndDrop: boolean) {
-		this._canDragAndDrop = canDragAndDrop;
 	}
 
 	get hasIconForParentNode(): boolean {
