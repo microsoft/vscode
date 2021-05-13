@@ -137,19 +137,14 @@ export interface INotebookRendererInfo {
 	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
 
+	readonly mimeTypes: readonly string[];
+
+	readonly dependencies: readonly string[];
+
 	matchesWithoutKernel(mimeType: string): NotebookRendererMatch;
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
-export interface INotebookMarkupRendererInfo {
-	readonly id: string;
-	readonly entrypoint: URI;
-	readonly extensionLocation: URI;
-	readonly extensionId: ExtensionIdentifier;
-	readonly extensionIsBuiltin: boolean;
-	readonly dependsOn: string | undefined;
-	readonly mimeTypes: readonly string[] | undefined;
-}
 
 export interface NotebookCellOutputMetadata {
 	/**
@@ -720,6 +715,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidChangeDirty: Event<void>;
 	readonly onDidSave: Event<void>;
 	readonly onDidChangeOrphaned: Event<void>;
+	readonly onDidChangeReadonly: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel | undefined;

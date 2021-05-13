@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { IAvailableProfilesRequest, ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -18,6 +17,7 @@ import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -94,6 +94,7 @@ export interface ITerminalService {
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly availableProfiles: ITerminalProfile[];
+	readonly profilesReady: Promise<void>;
 
 	initializeTerminals(): Promise<void>;
 	onActiveGroupChanged: Event<void>;
@@ -112,7 +113,6 @@ export interface ITerminalService {
 	onInstanceIconChanged: Event<ITerminalInstance | undefined>;
 	onInstancePrimaryStatusChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
-	onRequestAvailableProfiles: Event<IAvailableProfilesRequest>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
@@ -187,7 +187,6 @@ export interface ITerminalService {
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
-	extHostReady(remoteAuthority: string): void;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 }
@@ -255,7 +254,8 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
-	readonly icon?: Codicon;
+	readonly icon?: ThemeIcon;
+	readonly color?: string;
 
 	readonly statusList: ITerminalStatusList;
 
@@ -581,6 +581,11 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to rename this terminal.
 	 */
 	changeIcon(): Promise<void>;
+
+	/**
+	 * Triggers a quick pick to change the color of the associated terminal tab icon.
+	 */
+	changeColor(): Promise<void>;
 }
 
 export const enum LinuxDistro {

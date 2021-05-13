@@ -441,11 +441,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (position === Position.LEFT) {
-			this.workbenchGrid.moveViewTo(this.activityBarPartView, [1, 0]);
-			this.workbenchGrid.moveViewTo(this.sideBarPartView, [1, 1]);
+			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
+			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 1]);
 		} else {
-			this.workbenchGrid.moveViewTo(this.sideBarPartView, [1, 4]);
-			this.workbenchGrid.moveViewTo(this.activityBarPartView, [1, 4]);
+			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 4]);
+			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 4]);
 		}
 
 		this.layout();

@@ -296,7 +296,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get uriScheme() { return initData.environment.appUriScheme; },
 			get clipboard(): vscode.Clipboard { return extHostClipboard.value; },
 			get shell() {
-				return extHostTerminalService.getDefaultShell(false, configProvider);
+				return extHostTerminalService.getDefaultShell(false);
 			},
 			get isTelemetryEnabled() {
 				return extHostTelemetry.getTelemetryEnabled();
@@ -858,7 +858,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTask.registerTaskProvider(extension, type, provider);
 			},
 			registerFileSystemProvider(scheme, provider, options) {
-				return extHostFileSystem.registerFileSystemProvider(extension.identifier, scheme, provider, options);
+				return extHostFileSystem.registerFileSystemProvider(extension.identifier, scheme, provider, options, extension.enableProposedApi);
 			},
 			get fs() {
 				return extHostConsumerFileSystem.value;
@@ -1175,6 +1175,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FileDecoration: extHostTypes.FileDecoration,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,
+			FilePermission: files.FilePermission,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind,
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,

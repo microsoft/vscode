@@ -955,7 +955,6 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 			return;
 		}
 
-		// TODO: handle namespace
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');

@@ -157,14 +157,6 @@
 	align-items: center;
 }
 
-.testing-filter-action-item > .monaco-action-bar .action-item .action-label.codicon.testing-filter-button {
-	line-height: 20px;
-	height: 20px;
-	min-width: 22px;
-	margin-left: 4px;
-	justify-content: center;
-}
-
 /** -- decorations  */
 
 .monaco-editor .testing-run-glyph {

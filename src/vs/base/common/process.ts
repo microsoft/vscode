@@ -9,7 +9,7 @@ let safeProcess: INodeProcess & { nextTick: (callback: (...args: any[]) => void)
 declare const process: INodeProcess;
 
 // Native sandbox environment
-if (typeof globals.vscode !== 'undefined') {
+if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
 	const sandboxProcess: INodeProcess = globals.vscode.process;
 	safeProcess = {
 		get platform() { return sandboxProcess.platform; },

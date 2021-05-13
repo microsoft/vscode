@@ -63,7 +63,7 @@ export class EditorControl extends Disposable {
 		this._register(this.workspaceTrustService.onDidChangeTrust(() => this.onDidChangeWorkspaceTrust()));
 	}
 
-	private async onDidChangeWorkspaceTrust(): Promise<void> {
+	private onDidChangeWorkspaceTrust() {
 
 		// If the active editor pane requires workspace trust
 		// we need to re-open it anytime trust changes to
@@ -72,7 +72,7 @@ export class EditorControl extends Disposable {
 		// to handle errors properly.
 		const editor = this._activeEditorPane?.input;
 		const options = this._activeEditorPane?.options;
-		if (editor && await editor.requiresWorkspaceTrust()) {
+		if (editor?.requiresWorkspaceTrust()) {
 			this.groupView.openEditor(editor, options);
 		}
 	}
@@ -80,7 +80,7 @@ export class EditorControl extends Disposable {
 	async openEditor(editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
 		// Editor descriptor
-		const descriptor = await this.resolveEditorDescriptor(editor);
+		const descriptor = this.getEditorDescriptor(editor);
 
 		// Editor pane
 		const editorPane = this.doShowEditorPane(descriptor);
@@ -90,17 +90,16 @@ export class EditorControl extends Disposable {
 		return { editorPane, editorChanged };
 	}
 
-	private async resolveEditorDescriptor(editor: EditorInput): Promise<IEditorDescriptor> {
-		const editorRequiresTrust = await editor.requiresWorkspaceTrust();
-		const editorBlockedByTrust = editorRequiresTrust && !this.workspaceTrustService.isWorkpaceTrusted();
+	private getEditorDescriptor(editor: EditorInput): IEditorDescriptor {
+		if (editor.requiresWorkspaceTrust() && !this.workspaceTrustService.isWorkpaceTrusted()) {
+			// Workspace trust: if an editor signals it needs workspace trust
+			// but the current workspace is untrusted, we fallback to a generic
+			// editor descriptor to indicate this an do NOT load the registered
+			// editor.
+			return WorkspaceTrustRequiredEditor.DESCRIPTOR;
+		}
 
-		// Workspace trust: if an editor signals it needs workspace trust
-		// but the current workspace is untrusted, we fallback to a generic
-		// editor descriptor to indicate this an do NOT load the registered
-		// editor.
-		const descriptor = editorBlockedByTrust ? WorkspaceTrustRequiredEditor.DESCRIPTOR : this.editorsRegistry.getEditor(editor);
-
-		return assertIsDefined(descriptor);
+		return assertIsDefined(this.editorsRegistry.getEditor(editor));
 	}
 
 	private doShowEditorPane(descriptor: IEditorDescriptor): EditorPane {

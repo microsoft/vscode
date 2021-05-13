@@ -47,6 +47,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 	discardedBackups: IWorkingCopyIdentifier[];
+	discardedAllBackups: boolean;
 	private pendingBackupsArr: Promise<void>[];
 	private diskFileSystemProvider: DiskFileSystemProvider;
 
@@ -65,6 +66,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
 		this.pendingBackupsArr = [];
+		this.discardedAllBackups = false;
 	}
 
 	async waitForAllBackups(): Promise<void> {
@@ -101,6 +103,12 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		while (this.discardBackupJoiners.length) {
 			this.discardBackupJoiners.pop()!();
 		}
+	}
+
+	override async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		this.discardedAllBackups = true;
+
+		return super.discardBackups(filter);
 	}
 
 	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {

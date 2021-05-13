@@ -18,6 +18,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 
 	private readonly _editorIsOpen: IContextKey<boolean>;
+	private _activeCodeEditor: ICodeEditor | null;
 
 	constructor(
 		styleSheet: GlobalStyleSheet | null,
@@ -28,6 +29,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		this.onCodeEditorAdd(() => this._checkContextKey());
 		this.onCodeEditorRemove(() => this._checkContextKey());
 		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);
+		this._activeCodeEditor = null;
 	}
 
 	private _checkContextKey(): void {
@@ -41,8 +43,12 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		this._editorIsOpen.set(hasCodeEditor);
 	}
 
+	public setActiveCodeEditor(activeCodeEditor: ICodeEditor | null): void {
+		this._activeCodeEditor = activeCodeEditor;
+	}
+
 	public getActiveCodeEditor(): ICodeEditor | null {
-		return null; // not supported in the standalone case
+		return this._activeCodeEditor;
 	}
 
 	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
