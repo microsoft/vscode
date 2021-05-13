@@ -92,8 +92,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._updateDefaultProfile();
 		});
 		this._terminalService.onDidChangeAvailableProfiles(() => this._updateDefaultProfile());
-
-		this._terminalService.extHostReady(_extHostContext.remoteAuthority!); // TODO@Tyriar: remove null assertion
 	}
 
 	public dispose(): void {

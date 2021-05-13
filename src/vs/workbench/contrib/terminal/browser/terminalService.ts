@@ -52,7 +52,6 @@ export class TerminalService implements ITerminalService {
 	private _terminalGroups: ITerminalGroup[] = [];
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _findState: FindReplaceState;
-	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeGroupIndex: number;
 	private _activeInstanceIndex: number;
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
@@ -324,11 +323,6 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	async extHostReady(remoteAuthority: string): Promise<void> {
-		this._createExtHostReadyEntry(remoteAuthority);
-		this._extHostsReady[remoteAuthority]!.resolve();
-	}
-
 	@throttle(10000)
 	private async _refreshAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles(true);
@@ -346,16 +340,6 @@ export class TerminalService implements ITerminalService {
 			return this._availableProfiles || [];
 		}
 		return offProcService?.getProfiles(!configuredProfilesOnly);
-	}
-
-	private _createExtHostReadyEntry(remoteAuthority: string): void {
-		if (this._extHostsReady[remoteAuthority]) {
-			return;
-		}
-
-		let resolve!: () => void;
-		const promise = new Promise<void>(r => resolve = r);
-		this._extHostsReady[remoteAuthority] = { promise, resolve };
 	}
 
 	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -1040,11 +1024,6 @@ export class TerminalService implements ITerminalService {
 
 interface IProfileQuickPickItem extends IQuickPickItem {
 	profile: ITerminalProfile | ITerminalTypeContribution;
-}
-
-interface IExtHostReadyEntry {
-	promise: Promise<void>;
-	resolve: () => void;
 }
 
 interface IInstanceLocation {

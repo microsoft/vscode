@@ -187,7 +187,6 @@ export interface ITerminalService {
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
-	extHostReady(remoteAuthority: string): void;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 }
