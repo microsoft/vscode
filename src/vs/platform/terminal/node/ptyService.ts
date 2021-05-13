@@ -346,6 +346,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
 			this._cwd = e.cwd;
+
 			this._onProcessReady.fire(e);
 		}));
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));

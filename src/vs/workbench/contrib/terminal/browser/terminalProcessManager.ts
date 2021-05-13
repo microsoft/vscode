@@ -22,7 +22,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions, TerminalSettingId, IProcessTraits } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -86,8 +86,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private readonly _onPtyReconnect = this._register(new Emitter<void>());
 	get onPtyReconnect(): Event<void> { return this._onPtyReconnect.event; }
 
-	private readonly _onProcessReady = this._register(new Emitter<boolean>());
-	get onProcessReady(): Event<boolean> { return this._onProcessReady.event; }
+	private readonly _onProcessReady = this._register(new Emitter<IProcessTraits>());
+	get onProcessReady(): Event<IProcessTraits> { return this._onProcessReady.event; }
 	private readonly _onProcessStateChange = this._register(new Emitter<void>());
 	get onProcessStateChange(): Event<void> { return this._onProcessStateChange.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
@@ -300,11 +300,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			dispose(this._processListeners);
 		}
 		this._processListeners = [
-			newProcess.onProcessReady(async (e: { pid: number, cwd: string }) => {
+			newProcess.onProcessReady(async (e: { pid: number, cwd: string, requiresWindowsMode?: boolean }) => {
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
-				const requiresWindowsMode = this._hasRemoteAuthority ? await this._remoteTerminalService.requiresWindowsMode() : await this._localTerminalService!.requiresWindowsMode();
-				this._onProcessReady.fire(requiresWindowsMode);
+				this._onProcessReady.fire(e);
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
 					// Send any queued data that's waiting
