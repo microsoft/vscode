@@ -7,7 +7,7 @@ import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWeb, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import * as nls from 'vs/nls';
@@ -40,6 +40,7 @@ import { Schemas } from 'vs/base/common/network';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -328,6 +329,11 @@ export class TerminalService implements ITerminalService {
 			this._availableProfiles = result;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
+			const env = await this._remoteAgentService.getEnvironment();
+			registerTerminalDefaultProfileConfiguration({
+				os: env?.os || OS,
+				profiles: this._availableProfiles
+			});
 		}
 	}
 

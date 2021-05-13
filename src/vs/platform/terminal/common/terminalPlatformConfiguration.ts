@@ -5,10 +5,11 @@
 
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { iconRegistry } from 'vs/base/common/codicons';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 const terminalProfileSchema: IJSONSchema = {
 	type: 'object',
@@ -284,24 +285,6 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				]
 			}
 		},
-		[TerminalSettingId.DefaultProfileLinux]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.defaultProfile.linux', "The default profile used on Linux. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.linux#`', '`#terminal.integrated.shellArgs.linux#`'),
-			type: ['string', 'null'],
-			default: null
-		},
-		[TerminalSettingId.DefaultProfileMacOs]: {
-			restricted: true,
-			description: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
-			type: ['string', 'null'],
-			default: null
-		},
-		[TerminalSettingId.DefaultProfileWindows]: {
-			restricted: true,
-			description: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
-			type: ['string', 'null'],
-			default: null
-		},
 		[TerminalSettingId.UseWslProfiles]: {
 			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
 			type: 'boolean',
@@ -326,6 +309,77 @@ const terminalPlatformConfiguration: IConfigurationNode = {
  * Registers terminal configurations required by shared process and remote server.
  */
 export function registerTerminalPlatformConfiguration() {
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	configurationRegistry.registerConfiguration(terminalPlatformConfiguration);
+	Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(terminalPlatformConfiguration);
+	registerTerminalDefaultProfileConfiguration();
+}
+
+let lastDefaultProfilesConfiguration: IConfigurationNode | undefined;
+export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }) {
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	if (lastDefaultProfilesConfiguration) {
+		registry.deregisterConfigurations([lastDefaultProfilesConfiguration]);
+	}
+	let enumValues: string[] | undefined = undefined;
+	let enumDescriptions: string[] | undefined = undefined;
+	if (detectedProfiles) {
+		const result = detectedProfiles.profiles.map(e => {
+			return {
+				name: e.profileName,
+				description: createProfileDescription(e)
+			};
+		});
+		enumValues = result.map(e => e.name);
+		enumDescriptions = result.map(e => e.description);
+	}
+	lastDefaultProfilesConfiguration = {
+		id: 'terminal',
+		order: 100,
+		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+		type: 'object',
+		properties: {
+			[TerminalSettingId.DefaultProfileLinux]: {
+				restricted: true,
+				markdownDescription: localize('terminal.integrated.defaultProfile.linux', "The default profile used on Linux. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.linux#`', '`#terminal.integrated.shellArgs.linux#`'),
+				type: ['string', 'null'],
+				default: null,
+				enum: detectedProfiles?.os === OperatingSystem.Linux ? enumValues : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Linux ? enumDescriptions : undefined
+			},
+			[TerminalSettingId.DefaultProfileMacOs]: {
+				restricted: true,
+				description: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
+				type: ['string', 'null'],
+				default: null,
+				enum: detectedProfiles?.os === OperatingSystem.Macintosh ? enumValues : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Macintosh ? enumDescriptions : undefined
+			},
+			[TerminalSettingId.DefaultProfileWindows]: {
+				restricted: true,
+				description: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
+				type: ['string', 'null'],
+				default: null,
+				enum: detectedProfiles?.os === OperatingSystem.Windows ? enumValues : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Windows ? enumDescriptions : undefined
+			},
+		}
+	};
+	registry.registerConfiguration(lastDefaultProfilesConfiguration);
+}
+
+function createProfileDescription(profile: ITerminalProfile): string {
+	let description = `$(${profile.icon || Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
+	if (profile.args) {
+		if (typeof profile.args === 'string') {
+			description += `\n- args: "${profile.args}"`;
+		} else {
+			description += `\n- args: [${profile.args.length === 0 ? '' : profile.args.join(`','`)}]`;
+		}
+	}
+	if (profile.overrideName !== undefined) {
+		description += `\n- overrideName: ${profile.overrideName}`;
+	}
+	if (profile.env) {
+		description += `\n- env: ${JSON.stringify(profile.env)}`;
+	}
+	return description;
 }
