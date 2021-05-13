@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, TerminalIdentifier, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -42,7 +42,6 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
-	getDefaultShellAndArgs(useAutomationShell: boolean): IShellAndArgsDto;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -344,13 +343,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public getDefaultShellArgs(useAutomationShell: boolean): string[] | string {
 		const profile = useAutomationShell ? this._defaultAutomationProfile : this._defaultProfile;
 		return profile?.args || [''];
-	}
-
-	public getDefaultShellAndArgs(useAutomationShell: boolean): IShellAndArgsDto {
-		return {
-			shell: this.getDefaultShell(useAutomationShell),
-			args: this.getDefaultShellArgs(useAutomationShell)
-		};
 	}
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
