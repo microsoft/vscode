@@ -169,8 +169,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	) {
 		super();
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
-		this._metadata = metadata || {};
-		this._internalMetadata = internalMetadata || {};
+		this._metadata = metadata ?? {};
+		this._internalMetadata = internalMetadata ?? {};
 	}
 
 	getValue(): string {

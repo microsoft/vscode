@@ -304,7 +304,7 @@ suite('NotebookTextModel', () => {
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].metadata?.customProperty, undefined);
+				assert.strictEqual(textModel.cells[0].metadata.customProperty, undefined);
 			}
 		);
 	});
@@ -330,7 +330,7 @@ suite('NotebookTextModel', () => {
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].metadata?.customProperty, 15);
+				assert.strictEqual(textModel.cells[0].metadata.customProperty, 15);
 			}
 		);
 	});

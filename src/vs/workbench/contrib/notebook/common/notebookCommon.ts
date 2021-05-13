@@ -195,7 +195,8 @@ export interface ICell {
 	language: string;
 	cellKind: CellKind;
 	outputs: ICellOutput[];
-	metadata?: NotebookCellMetadata;
+	metadata: NotebookCellMetadata;
+	internalMetadata: NotebookCellInternalMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
 	onDidChangeMetadata: Event<void>;

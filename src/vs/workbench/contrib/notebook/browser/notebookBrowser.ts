@@ -133,7 +133,7 @@ export interface IGenericCellViewModel {
 	id: string;
 	handle: number;
 	uri: URI;
-	metadata: NotebookCellMetadata | undefined;
+	metadata: NotebookCellMetadata;
 	outputIsHovered: boolean;
 	outputIsFocused: boolean;
 	outputsViewModels: ICellOutputViewModel[];
@@ -262,8 +262,8 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	getText(): string;
 	getTextLength(): number;
 	getHeight(lineHeight: number): number;
-	metadata: NotebookCellMetadata | undefined;
-	internalMetadata: NotebookCellInternalMetadata | undefined;
+	metadata: NotebookCellMetadata;
+	internalMetadata: NotebookCellInternalMetadata;
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;
 	resolveTextModel(): Promise<ITextModel>;

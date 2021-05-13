@@ -263,11 +263,11 @@ abstract class AbstractCellRenderer {
 				return;
 			}
 
-			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
+			if (templateData.currentRenderedCell.metadata.inputCollapsed) {
 				textModel.applyEdits([
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
 				], true, undefined, () => undefined, undefined);
-			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
+			} else if (templateData.currentRenderedCell.metadata.outputCollapsed) {
 				textModel.applyEdits([
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
 				], true, undefined, () => undefined, undefined);
@@ -519,7 +519,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private updateCollapsedState(element: MarkdownCellViewModel) {
-		if (element.metadata?.inputCollapsed) {
+		if (element.metadata.inputCollapsed) {
 			this.notebookEditor.hideMarkdownPreviews([element]);
 		} else {
 			this.notebookEditor.unhideMarkdownPreviews([element]);
@@ -787,8 +787,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			const clickedOnInput = e.offsetY < (cell.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
 			const viewModel = this.notebookEditor.viewModel!;
 			const metadata: Partial<NotebookCellMetadata> = clickedOnInput ?
-				{ inputCollapsed: !cell.metadata?.inputCollapsed } :
-				{ outputCollapsed: !cell.metadata?.outputCollapsed };
+				{ inputCollapsed: !cell.metadata.inputCollapsed } :
+				{ outputCollapsed: !cell.metadata.outputCollapsed };
 			viewModel.notebookDocument.applyEdits([
 				{
 					editType: CellEditType.PartialMetadata,
@@ -804,7 +804,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				return;
 			}
 
-			const metadata: Partial<NotebookCellMetadata> = cell.metadata?.inputCollapsed ?
+			const metadata: Partial<NotebookCellMetadata> = cell.metadata.inputCollapsed ?
 				{ inputCollapsed: false } :
 				{ outputCollapsed: false };
 			const viewModel = this.notebookEditor.viewModel!;

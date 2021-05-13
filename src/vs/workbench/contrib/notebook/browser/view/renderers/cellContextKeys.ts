@@ -145,8 +145,8 @@ export class CellContextKeyManager extends Disposable {
 	}
 
 	private updateForCollapseState() {
-		this.cellContentCollapsed.set(!!this.element.metadata?.inputCollapsed);
-		this.cellOutputCollapsed.set(!!this.element.metadata?.outputCollapsed);
+		this.cellContentCollapsed.set(!!this.element.metadata.inputCollapsed);
+		this.cellOutputCollapsed.set(!!this.element.metadata.outputCollapsed);
 	}
 
 	private updateForOutputs() {

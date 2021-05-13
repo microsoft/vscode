@@ -107,13 +107,13 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 			return;
 		}
 
-		const item = this._getItemForState(cell.internalMetadata?.runState ?? NotebookCellExecutionState.Idle, cell.internalMetadata?.lastRunSuccess);
+		const item = this._getItemForState(cell.internalMetadata.runState ?? NotebookCellExecutionState.Idle, cell.internalMetadata.lastRunSuccess);
 
 		// Show the execution spinner for a minimum time
-		if (cell.internalMetadata?.runState === NotebookCellExecutionState.Executing) {
+		if (cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			this._currentExecutingStateTimer = setTimeout(() => {
 				this._currentExecutingStateTimer = undefined;
-				if (cell.internalMetadata?.runState !== NotebookCellExecutionState.Executing) {
+				if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 					this._update();
 				}
 			}, ExecutionStateCellStatusBarHelper.MIN_SPINNER_TIME);
@@ -184,17 +184,17 @@ class TimerCellStatusBarHelper extends Disposable {
 
 	private async _update() {
 		let item: INotebookCellStatusBarItem | undefined;
-		const state = this._cell.internalMetadata?.runState ?? NotebookCellExecutionState.Idle;
+		const state = this._cell.internalMetadata.runState ?? NotebookCellExecutionState.Idle;
 		if (state === NotebookCellExecutionState.Executing) {
-			const startTime = this._cell.internalMetadata?.runStartTime;
-			const adjustment = this._cell.internalMetadata?.runStartTimeAdjustment;
+			const startTime = this._cell.internalMetadata.runStartTime;
+			const adjustment = this._cell.internalMetadata.runStartTimeAdjustment;
 			if (typeof startTime === 'number') {
 				item = this._getTimeItem(startTime, Date.now(), adjustment);
 				this._scheduler.schedule();
 			}
 		} else if (state === NotebookCellExecutionState.Idle) {
-			const startTime = this._cell.internalMetadata?.runStartTime;
-			const endTime = this._cell.internalMetadata?.runEndTime;
+			const startTime = this._cell.internalMetadata.runStartTime;
+			const endTime = this._cell.internalMetadata.runEndTime;
 			if (typeof startTime === 'number' && typeof endTime === 'number') {
 				item = this._getTimeItem(startTime, endTime);
 			}
@@ -262,7 +262,7 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 	}
 
 	private _getItemsForCell(cell: ICellViewModel): INotebookCellStatusBarItem[] {
-		if (typeof cell.internalMetadata?.runState !== 'undefined' || typeof cell.internalMetadata?.lastRunSuccess !== 'undefined') {
+		if (typeof cell.internalMetadata.runState !== 'undefined' || typeof cell.internalMetadata.lastRunSuccess !== 'undefined') {
 			return [];
 		}
 

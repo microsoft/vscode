@@ -1181,7 +1181,7 @@ var requirejs = (function() {
 			return false;
 		}
 
-		if (cell.metadata?.outputCollapsed) {
+		if (cell.metadata.outputCollapsed) {
 			return false;
 		}
 

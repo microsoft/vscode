@@ -803,7 +803,7 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 	}
 
 	if (context.ui && context.cell) {
-		if (context.cell.internalMetadata?.runState === NotebookCellExecutionState.Executing) {
+		if (context.cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			return;
 		}
 		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
@@ -1251,7 +1251,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 
 		editor.viewModel.notebookDocument.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
-		if (context.cell.internalMetadata?.runState !== NotebookCellExecutionState.Executing) {
+		if (context.cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.viewModel.notebookDocument.applyEdits([{
 				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
 					runState: NotebookCellExecutionState.Idle,
@@ -1464,7 +1464,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			})), true, undefined, () => undefined, undefined);
 
 		const clearExecutionMetadataEdits = editor.viewModel.notebookDocument.cells.map((cell, index) => {
-			if (cell.internalMetadata?.runState !== NotebookCellExecutionState.Executing) {
+			if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 				return {
 					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
 						runState: NotebookCellExecutionState.Idle,
