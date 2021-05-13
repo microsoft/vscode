@@ -511,7 +511,7 @@ export class TerminalTabbedView extends Disposable {
 		this._findWidget!.hide();
 	}
 
-	showFindList() {
+	showFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
 			this._findWidget!.show(activeInstance.selection);
@@ -520,7 +520,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 	}
 
-	getFindList(): TerminalFindWidget {
+	getFindWidget(): TerminalFindWidget {
 		return this._findWidget!;
 	}
 
