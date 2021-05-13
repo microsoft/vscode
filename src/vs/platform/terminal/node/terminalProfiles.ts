@@ -10,7 +10,7 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import * as cp from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
@@ -33,9 +33,9 @@ export function detectAvailableProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			safeConfigProvider('terminal.integrated.useWslProfiles') || true,
-			safeConfigProvider('terminal.integrated.profiles.windows'),
-			safeConfigProvider('terminal.integrated.defaultProfile.windows'),
+			safeConfigProvider(TerminalSettingId.UseWslProfiles) || true,
+			safeConfigProvider(TerminalSettingId.ProfilesWindows),
+			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
 			variableResolver
 		);
 	}
@@ -43,8 +43,8 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		safeConfigProvider(`terminal.integrated.profiles.${isMacintosh ? 'osx' : 'linux'}`),
-		safeConfigProvider(`terminal.integrated.defaultProfile.${isMacintosh ? 'osx' : 'linux'}`),
+		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
+		safeConfigProvider(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
 		testPaths,
 		variableResolver
 	);
