@@ -12,7 +12,7 @@ import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { normalizeResource, WebviewResourceProvider } from '../util/resources';
-import { getVisibleLine, scrollEditorToLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
+import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
 import { MarkdownEngine } from '../markdownEngine';
@@ -286,6 +286,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		});
 	}
 
+
+
 	private async updatePreview(forceUpdate?: boolean): Promise<void> {
 		clearTimeout(this.throttleTimer);
 		this.throttleTimer = undefined;
@@ -529,8 +531,9 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		this._register(this._webviewPanel.onDidChangeViewState(e => {
 			this._onDidChangeViewState.fire(e);
 		}));
+
 		this._register(this.preview.onScroll((scrollInfo) => {
-			this._onScrollEmitter.fire(scrollInfo);
+			topmostLineMonitor.setPreviousStaticEditorLine(scrollInfo);
 		}));
 
 		this._register(topmostLineMonitor.onDidChanged(event => {
@@ -540,7 +543,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		}));
 
 		const currentLine = this.preview.state.line ? this.preview.state.line : 0;
-		this._onScrollEmitter.fire({ line: currentLine, uri: this.preview.resource });
+		topmostLineMonitor.setPreviousStaticEditorLine({ line: currentLine, uri: this.preview.resource });
 	}
 
 	private readonly _onDispose = this._register(new vscode.EventEmitter<void>());
@@ -548,9 +551,6 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 
 	private readonly _onDidChangeViewState = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState = this._onDidChangeViewState.event;
-
-	private readonly _onScrollEmitter = this._register(new vscode.EventEmitter<LastScrollLocation>());
-	public readonly onScroll = this._onScrollEmitter.event;
 
 	override dispose() {
 		this._onDispose.fire();
@@ -804,3 +804,18 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 	}
 }
 
+/**
+ * Change the top-most visible line of `editor` to be at `line`
+ */
+export function scrollEditorToLine(
+	line: number,
+	editor: vscode.TextEditor
+) {
+	const sourceLine = Math.floor(line);
+	const fraction = line - sourceLine;
+	const text = editor.document.lineAt(sourceLine).text;
+	const start = Math.floor(fraction * text.length);
+	editor.revealRange(
+		new vscode.Range(sourceLine, start, sourceLine + 1, 0),
+		vscode.TextEditorRevealType.AtTop);
+}

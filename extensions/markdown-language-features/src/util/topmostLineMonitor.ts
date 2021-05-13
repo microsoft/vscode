@@ -9,19 +9,30 @@ import { isMarkdownFile } from './file';
 
 export interface LastScrollLocation {
 	readonly line: number;
-	readonly uri: vscode.Uri | undefined;
+	readonly uri: vscode.Uri;
 }
 
 export class TopmostLineMonitor extends Disposable {
 
 	private readonly pendingUpdates = new Map<string, number>();
 	private readonly throttle = 50;
-	public previousMDTextEditor: vscode.TextEditor | undefined;
-	public previousStaticEditorInfo: LastScrollLocation = { line: 0, uri: undefined };
+	private previousMDTextEditors = new Map<string, vscode.TextEditor>();
+	private previousStaticEditorInfo = new Map<string, LastScrollLocation>();
+	private isPrevEditorCustom = false;
+
+	private readonly _onChanged = this._register(new vscode.EventEmitter<{ readonly resource: vscode.Uri, readonly line: number }>());
+	public readonly onDidChanged = this._onChanged.event;
+
+	private readonly _onEditorNeedsScrolling = this._register(new vscode.EventEmitter<{ readonly line: number, readonly editor: vscode.TextEditor }>());
+	public readonly onEditorNeedsScrolling = this._onEditorNeedsScrolling.event;
 
 	constructor() {
 		super();
-		this.previousMDTextEditor = vscode.window.activeTextEditor;
+
+		if (vscode.window.activeTextEditor) {
+			this.setPreviousMDTextEditorLine(vscode.window.activeTextEditor);
+		}
+
 		this._register(vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 			if (isMarkdownFile(event.textEditor.document)) {
 				const line = getVisibleLine(event.textEditor);
@@ -33,22 +44,40 @@ export class TopmostLineMonitor extends Disposable {
 
 		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
 
-			// When at a markdown file, apply existing scroll settings from static preview if applicable.
+			// When at a markdown file, apply existing scroll settings from static preview if last editor was custom.
 			// Also save reference to text editor for line number reference later
 			if (textEditor && isMarkdownFile(textEditor.document!)) {
-
-				if (this.previousStaticEditorInfo.uri?.toString() === textEditor.document.uri.toString()) {
-					const line = this.previousStaticEditorInfo.line ? this.previousStaticEditorInfo.line : 0;
-					scrollEditorToLine(line, textEditor);
+				if (this.isPrevEditorCustom) {
+					const line = this.getPreviousStaticEditorLineByUri(textEditor.document.uri);
+					if (line) {
+						this._onEditorNeedsScrolling.fire({ line: line, editor: textEditor });
+					}
 				}
-
-				this.previousMDTextEditor = textEditor;
+				this.setPreviousMDTextEditorLine(textEditor);
 			}
+
+			this.isPrevEditorCustom = (textEditor === undefined);
 		}));
 	}
 
-	private readonly _onChanged = this._register(new vscode.EventEmitter<{ readonly resource: vscode.Uri, readonly line: number }>());
-	public readonly onDidChanged = this._onChanged.event;
+	public setPreviousMDTextEditorLine(editor: vscode.TextEditor) {
+		const uri = editor.document.uri;
+		this.previousMDTextEditors.set(uri.toString(), editor);
+	}
+
+	public getPreviousMDTextEditorLineByUri(resource: vscode.Uri) {
+		const editor = this.previousMDTextEditors.get(resource.toString());
+		return editor?.visibleRanges[0].start.line;
+	}
+
+	public setPreviousStaticEditorLine(scrollLocation: LastScrollLocation) {
+		this.previousStaticEditorInfo.set(scrollLocation.uri.toString(), scrollLocation);
+	}
+
+	public getPreviousStaticEditorLineByUri(resource: vscode.Uri) {
+		const scrollLoc = this.previousStaticEditorInfo.get(resource.toString());
+		return scrollLoc?.line;
+	}
 
 	private updateLine(
 		resource: vscode.Uri,
@@ -90,19 +119,4 @@ export function getVisibleLine(
 	const line = editor.document.lineAt(lineNumber);
 	const progress = firstVisiblePosition.character / (line.text.length + 2);
 	return lineNumber + progress;
-}
-/**
- * Change the top-most visible line of `editor` to be at `line`
- */
-export function scrollEditorToLine(
-	line: number,
-	editor: vscode.TextEditor
-) {
-	const sourceLine = Math.floor(line);
-	const fraction = line - sourceLine;
-	const text = editor.document.lineAt(sourceLine).text;
-	const start = Math.floor(fraction * text.length);
-	editor.revealRange(
-		new vscode.Range(sourceLine, start, sourceLine + 1, 0),
-		vscode.TextEditorRevealType.AtTop);
 }

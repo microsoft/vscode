@@ -9,7 +9,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
 import { TopmostLineMonitor } from '../util/topmostLineMonitor';
-import { DynamicMarkdownPreview, ManagedMarkdownPreview, StartingScrollFragment, StaticMarkdownPreview } from './preview';
+import { DynamicMarkdownPreview, ManagedMarkdownPreview, StartingScrollFragment, StaticMarkdownPreview, scrollEditorToLine } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
 
@@ -75,6 +75,10 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		super();
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
 		this._register(vscode.window.registerCustomEditorProvider(this.customEditorViewType, this));
+
+		this._register(this._topmostLineMonitor.onEditorNeedsScrolling(event => {
+			scrollEditorToLine(event.line, event.editor);
+		}));
 	}
 
 	public refresh() {
@@ -160,7 +164,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
-		const lineNumber = this._topmostLineMonitor.previousMDTextEditor?.document.uri.toString() === document.uri.toString() ? this._topmostLineMonitor.previousMDTextEditor?.visibleRanges[0].start.line : undefined;
+		const lineNumber = this._topmostLineMonitor.getPreviousMDTextEditorLineByUri(document.uri);
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,
@@ -222,11 +226,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 		preview.onDispose(() => {
 			this._staticPreviews.delete(preview);
-		});
-
-		// Continuously update the scroll info in case user changes the editor.
-		preview.onScroll((scrollInfo) => {
-			this._topmostLineMonitor.previousStaticEditorInfo = scrollInfo;
 		});
 
 		this.trackActive(preview);
