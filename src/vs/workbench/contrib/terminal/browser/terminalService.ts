@@ -67,7 +67,6 @@ export class TerminalService implements ITerminalService {
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
-	private _requiresWindowsMode: boolean = false;
 
 	public get activeGroupIndex(): number { return this._activeGroupIndex; }
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
@@ -78,7 +77,6 @@ export class TerminalService implements ITerminalService {
 		this._refreshAvailableProfiles();
 		return this._availableProfiles || [];
 	}
-	get requiresWindowsMode(): boolean { return this._requiresWindowsMode; }
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	private get _terminalInstances(): ITerminalInstance[] {
 		return this._terminalGroups.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
@@ -206,16 +204,11 @@ export class TerminalService implements ITerminalService {
 				: Promise.resolve();
 		this._offProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
 		initPromise.then(() => this._setConnected());
-		this._initRequiresWindowsMode();
-    	// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
+		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
 		// default terminal before launching the first terminal. This isn't expected to ever take
 		// this long.
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this._refreshAvailableProfiles();
-	}
-
-	private async _initRequiresWindowsMode(): Promise<void> {
-		this._requiresWindowsMode = await this._offProcessTerminalService?.requiresWindowsMode() || false;
 	}
 
 	private _setConnected() {
@@ -893,8 +886,7 @@ export class TerminalService implements ITerminalService {
 			this._terminalShellTypeContextKey,
 			this._terminalAltBufferActiveContextKey,
 			this._configHelper,
-			shellLaunchConfig,
-			this._requiresWindowsMode
+			shellLaunchConfig
 		);
 		this._onInstanceCreated.fire(instance);
 		return instance;

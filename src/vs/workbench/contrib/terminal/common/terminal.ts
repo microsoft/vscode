@@ -283,7 +283,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
 
-	readonly onProcessReady: Event<void>;
+	readonly onProcessReady: Event<boolean>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessTitle: Event<string>;
