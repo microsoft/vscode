@@ -209,7 +209,7 @@ export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProg
 export interface ITextSearchCompleteMessage {
 	text: string;
 	type: TextSearchCompleteMessageType;
-	trusted: boolean;
+	trusted?: boolean;
 }
 
 export interface ISearchCompleteStats {
