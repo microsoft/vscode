@@ -46,7 +46,7 @@ import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -843,25 +843,25 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 	}
 
-	private updateForMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, editorOptions: CellEditorOptions): void {
+	private updateForInternalMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, editorOptions: CellEditorOptions): void {
 		if (!this.notebookEditor.hasModel()) {
 			return;
 		}
 
-		const metadata = element.metadata;
-		this.updateExecutionOrder(metadata, templateData);
+		const internalMetadata = element.internalMetadata;
+		this.updateExecutionOrder(internalMetadata, templateData);
 
-		if (metadata.runState === NotebookCellExecutionState.Executing) {
+		if (internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			templateData.progressBar.infinite().show(500);
 		} else {
 			templateData.progressBar.hide();
 		}
 	}
 
-	private updateExecutionOrder(metadata: NotebookCellMetadata, templateData: CodeCellRenderTemplate): void {
+	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata, templateData: CodeCellRenderTemplate): void {
 		if (this.notebookEditor.activeKernel?.implementsExecutionOrder) {
-			const executionOrderLabel = typeof metadata.executionOrder === 'number' ?
-				`[${metadata.executionOrder}]` :
+			const executionOrderLabel = typeof internalMetadata.executionOrder === 'number' ?
+				`[${internalMetadata.executionOrder}]` :
 				'[ ]';
 			templateData.executionOrderLabel.innerText = executionOrderLabel;
 		} else {
@@ -950,13 +950,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.updateForLayout(element, templateData);
 		}));
 
-		this.updateForMetadata(element, templateData, cellEditorOptions);
+		this.updateForInternalMetadata(element, templateData, cellEditorOptions);
 		this.updateForHover(element, templateData);
 		this.updateForFocus(element, templateData);
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
 		elementDisposables.add(element.onDidChangeState((e) => {
-			if (e.metadataChanged) {
-				this.updateForMetadata(element, templateData, cellEditorOptions);
+			if (e.internalMetadataChanged) {
+				this.updateForInternalMetadata(element, templateData, cellEditorOptions);
 			}
 
 			if (e.outputIsHoveredChanged) {
@@ -969,11 +969,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			if (e.cellLineNumberChanged) {
 				cellEditorOptions.setLineNumbers(element.lineNumbers);
-			}
-		}));
-		elementDisposables.add(this.notebookEditor.viewModel.notebookDocument.onDidChangeContent(e => {
-			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
-				this.updateForMetadata(element, templateData, cellEditorOptions);
 			}
 		}));
 

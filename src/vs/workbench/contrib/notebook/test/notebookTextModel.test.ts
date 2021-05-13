@@ -294,7 +294,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.Metadata,
-					metadata: { executionOrder: 15 },
+					metadata: { customProperty: 15 },
 				}], true, undefined, () => undefined, undefined);
 
 				textModel.applyEdits([{
@@ -304,7 +304,7 @@ suite('NotebookTextModel', () => {
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].metadata?.executionOrder, undefined);
+				assert.strictEqual(textModel.cells[0].metadata?.customProperty, undefined);
 			}
 		);
 	});
@@ -320,7 +320,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.PartialMetadata,
-					metadata: { executionOrder: 15 },
+					metadata: { customProperty: 15 },
 				}], true, undefined, () => undefined, undefined);
 
 				textModel.applyEdits([{
@@ -330,7 +330,7 @@ suite('NotebookTextModel', () => {
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
-				assert.strictEqual(textModel.cells[0].metadata?.executionOrder, 15);
+				assert.strictEqual(textModel.cells[0].metadata?.customProperty, 15);
 			}
 		);
 	});

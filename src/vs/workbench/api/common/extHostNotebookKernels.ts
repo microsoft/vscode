@@ -16,7 +16,7 @@ import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { CellEditType, IImmediateCellEditOperation, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IImmediateCellEditOperation, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NotebookCellExecutionState } from 'vs/workbench/api/common/extHostTypes';
 import { asArray } from 'vs/base/common/arrays';
@@ -373,8 +373,8 @@ class NotebookCellExecutionTask extends Disposable {
 		}
 	}
 
-	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellMetadata) {
-		const edit: IImmediateCellEditOperation = { editType: CellEditType.PartialMetadata, handle: this._cell.handle, metadata: mixinMetadata };
+	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellInternalMetadata) {
+		const edit: IImmediateCellEditOperation = { editType: CellEditType.PartialInternalMetadata, handle: this._cell.handle, internalMetadata: mixinMetadata };
 		this.applyEdits([edit]);
 	}
 

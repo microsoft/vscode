@@ -69,7 +69,7 @@ export class CellContextKeyManager extends Disposable {
 
 		this.contextKeyService.bufferChangeEvents(() => {
 			this.updateForFocusState();
-			this.updateForMetadata();
+			this.updateForInternalMetadata();
 			this.updateForEditState();
 			this.updateForCollapseState();
 			this.updateForOutputs();
@@ -80,8 +80,8 @@ export class CellContextKeyManager extends Disposable {
 
 	private onDidChangeState(e: CellViewModelStateChangeEvent) {
 		this.contextKeyService.bufferChangeEvents(() => {
-			if (e.metadataChanged) {
-				this.updateForMetadata();
+			if (e.internalMetadataChanged) {
+				this.updateForInternalMetadata();
 			}
 
 			if (e.editStateChanged) {
@@ -114,17 +114,17 @@ export class CellContextKeyManager extends Disposable {
 
 	}
 
-	private updateForMetadata() {
-		const metadata = this.element.metadata;
+	private updateForInternalMetadata() {
+		const internalMetadata = this.element.internalMetadata;
 		this.cellEditable.set(!this.notebookEditor.viewModel?.options.isReadOnly);
 
-		const runState = metadata.runState ?? NotebookCellExecutionState.Idle;
+		const runState = internalMetadata.runState ?? NotebookCellExecutionState.Idle;
 		if (this.element instanceof MarkdownCellViewModel) {
 			this.cellRunState.reset();
 		} else if (runState === NotebookCellExecutionState.Idle) {
-			if (metadata.lastRunSuccess === true) {
+			if (internalMetadata.lastRunSuccess === true) {
 				this.cellRunState.set('succeeded');
-			} else if (metadata.lastRunSuccess === false) {
+			} else if (internalMetadata.lastRunSuccess === false) {
 				this.cellRunState.set('failed');
 			} else {
 				this.cellRunState.set('idle');
