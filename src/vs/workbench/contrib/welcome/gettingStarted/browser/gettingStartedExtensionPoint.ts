@@ -153,7 +153,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							},
 							doneOn: {
 								description: localize('walkthroughs.steps.doneOn', "Signal to mark step as complete."),
-								deprecationMessage: localize('walkthroughs.steps.doneOn.deprecation', "doneOn is deprecated, use completionEvents"),
+								deprecationMessage: localize('walkthroughs.steps.doneOn.deprecation', "doneOn is deprecated. By default steps will be checked off when their buttons are clicked, to configure further use completionEvents"),
 								type: 'object',
 								required: ['command'],
 								defaultSnippets: [{ 'body': { command: '$1' } }],
