@@ -191,11 +191,6 @@ export class TerminalService implements ITerminalService {
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
-		// const conn = this._remoteAgentService.getConnection();
-		// const remoteAuthority = conn ? conn.remoteAuthority : 'null';
-		// this._whenExtHostReady(remoteAuthority).then(() => {
-		// });
-
 		// Connect to the extension host if it's there, set the connection state to connected when
 		// it's done. This should happen even when there is no extension host.
 		this._connectionState = TerminalConnectionState.Connecting;
@@ -209,6 +204,9 @@ export class TerminalService implements ITerminalService {
 		this._offProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
 		initPromise.then(() => this._setConnected());
 
+		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
+		// default terminal before launching the first terminal. This isn't expected to ever take
+		// this long.
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this._refreshAvailableProfiles();
 	}
