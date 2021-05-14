@@ -62,10 +62,10 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	private readonly _dynamicPreviews = this._register(new PreviewStore<DynamicMarkdownPreview>());
 	private readonly _staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
 
-	private currentWebviewPanel: vscode.WebviewPanel | undefined;
 	private _activePreview: ManagedMarkdownPreview | undefined = undefined;
 
 	private readonly customEditorViewType = 'vscode.markdown.preview.editor';
+	private readonly textEditorViewType = 'default';
 
 	public constructor(
 		private readonly _contentProvider: MarkdownContentProvider,
@@ -138,15 +138,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			}
 		}
 	}
-	// public toggleStaticPreview() {
-	// 	const preview = this._activePreview;
-	// 	if (preview instanceof StaticMarkdownPreview) {
-	// 		preview.dispose();
-
-	// 	} else {
-
-	// 	}
-	// }
 
 	public async deserializeWebviewPanel(
 		webview: vscode.WebviewPanel,
@@ -167,6 +158,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._contributions,
 			this._engine);
 
+		this._activePreview = webview.active ? preview : undefined;
 		this.registerDynamicPreview(preview);
 	}
 
@@ -186,6 +178,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this._engine,
 			lineNumber
 		);
+		this._activePreview = webview.active ? preview : undefined;
 		this.registerStaticPreview(preview);
 	}
 
@@ -215,12 +208,24 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		return this.registerDynamicPreview(preview);
 	}
 
-	public resolveCustomTextEditorFromCurrentPanel(
-		document: vscode.TextDocument
-	): void {
-		if (this.currentWebviewPanel) {
-			this.resolveCustomTextEditor(document, this.currentWebviewPanel);
+	public toggleStaticPreview(uri: vscode.Uri | undefined) {
+		const preview = this._activePreview;
+		if (preview instanceof StaticMarkdownPreview) {
+			vscode.commands.executeCommand('markdown.showTextEditor');
+		} else {
+			vscode.commands.executeCommand('markdown.showStaticPreview', uri);
 		}
+	}
+
+	public openStaticPreview(
+		uri: vscode.Uri,
+	): void {
+		vscode.commands.executeCommand('vscode.openWith', uri, this.customEditorViewType);
+	}
+
+	public openTextEditor(): void {
+		vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		vscode.commands.executeCommand('vscode.openWith', this._activePreview?.resource, this.textEditorViewType);
 	}
 
 	private registerDynamicPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
@@ -252,7 +257,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	private trackActive(preview: ManagedMarkdownPreview): void {
 		preview.onDidChangeViewState(({ webviewPanel }) => {
-			this.currentWebviewPanel = webviewPanel;
 			this.setPreviewActiveContext(webviewPanel.active);
 			this._activePreview = webviewPanel.active ? preview : undefined;
 		});

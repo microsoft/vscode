@@ -24,6 +24,8 @@
     "onCommand:markdown.showPreviewToSide",
     "onCommand:markdown.showLockedPreviewToSide",
     "onCommand:markdown.showStaticPreview",
+    "onCommand:markdown.showTextEditor",
+    "onCommand:markdown.toggleStaticPreview",
     "onCommand:markdown.showSource",
     "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
@@ -76,6 +78,18 @@
       {
         "command": "markdown.showStaticPreview",
         "title": "%markdown.showStaticPreview.title%",
+        "category": "Markdown",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "markdown.showTextEditor",
+        "title": "%markdown.showTextEditor.title%",
+        "category": "Markdown",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "markdown.toggleStaticPreview",
+        "title": "%markdown.toggleStaticPreview.title%",
         "category": "Markdown",
         "icon": "$(open-preview)"
       },
@@ -162,6 +176,16 @@
         },
         {
           "command": "markdown.showStaticPreview",
+          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.showTextEditor",
+          "when": "!notebookEditorFocused",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.toggleStaticPreview",
           "when": "editorLangId == markdown && !notebookEditorFocused",
           "group": "navigation"
         },

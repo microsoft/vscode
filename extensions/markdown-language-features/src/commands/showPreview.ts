@@ -12,7 +12,6 @@ import { TelemetryReporter } from '../telemetryReporter';
 interface ShowPreviewSettings {
 	readonly sideBySide?: boolean;
 	readonly locked?: boolean;
-	readonly static?: boolean;
 }
 
 async function showPreview(
@@ -39,14 +38,6 @@ async function showPreview(
 	}
 
 	const resourceColumn = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One;
-
-	if (previewSettings.static) {
-		if (!vscode.window.activeTextEditor) {
-			return;
-		}
-		webviewManager.resolveCustomTextEditorFromCurrentPanel(vscode.window.activeTextEditor.document);
-	}
-
 	webviewManager.openDynamicPreview(resource, {
 		resourceColumn: resourceColumn,
 		previewColumn: previewSettings.sideBySide ? resourceColumn + 1 : resourceColumn,
@@ -57,6 +48,25 @@ async function showPreview(
 		where: previewSettings.sideBySide ? 'sideBySide' : 'inPlace',
 		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
 	});
+}
+
+async function showStaticPreview(
+	webviewManager: MarkdownPreviewManager,
+	uri: vscode.Uri | undefined,
+): Promise<any> {
+	let resource = uri;
+	if (!(resource instanceof vscode.Uri)) {
+		if (vscode.window.activeTextEditor) {
+			// we are relaxed and don't check for markdown files
+			resource = vscode.window.activeTextEditor.document.uri;
+		}
+	}
+
+	if (!(resource instanceof vscode.Uri)) {
+		// nothing found that could be shown or toggled
+		return;
+	}
+	webviewManager.openStaticPreview(resource);
 }
 
 export class ShowPreviewCommand implements Command {
@@ -92,6 +102,8 @@ export class ShowPreviewToSideCommand implements Command {
 		});
 	}
 }
+
+
 export class ShowLockedPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showLockedPreviewToSide';
 
@@ -113,12 +125,33 @@ export class ShowStaticPreviewCommand implements Command {
 
 	public constructor(
 		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri) {
-		showPreview(this.webviewManager, this.telemetryReporter, uri, {
-			static: true
-		});
+		showStaticPreview(this.webviewManager, uri);
+	}
+}
+
+export class ShowTextEditorCommand implements Command {
+	public readonly id = 'markdown.showTextEditor';
+
+	public constructor(
+		private readonly webviewManager: MarkdownPreviewManager,
+	) { }
+
+	public execute() {
+		this.webviewManager.openTextEditor();
+	}
+}
+
+export class ToggleStaticPreviewCommand implements Command {
+	public readonly id = 'markdown.toggleStaticPreview';
+
+	public constructor(
+		private readonly webviewManager: MarkdownPreviewManager,
+	) { }
+
+	public execute(uri?: vscode.Uri) {
+		this.webviewManager.toggleStaticPreview(uri);
 	}
 }
