@@ -565,7 +565,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				id: `${providerId}${extensionId}Access`,
 				title: nls.localize({
 					key: 'accessRequest',
-					comment: ['The placeholder {0} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count']
+					comment: [`The placeholder {0} will be replaced with an authentication provider''s label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count`]
 				},
 					"Grant access to {0} for {1}... (1)",
 					this.getLabel(providerId),
@@ -619,7 +619,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					id: `${extensionId}signIn`,
 					title: nls.localize({
 						key: 'signInRequest',
-						comment: ['The placeholder {0} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.']
+						comment: [`The placeholder {0} will be replaced with an authentication provider's label. {1} will be replaced with an extension name. (1) is to indicate that this menu item contributes to a badge count.`]
 					},
 						"Sign in with {0} to use {1} (1)",
 						provider.label,
