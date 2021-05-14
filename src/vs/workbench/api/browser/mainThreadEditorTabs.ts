@@ -33,7 +33,7 @@ export class MainThreadEditorTabs {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
-		this._editorGroupsService.groups.forEach(this._subscribeToGroup, this);
+		this._editorGroupsService.whenReady.then(() => this._editorGroupsService.groups.forEach(this._subscribeToGroup, this));
 		this._dispoables.add(_editorGroupsService.onDidAddGroup(this._subscribeToGroup, this));
 		this._dispoables.add(_editorGroupsService.onDidRemoveGroup(e => {
 			const subscription = this._groups.get(e);
