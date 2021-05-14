@@ -915,24 +915,18 @@ declare module 'vscode' {
 
 	//#region Custom Tree View Drag and Drop https://github.com/microsoft/vscode/issues/32592
 	export interface TreeViewOptions<T> {
-		/**
-		 * * Whether the tree supports drag and drop.
-		 */
-		canDragAndDrop?: boolean;
+		dragAndDropController?: DragAndDropController<T>;
 	}
 
-	export interface TreeDataProvider<T> {
+	export interface DragAndDropController<T> extends Disposable {
 		/**
-		 * Optional method to reparent an `element`.
+		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
 		 *
-		 * **NOTE:**  This method should be implemented if the tree supports drag and drop.
-		 *
-		 * @param elements The selected elements that will be reparented.
-		 * @param targetElement The new parent of the elements.
+		 * @param source
+		 * @param target
 		 */
-		setParent?(elements: T[], targetElement: T): Thenable<void>;
+		onDrop(source: T[], target: T): Thenable<void>;
 	}
-
 	//#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
