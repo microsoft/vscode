@@ -296,7 +296,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get uriScheme() { return initData.environment.appUriScheme; },
 			get clipboard(): vscode.Clipboard { return extHostClipboard.value; },
 			get shell() {
-				return extHostTerminalService.getDefaultShell(false, configProvider);
+				return extHostTerminalService.getDefaultShell(false);
 			},
 			get isTelemetryEnabled() {
 				return extHostTelemetry.getTelemetryEnabled();

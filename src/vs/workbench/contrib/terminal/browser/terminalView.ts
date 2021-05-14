@@ -22,7 +22,8 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ITerminalProfile, ITerminalProfileResolverService, TerminalCommandId, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -37,6 +38,7 @@ import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/termi
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -344,7 +346,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 
 class SingleTerminalTabActionViewItem extends ActionViewItem {
 	private _color: string | undefined;
-	private _initializedListener: boolean = false;
+	private _contextMenuListener: IDisposable | undefined;
 	constructor(
 		action: IAction,
 		private readonly _actions: IAction[],
@@ -370,13 +372,16 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 				this.updateLabel();
 			}
 		}));
+		this._register(toDisposable(() => this._contextMenuListener?.dispose()));
 	}
 
 	override updateLabel(): void {
-		if (!this._initializedListener) {
-			// makes sure this.element is defined
-			this._initListener();
-			this._initializedListener = true;
+		if (!this._contextMenuListener) {
+			this._contextMenuListener = dom.addDisposableListener(this.element!, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+				if (e.button === 2) {
+					this._run();
+				}
+			});
 		}
 		if (this.label) {
 			const label = this.label;
@@ -415,14 +420,6 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 			getActions: () => this._actions,
 			getActionsContext: () => this.label
 		});
-	}
-
-	private _initListener(): void {
-		this._register(dom.addDisposableListener(this.element!, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
-			if (e.button === 2) {
-				this._run();
-			}
-		}));
 	}
 }
 

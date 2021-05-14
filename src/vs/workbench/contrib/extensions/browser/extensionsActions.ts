@@ -2159,9 +2159,15 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
-		if (isWorkspaceTrustEnabled(this.configurationService) && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+
+		const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
+		if (isWorkspaceTrustEnabled(this.configurationService) && untrustedSupportType !== true) {
+			const untrustedWorkspaceSupport = this.extension.local.manifest.capabilities?.untrustedWorkspaces;
+			const untrustedDetails = untrustedWorkspaceSupport?.supported !== true ? untrustedWorkspaceSupport?.description : undefined;
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
-			this.tooltip = localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted");
+			this.tooltip = untrustedDetails || (untrustedSupportType === 'limited' ?
+				localize('extension limited because of trust requirement', "This extension has limited features because the current workspace is not trusted.") :
+				localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted."));
 			return;
 		}
 	}

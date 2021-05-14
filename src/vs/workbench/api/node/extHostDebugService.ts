@@ -81,8 +81,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			}
 
 			const configProvider = await this._configurationService.getConfigProvider();
-			const shell = this._terminalService.getDefaultShell(true, configProvider);
-			const shellArgs = this._terminalService.getDefaultShellArgs(true, configProvider);
+			const shell = this._terminalService.getDefaultShell(true);
+			const shellArgs = this._terminalService.getDefaultShellArgs(true);
 
 			const shellConfig = JSON.stringify({ shell, shellArgs });
 			let terminal = await this._integratedTerminalInstances.checkout(shellConfig);
