@@ -316,8 +316,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _getIcon(): Codicon | undefined {
-		if (this.shellLaunchConfig.icon) {
-			return iconRegistry.get(this.shellLaunchConfig.icon);
+		if (this.shellLaunchConfig.iconPath) {
+			return iconRegistry.get(this.shellLaunchConfig.iconPath);
 		}
 		if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
 			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon);
@@ -1810,7 +1810,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			matchOnDescription: true
 		});
 		if (result) {
-			this.shellLaunchConfig.icon = result.description;
+			this.shellLaunchConfig.iconPath = result.description;
 			this._onIconChanged.fire(this);
 		}
 	}

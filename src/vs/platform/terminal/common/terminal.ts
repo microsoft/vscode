@@ -391,6 +391,12 @@ export interface IShellLaunchConfig {
 	 * The codicon ID to use for this terminal. If not specified it will use the default fallback
 	 * icon.
 	 */
+	iconPath?: any;
+
+	darkIcon?: URI;
+
+	lightIcon?: URI;
+
 	icon?: string;
 
 	/**

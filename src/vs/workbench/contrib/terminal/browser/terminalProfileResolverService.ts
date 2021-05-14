@@ -5,7 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { env } from 'vs/base/common/process';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -19,6 +19,8 @@ import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { URI } from 'vs/base/common/uri';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -77,7 +79,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(os);
 		if (defaultProfile) {
-			shellLaunchConfig.icon = defaultProfile.icon;
+			shellLaunchConfig.iconPath = defaultProfile.icon;
 		}
 	}
 
@@ -106,7 +108,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		shellLaunchConfig.icon = this._verifyIcon(shellLaunchConfig.icon) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
+		shellLaunchConfig.lightIcon = this._getLightIconPath(shellLaunchConfig.iconPath);
+		shellLaunchConfig.darkIcon = this._getDarkIconPath(shellLaunchConfig.darkIcon);
+		shellLaunchConfig.iconPath = this._verifyIcon(shellLaunchConfig.iconPath) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
+		shellLaunchConfig.icon = this._verifyIcon(shellLaunchConfig.iconPath) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
 
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
@@ -119,11 +124,35 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 	}
 
-	private _verifyIcon(iconId?: string): string | undefined {
-		if (!iconId || !iconRegistry.get(iconId)) {
+	private _verifyIcon(iconPath?: string | URI | { light: string | URI; dark: string | URI } | ThemeIcon): string | undefined {
+		if (!iconPath || !isString(iconPath) || !iconRegistry.get(iconPath)) {
 			return undefined;
 		}
-		return iconId;
+		return iconPath;
+	}
+
+	private _getLightIconPath(path: any): URI | undefined {
+		if (path && !('id' in path)) {
+			if (typeof path === 'string' || URI.isUri(path)) {
+				return this._getIconPath(path);
+			}
+			return this._getIconPath((<{ light: string | URI; dark: string | URI }>path).light);
+		}
+		return undefined;
+	}
+
+	private _getDarkIconPath(path: any): URI | undefined {
+		if (path && !('id' in path) && (<{ light: string | URI; dark: string | URI }>path).dark) {
+			return this._getIconPath((<{ light: string | URI; dark: string | URI }>path.iconPath).dark);
+		}
+		return undefined;
+	}
+
+	private _getIconPath(iconPath: string | URI): URI {
+		if (URI.isUri(iconPath)) {
+			return iconPath;
+		}
+		return URI.file(iconPath);
 	}
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
