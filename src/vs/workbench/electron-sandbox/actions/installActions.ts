@@ -5,18 +5,16 @@
 
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import { Action2, ILocalizedString, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, ILocalizedString } from 'vs/platform/actions/common/actions';
 import product from 'vs/platform/product/common/product';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
-const category: ILocalizedString = { value: localize('shellCommand', "Shell Command"), original: 'Shell Command' };
+const shellCommandCategory: ILocalizedString = { value: localize('shellCommand', "Shell Command"), original: 'Shell Command' };
 
-class InstallAction extends Action2 {
+export class InstallShellScriptAction extends Action2 {
 
 	constructor() {
 		super({
@@ -25,9 +23,8 @@ class InstallAction extends Action2 {
 				value: localize('install', "Install '{0}' command in PATH", product.applicationName),
 				original: `Install \'${product.applicationName}\' command in PATH`
 			},
-			category,
-			f1: true,
-			precondition: ContextKeyExpr.and(IsMacNativeContext, ContextKeyExpr.equals('remoteName', ''))
+			category: shellCommandCategory,
+			f1: true
 		});
 	}
 
@@ -43,7 +40,7 @@ class InstallAction extends Action2 {
 	}
 }
 
-class UninstallAction extends Action2 {
+export class UninstallShellScriptAction extends Action2 {
 
 	constructor() {
 		super({
@@ -52,9 +49,8 @@ class UninstallAction extends Action2 {
 				value: localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName),
 				original: `Uninstall \'${product.applicationName}\' command from PATH`
 			},
-			category,
-			f1: true,
-			precondition: ContextKeyExpr.and(IsMacNativeContext, ContextKeyExpr.equals('remoteName', ''))
+			category: shellCommandCategory,
+			f1: true
 		});
 	}
 
@@ -69,6 +65,3 @@ class UninstallAction extends Action2 {
 		}
 	}
 }
-
-registerAction2(InstallAction);
-registerAction2(UninstallAction);

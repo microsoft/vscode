@@ -141,7 +141,4 @@ import 'vs/workbench/contrib/tasks/electron-sandbox/taskService';
 // External terminal
 import 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.contribution';
 
-// CLI
-import 'vs/workbench/contrib/cli/electron-sandbox/cli.contribution';
-
 //#endregion
