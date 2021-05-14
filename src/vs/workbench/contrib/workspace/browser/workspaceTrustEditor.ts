@@ -32,7 +32,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -135,17 +135,19 @@ export class WorkspaceTrustEditor extends EditorPane {
 		return 'workspace-trust-header workspace-trust-untrusted';
 	}
 
-	private useWorkspaceLanguage(): boolean {
-		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceService.getWorkspace()));
-	}
-
 	private getHeaderTitleText(trusted: boolean): string {
-
 		if (trusted) {
-			return this.useWorkspaceLanguage() ? localize('trustedHeaderWorkspace', "You trust this workspace") : localize('trustedHeaderFolder', "You trust this folder");
+			switch (this.workspaceService.getWorkbenchState()) {
+				case WorkbenchState.EMPTY:
+					return localize('trustedHeaderWindow', "You trust this window");
+				case WorkbenchState.FOLDER:
+					return localize('trustedHeaderFolder', "You trust this folder");
+				case WorkbenchState.WORKSPACE:
+					return localize('trustedHeaderWorkspace', "You trust this workspace");
+			}
 		}
 
-		return this.useWorkspaceLanguage() ? localize('untrustedHeaderWorkspace', "You are in restricted mode") : localize('untrustedHeaderFolder', "You are in Restricted Mode");
+		return localize('untrustedHeader', "You are in Restricted Mode");
 	}
 
 	private getHeaderDescriptionText(trusted: boolean): string {
@@ -158,6 +160,34 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
 		return shieldIcon.classNamesArray;
+	}
+
+	private getFeaturesHeaderText(trusted: boolean): [string, string] {
+		let title: string = '';
+		let subTitle: string = '';
+
+		switch (this.workspaceService.getWorkbenchState()) {
+			case WorkbenchState.EMPTY: {
+				title = trusted ? localize('trustedWindow', "In a trusted window") : localize('untrustedWorkspace', "In Restricted Mode");
+				subTitle = trusted ? localize('trustedWindowSubtitle', "You trust the authors of the files in the current window. All features are enabled:") :
+					localize('untrustedWindowSubtitle', "You do not trust the authors of the files in the current window. The following features are disabled:");
+				break;
+			}
+			case WorkbenchState.FOLDER: {
+				title = trusted ? localize('trustedFolder', "In a trusted folder") : localize('untrustedWorkspace', "In Restricted Mode");
+				subTitle = trusted ? localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:") :
+					localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:");
+				break;
+			}
+			case WorkbenchState.WORKSPACE: {
+				title = trusted ? localize('trustedWorkspace', "In a trusted workspace") : localize('untrustedWorkspace', "In Restricted Mode");
+				subTitle = trusted ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") :
+					localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:");
+				break;
+			}
+		}
+
+		return [title, subTitle];
 	}
 
 	private rendering = false;
@@ -260,9 +290,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private renderAffectedFeatures(numSettings: number, numExtensions: number): void {
 		clearNode(this.affectedFeaturesContainer);
 		const trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted'));
-		this.renderLimitationsHeaderElement(trustedContainer,
-			this.useWorkspaceLanguage() ? localize('trustedWorkspace', "In a trusted workspace") : localize('trustedFolder', "In a Trusted Folder"),
-			this.useWorkspaceLanguage() ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") : localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:"));
+		const [trustedTitle, trustedSubTitle] = this.getFeaturesHeaderText(true);
+		this.renderLimitationsHeaderElement(trustedContainer, trustedTitle, trustedSubTitle);
 		this.renderLimitationsListElement(trustedContainer, [
 			localize('trustedTasks', "Tasks are allowed to run"),
 			localize('trustedDebugging', "Debugging is enabled"),
@@ -271,9 +300,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		], checkListIcon.classNamesArray);
 
 		const untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted'));
-		this.renderLimitationsHeaderElement(untrustedContainer,
-			localize('untrustedWorkspace', "In Restricted Mode"),
-			this.useWorkspaceLanguage() ? localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:") : localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:"));
+		const [untrustedTitle, untrustedSubTitle] = this.getFeaturesHeaderText(false);
+		this.renderLimitationsHeaderElement(untrustedContainer, untrustedTitle, untrustedSubTitle);
 
 		this.renderLimitationsListElement(untrustedContainer, [
 			localize('untrustedTasks', "Tasks are disabled"),
@@ -365,8 +393,12 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private addTrustedTextToElement(parent: HTMLElement): void {
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return;
+		}
+
 		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
-		textElement.innerText = this.useWorkspaceLanguage() ? localize('untrustedWorkspaceReason', "This workspace is trusted via one or more of the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via one or more of the trusted folders below.");
+		textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via one or more of the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via one or more of the trusted folders below.");
 	}
 
 	private renderLimitationsHeaderElement(parent: HTMLElement, headerText: string, subtitleText: string): void {
