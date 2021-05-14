@@ -96,7 +96,9 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	}
 
 	private async _activate(link: string) {
-		link = normalize(link);
+		// Normalize the link and remove any leading ./ or ../ since quick access doesn't understand
+		// that format
+		link = normalize(link).replace(/^(\.+\/)+/, '');
 		const results = await this._searchService.fileSearch(
 			this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
 				filePattern: link,
