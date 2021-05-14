@@ -7,7 +7,7 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { Verbosity } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, Verbosity } from 'vs/workbench/common/editor';
 import { GroupChangeKind, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -72,7 +72,7 @@ export class MainThreadEditorTabs {
 				tabs.push({
 					group: group.id,
 					name: editor.getTitle(Verbosity.SHORT) ?? '',
-					resource: editor.resource,
+					resource: EditorResourceAccessor.getOriginalUri(editor) ?? editor.resource,
 					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
 				});
 			}
