@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocKey, CellToolbarVisibility, ExperimentalCompactView, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 let EDITOR_TOP_PADDING = 12;
 const editorTopPaddingChangeEmitter = new Emitter<void>();
@@ -51,6 +51,7 @@ interface NotebookOptionsChangeEvent {
 	cellToolbarLocation?: boolean;
 	cellToolbarInteraction?: boolean;
 	editorTopPadding?: boolean;
+	compactView?: boolean;
 }
 
 const defaultConfigConstants = {
@@ -63,8 +64,8 @@ const defaultConfigConstants = {
 };
 
 const compactConfigConstants = {
-	codeCellLeftMargin: 4,
-	cellRunGutter: 28,
+	codeCellLeftMargin: 0,
+	cellRunGutter: 32,
 	markdownCellTopMargin: 6,
 	markdownCellBottomMargin: 6,
 	markdownCellLeftMargin: 32,
@@ -81,10 +82,11 @@ export class NotebookOptions {
 		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
 		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
+		const compactView = this.configurationService.getValue<boolean>(ExperimentalCompactView);
 
 		this._disposables = [];
 		this._layoutConfiguration = {
-			...(1 ? defaultConfigConstants : compactConfigConstants),
+			...(compactView ? compactConfigConstants : defaultConfigConstants),
 			cellTopMargin: 6,
 			cellBottomMargin: 6,
 			cellRightMargin: 16,
@@ -106,12 +108,13 @@ export class NotebookOptions {
 			let cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBarKey);
 			let cellToolbarLocation = e.affectsConfiguration(CellToolbarLocKey);
 			let cellToolbarInteraction = e.affectsConfiguration(CellToolbarVisibility);
+			let compactView = e.affectsConfiguration(ExperimentalCompactView);
 
-			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction) {
+			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction && !compactView) {
 				return;
 			}
 
-			const configuration = Object.assign({}, this._layoutConfiguration);
+			let configuration = Object.assign({}, this._layoutConfiguration);
 
 			if (cellStatusBarVisibility) {
 				configuration.showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
@@ -125,13 +128,21 @@ export class NotebookOptions {
 				configuration.cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
 			}
 
+			if (compactView) {
+				const compactView = this.configurationService.getValue<boolean>('notebook.experimental.compactView');
+				configuration = Object.assign(configuration, {
+					...(compactView ? compactConfigConstants : defaultConfigConstants)
+				});
+			}
+
 			this._layoutConfiguration = configuration;
 
 			// trigger event
 			this._onDidChangeOptions.fire({
 				cellStatusBarVisibility: cellStatusBarVisibility,
 				cellToolbarLocation: cellToolbarLocation,
-				cellToolbarInteraction: cellToolbarInteraction
+				cellToolbarInteraction: cellToolbarInteraction,
+				compactView: compactView
 			});
 		}));
 

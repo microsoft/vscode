@@ -372,6 +372,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			if (e.cellStatusBarVisibility || e.cellToolbarLocation || e.cellToolbarInteraction) {
 				this._updateForNotebookConfiguration();
 			}
+
+			if (e.compactView) {
+				this._styleElement?.remove();
+				this._createLayoutStyles();
+				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
+			}
 		}));
 
 		this.notebookEditorService.addNotebookEditor(this);

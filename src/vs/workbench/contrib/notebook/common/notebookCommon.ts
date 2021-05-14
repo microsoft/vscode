@@ -889,6 +889,7 @@ export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
+export const ExperimentalCompactView = 'notebook.experimental.compactView';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
