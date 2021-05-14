@@ -300,7 +300,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			dispose(this._processListeners);
 		}
 		this._processListeners = [
-			newProcess.onProcessReady(async (e: { pid: number, cwd: string, requiresWindowsMode?: boolean }) => {
+			newProcess.onProcessReady(async (e: IProcessTraits) => {
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
 				this._onProcessReady.fire(e);
