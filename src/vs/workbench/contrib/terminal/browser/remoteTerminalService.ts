@@ -231,10 +231,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel?.getEnvironment() || {};
 	}
 
-	async requiresWindowsMode(): Promise<boolean> {
-		return this._remoteTerminalChannel?.requiresWindowsMode() || false;
-	}
-
 	async getShellEnvironment(): Promise<IProcessEnvironment | undefined> {
 		const connection = this._remoteAgentService.getConnection();
 		if (!connection) {

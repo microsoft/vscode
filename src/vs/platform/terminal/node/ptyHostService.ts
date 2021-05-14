@@ -236,10 +236,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return await this._proxy.getTerminalLayoutInfo(args);
 	}
 
-	requiresWindowsMode(): Promise<boolean> {
-		return this._proxy.requiresWindowsMode();
-	}
-
 	async restartPtyHost(): Promise<void> {
 		/* __GDPR__
 			"ptyHost/restart" : {}

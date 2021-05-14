@@ -277,8 +277,4 @@ export class RemoteTerminalChannelClient {
 		};
 		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
 	}
-
-	requiresWindowsMode(): Promise<boolean> {
-		return this._channel.call<boolean>('$requiresWindowsMode');
-	}
 }
