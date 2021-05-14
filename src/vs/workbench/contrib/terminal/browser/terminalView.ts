@@ -38,7 +38,7 @@ import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/termi
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -346,7 +346,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 
 class SingleTerminalTabActionViewItem extends ActionViewItem {
 	private _color: string | undefined;
-	private _contextMenuListener: IDisposable | undefined;
+	private readonly _elementDisposables: IDisposable[] = [];
 	constructor(
 		action: IAction,
 		private readonly _actions: IAction[],
@@ -372,16 +372,23 @@ class SingleTerminalTabActionViewItem extends ActionViewItem {
 				this.updateLabel();
 			}
 		}));
-		this._register(toDisposable(() => this._contextMenuListener?.dispose()));
+		this._register(toDisposable(() => dispose(this._elementDisposables)));
 	}
 
 	override updateLabel(): void {
-		if (!this._contextMenuListener) {
-			this._contextMenuListener = dom.addDisposableListener(this.element!, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
+		if (this._elementDisposables.length === 0) {
+			this._elementDisposables.push(dom.addDisposableListener(this.element!, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
 				if (e.button === 2) {
 					this._run();
+					e.preventDefault();
 				}
-			});
+			}));
+			this._elementDisposables.push(dom.addDisposableListener(this.element!, dom.EventType.AUXCLICK, (e: MouseEvent) => {
+				if (e.button === 1) {
+					this._terminalService.getActiveInstance()?.dispose();
+					e.preventDefault();
+				}
+			}));
 		}
 		if (this.label) {
 			const label = this.label;
