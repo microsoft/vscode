@@ -12,6 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 
 
+
 function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
 		let stdout = '';
@@ -50,14 +51,19 @@ export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestAr
 
 export function hasChildProcesses(processId: number | undefined): Promise<boolean> {
 	if (processId) {
+
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
-			return spawnAsPromised('wmic', ['process', 'get', 'ParentProcessId']).then(stdout => {
-				const pids = stdout.split('\r\n');
-				return pids.some(p => parseInt(p) === processId);
-			}, error => {
-				return true;
+
+			return new Promise<boolean>(async (resolve) => {
+
+				const windowsProcessTree = await import('windows-process-tree');
+				windowsProcessTree.getProcessTree(processId, (processTree) => {
+					resolve(processTree.children.length > 0);
+				});
+
 			});
+
 		} else {
 			return spawnAsPromised('/usr/bin/pgrep', ['-lP', String(processId)]).then(stdout => {
 				const r = stdout.trim();
