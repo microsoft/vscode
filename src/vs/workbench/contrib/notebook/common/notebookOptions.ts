@@ -8,28 +8,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellToolbarLocKey, CellToolbarVisibility, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-const CELL_STATUSBAR_HEIGHT = 22;
-const EDITOR_TOOLBAR_HEIGHT = 0;
-const CELL_OUTPUT_PADDING = 14;
-const MARKDOWN_PREVIEW_PADDING = 8;
-const CELL_RIGHT_MARGIN = 16;
-const CELL_RUN_GUTTER = 28;
-const CODE_CELL_LEFT_MARGIN = 32;
-const MARKDOWN_CELL_LEFT_MARGIN = 32;
-const BOTTOM_CELL_TOOLBAR_GAP = 18;
-const BOTTOM_CELL_TOOLBAR_HEIGHT = 22;
-
-// Margin above editor
-const CELL_TOP_MARGIN = 6;
-const CELL_BOTTOM_MARGIN = 6;
-
-const MARKDOWN_CELL_TOP_MARGIN = 8;
-const MARKDOWN_CELL_BOTTOM_MARGIN = 8;
-
-const COLLAPSED_INDICATOR_HEIGHT = 24;
-const EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR = 12;
-const EDITOR_BOTTOM_PADDING = 4;
-
 let EDITOR_TOP_PADDING = 12;
 const editorTopPaddingChangeEmitter = new Emitter<void>();
 
@@ -74,6 +52,25 @@ interface NotebookOptionsChangeEvent {
 	cellToolbarInteraction?: boolean;
 	editorTopPadding?: boolean;
 }
+
+const defaultConfigConstants = {
+	codeCellLeftMargin: 28,
+	cellRunGutter: 32,
+	markdownCellTopMargin: 8,
+	markdownCellBottomMargin: 8,
+	markdownCellLeftMargin: 32,
+	bottomCellToolbarGap: 18,
+};
+
+const compactConfigConstants = {
+	codeCellLeftMargin: 4,
+	cellRunGutter: 28,
+	markdownCellTopMargin: 6,
+	markdownCellBottomMargin: 6,
+	markdownCellLeftMargin: 32,
+	bottomCellToolbarGap: 12,
+};
+
 export class NotebookOptions {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
 	protected readonly _onDidChangeOptions = new Emitter<NotebookOptionsChangeEvent>();
@@ -87,24 +84,19 @@ export class NotebookOptions {
 
 		this._disposables = [];
 		this._layoutConfiguration = {
-			cellRightMargin: CELL_RIGHT_MARGIN,
-			cellRunGutter: CELL_RUN_GUTTER,
-			cellTopMargin: CELL_TOP_MARGIN,
-			cellBottomMargin: CELL_BOTTOM_MARGIN,
-			codeCellLeftMargin: CODE_CELL_LEFT_MARGIN,
-			markdownCellLeftMargin: MARKDOWN_CELL_LEFT_MARGIN,
-			markdownCellTopMargin: MARKDOWN_CELL_TOP_MARGIN,
-			markdownCellBottomMargin: MARKDOWN_CELL_BOTTOM_MARGIN,
-			bottomCellToolbarGap: BOTTOM_CELL_TOOLBAR_GAP,
-			bottomCellToolbarHeight: BOTTOM_CELL_TOOLBAR_HEIGHT,
+			...(1 ? defaultConfigConstants : compactConfigConstants),
+			cellTopMargin: 6,
+			cellBottomMargin: 6,
+			cellRightMargin: 16,
+			cellStatusBarHeight: 22,
+			cellOutputPadding: 14,
+			markdownPreviewPadding: 8,
+			bottomCellToolbarHeight: 22,
+			editorToolbarHeight: 0,
 			editorTopPadding: EDITOR_TOP_PADDING,
-			editorBottomPadding: EDITOR_BOTTOM_PADDING,
-			editorBottomPaddingWithoutStatusBar: EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR,
-			editorToolbarHeight: EDITOR_TOOLBAR_HEIGHT,
-			cellOutputPadding: CELL_OUTPUT_PADDING,
-			collapsedIndicatorHeight: COLLAPSED_INDICATOR_HEIGHT,
-			markdownPreviewPadding: MARKDOWN_PREVIEW_PADDING,
-			cellStatusBarHeight: CELL_STATUSBAR_HEIGHT,
+			editorBottomPadding: 4,
+			editorBottomPaddingWithoutStatusBar: 12,
+			collapsedIndicatorHeight: 24,
 			showCellStatusBar,
 			cellToolbarLocation,
 			cellToolbarInteraction
