@@ -105,7 +105,8 @@ export class NotebookEditorModelManager extends Disposable {
 					language: cell.language,
 					cellKind: cell.cellKind,
 					outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
-					metadata: cell.metadata
+					metadata: cell.metadata,
+					internalMetadata: cell.internalMetadata,
 				})),
 				metadata: model.metadata
 			}
@@ -122,7 +123,8 @@ export class NotebookEditorModelManager extends Disposable {
 				language: cell.language,
 				cellKind: cell.cellKind,
 				outputs: cell.outputs,
-				metadata: cell.metadata
+				metadata: cell.metadata,
+				internalMetadata: cell.internalMetadata,
 			};
 		};
 
