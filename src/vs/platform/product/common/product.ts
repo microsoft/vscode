@@ -13,7 +13,7 @@ import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes
 let product: IProductConfiguration;
 
 // Native sandbox environment
-if (typeof globals.vscode !== 'undefined') {
+if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.context !== 'undefined') {
 	const configuration: ISandboxConfiguration | undefined = globals.vscode.context.configuration();
 	if (configuration) {
 		product = configuration.product;

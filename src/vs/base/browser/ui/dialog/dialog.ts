@@ -120,6 +120,10 @@ export class Dialog extends Disposable {
 		if (this.options.renderBody) {
 			const customBody = this.messageContainer.appendChild($('.dialog-message-body'));
 			this.options.renderBody(customBody);
+
+			for (const el of this.messageContainer.querySelectorAll('a')) {
+				el.tabIndex = 0;
+			}
 		}
 
 		if (this.options.inputs) {
@@ -218,6 +222,10 @@ export class Dialog extends Disposable {
 			this._register(domEvent(window, 'keydown', true)((e: KeyboardEvent) => {
 				const evt = new StandardKeyboardEvent(e);
 
+				if (evt.equals(KeyMod.Alt)) {
+					evt.preventDefault();
+				}
+
 				if (evt.equals(KeyCode.Enter)) {
 
 					// Enter in input field should OK the dialog
@@ -246,6 +254,17 @@ export class Dialog extends Disposable {
 					// Build a list of focusable elements in their visual order
 					const focusableElements: { focus: () => void }[] = [];
 					let focusedIndex = -1;
+
+					if (this.messageContainer) {
+						const links = this.messageContainer.querySelectorAll('a');
+						for (const link of links) {
+							focusableElements.push(link);
+							if (link === document.activeElement) {
+								focusedIndex = focusableElements.length - 1;
+							}
+						}
+					}
+
 					for (const input of this.inputs) {
 						focusableElements.push(input);
 						if (input.hasFocus()) {

@@ -487,7 +487,7 @@ function registerOpenEditorAPICommands(): void {
 			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		}
 
-		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, override: id } }, group);
+		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, pinned: true, override: id } }, group);
 	});
 }
 
@@ -631,12 +631,13 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 		editorToCopy = withNullAsUndefined(sourceGroup.activeEditor);
 	}
 
-	// Copy the editor to the new group, else move the editor to the new group
+	// Copy the editor to the new group, else create an empty group
 	if (editorToCopy && (editorToCopy as EditorInput).canSplit()) {
 		sourceGroup.copyEditor(editorToCopy, newGroup);
-		// Focus
-		newGroup.focus();
 	}
+
+	// Focus
+	newGroup.focus();
 
 }
 

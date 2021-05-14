@@ -89,7 +89,7 @@ export interface ITestItem {
 	extId: string;
 	label: string;
 	children?: never;
-	uri: URI;
+	uri?: URI;
 	range: IRange | null;
 	description: string | null;
 	error: string | IMarkdownString | null;

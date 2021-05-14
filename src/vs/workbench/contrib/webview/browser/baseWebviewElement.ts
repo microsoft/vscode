@@ -4,13 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -98,6 +104,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _telemetryService: ITelemetryService;
 	private readonly _tunnelService: ITunnelService;
 	protected readonly _environmentService: IWorkbenchEnvironmentService;
+	private _contextKeyService: IContextKeyService | undefined;
 
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 
@@ -108,9 +115,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		public extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		services: {
+			contextMenuService: IContextMenuService,
 			environmentService: IWorkbenchEnvironmentService,
 			fileService: IFileService,
 			logService: ILogService,
+			menuService: IMenuService,
 			notificationService: INotificationService,
 			remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 			requestService: IRequestService,
@@ -210,19 +219,44 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleKeyEvent('keyup', data);
 		}));
 
+		this._register(this.on('did-context-menu', (data: { clientX: number, clientY: number }) => {
+			if (!this.element) {
+				return;
+			}
+			if (!this._contextKeyService) {
+				return;
+			}
+			const elementBox = this.element.getBoundingClientRect();
+			services.contextMenuService.showContextMenu({
+				getActions: () => {
+					const result: IAction[] = [];
+					const menu = services.menuService.createMenu(MenuId.WebviewContext, this._contextKeyService!);
+					createAndFillInContextMenuActions(menu, undefined, result);
+					menu.dispose();
+					return result;
+				},
+				getAnchor: () => ({
+					x: elementBox.x + data.clientX,
+					y: elementBox.y + data.clientY
+				})
+			});
+		}));
+
 		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, ifNoneMatch?: string }) => {
 			const rawPath = entry.path;
-			const uri = URI.parse(rawPath.replace(/^\/([\w\-]+)(\/{1,2})/, (_: string, scheme: string, sep: string) => {
-				if (sep.length === 1) {
-					return `${scheme}:///`; // Add empty authority.
-				} else {
-					return `${scheme}://`; // Url has own authority.
-				}
-			})).with({
+			// ext-authority / scheme / path-authority / ...path
+			const match = rawPath.match(/^\/([^\/]*)\/([^\/]*)\/([^\/]*)(\/.+)$/);
+			if (!match) {
+				throw new Error('Could not parse resource url');
+			}
+
+			const [_, remoteAuthority, scheme, pathAuthority, paths] = match;
+
+			const uri = URI.parse(`${scheme}://${decodeURIComponent(pathAuthority)}${paths}`).with({
 				query: decodeURIComponent(entry.query),
 			});
 
-			this.loadResource(entry.id, rawPath, uri, entry.ifNoneMatch);
+			this.loadResource(entry.id, rawPath, uri, decodeURIComponent(remoteAuthority), entry.ifNoneMatch);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
@@ -244,6 +278,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._resourceLoadingCts.dispose(true);
 
 		super.dispose();
+	}
+
+	setContextKeyService(contextKeyService: IContextKeyService) {
+		this._contextKeyService = contextKeyService;
 	}
 
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
@@ -342,18 +380,13 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected abstract get webviewResourceEndpoint(): string;
 
 	private rewriteVsCodeResourceUrls(value: string): string {
+		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : '';
 		return value
-			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
-				if (scheme) {
-					return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${scheme}${path}${endQuote}`;
-				}
-				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/file${path}${endQuote}`;
+			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
+				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${remoteAuthority}/${scheme ?? 'file'}/${path}${endQuote}`;
 			})
-			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
-				if (scheme) {
-					return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${scheme}${path}${endQuote}`;
-				}
-				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/file${path}${endQuote}`;
+			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
+				return `${startQuote}${this.webviewResourceEndpoint}/vscode-resource/${remoteAuthority}/${scheme ?? 'file'}/${path}${endQuote}`;
 			});
 	}
 
@@ -479,16 +512,14 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}
 	}
 
-	private async loadResource(id: number, requestPath: string, uri: URI, ifNoneMatch: string | undefined) {
+	private async loadResource(id: number, requestPath: string, uri: URI, remoteAuthority: string | undefined, ifNoneMatch: string | undefined) {
 		try {
-			const remoteAuthority = this._environmentService.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 
 			const result = await loadLocalResource(uri, ifNoneMatch, {
-				extensionLocation: this.extension?.location,
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
-				useRootAuthority: this.content.options.useRootAuthority
+				remoteAuthority: remoteAuthority,
 			}, this._fileService, this._requestService, this._logService, this._resourceLoadingCts.token);
 
 			switch (result.type) {

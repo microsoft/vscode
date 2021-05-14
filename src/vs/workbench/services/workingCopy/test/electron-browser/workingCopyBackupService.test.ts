@@ -47,6 +47,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 	discardedBackups: IWorkingCopyIdentifier[];
+	discardedAllBackups: boolean;
 	private pendingBackupsArr: Promise<void>[];
 	private diskFileSystemProvider: DiskFileSystemProvider;
 
@@ -65,6 +66,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
 		this.pendingBackupsArr = [];
+		this.discardedAllBackups = false;
 	}
 
 	async waitForAllBackups(): Promise<void> {
@@ -101,6 +103,12 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		while (this.discardBackupJoiners.length) {
 			this.discardBackupJoiners.pop()!();
 		}
+	}
+
+	override async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		this.discardedAllBackups = true;
+
+		return super.discardBackups(filter);
 	}
 
 	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {
@@ -610,7 +618,7 @@ suite('WorkingCopyBackupService', () => {
 			await service.backup(backupId3, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
 
-			await service.discardBackups([backupId2, backupId3]);
+			await service.discardBackups({ except: [backupId2, backupId3] });
 
 			let backupPath = join(workspaceBackupPath, backupId1.resource.scheme, hashIdentifier(backupId1));
 			assert.strictEqual(existsSync(backupPath), false);
@@ -621,7 +629,7 @@ suite('WorkingCopyBackupService', () => {
 			backupPath = join(workspaceBackupPath, backupId3.resource.scheme, hashIdentifier(backupId3));
 			assert.strictEqual(existsSync(backupPath), true);
 
-			await service.discardBackups([backupId1]);
+			await service.discardBackups({ except: [backupId1] });
 
 			for (const backupId of [backupId1, backupId2, backupId3]) {
 				const backupPath = join(workspaceBackupPath, backupId.resource.scheme, hashIdentifier(backupId));
@@ -637,7 +645,7 @@ suite('WorkingCopyBackupService', () => {
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
 
-			await service.discardBackups([backupId]);
+			await service.discardBackups({ except: [backupId] });
 			assert.strictEqual(existsSync(backupPath), true);
 		});
 	});

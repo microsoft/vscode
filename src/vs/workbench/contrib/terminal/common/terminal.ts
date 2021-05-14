@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -29,6 +29,9 @@ export const KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS = new RawContextKe
 
 /** A context key that is set when the integrated terminal tabs widget has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS = new RawContextKey<boolean>('terminalTabsFocus', false, nls.localize('terminalTabsFocusContextKey', "Whether the terminal tabs widget is focused"));
+
+/** A context key that is set when the integrated terminal tabs widget has the mouse focus. */
+export const KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE = new RawContextKey<boolean>('terminalTabsMouse', false, undefined);
 
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
 /** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
@@ -91,6 +94,9 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
 	readonly _serviceBrand: undefined;
+
+	readonly defaultProfileName: string | undefined;
+
 	/**
 	 * Resolves the icon of a shell launch config if this will use the default profile
 	 */
@@ -229,6 +235,7 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceName: string;
 	isOrphan: boolean;
 	icon: string | undefined;
+	color: string | undefined;
 }
 
 export interface ICommandTracker {
@@ -254,45 +261,6 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
-export interface ITerminalProfile {
-	profileName: string;
-	path: string;
-	isAutoDetected?: boolean;
-	args?: string | string[] | undefined;
-	env?: ITerminalEnvironment;
-	overrideName?: boolean;
-	icon?: string;
-}
-
-export const enum ProfileSource {
-	GitBash = 'Git Bash',
-	Pwsh = 'PowerShell'
-}
-
-export interface ITerminalExecutable {
-	path: string | string[];
-	args?: string | string[] | undefined;
-	isAutoDetected?: boolean;
-	overrideName?: boolean;
-	icon?: string;
-	env?: ITerminalEnvironment;
-}
-
-export interface ITerminalProfileSource {
-	source: ProfileSource;
-	isAutoDetected?: boolean;
-	overrideName?: boolean;
-	args?: string | string[] | undefined;
-	icon?: string;
-	env?: ITerminalEnvironment;
-}
-
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
-
-export interface IAvailableProfilesRequest {
-	callback: (shells: ITerminalProfile[]) => void;
-	configuredProfilesOnly: boolean;
-}
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;
 	callback: (shell: string, args: string[] | string | undefined) => void;
@@ -343,21 +311,21 @@ export interface ITerminalProcessManager extends IDisposable {
 
 export const enum ProcessState {
 	// The process has not been initialized yet.
-	Uninitialized,
+	Uninitialized = 1,
 	// The process is currently launching, the process is marked as launching
 	// for a short duration after being created and is helpful to indicate
 	// whether the process died as a result of bad shell and args.
-	Launching,
+	Launching = 2,
 	// The process is running normally.
-	Running,
+	Running = 3,
 	// The process was killed during launch, likely as a result of bad shell and
 	// args.
-	KilledDuringLaunch,
+	KilledDuringLaunch = 4,
 	// The process was killed by the user (the event originated from VS Code).
-	KilledByUser,
+	KilledByUser = 5,
 	// The process was killed by itself, for example the shell crashed or `exit`
 	// was run.
-	KilledByProcess
+	KilledByProcess = 6
 }
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
@@ -405,77 +373,6 @@ export enum TitleEventSource {
 }
 
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
-
-export const enum TerminalSettingId {
-	ShellLinux = 'terminal.integrated.shell.linux',
-	ShellMacOs = 'terminal.integrated.shell.osx',
-	ShellWindows = 'terminal.integrated.shell.windows',
-	SendKeybindingsToShell = 'terminal.integrated.sendKeybindingsToShell',
-	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
-	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
-	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
-	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
-	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
-	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
-	ProfilesWindows = 'terminal.integrated.profiles.windows',
-	ProfilesMacOs = 'terminal.integrated.profiles.osx',
-	ProfilesLinux = 'terminal.integrated.profiles.linux',
-	DefaultProfileLinux = 'terminal.integrated.defaultProfile.linux',
-	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
-	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
-	UseWslProfiles = 'terminal.integrated.useWslProfiles',
-	TabsEnabled = 'terminal.integrated.tabs.enabled',
-	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
-	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
-	TabsLocation = 'terminal.integrated.tabs.location',
-	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
-	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
-	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
-	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
-	CopyOnSelection = 'terminal.integrated.copyOnSelection',
-	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
-	FontFamily = 'terminal.integrated.fontFamily',
-	FontSize = 'terminal.integrated.fontSize',
-	LetterSpacing = 'terminal.integrated.letterSpacing',
-	LineHeight = 'terminal.integrated.lineHeight',
-	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
-	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
-	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
-	BellDuration = 'terminal.integrated.bellDuration',
-	FontWeight = 'terminal.integrated.fontWeight',
-	FontWeightBold = 'terminal.integrated.fontWeightBold',
-	CursorBlinking = 'terminal.integrated.cursorBlinking',
-	CursorStyle = 'terminal.integrated.cursorStyle',
-	CursorWidth = 'terminal.integrated.cursorWidth',
-	Scrollback = 'terminal.integrated.scrollback',
-	DetectLocale = 'terminal.integrated.detectLocale',
-	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
-	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
-	Cwd = 'terminal.integrated.cwd',
-	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
-	EnableBell = 'terminal.integrated.enableBell',
-	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
-	AllowChords = 'terminal.integrated.allowChords',
-	AllowMnemonics = 'terminal.integrated.allowMnemonics',
-	EnvMacOs = 'terminal.integrated.env.osx',
-	EnvLinux = 'terminal.integrated.env.linux',
-	EnvWindows = 'terminal.integrated.env.windows',
-	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
-	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
-	ShowExitAlert = 'terminal.integrated.showExitAlert',
-	SplitCwd = 'terminal.integrated.splitCwd',
-	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
-	WordSeparators = 'terminal.integrated.wordSeparators',
-	ExperimentalUseTitleEvent = 'terminal.integrated.experimentalUseTitleEvent',
-	EnableFileLinks = 'terminal.integrated.enableFileLinks',
-	UnicodeVersion = 'terminal.integrated.unicodeVersion',
-	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
-	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
-	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
-	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
-	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration'
-}
 
 export const enum TerminalCommandId {
 	FindNext = 'workbench.action.terminal.findNext',
@@ -529,6 +426,8 @@ export const enum TerminalCommandId {
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	ChangeIconInstance = 'workbench.action.terminal.changeIconInstance',
+	ChangeColor = 'workbench.action.terminal.changeColor',
+	ChangeColorInstance = 'workbench.action.terminal.changeColorInstance',
 	Rename = 'workbench.action.terminal.rename',
 	RenameInstance = 'workbench.action.terminal.renameInstance',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',

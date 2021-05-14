@@ -49,7 +49,7 @@ suite('Notebook Outline', function () {
 
 	test('special characters in heading', async function () {
 		await withNotebookOutline([
-			['# Hellö & Hällo', 'md', CellKind.Markdown]
+			['# Hellö & Hällo', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
@@ -57,7 +57,7 @@ suite('Notebook Outline', function () {
 		});
 
 		await withNotebookOutline([
-			['# bo<i>ld</i>', 'md', CellKind.Markdown]
+			['# bo<i>ld</i>', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
@@ -67,7 +67,7 @@ suite('Notebook Outline', function () {
 
 	test('Heading text defines entry label', async function () {
 		return await withNotebookOutline([
-			['foo\n # h1', 'md', CellKind.Markdown]
+			['foo\n # h1', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
@@ -77,7 +77,7 @@ suite('Notebook Outline', function () {
 
 	test('Notebook outline ignores markdown headings #115200', async function () {
 		await withNotebookOutline([
-			['## h2 \n# h1', 'md', CellKind.Markdown]
+			['## h2 \n# h1', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
@@ -86,8 +86,8 @@ suite('Notebook Outline', function () {
 		});
 
 		await withNotebookOutline([
-			['## h2', 'md', CellKind.Markdown],
-			['# h1', 'md', CellKind.Markdown]
+			['## h2', 'md', CellKind.Markup],
+			['# h1', 'md', CellKind.Markup]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);

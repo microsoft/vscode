@@ -3,51 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Registry } from 'vs/platform/registry/common/platform';
 
-const terminalProfileSchema: IJSONSchema = {
-	type: 'object',
-	required: ['path'],
-	properties: {
-		path: {
-			description: localize('terminalProfile.path', 'A single path to a shell executable or an array of paths that will be used as fallbacks when one fails.'),
-			type: ['string', 'array'],
-			items: {
-				type: 'string'
-			}
-		},
-		args: {
-			description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
-			type: 'array',
-			items: {
-				type: 'string'
-			}
-		},
-		overrideName: {
-			description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
-			type: 'boolean'
-		},
-		icon: {
-			description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
-			type: 'string'
-		},
-		env: {
-			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
-			type: 'object',
-			additionalProperties: {
-				type: ['string', 'null']
-			},
-			default: {}
-		}
-	}
-};
-
-export const terminalConfiguration: IConfigurationNode = {
+const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
 	order: 100,
 	title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
@@ -57,252 +20,6 @@ export const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding `#terminal.integrated.commandsToSkipShell#`, which can be used alternatively for fine tuning."),
 			type: 'boolean',
 			default: false
-		},
-		[TerminalSettingId.AutomationShellLinux]: {
-			restricted: true,
-			markdownDescription: localize({
-				key: 'terminal.integrated.automationShell.linux',
-				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
-			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
-		},
-		[TerminalSettingId.AutomationShellMacOs]: {
-			restricted: true,
-			markdownDescription: localize({
-				key: 'terminal.integrated.automationShell.osx',
-				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
-			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
-		},
-		[TerminalSettingId.AutomationShellWindows]: {
-			restricted: true,
-			markdownDescription: localize({
-				key: 'terminal.integrated.automationShell.windows',
-				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
-			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
-			type: ['string', 'null'],
-			default: null
-		},
-		[TerminalSettingId.ShellLinux]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: ['string', 'null'],
-			default: null,
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
-		},
-		[TerminalSettingId.ShellMacOs]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: ['string', 'null'],
-			default: null,
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
-		},
-		[TerminalSettingId.ShellWindows]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: ['string', 'null'],
-			default: null,
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
-		},
-		[TerminalSettingId.ShellArgsLinux]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			default: [],
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.linux#` instead'
-		},
-		[TerminalSettingId.ShellArgsMacOs]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			// Unlike on Linux, ~/.profile is not sourced when logging into a macOS session. This
-			// is the reason terminals on macOS typically run login shells by default which set up
-			// the environment. See http://unix.stackexchange.com/a/119675/115410
-			default: ['-l'],
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.osx#` instead'
-		},
-		[TerminalSettingId.ShellArgsWindows]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			'anyOf': [
-				{
-					type: 'array',
-					items: {
-						type: 'string',
-						markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
-					},
-				},
-				{
-					type: 'string',
-					markdownDescription: localize('terminal.integrated.shellArgs.windows.string', "The command line arguments in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
-				}
-			],
-			default: [],
-			markdownDeprecationMessage: 'This is deprecated, use `#terminal.integrated.defaultProfile.windows#` instead'
-		},
-		[TerminalSettingId.ProfilesWindows]: {
-			restricted: true,
-			markdownDescription: localize(
-				{
-					key: 'terminal.integrated.profiles.windows',
-					comment: ['{0}, {1}, and {2} are the `source`, `path` and optional `args` settings keys']
-				},
-				"The Windows profiles to present when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1} and optional {2}", '`source`', '`path`', '`args`.'
-			),
-			type: 'object',
-			default: {
-				'PowerShell': {
-					source: 'PowerShell',
-					icon: 'terminal-powershell'
-				},
-				'Command Prompt': {
-					path: [
-						'${env:windir}\\Sysnative\\cmd.exe',
-						'${env:windir}\\System32\\cmd.exe'
-					],
-					args: [],
-					icon: 'terminal-cmd'
-				},
-				'Git Bash': {
-					source: 'Git Bash'
-				}
-			},
-			additionalProperties: {
-				'anyOf': [
-					{
-						type: 'object',
-						required: ['source'],
-						properties: {
-							source: {
-								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell.'),
-								enum: ['PowerShell', 'Git Bash']
-							},
-							overrideName: {
-								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
-								type: 'boolean'
-							},
-							icon: {
-								description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
-								type: 'string'
-							},
-							env: {
-								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
-								type: 'object',
-								additionalProperties: {
-									type: ['string', 'null']
-								},
-								default: {}
-							}
-						}
-					},
-					{ type: 'null' },
-					terminalProfileSchema
-				]
-			}
-		},
-		[TerminalSettingId.ProfilesMacOs]: {
-			restricted: true,
-			markdownDescription: localize(
-				{
-					key: 'terminal.integrated.profile.osx',
-					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
-				},
-				"The macOS profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
-			),
-			type: 'object',
-			default: {
-				'bash': {
-					path: 'bash',
-					icon: 'terminal-bash'
-				},
-				'zsh': {
-					path: 'zsh'
-				},
-				'fish': {
-					path: 'fish'
-				},
-				'tmux': {
-					path: 'tmux',
-					icon: 'terminal-tmux'
-				},
-				'pwsh': {
-					path: 'pwsh',
-					icon: 'terminal-powershell'
-				}
-			},
-			additionalProperties: {
-				'anyOf': [
-					{ type: 'null' },
-					terminalProfileSchema
-				]
-			}
-		},
-		[TerminalSettingId.ProfilesLinux]: {
-			restricted: true,
-			markdownDescription: localize(
-				{
-					key: 'terminal.integrated.profile.linux',
-					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
-				},
-				"The Linux profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
-			),
-			type: 'object',
-			default: {
-				'bash': {
-					path: 'bash'
-				},
-				'zsh': {
-					path: 'zsh'
-				},
-				'fish': {
-					path: 'fish'
-				},
-				'tmux': {
-					path: 'tmux',
-					icon: 'terminal-tmux'
-				},
-				'pwsh': {
-					path: 'pwsh',
-					icon: 'terminal-powershell'
-				}
-			},
-			additionalProperties: {
-				'anyOf': [
-					{ type: 'null' },
-					terminalProfileSchema
-				]
-			}
-		},
-		[TerminalSettingId.DefaultProfileLinux]: {
-			description: localize('terminal.integrated.defaultProfile.linux', 'The default profile used on Linux. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
-			type: ['string', 'null'],
-			default: null,
-			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
-		},
-		[TerminalSettingId.DefaultProfileMacOs]: {
-			description: localize('terminal.integrated.defaultProfile.osx', 'The default profile used on macOS. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
-			type: ['string', 'null'],
-			default: null,
-			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
-		},
-		[TerminalSettingId.DefaultProfileWindows]: {
-			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.windows` and `terminal.integrated.shellArgs.windows`.'),
-			type: ['string', 'null'],
-			default: null,
-			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
-		},
-		[TerminalSettingId.UseWslProfiles]: {
-			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
-			type: 'boolean',
-			default: true
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
@@ -389,7 +106,7 @@ export const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
-			default: EDITOR_FONT_DEFAULTS.fontSize
+			default: isMacintosh ? 12 : 14
 		},
 		[TerminalSettingId.LetterSpacing]: {
 			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal, this is an integer value which represents the amount of additional pixels to add between characters."),
@@ -677,11 +394,10 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		[TerminalSettingId.AllowWorkspaceConfiguration]: {
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('terminal.integrated.allowWorkspaceConfiguration', "Allows shell and profile settings to be pick up from a workspace."),
-			type: 'boolean',
-			default: false
-		}
 	}
 };
+
+export function registerTerminalConfiguration() {
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	configurationRegistry.registerConfiguration(terminalConfiguration);
+}

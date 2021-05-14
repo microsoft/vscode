@@ -52,6 +52,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 				value.token = undefined;
 				this._disposeWidget(value.widget);
 				widgets.delete(e.editor.resource);
+				value.widget = (<any>undefined); // unset the widget so that others that still hold a reference don't harm us
 			}));
 			listeners.push(group.onWillMoveEditor(e => {
 				if (e.editor instanceof NotebookEditorInput) {

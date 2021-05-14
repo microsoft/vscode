@@ -42,6 +42,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -65,6 +67,9 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	readonly onDidChangeOrphaned = Event.None;
+	readonly onDidChangeReadonly = Event.None;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
@@ -95,7 +100,12 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
+
 	isReadonly(): boolean {
+		return false;
+	}
+
+	isOrphaned(): boolean {
 		return false;
 	}
 
@@ -164,8 +174,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	}), notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false });
 
 	const model = new NotebookEditorTestModel(notebook);
-	const eventDispatcher = new NotebookEventDispatcher();
-	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, eventDispatcher, null);
+	const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
+	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null);
 
 	const cellList = createNotebookCellList(instantiationService);
 	cellList.attachViewModel(viewModel);

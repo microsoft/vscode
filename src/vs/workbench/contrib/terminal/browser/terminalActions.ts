@@ -26,13 +26,13 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
+import { ILocalTerminalService, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfile, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TerminalCommandId, TerminalSettingId, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TerminalCommandId, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -421,7 +421,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.setActiveTabToNext();
+			terminalService.setActiveGroupToNext();
 			await terminalService.showPanel(true);
 		}
 	});
@@ -445,7 +445,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			terminalService.setActiveTabToPrevious();
+			terminalService.setActiveGroupToPrevious();
 			await terminalService.showPanel(true);
 		}
 	});
@@ -508,7 +508,7 @@ export function registerTerminalActions() {
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 			const instance = terminalService.getActiveOrCreateInstance();
-			const path = await terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
+			const path = await accessor.get(ITerminalInstanceService).preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 			instance.sendText(path, true);
 			return terminalService.showPanel();
 		}
@@ -744,6 +744,34 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			return getSelectedInstances(accessor)?.[0].changeIcon();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.ChangeColor,
+				title: { value: localize('workbench.action.terminal.changeColor', "Change Color..."), original: 'Change Color...' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalService).getActiveInstance()?.changeColor();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.ChangeColorInstance,
+				title: { value: localize('workbench.action.terminal.changeColor', "Change Color..."), original: 'Change Color...' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION)
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return getSelectedInstances(accessor)?.[0].changeColor();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1309,6 +1337,15 @@ export function registerTerminalActions() {
 						}
 					}]
 				},
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+					])
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
@@ -1327,7 +1364,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.SplitInstance,
-				title: { value: localize('workbench.action.terminal.split', "Split Terminal"), original: 'Split Terminal' },
+				title: { value: localize('workbench.action.terminal.splitInstance', "Split Terminal"), original: 'Split Terminal' },
 				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
@@ -1343,14 +1380,19 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
 			const instances = getSelectedInstances(accessor);
 			if (instances) {
-				for (const instance of instances) {
-					accessor.get(ITerminalService).splitInstance(instance);
+				for (const t of instances) {
+					terminalService.setActiveInstance(t);
+					terminalService.doWithActiveInstance(async instance => {
+						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
+						terminalService.splitInstance(instance, { cwd });
+						await terminalService.showPanel(true);
+					});
 				}
 			}
-			accessor.get(ITerminalService).focusTabs();
-			focusNext(accessor);
+			return undefined;
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1502,7 +1544,13 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			getSelectedInstances(accessor)?.forEach(instance => instance.dispose(true));
+			const selectedInstances = getSelectedInstances(accessor);
+			if (!selectedInstances) {
+				return;
+			}
+			for (const instance of selectedInstances) {
+				instance.dispose(true);
+			}
 			const terminalService = accessor.get(ITerminalService);
 			if (terminalService.terminalInstances.length > 0) {
 				terminalService.focusTabs();
@@ -1678,7 +1726,7 @@ export function registerTerminalActions() {
 				return Promise.resolve(null);
 			}
 			if (item === switchTerminalActionViewItemSeparator) {
-				terminalService.refreshActiveTab();
+				terminalService.refreshActiveGroup();
 				return Promise.resolve(null);
 			}
 			if (item === switchTerminalShowTabsTitle) {
@@ -1687,7 +1735,7 @@ export function registerTerminalActions() {
 			}
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
-				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
+				terminalService.setActiveGroupByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
 			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);

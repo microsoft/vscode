@@ -8,7 +8,7 @@ import { IListContextMenuEvent, IListEvent, IListMouseEvent } from 'vs/base/brow
 import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
@@ -31,6 +31,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -382,6 +383,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidScroll: Event<void>;
 
 	readonly onDidChangeActiveCell: Event<void>;
+	readonly notebookOptions: NotebookOptions;
 	isDisposed: boolean;
 	dispose(): void;
 
@@ -766,7 +768,7 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput;
 }
 
 export interface CellFindMatch {
@@ -906,20 +908,6 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
 	return editorPane?.getId() === NOTEBOOK_EDITOR_ID ? editorPane.getControl() as INotebookEditor | undefined : undefined;
-}
-
-let EDITOR_TOP_PADDING = 12;
-const editorTopPaddingChangeEmitter = new Emitter<void>();
-
-export const EditorTopPaddingChangeEvent = editorTopPaddingChangeEmitter.event;
-
-export function updateEditorTopPadding(top: number) {
-	EDITOR_TOP_PADDING = top;
-	editorTopPaddingChangeEmitter.fire();
-}
-
-export function getEditorTopPadding() {
-	return EDITOR_TOP_PADDING;
 }
 
 /**

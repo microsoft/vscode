@@ -163,11 +163,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			if (this._isDisabledByTrustRequirement(e)) {
 				return this.workspaceTrustRequestService.requestWorkspaceTrust()
 					.then(trustState => {
-						if (trustState) {
-							return this._setEnablement(e, newState);
-						} else {
-							return Promise.resolve(false);
-						}
+						return Promise.resolve(trustState ?? false);
 					});
 			} else {
 				return this._setEnablement(e, newState);

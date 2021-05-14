@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath, IMarkdownCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringified and injected into
@@ -26,8 +26,6 @@ declare class ResizeObserver {
 	disconnect(): void;
 }
 
-declare const __outputNodePadding__: number;
-declare const __outputNodeLeftPadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -36,7 +34,14 @@ interface EmitterLike<T> {
 	event: Event<T>;
 }
 
-async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
+interface PreloadStyles {
+	readonly outputNodePadding: number;
+	readonly outputNodeLeftPadding: number;
+}
+
+declare function __import(path: string): Promise<any>;
+
+async function webviewPreloads(style: PreloadStyles, rendererData: readonly WebviewPreloadRenderer[]) {
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -182,8 +187,8 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 						if (observedElementInfo.output) {
 							let height = 0;
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
-								height = entry.contentRect.height + __outputNodePadding__ * 2;
+								entry.target.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+								height = entry.contentRect.height + style.outputNodePadding * 2;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -483,25 +488,19 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 
 	window.addEventListener('wheel', handleWheel);
 
-	window.addEventListener('message', rawEvent => {
+	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: ToWebviewMessage; });
 
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
-				for (const cell of event.data.cells) {
-					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
-
-					const cellContainer = document.getElementById(cell.cellId);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'hidden';
-					}
+				{
+					await ensureMarkdownPreviewCells(event.data.cells);
+					dimensionUpdater.updateImmediately();
+					postNotebookMessage('initializedMarkdownPreview', {});
 				}
-
-				dimensionUpdater.updateImmediately();
-				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
-				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
+				ensureMarkdownPreviewCells([event.data.cell]);
 				break;
 			case 'showMarkdownPreview':
 				{
@@ -511,9 +510,8 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 					if (cellContainer) {
 						cellContainer.style.visibility = 'visible';
 						cellContainer.style.top = `${data.top}px`;
+						updateMarkdownPreview(cellContainer, data.id, data.content);
 					}
-
-					updateMarkdownPreview(data.id, data.content);
 				}
 				break;
 			case 'hideMarkdownPreviews':
@@ -532,8 +530,8 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 						const cellContainer = document.getElementById(id);
 						if (cellContainer) {
 							cellContainer.style.visibility = 'visible';
+							updateMarkdownPreview(cellContainer, id, undefined);
 						}
-						updateMarkdownPreview(id, undefined);
 					}
 				}
 				break;
@@ -655,12 +653,12 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.update(outputId, clientHeight + __outputNodePadding__ * 2, {
+						dimensionUpdater.update(outputId, clientHeight + style.outputNodePadding * 2, {
 							isOutput: true,
 							init: true,
 						});
 
-						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
+						outputNode.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
 					} else {
 						dimensionUpdater.update(outputId, outputNode.clientHeight, {
 							isOutput: true,
@@ -791,18 +789,66 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 		}
 	});
 
-	const markdownRenderer: {
-		renderMarkup: (context: { element: HTMLElement, content: string }) => void,
-	} = await markdownRendererModule.activate(markdownDeps);
+	interface MarkupRenderer {
+		renderMarkup: (context: { element: HTMLElement, content: string }) => void;
+	}
+
+	const markupRenderers = new class {
+
+		private readonly mimeTypesToRenderers = new Map<string, {
+			load: () => Promise<MarkupRenderer>;
+		}>();
+
+		constructor() {
+			for (const renderer of rendererData) {
+				let loadPromise: Promise<MarkupRenderer> | undefined;
+
+				const entry = {
+					load: () => {
+						if (!loadPromise) {
+							loadPromise = __import(renderer.entrypoint).then(module => {
+								return module.activate({ dependencies: renderer.dependencies });
+							});
+						}
+						return loadPromise;
+					},
+					renderer: undefined,
+				};
+
+				for (const mime of renderer.mimeTypes || []) {
+					if (!this.mimeTypesToRenderers.has(mime)) {
+						this.mimeTypesToRenderers.set(mime, entry);
+					}
+				}
+			}
+		}
+
+		async renderMarkdown(element: HTMLElement, content: string): Promise<void> {
+			const entry = this.mimeTypesToRenderers.get('text/markdown');
+			if (!entry) {
+				throw new Error('Could not find renderer');
+			}
+			const renderer = await entry.load();
+			renderer.renderMarkup({ element, content });
+		}
+	}();
+
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
 
-	function createMarkdownPreview(cellId: string, content: string, top: number) {
+	async function createMarkdownPreview(cellId: string, content: string, top: number): Promise<HTMLElement> {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
+
+		const existing = document.getElementById(cellId);
+		if (existing) {
+			console.error(`Trying to create markdown preview that already exists: ${cellId}`);
+			return existing;
+		}
+
 		cellContainer.id = cellId;
 		cellContainer.classList.add('preview');
 
@@ -868,9 +914,24 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 		previewNode.id = 'preview';
 		previewRoot.appendChild(previewNode);
 
-		updateMarkdownPreview(cellId, content);
+		await updateMarkdownPreview(cellContainer, cellId, content);
 
 		resizeObserver.observe(cellContainer, cellId, false);
+
+		return cellContainer;
+	}
+
+	async function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]): Promise<void> {
+		await Promise.all(update.map(async cell => {
+			let container = document.getElementById(cell.cellId);
+			if (container) {
+				await updateMarkdownPreview(container, cell.cellId, cell.content);
+			} else {
+				container = await createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+			}
+
+			container.style.visibility = cell.visible ? 'visible' : 'hidden';
+		}));
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -885,28 +946,22 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 	}
 
 	let hasPostedRenderedMathTelemetry = false;
-	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/g;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
 
-	function updateMarkdownPreview(cellId: string, content: string | undefined) {
-		const previewContainerNode = document.getElementById(cellId);
-		if (!previewContainerNode) {
+	async function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
+		const previewRoot = previewContainerNode.shadowRoot;
+		const previewNode = previewRoot?.getElementById('preview');
+		if (!previewNode) {
 			return;
 		}
 
-		const previewRoot = previewContainerNode.shadowRoot;
-		const previewNode = previewRoot?.getElementById('preview') as HTMLElement;
-
-		// TODO: handle namespace
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');
 				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				markdownRenderer.renderMarkup({
-					element: previewNode,
-					content: content
-				});
+				await markupRenderers.renderMarkdown(previewNode, content);
 
 				if (!hasPostedRenderedMathTelemetry) {
 					const hasRenderedMath = previewNode.querySelector('.katex');
@@ -1005,20 +1060,19 @@ async function webviewPreloads(markdownRendererModule: any, markdownDeps: any) {
 	}();
 }
 
-export function preloadsScriptStr(styleValues: {
-	outputNodePadding: number;
-	outputNodeLeftPadding: number;
-}, markdownRenderer: {
-	entrypoint: string,
-	dependencies: Array<{ entrypoint: string }>,
-}) {
-	const markdownCtx = {
-		dependencies: markdownRenderer.dependencies,
-	};
+export interface WebviewPreloadRenderer {
+	readonly entrypoint: string;
+	readonly mimeTypes: readonly string[];
+	readonly dependencies: ReadonlyArray<{ entrypoint: string }>;
+}
 
+export function preloadsScriptStr(styleValues: PreloadStyles, renderers: readonly WebviewPreloadRenderer[]) {
+	// TS will try compiling `import()` in webviePreloads, so use an helper function instead
+	// of using `import(...)` directly
 	return `
-	import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
-	(${webviewPreloads})(markdownRendererModule, JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}")))`
-		.replace(/__outputNodePadding__/g, `${styleValues.outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${styleValues.outputNodeLeftPadding}`);
+		const __import = (x) => import(x);
+		(${webviewPreloads})(
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(renderers))}"))
+			)\n//# sourceURL=notebookWebviewPreloads.js\n`;
 }

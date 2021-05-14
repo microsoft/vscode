@@ -87,6 +87,7 @@ export class MenuId {
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly EditorContext = new MenuId('EditorContext');
+	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorTitle = new MenuId('EditorTitle');
@@ -162,6 +163,7 @@ export class MenuId {
 	static readonly TerminalTabContext = new MenuId('TerminalTabContext');
 	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
 	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
+	static readonly WebviewContext = new MenuId('WebviewContext');
 
 	readonly id: number;
 	readonly _debugName: string;

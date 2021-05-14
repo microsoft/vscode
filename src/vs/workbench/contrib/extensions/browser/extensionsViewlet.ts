@@ -22,7 +22,7 @@ import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAct
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInFeatureExtensionsView, BuiltInThemesExtensionsView, BuiltInProgrammingLanguageExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, TrustRequiredOnStartExtensionsView, TrustRequiredOnDemandExtensionsView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
+import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInFeatureExtensionsView, BuiltInThemesExtensionsView, BuiltInProgrammingLanguageExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, UntrustedWorkspaceUnsupportedExtensionsView, UntrustedWorkspacePartiallySupportedExtensionsView, VirtualWorkspaceUnsupportedExtensionsView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import Severity from 'vs/base/common/severity';
@@ -59,6 +59,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isWeb } from 'vs/base/common/platform';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
@@ -69,8 +70,8 @@ const HasInstalledExtensionsContext = new RawContextKey<boolean>('hasInstalledEx
 const HasInstalledWebExtensionsContext = new RawContextKey<boolean>('hasInstalledWebExtensions', false);
 const BuiltInExtensionsContext = new RawContextKey<boolean>('builtInExtensions', false);
 const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltInExtensions', false);
-const TrustRequiredExtensionsContext = new RawContextKey<boolean>('trustRequiredExtensions', false);
-const SearchTrustRequiredExtensionsContext = new RawContextKey<boolean>('searchTrustRequiredExtensions', false);
+const UnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('unsupportedWorkspaceExtensions', false);
+const SearchUnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('searchUnsupportedWorkspaceExtensions', false);
 const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
@@ -103,7 +104,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		viewDescriptors.push(...this.createBuiltinExtensionsViewDescriptors());
 
 		/* Trust Required extensions views */
-		viewDescriptors.push(...this.createTrustRequiredExtensionsViewDescriptors());
+		viewDescriptors.push(...this.createUnsupportedWorkspaceExtensionsViewDescriptors());
 
 		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptors, this.container);
 	}
@@ -343,13 +344,13 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		});
 
 		/*
-		 * View used for searching trustRequired extensions
+		 * View used for searching workspace unsupported extensions
 		 */
 		viewDescriptors.push({
-			id: 'workbench.views.extensions.searchTrustRequired',
-			name: localize('trustRequired', "Trust Required"),
+			id: 'workbench.views.extensions.searchWorkspaceUnsupported',
+			name: localize('workspaceUnsupported', "Workspace Unsupported"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
-			when: ContextKeyExpr.and(ContextKeyExpr.has('searchTrustRequiredExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchWorkspaceUnsupportedExtensions')),
 		});
 
 		return viewDescriptors;
@@ -404,21 +405,28 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return viewDescriptors;
 	}
 
-	private createTrustRequiredExtensionsViewDescriptors(): IViewDescriptor[] {
+	private createUnsupportedWorkspaceExtensionsViewDescriptors(): IViewDescriptor[] {
 		const viewDescriptors: IViewDescriptor[] = [];
 
 		viewDescriptors.push({
-			id: 'workbench.views.extensions.trustRequiredOnStartExtensions',
-			name: localize('trustRequiredOnStartExtensions', "Trust Required To Enable"),
-			ctorDescriptor: new SyncDescriptor(TrustRequiredOnStartExtensionsView, [{}]),
-			when: ContextKeyExpr.has('trustRequiredExtensions'),
+			id: 'workbench.views.extensions.untrustedUnsupportedExtensions',
+			name: localize('untrustedUnsupportedExtensions', "Disabled in Restricted Mode"),
+			ctorDescriptor: new SyncDescriptor(UntrustedWorkspaceUnsupportedExtensionsView, [{}]),
+			when: ContextKeyExpr.has('unsupportedWorkspaceExtensions'),
 		});
 
 		viewDescriptors.push({
-			id: 'workbench.views.extensions.trustRequiredOnDemandExtensions',
-			name: localize('trustRequiredOnDemandExtensions', "Trust Required For Features"),
-			ctorDescriptor: new SyncDescriptor(TrustRequiredOnDemandExtensionsView, [{}]),
-			when: ContextKeyExpr.has('trustRequiredExtensions'),
+			id: 'workbench.views.extensions.untrustedPartiallySupportedExtensions',
+			name: localize('untrustedPartiallySupportedExtensions', "Limited in Restricted Mode"),
+			ctorDescriptor: new SyncDescriptor(UntrustedWorkspacePartiallySupportedExtensionsView, [{}]),
+			when: ContextKeyExpr.has('unsupportedWorkspaceExtensions'),
+		});
+
+		viewDescriptors.push({
+			id: 'workbench.views.extensions.virtualUnsupportedExtensions',
+			name: localize('virtualUnsupportedExtensions', "Disabled in Virtual Workspaces"),
+			ctorDescriptor: new SyncDescriptor(VirtualWorkspaceUnsupportedExtensionsView, [{}]),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('unsupportedWorkspaceExtensions'), ContextKeyExpr.has('virtualWorkspace')),
 		});
 
 		return viewDescriptors;
@@ -439,8 +447,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private hasInstalledWebExtensionsContextKey: IContextKey<boolean>;
 	private builtInExtensionsContextKey: IContextKey<boolean>;
 	private searchBuiltInExtensionsContextKey: IContextKey<boolean>;
-	private trustRequiredExtensionsContextKey: IContextKey<boolean>;
-	private searchTrustRequiredExtensionsContextKey: IContextKey<boolean>;
+	private workspaceUnsupportedExtensionsContextKey: IContextKey<boolean>;
+	private searchWorkspaceUnsupportedExtensionsContextKey: IContextKey<boolean>;
 	private recommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: Delayer<void>;
@@ -458,6 +466,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
@@ -476,8 +485,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.sortByContextKey = ExtensionsSortByContext.bindTo(contextKeyService);
 		this.searchMarketplaceExtensionsContextKey = SearchMarketplaceExtensionsContext.bindTo(contextKeyService);
 		this.searchInstalledExtensionsContextKey = SearchIntalledExtensionsContext.bindTo(contextKeyService);
-		this.trustRequiredExtensionsContextKey = TrustRequiredExtensionsContext.bindTo(contextKeyService);
-		this.searchTrustRequiredExtensionsContextKey = SearchTrustRequiredExtensionsContext.bindTo(contextKeyService);
+		this.workspaceUnsupportedExtensionsContextKey = UnsupportedWorkspaceExtensionsContext.bindTo(contextKeyService);
+		this.searchWorkspaceUnsupportedExtensionsContextKey = SearchUnsupportedWorkspaceExtensionsContext.bindTo(contextKeyService);
 		this.searchOutdatedExtensionsContextKey = SearchOutdatedExtensionsContext.bindTo(contextKeyService);
 		this.searchEnabledExtensionsContextKey = SearchEnabledExtensionsContext.bindTo(contextKeyService);
 		this.searchDisabledExtensionsContextKey = SearchDisabledExtensionsContext.bindTo(contextKeyService);
@@ -515,7 +524,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		const header = append(this.root, $('.header'));
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
-		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
+		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : (this.workspaceTrustService.isWorkpaceTrusted() ? '' : '@workspaceUnsupported');
 
 		this.searchBox = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, header, {
 			triggerCharacters: ['@'],
@@ -669,8 +678,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.searchEnabledExtensionsContextKey.set(ExtensionsListView.isEnabledExtensionsQuery(value));
 		this.searchDisabledExtensionsContextKey.set(ExtensionsListView.isDisabledExtensionsQuery(value));
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isSearchBuiltInExtensionsQuery(value));
-		this.trustRequiredExtensionsContextKey.set(ExtensionsListView.isTrustRequiredExtensionsQuery(value));
-		this.searchTrustRequiredExtensionsContextKey.set(ExtensionsListView.isSearchTrustRequiredExtensionsQuery(value));
+		this.workspaceUnsupportedExtensionsContextKey.set(ExtensionsListView.isWorkspaceUnsupportedExtensionsQuery(value));
+		this.searchWorkspaceUnsupportedExtensionsContextKey.set(ExtensionsListView.isSearchWorkspaceUnsupportedExtensionsQuery(value));
 		this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
 		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);

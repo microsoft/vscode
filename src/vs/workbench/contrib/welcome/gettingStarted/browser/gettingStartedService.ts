@@ -23,15 +23,16 @@ import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, BuiltinGettin
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
+import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -52,10 +53,12 @@ export interface IGettingStartedStep {
 	category: GettingStartedCategory | string
 	when: ContextKeyExpression
 	order: number
-	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
+	/** @deprecated */
+	doneOn?: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
+	completionEvents: string[]
 	media:
 	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
-	| { type: 'markdown', path: URI, base: URI, }
+	| { type: 'markdown', path: URI, base: URI, root: URI }
 }
 
 export interface IGettingStartedWalkthroughDescriptor {
@@ -151,8 +154,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private memento: Memento;
 	private stepProgress: Record<string, StepProgress>;
 
-	private commandListeners = new Map<string, string[]>();
-	private eventListeners = new Map<string, string[]>();
+	private sessionEvents = new Set<string>();
+	private completionListeners = new Map<string, Set<string>>();
 
 	private gettingStartedContributions = new Map<string, IGettingStartedCategory>();
 	private steps = new Map<string, IGettingStartedStep>();
@@ -186,17 +189,22 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			removed.forEach(e => this.unregisterExtensionContributions(e.description));
 		});
 
-		this._register(this.commandService.onDidExecuteCommand(command => this.progressByCommand(command.commandId)));
+		this._register(this.commandService.onDidExecuteCommand(command => this.progressByEvent(`onCommand:${command.commandId}`)));
+
+		this.extensionManagementService.getInstalled().then(installed => {
+			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
+		});
 
 		this._register(this.extensionManagementService.onDidInstallExtension(async e => {
 			if (await this.hostService.hadLastFocus()) {
 				this.sessionInstalledExtensions.add(e.identifier.id);
 			}
+			this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 		}));
 
-		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
-			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		}));
 
 		startEntries.forEach(async (entry, index) => {
@@ -221,13 +229,23 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					this.getStepOverrides(step, category.id);
 					return ({
 						...step,
+						completionEvents: step.completionEvents ?? [],
 						description: parseDescription(step.description),
 						category: category.id,
 						order: index,
 						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
 						media: step.media.type === 'image'
-							? { type: 'image', altText: step.media.altText, path: convertInternalMediaPathsToBrowserURIs(step.media.path) }
-							: { type: 'markdown', path: convertInternalMediaPathToFileURI(step.media.path), base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require) },
+							? {
+								type: 'image',
+								altText: step.media.altText,
+								path: convertInternalMediaPathsToBrowserURIs(step.media.path)
+							}
+							: {
+								type: 'markdown',
+								path: convertInternalMediaPathToFileURI(step.media.path),
+								base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+								root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+							},
 					});
 				}));
 		});
@@ -303,7 +321,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			return;
 		}
 
-		if (!this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions')) {
+		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
 			console.warn('Extension', extension.identifier.value, 'contributes welcome page content but the welcome page extension contribution feature flag has not been set. Set `workbench.welcomePage.experimental.extensionContributions` to begin using this experimental feature.');
 			return;
 		}
@@ -355,7 +373,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
 			},
 				(walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
-					const description = parseDescription(step.description);
+					const description = parseDescription(step.description || '');
 					const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
 					if (buttonDescription) {
 						description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
@@ -367,11 +385,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						media = {
 							type: 'markdown',
 							path: convertExtensionPathToFileURI(step.media.path),
-							base: convertExtensionPathToFileURI(dirname(step.media.path))
+							base: convertExtensionPathToFileURI(dirname(step.media.path)),
+							root: FileAccess.asFileUri(extension.extensionLocation),
 						};
 					} else {
 						const altText = (step.media as any).altText;
-						if (!altText) {
+						if (altText === undefined) {
 							console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
 						}
 						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
@@ -379,9 +398,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 					return ({
 						description, media,
-						doneOn: step.doneOn?.command
-							? { commandExecuted: step.doneOn.command }
-							: { eventFired: 'markDone:' + fullyQualifiedID },
+						completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
 						id: fullyQualifiedID,
 						title: step.title,
 						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
@@ -391,20 +408,34 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				}));
 		});
 
-		if (sectionToOpen) {
+		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') !== 'hide') {
+
+			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
 			for (const group of this.editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
-					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(sectionToOpen);
-					return;
+					if (!group.activeEditor.selectedCategory) {
+						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(sectionToOpen);
+						return;
+					}
 				}
 			}
 
-			if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openToSide') {
-				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {}, SIDE_GROUP);
-			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'open') {
+			// Otherwise, try to find a getting started input somewhere with no selected walkthrough, and open it to this one.
+			for (const group of this.editorGroupsService.groups) {
+				for (const editor of group.editors) {
+					if (editor instanceof GettingStartedInput) {
+						if (!editor.selectedCategory) {
+							editor.selectedCategory = sectionToOpen;
+							group.openEditor(editor, { revealIfOpened: true });
+							return;
+						}
+					}
+				}
+			}
+
+			// Otherwise, just make a new one.
+			if (this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
 				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {});
-			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openInBackground') {
-				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), { inactive: true });
 			}
 		}
 	}
@@ -432,20 +463,69 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private registerDoneListeners(step: IGettingStartedStep) {
-		if (step.doneOn.commandExecuted) {
-			const existing = this.commandListeners.get(step.doneOn.commandExecuted);
-			if (existing) { existing.push(step.id); }
-			else {
-				this.commandListeners.set(step.doneOn.commandExecuted, [step.id]);
+		if (step.doneOn) {
+			if (step.doneOn.commandExecuted) { step.completionEvents.push(`onCommand:${step.doneOn.commandExecuted}`); }
+			if (step.doneOn.eventFired) { step.completionEvents.push(`onEvent:${step.doneOn.eventFired}`); }
+		}
+
+		if (!step.completionEvents.length) {
+			step.completionEvents = coalesce(flatten(
+				step.description
+					.filter(linkedText => linkedText.nodes.length === 1) // only buttons
+					.map(linkedText =>
+						linkedText.nodes
+							.filter(((node): node is ILink => typeof node !== 'string'))
+							.map(({ href }) => {
+								if (href.startsWith('command:')) {
+									return 'onCommand:' + href.slice('command:'.length, href.includes('?') ? href.indexOf('?') : undefined);
+								}
+								if (href.startsWith('https://')) {
+									return 'onLink:' + href;
+								}
+								return undefined;
+							}))));
+		}
+
+		if (!step.completionEvents.length) {
+			step.completionEvents.push('stepSelected');
+		}
+
+		for (let event of step.completionEvents) {
+			const [_, eventType, argument] = /^([^:]*):?(.*)$/.exec(event) ?? [];
+
+			if (!eventType) {
+				console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+				continue;
+			}
+
+			switch (eventType) {
+				case 'onLink': case 'onEvent': break;
+				case 'stepSelected':
+					event = eventType + ':' + step.id;
+					break;
+				case 'onCommand':
+					event = eventType + ':' + argument.replace(/^toSide:/, '');
+					break;
+				case 'extensionInstalled':
+					event = eventType + ':' + argument.toLowerCase();
+					break;
+				default:
+					console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+					continue;
+			}
+
+			this.registerCompletionListener(event, step);
+			if (this.sessionEvents.has(event)) {
+				this.progressStep(step.id);
 			}
 		}
-		if (step.doneOn.eventFired) {
-			const existing = this.eventListeners.get(step.doneOn.eventFired);
-			if (existing) { existing.push(step.id); }
-			else {
-				this.eventListeners.set(step.doneOn.eventFired, [step.id]);
-			}
+	}
+
+	private registerCompletionListener(event: string, step: IGettingStartedStep) {
+		if (!this.completionListeners.has(event)) {
+			this.completionListeners.set(event, new Set());
 		}
+		this.completionListeners.get(event)?.add(step.id);
 	}
 
 	getCategories(): IGettingStartedCategoryWithProgress[] {
@@ -515,14 +595,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidProgressStep.fire(this.getStepProgress(step));
 	}
 
-	private progressByCommand(command: string) {
-		const listening = this.commandListeners.get(command) ?? [];
-		listening.forEach(id => this.progressStep(id));
-	}
-
 	progressByEvent(event: string): void {
-		const listening = this.eventListeners.get(event) ?? [];
-		listening.forEach(id => this.progressStep(id));
+		this.sessionEvents.add(event);
+		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
 	}
 
 	private registerStartEntry(categoryDescriptor: IGettingStartedStartEntryDescriptor): void {

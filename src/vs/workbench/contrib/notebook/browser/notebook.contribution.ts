@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
 import { isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { format } from 'vs/base/common/jsonFormatter';
+import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -22,13 +24,12 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { EditorInput, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NOTEBOOK_WORKING_COPY_TYPE_PREFIX, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -47,7 +48,7 @@ import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/d
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
-import { IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -77,6 +78,9 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -174,35 +178,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 	NotebookEditorSerializer
 );
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerCustomEditorInputFactory(
-	Schemas.vscodeNotebook,
-	new class implements ICustomEditorInputFactory {
-		async createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<NotebookEditorInput> {
-			return instantiationService.invokeFunction(async accessor => {
-				const workingCopyBackupService = accessor.get<IWorkingCopyBackupService>(IWorkingCopyBackupService);
-
-				const backup = await workingCopyBackupService.resolve<NotebookDocumentBackupData>({ resource, typeId: NO_TYPE_ID });
-				if (!backup?.meta) {
-					throw new Error(`No backup found for Notebook editor: ${resource}`);
-				}
-
-				const input = NotebookEditorInput.create(instantiationService, resource, backup.meta.viewType, { startDirty: true });
-				return input;
-			});
-		}
-
-		canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
-			if (editorInput instanceof NotebookEditorInput) {
-				if (isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editorInput.resource.toString() }), backupResource)) {
-					return true;
-				}
-			}
-
-			return false;
-		}
-	}
-);
-
 Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
 	NotebookDiffEditorInput.ID,
 	NotebookDiffEditorSerializer
@@ -265,7 +240,7 @@ class CellContentProvider implements ITextModelContentProvider {
 						return cell.textBuffer.getLineContent(1).substr(0, limit);
 					}
 				};
-				const language = cell.cellKind === CellKind.Markdown ? this._modeService.create('markdown') : (cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
+				const language = cell.cellKind === CellKind.Markup ? this._modeService.create('markdown') : (cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
 				result = this._modelService.createModel(
 					bufferFactory,
 					language,
@@ -286,29 +261,52 @@ class CellContentProvider implements ITextModelContentProvider {
 	}
 }
 
-class CellMetadataContentProvider implements ITextModelContentProvider {
-	private readonly _registration: IDisposable;
+class CellInfoContentProvider {
+	private readonly _disposables: IDisposable[] = [];
 
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
-		this._registration = textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, this);
+		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, {
+			provideTextContent: this.provideMetadataTextContent.bind(this)
+		}));
+
+		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellOutput, {
+			provideTextContent: this.provideOutputTextContent.bind(this)
+		}));
+
+		this._disposables.push(this._labelService.registerFormatter({
+			scheme: Schemas.vscodeNotebookCellMetadata,
+			formatting: {
+				label: '${path} (metadata)',
+				separator: '/'
+			}
+		}));
+
+		this._disposables.push(this._labelService.registerFormatter({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			formatting: {
+				label: '${path} (output)',
+				separator: '/'
+			}
+		}));
 	}
 
 	dispose(): void {
-		this._registration.dispose();
+		this._disposables.forEach(d => d.dispose());
 	}
 
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing) {
 			return existing;
 		}
-		const data = CellUri.parseCellMetadataUri(resource);
-		// const data = parseCellUri(resource);
+
+		const data = CellUri.parseCellUri(resource, Schemas.vscodeNotebookCellMetadata);
 		if (!data) {
 			return null;
 		}
@@ -323,6 +321,46 @@ class CellMetadataContentProvider implements ITextModelContentProvider {
 				const metadataSource = getFormatedMetadataJSON(ref.object.notebook, cell.metadata || {}, cell.language);
 				result = this._modelService.createModel(
 					metadataSource,
+					mode,
+					resource
+				);
+				break;
+			}
+		}
+
+		if (result) {
+			const once = result.onWillDispose(() => {
+				once.dispose();
+				ref.dispose();
+			});
+		}
+
+		return result;
+	}
+
+	async provideOutputTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+
+		const data = CellUri.parseCellUri(resource, Schemas.vscodeNotebookCellOutput);
+		if (!data) {
+			return null;
+		}
+
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
+		let result: ITextModel | null = null;
+
+		const mode = this._modeService.create('json');
+
+		for (const cell of ref.object.notebook.cells) {
+			if (cell.handle === data.handle) {
+				const content = JSON.stringify(cell.outputs);
+				const edits = format(content, undefined, {});
+				const outputSource = applyEdits(content, edits);
+				result = this._modelService.createModel(
+					outputSource,
 					mode,
 					resource
 				);
@@ -374,27 +412,37 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 	}
 }
 
-// makes sure that every dirty notebook gets an editor
-class NotebookFileTracker implements IWorkbenchContribution {
+class NotebookEditorManager implements IWorkbenchContribution {
 
-	private readonly _dirtyListener: IDisposable;
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
+		@INotebookService notebookService: INotebookService,
+		@IEditorGroupsService editorGroups: IEditorGroupsService,
 	) {
 
+		// OPEN notebook editor for models that have turned dirty without being visible in an editor
 		type E = IResolvedNotebookEditorModel;
-		this._dirtyListener = Event.debounce<E, E[]>(
+		this._disposables.add(Event.debounce<E, E[]>(
 			this._notebookEditorModelService.onDidChangeDirty,
 			(last, current) => !last ? [current] : [...last, current],
 			100
-		)(this._openMissingDirtyNotebookEditors, this);
+		)(this._openMissingDirtyNotebookEditors, this));
+
+		// CLOSE notebook editor for models that have no more serializer
+		this._disposables.add(notebookService.onWillRemoveViewType(e => {
+			for (const group of editorGroups.groups) {
+				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
+				group.closeEditors(staleInputs);
+			}
+		}));
 	}
 
 	dispose(): void {
-		this._dirtyListener.dispose();
+		this._disposables.dispose();
 	}
 
 	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
@@ -413,7 +461,7 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	}
 }
 
-class NotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -429,28 +477,62 @@ class NotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchC
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
 		this._register(this._workingCopyEditorService.registerHandler({
-			handles: workingCopy => typeof this.getViewType(workingCopy) === 'string',
-			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this.getViewType(workingCopy),
-			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this.getViewType(workingCopy)!)
+			handles: workingCopy => typeof this._getViewType(workingCopy) === 'string',
+			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy),
+			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!)
 		}));
 	}
 
-	private getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
-		if (workingCopy.typeId.startsWith(NOTEBOOK_WORKING_COPY_TYPE_PREFIX)) {
-			return workingCopy.typeId.substr(NOTEBOOK_WORKING_COPY_TYPE_PREFIX.length);
-		}
+	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
+		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+	}
+}
 
-		return undefined;
+class ComplexNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService
+	) {
+		super();
+
+		this._installHandler();
+	}
+
+	private async _installHandler(): Promise<void> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+
+		this._register(this._workingCopyEditorService.registerHandler({
+			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeNotebook,
+			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editor.resource.toString() }), workingCopy.resource),
+			createEditor: async workingCopy => {
+				// TODO this is really bad and should adopt the `typeId`
+				// for backups instead of storing that information in the
+				// backup.
+				// But since complex notebooks are deprecated, not worth
+				// pushing for it and should eventually delete this code
+				// entirely.
+				const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(workingCopy);
+				if (!backup?.meta) {
+					throw new Error(`No backup found for Notebook editor: ${workingCopy.resource}`);
+				}
+
+				return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, backup.meta.viewType, { startDirty: true });
+			}
+		}));
 	}
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellMetadataContentProvider, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookFileTracker, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
 registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
@@ -500,6 +582,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.experimental.useMarkdownRenderer.description', "Enable/disable using the new extensible markdown renderer."),
 			type: 'boolean',
 			default: true
+		},
+		[CellToolbarVisibility]: {
+			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
+			type: 'string',
+			enum: ['hover', 'click'],
+			default: 'hover'
 		},
 	}
 });

@@ -23,7 +23,7 @@ import { TaskSequentializer } from 'vs/base/common/async';
 import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory, IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { FileWorkingCopyState, IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory, IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -41,6 +41,8 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 	readonly onDidSave = this._onDidSave.event;
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	readonly onDidChangeOrphaned = Event.None;
+	readonly onDidChangeReadonly = Event.None;
 
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
@@ -123,6 +125,10 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	}
 
 	isReadonly(): boolean {
+		return false;
+	}
+
+	isOrphaned(): boolean {
 		return false;
 	}
 
@@ -411,9 +417,13 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	private readonly _onDidChangeDirty = new Emitter<void>();
 	private readonly _onDidSave = new Emitter<void>();
+	private readonly _onDidChangeOrphaned = new Emitter<void>();
+	private readonly _onDidChangeReadonly = new Emitter<void>();
 
 	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 	readonly onDidSave: Event<void> = this._onDidSave.event;
+	readonly onDidChangeOrphaned: Event<void> = this._onDidChangeOrphaned.event;
+	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
 
 	private _workingCopy?: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = new DisposableStore();
@@ -423,7 +433,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
 	}
@@ -433,6 +443,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		this._workingCopy?.dispose();
 		this._onDidChangeDirty.dispose();
 		this._onDidSave.dispose();
+		this._onDidChangeOrphaned.dispose();
+		this._onDidChangeReadonly.dispose();
 		super.dispose();
 	}
 
@@ -448,8 +460,12 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this._workingCopy?.isDirty() ?? false;
 	}
 
+	isOrphaned(): boolean {
+		return this._workingCopy?.hasState(FileWorkingCopyState.ORPHAN) ?? false;
+	}
+
 	isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this._workingCopy?.isReadonly() || this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	revert(options?: IRevertOptions): Promise<void> {
@@ -468,6 +484,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 			this._workingCopy = <IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy;
 			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), this._workingCopyListeners);
 			this._workingCopy.onDidSave(() => this._onDidSave.fire(), this._workingCopyListeners);
+			this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(), this._workingCopyListeners);
+			this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(), this._workingCopyListeners);
 		}
 		assertType(this.isResolved());
 		return this;

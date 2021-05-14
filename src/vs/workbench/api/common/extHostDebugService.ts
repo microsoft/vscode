@@ -31,6 +31,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import * as process from 'vs/base/common/process';
+import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -109,6 +110,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		@IExtHostExtensionService private _extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors private _editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration protected _configurationService: IExtHostConfiguration,
+		@IExtHostEditorTabs protected _editorTabs: IExtHostEditorTabs
 	) {
 		this._configProviderHandleCounter = 0;
 		this._configProviders = [];
@@ -930,7 +932,21 @@ export class ExtHostDebugConsole {
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, workspaceService?: IExtHostWorkspace) {
+	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, editorTabs: IExtHostEditorTabs, workspaceService?: IExtHostWorkspace) {
+		function getActiveUri(): URI | undefined {
+			if (editorService) {
+				const activeEditor = editorService.activeEditor();
+				if (activeEditor) {
+					return activeEditor.document.uri;
+				}
+				const tabs = editorTabs.tabs.filter(tab => tab.isActive);
+				if (tabs.length > 0) {
+					return tabs[0].resource;
+				}
+			}
+			return undefined;
+		}
+
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
 				const found = folders.filter(f => f.name === folderName);
@@ -952,19 +968,17 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				return process.env['VSCODE_EXEC_PATH'];
 			},
 			getFilePath: (): string | undefined => {
-				if (editorService) {
-					const activeEditor = editorService.activeEditor();
-					if (activeEditor) {
-						return path.normalize(activeEditor.document.uri.fsPath);
-					}
+				const activeUri = getActiveUri();
+				if (activeUri) {
+					return path.normalize(activeUri.fsPath);
 				}
 				return undefined;
 			},
 			getWorkspaceFolderPathForFile: (): string | undefined => {
-				if (editorService && workspaceService) {
-					const activeEditor = editorService.activeEditor();
-					if (activeEditor) {
-						const ws = workspaceService.getWorkspaceFolder(activeEditor.document.uri);
+				if (workspaceService) {
+					const activeUri = getActiveUri();
+					if (activeUri) {
+						const ws = workspaceService.getWorkspaceFolder(activeUri);
 						if (ws) {
 							return path.normalize(ws.uri.fsPath);
 						}
@@ -1076,12 +1090,13 @@ export class WorkerExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
-		@IExtHostConfiguration configurationService: IExtHostConfiguration
+		@IExtHostConfiguration configurationService: IExtHostConfiguration,
+		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
+		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs);
 	}
 }

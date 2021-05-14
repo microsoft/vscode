@@ -16,7 +16,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -30,9 +31,10 @@ import { IListRenderer } from 'vs/base/browser/ui/list/list';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
-export const MIN_TABS_WIDGET_WIDTH = 46;
-export const DEFAULT_TABS_WIDGET_WIDTH = 80;
-export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
+export const MIN_TABS_LIST_WIDTH = 46;
+export const DEFAULT_TABS_LIST_WIDTH = 80;
+export const MIDPOINT_LIST_WIDTH = (MIN_TABS_LIST_WIDTH + DEFAULT_TABS_LIST_WIDTH) / 2;
+export const THRESHOLD_ACTIONBAR_WIDTH = 105;
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
@@ -72,8 +74,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			configurationService,
 			keybindingService
 		);
-		this._terminalService.onInstancesChanged(() => this._render());
-		this._terminalService.onInstanceTitleChanged(() => this._render());
+		this._terminalService.onInstancesChanged(() => this.render());
+		this._terminalService.onInstanceTitleChanged(() => this.render());
+		this._terminalService.onInstanceIconChanged(() => this.render());
+		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
@@ -120,13 +124,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		this.onDidChangeSelection(e => {
 			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-			if (this._terminalTabsSingleSelectedContextKey) {
-				const instance = e.elements[0];
-				if (!instance) {
-					return;
-				}
-				this._terminalService.setActiveInstance(instance);
-			}
 		});
 
 		this.onDidChangeFocus(e => {
@@ -147,11 +144,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
-		this._terminalService.onInstancePrimaryStatusChanged(() => this._render());
-		this._render();
+		this.render();
 	}
 
-	private _render(): void {
+	render(): void {
 		this.splice(0, this.length, this._terminalService.terminalInstances);
 	}
 }
@@ -209,7 +205,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < MIDPOINT_WIDGET_WIDTH : false;
+		return this._container ? this._container.clientWidth < MIDPOINT_LIST_WIDTH : false;
+	}
+
+	shouldHideActionBar(): boolean {
+		return this._container ? this._container.clientWidth <= THRESHOLD_ACTIONBAR_WIDTH : false;
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
@@ -243,9 +243,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
+		const hasActionbar = !this.shouldHideActionBar();
 		let label: string;
 		if (!hasText) {
-			template.actionBar.clear();
 			const primaryStatus = instance.statusList.primary;
 			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
 				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
@@ -260,6 +260,16 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			if (instance.icon) {
 				label += ` ${instance.title}`;
 			}
+		}
+
+		const codicon = template.element.querySelector<HTMLElement>('.codicon');
+		if (codicon) {
+			codicon.style.color = instance?.icon?.color?.id || '';
+		}
+
+
+		if (!hasActionbar) {
+			template.actionBar.clear();
 		}
 
 		if (!template.elementDispoables) {
@@ -285,7 +295,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			title: {
 				markdown: new MarkdownString(title),
 				markdownNotSupportedFallback: undefined
-			}
+			},
+			extraClasses: instance.color ? [`terminal-icon-${instance.color}`] : undefined
 		});
 	}
 

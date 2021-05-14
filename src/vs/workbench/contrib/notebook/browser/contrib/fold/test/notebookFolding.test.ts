@@ -16,13 +16,13 @@ suite('Notebook Folding', () => {
 	test('Folding based on markdown cells', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.1', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.1', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -43,13 +43,13 @@ suite('Notebook Folding', () => {
 	test('Top level header in a cell wins', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.1\n# header3', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.1\n# header3', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -75,13 +75,13 @@ suite('Notebook Folding', () => {
 	test('Folding', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.1', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.1', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -97,13 +97,13 @@ suite('Notebook Folding', () => {
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -120,13 +120,13 @@ suite('Notebook Folding', () => {
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -145,13 +145,13 @@ suite('Notebook Folding', () => {
 	test('Nested Folding', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -200,18 +200,18 @@ suite('Notebook Folding', () => {
 	test('Folding Memento', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -229,18 +229,18 @@ suite('Notebook Folding', () => {
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -262,18 +262,18 @@ suite('Notebook Folding', () => {
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -297,18 +297,18 @@ suite('Notebook Folding', () => {
 	test('View Index', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -334,18 +334,18 @@ suite('Notebook Folding', () => {
 
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
-				['# header 2.1\n', 'markdown', CellKind.Markdown, [], {}],
-				['body 2', 'markdown', CellKind.Markdown, [], {}],
-				['body 3', 'markdown', CellKind.Markdown, [], {}],
-				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
-				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+				['# header 2.1\n', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;

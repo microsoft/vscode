@@ -239,7 +239,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				ptyProcess.pause();
 			}
 
-
 			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
@@ -251,8 +250,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		});
-		this._setupTitlePolling(ptyProcess);
 		this._sendProcessId(ptyProcess.pid);
+		this._setupTitlePolling(ptyProcess);
 	}
 
 	override dispose(): void {
@@ -266,7 +265,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _setupTitlePolling(ptyProcess: pty.IPty) {
 		// Send initial timeout async to give event listeners a chance to init
-		setTimeout(() => this._sendProcessTitle(ptyProcess), 0);
+		setTimeout(() => this._sendProcessTitle(ptyProcess));
 		// Setup polling for non-Windows, for Windows `process` doesn't change
 		if (!isWindows) {
 			this._titleInterval = setInterval(() => {

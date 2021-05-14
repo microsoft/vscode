@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -324,6 +324,25 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	hc: PANEL_BORDER
 }, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
+// < --- Banner --- >
+
+export const BANNER_BACKGROUND = registerColor('banner.background', {
+	dark: listActiveSelectionBackground,
+	light: listActiveSelectionBackground,
+	hc: listActiveSelectionBackground
+}, localize('banner.background', "Banner background color. The banner is shown under the title bar of the window."));
+
+export const BANNER_FOREGROUND = registerColor('banner.foreground', {
+	dark: listActiveSelectionForeground,
+	light: listActiveSelectionForeground,
+	hc: listActiveSelectionForeground
+}, localize('banner.foreground', "Banner foreground color. The banner is shown under the title bar of the window."));
+
+export const BANNER_ICON_FOREGROUND = registerColor('banner.iconForeground', {
+	dark: editorInfoForeground,
+	light: editorInfoForeground,
+	hc: editorInfoForeground
+}, localize('banner.iconForeground', "Banner icon color. The banner is shown under the title bar of the window."));
 
 // < --- Status --- >
 

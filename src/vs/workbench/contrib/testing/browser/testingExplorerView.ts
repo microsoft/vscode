@@ -6,11 +6,12 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -18,7 +19,8 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -37,6 +39,7 @@ import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -45,7 +48,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { IActionableTestTreeElement, isActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
@@ -60,12 +63,12 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DebugAction, EditFocusedTest, HideOrShowTestAction, RunAction } from './testExplorerActions';
+import { GoToTest } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
 	private filterActionBar = this._register(new MutableDisposable());
-	private readonly currentSubscription = new MutableDisposable<TestSubscriptionListener>();
+	private readonly currentSubscription = new MutableDisposable<IReference<TestSubscriptionListener>>();
 	private container!: HTMLElement;
 	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly location = TestingContextKeys.explorerLocation.bindTo(this.contextKeyService);;
@@ -73,7 +76,6 @@ export class TestingExplorerView extends ViewPane {
 	constructor(
 		options: IViewletViewOptions,
 		@IWorkspaceTestCollectionService private readonly testCollection: IWorkspaceTestCollectionService,
-		@ITestService testService: ITestService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -82,6 +84,8 @@ export class TestingExplorerView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITestExplorerFilterState private readonly filterState: TestExplorerFilterState,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
 	) {
@@ -94,13 +98,23 @@ export class TestingExplorerView extends ViewPane {
 				relayout.schedule();
 			}
 		}));
+
+		this._register(this.filterState.currentDocumentOnly.onDidChange(() => {
+			this.currentSubscription.value = this.createSubscription();
+			this.viewModel.replaceSubscription(this.currentSubscription.value.object);
+		}));
+
+		this._register(editorService.onDidActiveEditorChange(() => {
+			this.currentSubscription.value = this.createSubscription();
+			this.viewModel.replaceSubscription(this.currentSubscription.value.object);
+		}));
 	}
 
 	/**
 	 * @override
 	 */
 	public override shouldShowWelcome() {
-		return this.viewModel?.shouldShowWelcome ?? true;
+		return this.viewModel?.welcomeExperience === WelcomeExperience.ForWorkspace ?? true;
 	}
 
 	/**
@@ -133,11 +147,11 @@ export class TestingExplorerView extends ViewPane {
 		}));
 
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
-		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription.value);
+		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription.value?.object);
 		this._register(this.viewModel.onChangeWelcomeVisibility(() => this._onDidChangeViewWelcomeState.fire()));
 		this._register(this.viewModel);
 
-		if (!this.viewModel.shouldShowWelcome) {
+		if (this.viewModel.welcomeExperience !== WelcomeExperience.ForWorkspace) {
 			this._onDidChangeViewWelcomeState.fire();
 		}
 
@@ -147,7 +161,7 @@ export class TestingExplorerView extends ViewPane {
 				this.viewModel.replaceSubscription(undefined);
 			} else if (visible && !this.currentSubscription.value) {
 				this.currentSubscription.value = this.createSubscription();
-				this.viewModel.replaceSubscription(this.currentSubscription.value);
+				this.viewModel.replaceSubscription(this.currentSubscription.value.object);
 			}
 		}));
 	}
@@ -197,11 +211,27 @@ export class TestingExplorerView extends ViewPane {
 		this.viewModel.layout();
 	}
 
-	private createSubscription() {
-		const handle = this.testCollection.subscribeToWorkspaceTests();
-		handle.subscription.onBusyProvidersChange(() => this.updateDiscoveryProgress(handle.subscription.busyProviders));
-		return handle;
+	private createSubscription(): IReference<TestSubscriptionListener> {
+		const currentUri = this.editorService.activeEditor?.resource;
+		const handle = this.filterState.currentDocumentOnly.value
+			? (currentUri ? this.testCollection.subscribeToDocumentTests(currentUri) : TestSubscriptionListener.None)
+			: this.testCollection.subscribeToWorkspaceTests();
+		const listener = handle.onBusyProvidersChange(() => this.updateDiscoveryProgress(handle.busyProviders));
+
+		return {
+			object: handle,
+			dispose: () => {
+				handle.dispose();
+				listener.dispose();
+			},
+		};
 	}
+}
+
+const enum WelcomeExperience {
+	None,
+	ForWorkspace,
+	ForDocument,
 }
 
 export class TestingExplorerViewModel extends Disposable {
@@ -212,7 +242,9 @@ export class TestingExplorerViewModel extends Disposable {
 	private readonly revealTimeout = new MutableDisposable();
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
-	private readonly welcomeVisibilityEmitter = new Emitter<boolean>();
+	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
+	private readonly actionRunner = new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined));
+	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;
 
 	/**
 	 * Whether there's a reveal request which has not yet been delivered. This
@@ -234,7 +266,7 @@ export class TestingExplorerViewModel extends Disposable {
 	/**
 	 * Gets whether the welcome should be visible.
 	 */
-	public shouldShowWelcome = false;
+	public welcomeExperience = WelcomeExperience.None;
 
 	public get viewMode() {
 		return this._viewMode.get() ?? TestExplorerViewMode.Tree;
@@ -264,6 +296,7 @@ export class TestingExplorerViewModel extends Disposable {
 		this.tree.resort(null);
 		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
+
 	constructor(
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
@@ -274,7 +307,6 @@ export class TestingExplorerViewModel extends Disposable {
 		@ITestService private readonly testService: ITestService,
 		@ITestExplorerFilterState private readonly filterState: TestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorService editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITestResultService private readonly testResults: ITestResultService,
@@ -283,6 +315,7 @@ export class TestingExplorerViewModel extends Disposable {
 		super();
 
 		this.hasPendingReveal = !!filterState.reveal.value;
+		this.noTestForDocumentWidget = this._register(instantiationService.createInstance(NoTestsForDocumentWidget, listContainer));
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
 
@@ -296,8 +329,8 @@ export class TestingExplorerViewModel extends Disposable {
 			listContainer,
 			new ListDelegate(),
 			[
-				instantiationService.createInstance(TestItemRenderer, labels),
-				instantiationService.createInstance(WorkspaceFolderRenderer, labels),
+				instantiationService.createInstance(TestItemRenderer, labels, this.actionRunner),
+				instantiationService.createInstance(WorkspaceFolderRenderer, labels, this.actionRunner),
 				instantiationService.createInstance(ErrorRenderer),
 			],
 			{
@@ -316,26 +349,7 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		this._register(filterState.currentDocumentOnly.onDidChange(() => {
-			if (!filterState.currentDocumentOnly.value) {
-				this.filter.filterToUri(undefined);
-			} else if (editorService.activeEditor?.resource && this.projection.value?.hasTestInDocument(editorService.activeEditor.resource)) {
-				this.filter.filterToUri(editorService.activeEditor.resource);
-			}
-
-			this.tree.refilter();
-		}));
-
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
-
-		this._register(editorService.onDidActiveEditorChange(() => {
-			if (filterState.currentDocumentOnly.value && editorService.activeEditor?.resource) {
-				if (this.projection.value?.hasTestInDocument(editorService.activeEditor.resource)) {
-					this.filter.filterToUri(editorService.activeEditor.resource);
-					this.tree.refilter();
-				}
-			}
-		}));
 
 		this._register(Event.any(
 			filterState.text.onDidChange,
@@ -345,6 +359,10 @@ export class TestingExplorerViewModel extends Disposable {
 		)(this.tree.refilter, this.tree));
 
 		this._register(this.tree);
+
+		this._register(this.onChangeWelcomeVisibility(e => {
+			this.noTestForDocumentWidget.setVisible(e === WelcomeExperience.ForDocument);
+		}));
 
 		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
 			if (evt.equals(KeyCode.Enter)) {
@@ -371,7 +389,7 @@ export class TestingExplorerViewModel extends Disposable {
 			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
 				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
 				if (!(await this.tryPeekError(selected)) && selected?.test) {
-					this.instantiationService.invokeFunction(accessor => new EditFocusedTest().run(accessor, selected.test!.item, true));
+					this.instantiationService.invokeFunction(accessor => new GoToTest().run(accessor, selected, true));
 				}
 			}
 		}));
@@ -514,12 +532,17 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const actions = getActionableElementActions(this.instantiationService, this.contextKeyService, this.menuService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => actions.value.secondary,
-			getActionsContext: () => element.test.item.extId,
+			getActions: () => [
+				...actions.value.primary,
+				new Separator(),
+				...actions.value.secondary,
+			],
+			getActionsContext: () => element,
 			onHide: () => actions.dispose(),
+			actionRunner: this.actionRunner,
 		});
 	}
 
@@ -548,13 +571,18 @@ export class TestingExplorerViewModel extends Disposable {
 
 	private reevaluateWelcomeState() {
 		const shouldShowWelcome = !!this.listener
-			&& this.listener.subscription.busyProviders === 0
-			&& this.listener.subscription.pendingRootProviders === 0
-			&& this.listener.subscription.isEmpty;
+			&& this.listener.busyProviders === 0
+			&& this.listener.pendingRootProviders === 0
+			&& this.listener.isEmpty;
 
-		if (shouldShowWelcome !== this.shouldShowWelcome) {
-			this.shouldShowWelcome = shouldShowWelcome;
-			this.welcomeVisibilityEmitter.fire(shouldShowWelcome);
+
+		const welcomeExperience = shouldShowWelcome
+			? (this.filterState.currentDocumentOnly.value ? WelcomeExperience.ForDocument : WelcomeExperience.ForWorkspace)
+			: WelcomeExperience.None;
+
+		if (welcomeExperience !== this.welcomeExperience) {
+			this.welcomeExperience = welcomeExperience;
+			this.welcomeVisibilityEmitter.fire(welcomeExperience);
 		}
 	}
 
@@ -687,7 +715,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		}
 
 		for (let e: IActionableTestTreeElement | null = element; e instanceof TestItemTreeElement; e = e!.parent) {
-			return e.test.item.uri.toString() === this._filterToUri
+			return e.test.item.uri?.toString() === this._filterToUri
 				? FilterResult.Include
 				: FilterResult.Exclude;
 		}
@@ -735,7 +763,7 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 
 		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByLocation) {
 			if (a instanceof TestItemTreeElement && b instanceof TestItemTreeElement
-				&& a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
+				&& a.test.item.uri && b.test.item.uri && a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
 				const delta = a.test.item.range.startLineNumber - b.test.item.range.startLineNumber;
 				if (delta !== 0) {
 					return delta;
@@ -744,6 +772,46 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 		}
 
 		return a.label.localeCompare(b.label);
+	}
+}
+
+class NoTestsForDocumentWidget extends Disposable {
+	private readonly el: HTMLElement;
+	constructor(
+		container: HTMLElement,
+		@ITestExplorerFilterState filterState: ITestExplorerFilterState,
+		@IThemeService themeService: IThemeService,
+	) {
+		super();
+		const el = this.el = dom.append(container, dom.$('.testing-no-test-placeholder'));
+		const emptyParagraph = dom.append(el, dom.$('p'));
+		emptyParagraph.innerText = localize('testingNoTest', 'No tests were found in this file.');
+		const buttonLabel = localize('testingFindExtension', 'Show Workspace Tests');
+		const button = this._register(new Button(el, { title: buttonLabel }));
+		button.label = buttonLabel;
+		this._register(attachButtonStyler(button, themeService));
+		this._register(button.onDidClick(() => filterState.currentDocumentOnly.value = false));
+	}
+
+	public setVisible(isVisible: boolean) {
+		this.el.classList.toggle('visible', isVisible);
+	}
+}
+
+class TestExplorerActionRunner extends ActionRunner {
+	constructor(private getSelectedTests: () => ReadonlyArray<TestExplorerTreeElement>) {
+		super();
+	}
+
+	override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<any> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const selection = this.getSelectedTests();
+		const contextIsSelected = selection.some(s => s === context);
+		const actualContext = contextIsSelected ? selection : [context];
+		await action.run(...actualContext.filter(isActionableTestTreeElement));
 	}
 }
 
@@ -856,6 +924,7 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 	implements ITreeRenderer<T, FuzzyScore, IActionableElementTemplateData> {
 	constructor(
 		protected readonly labels: ResourceLabels,
+		private readonly actionRunner: TestExplorerActionRunner,
 		private readonly menuService: IMenuService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly instantiationService: IInstantiationService,
@@ -880,6 +949,7 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 
 		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(testingHiddenIcon)));
 		const actionBar = new ActionBar(wrapper, {
+			actionRunner: this.actionRunner,
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action)
@@ -913,9 +983,10 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 	}
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
-		const actions = getActionableElementActions(this.instantiationService, this.contextKeyService, this.menuService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, element);
 		data.elementDisposable.push(actions);
 		data.actionBar.clear();
+		data.actionBar.context = element;
 		data.actionBar.push(actions.value.primary, { icon: true, label: false });
 	}
 }
@@ -925,12 +996,13 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 
 	constructor(
 		labels: ResourceLabels,
+		actionRunner: TestExplorerActionRunner,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITestService private readonly testService: ITestService
 	) {
-		super(labels, menuService, contextKeyService, instantiationService);
+		super(labels, actionRunner, menuService, contextKeyService, instantiationService);
 	}
 
 	/**
@@ -973,11 +1045,12 @@ class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspa
 
 	constructor(
 		labels: ResourceLabels,
+		actionRunner: TestExplorerActionRunner,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(labels, menuService, contextKeyService, instantiationService);
+		super(labels, actionRunner, menuService, contextKeyService, instantiationService);
 	}
 
 	/**
@@ -1005,7 +1078,6 @@ class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspa
 }
 
 const getActionableElementActions = (
-	instantionService: IInstantiationService,
 	contextKeyService: IContextKeyService,
 	menuService: IMenuService,
 	element: IActionableTestTreeElement,
@@ -1013,33 +1085,18 @@ const getActionableElementActions = (
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
 	const contextOverlay = contextKeyService.createOverlay([
 		['view', Testing.ExplorerViewId],
-		[TestingContextKeys.testItemExtId.key, test?.item.extId]
+		[TestingContextKeys.testItemExtId.key, test?.item.extId],
+		[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
+		[TestingContextKeys.hasDebuggableTests.key, !Iterable.isEmpty(element.debuggable)],
+		[TestingContextKeys.hasRunnableTests.key, !Iterable.isEmpty(element.runnable)],
 	]);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 
 	try {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const running = element.state === TestResultState.Running;
-		if (!Iterable.isEmpty(element.runnable)) {
-			const run = instantionService.createInstance(RunAction, element.runnable, running);
-			primary.push(run);
-			secondary.push(run);
-		}
-
-		if (!Iterable.isEmpty(element.debuggable)) {
-			const debug = instantionService.createInstance(DebugAction, element.debuggable, running);
-			primary.push(debug);
-			secondary.push(debug);
-		}
-
-		if (test) {
-			secondary.push(instantionService.createInstance(HideOrShowTestAction, test.item.extId));
-		}
-
 		const result = { primary, secondary };
 		const actionsDisposable = createAndFillInActionBarActions(menu, {
-			arg: test?.item,
 			shouldForwardArgs: true,
 		}, result, 'inline');
 

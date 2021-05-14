@@ -114,6 +114,14 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
+	async updateTitle(id: number, title: string): Promise<void> {
+		this._throwIfNoPty(id).setTitle(title);
+	}
+
+	async updateIcon(id: number, icon: string, color?: string): Promise<void> {
+		this._throwIfNoPty(id).setIcon(icon, color);
+	}
+
 	async detachFromProcess(id: number): Promise<void> {
 		this._throwIfNoPty(id).detach();
 	}
@@ -242,7 +250,8 @@ export class PtyService extends Disposable implements IPtyService {
 			workspaceName: persistentProcess.workspaceName,
 			cwd,
 			isOrphan,
-			icon: persistentProcess.icon
+			icon: persistentProcess.icon,
+			color: persistentProcess.color
 		};
 	}
 
@@ -289,10 +298,22 @@ export class PersistentTerminalProcess extends Disposable {
 
 	private _pid = -1;
 	private _cwd = '';
+	private _title: string | undefined;
+
 
 	get pid(): number { return this._pid; }
-	get title(): string { return this._terminalProcess.currentTitle; }
+	get title(): string { return this._title || this._terminalProcess.currentTitle; }
 	get icon(): string | undefined { return this._icon; }
+	get color(): string | undefined { return this._color; }
+
+	setTitle(title: string): void {
+		this._title = title;
+	}
+
+	setIcon(icon: string, color?: string): void {
+		this._icon = icon;
+		this._color = color;
+	}
 
 	constructor(
 		private _persistentProcessId: number,
@@ -302,7 +323,8 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
 		private readonly _logService: ILogService,
-		private readonly _icon?: string
+		private _icon?: string,
+		private _color?: string
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);

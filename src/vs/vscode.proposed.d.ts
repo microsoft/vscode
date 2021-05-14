@@ -393,6 +393,25 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A message regarding a completed search.
+	 */
+	export interface TextSearchCompleteMessage {
+		/**
+		 * Markdown text of the message.
+		 */
+		text: string,
+		/**
+		 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+		 * Messaged are untrusted by default.
+		 */
+		trusted?: boolean,
+		/**
+		 * The message type, this affects how the message will be rendered.
+		 */
+		type: TextSearchCompleteMessageType,
+	}
+
+	/**
 	 * Information collected when text search is complete.
 	 */
 	export interface TextSearchComplete {
@@ -411,8 +430,10 @@ declare module 'vscode' {
 		 * Messages with "Information" tyle support links in markdown syntax:
 		 * - Click to [run a command](command:workbench.action.OpenQuickPick)
 		 * - Click to [open a website](https://aka.ms)
+		 *
+		 * Commands may optionally return { triggerSearch: true } to signal to VS Code that the original search should run be agian.
 		 */
-		message?: { text: string, type: TextSearchCompleteMessageType } | { text: string, type: TextSearchCompleteMessageType }[];
+		message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 	}
 
 	/**
@@ -864,6 +885,8 @@ declare module 'vscode' {
 		onDidChangeName?: Event<string>;
 	}
 
+	//#endregion
+
 	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
 
 	export interface TerminalOptions {
@@ -1011,23 +1034,68 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/122922, Notebook, Finalization 1
 
+	/**
+	 * A notebook cell kind.
+	 */
 	export enum NotebookCellKind {
-		// todo@API rename/rethink as "Markup" cell
-		Markdown = 1,
+
+		/**
+		 * A markup-cell is formatted source that is used for display.
+		 */
+		Markup = 1,
+
+		/**
+		 * A code-cell is source that can be {@link NotebookController executed} and that
+		 * produces {@link NotebookCellOutput output}.
+		 */
 		Code = 2
 	}
 
+	/**
+	 * Represents a cell of a {@link NotebookDocument notebook}, either a {@link NotebookCellKind.Code code}-cell
+	 * or {@link NotebookCellKind.Markup markup}-cell.
+	 *
+	 * NotebookCell instances are immutable and are kept in sync for as long as they are part of their notebook.
+	 */
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
+
+		/**
+		 * The index of this cell in its {@link NotebookDocument.cellAt containing notebook}. The
+		 * index is updated when a cell is moved within its notebook. The index is `-1`
+		 * when the cell has been removed from its notebook.
+		 */
 		readonly index: number;
+
+		/**
+		 * The {@link NotebookDocument notebook} that contains this cell.
+		 */
 		readonly notebook: NotebookDocument;
+
+		/**
+		 * The kind of this cell.
+		 */
 		readonly kind: NotebookCellKind;
+
+		/**
+		 * The {@link TextDocument text} of this cell, represented as text document.
+		 */
 		readonly document: TextDocument;
+
+		/**
+		 * The metadata of this cell.
+		 */
 		readonly metadata: NotebookCellMetadata
+
+		/**
+		 * The outputs of this cell.
+		 */
 		readonly outputs: ReadonlyArray<NotebookCellOutput>;
 
-		// todo@API maybe just executionSummary or lastExecutionSummary?
-		readonly latestExecutionSummary: NotebookCellExecutionSummary | undefined;
+		/**
+		 * The most recent {@link NotebookCellExecutionSummary excution summary} for this cell.
+		 */
+		readonly executionSummary?: NotebookCellExecutionSummary;
 	}
 
 	/**
@@ -1224,42 +1292,109 @@ declare module 'vscode' {
 		// static textplain(value:string): NotebookCellOutputItem;
 		// static errortrace(value:any): NotebookCellOutputItem;
 
+		/**
+		 * Creates `application/x.notebook.error`
+		 *
+		 * @param err An error for which an output item is wanted
+		 */
+		static error(err: Error): NotebookCellOutputItem;
+
 		mime: string;
 
 		//todo@API string or Unit8Array?
+		// value: string | Uint8Array | unknown;
 		value: unknown;
 
-		metadata?: Record<string, any>;
+		metadata?: { [key: string]: any };
 
-		constructor(mime: string, value: unknown, metadata?: Record<string, any>);
+		constructor(mime: string, value: unknown, metadata?: { [key: string]: any });
 	}
 
 	// @jrieken transient
 	export class NotebookCellOutput {
 		id: string;
 		outputs: NotebookCellOutputItem[];
-		metadata?: Record<string, any>;
-		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, any>);
-		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: Record<string, any>);
+		metadata?: { [key: string]: any };
+		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
+		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
+	/**
+	 * NotebookCellData is the raw representation of notebook cells. Its is part of {@link NotebookData `NotebookData`}.
+	 */
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
+
+		/**
+		 * The {@link NotebookCellKind kind} of this cell data.
+		 */
 		kind: NotebookCellKind;
-		// todo@API better names: value? text?
-		source: string;
-		// todo@API languageId (as in TextDocument)
-		language: string;
+
+		/**
+		 * The source value of this cell data - either source code or formatted text.
+		 */
+		value: string;
+
+		/**
+		 * The language identifier of the source value of this cell data. Any value from
+		 * {@link languages.getLanguages `getLanguages`} is possible.
+		 */
+		languageId: string;
+
+		/**
+		 * The outputs of this cell data.
+		 */
 		outputs?: NotebookCellOutput[];
+
+		/**
+		 * The metadata of this cell data.
+		 */
 		metadata?: NotebookCellMetadata;
-		// todo@API just executionSummary or lastExecutionSummary
-		latestExecutionSummary?: NotebookCellExecutionSummary;
-		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: NotebookCellExecutionSummary);
+
+		/**
+		 * The execution summary of this cell data.
+		 */
+		executionSummary?: NotebookCellExecutionSummary;
+
+		/**
+		 * Create new cell data. Minimal cell data specifies its kind, its source value, and the
+		 * language identifier of its source.
+		 *
+		 * @param kind The kind.
+		 * @param value The source value.
+		 * @param languageId The language identifier of the source value.
+		 * @param outputs //TODO@API remove ctor?
+		 * @param metadata //TODO@API remove ctor?
+		 * @param executionSummary //TODO@API remove ctor?
+		 */
+		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
 	}
 
+	/**
+	 * NotebookData is the raw representation of notebooks.
+	 *
+	 * Extensions are responsible to create {@link NotebookData `NotebookData`} so that the editor
+	 * can create a {@link NotebookDocument `NotebookDocument`}.
+	 *
+	 * @see {@link NotebookSerializer}
+	 */
 	export class NotebookData {
+		/**
+		 * The cell data of this notebook data.
+		 */
 		cells: NotebookCellData[];
+
+		/**
+		 * The metadata of this notebook data.
+		 */
 		metadata: NotebookDocumentMetadata;
+
+		/**
+		 * Create new notebook data.
+		 *
+		 * @param cells An array of cell data.
+		 * @param metadata Notebook metadata.
+		 */
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
@@ -1375,6 +1510,7 @@ declare module 'vscode' {
 		endTime?: number;
 	}
 
+	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecutionTask
 	/**
 	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
 	 * {@link notebook.createNotebookCellExecutionTask `createNotebookCellExecutionTask`} is called, the cell
@@ -1473,9 +1609,9 @@ declare module 'vscode' {
 		dispose(): void;
 
 		/**
-		 * A kernel can apply to one or many notebook documents but a notebook has only one active
-		 * kernel. This event fires whenever a notebook has been associated to a kernel or when
-		 * that association has been removed.
+		 * An event that fires whenever a controller has been selected for a notebook document. Selecting a controller
+		 * for a notebook is a user gesture and happens either explicitly or implicitly when interacting while a
+		 * controller was suggested.
 		 */
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
@@ -1583,7 +1719,45 @@ declare module 'vscode' {
 	export namespace notebook {
 
 		/**
+		 * All notebook documents currently known to the editor.
+		 */
+		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
+
+		/**
+		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
+		 * the notebook is loaded and the {@link notebook.onDidOpenNotebookDocument `onDidOpenNotebookDocument`}-event fires.
+		 *
+		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
+		 * {@link notebook.onDidCloseNotebookDocument `onDidCloseNotebookDocument`}-event can occur at any time after.
+		 *
+		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
+		 * can be showns in a notebook editor but it can also be used for other things.
+		 *
+		 * @param uri The resource to open.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
+		 */
+		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
+		 */
+		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is disposed.
+		 *
+		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed.
+		 *
+		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
+		 * for a notebook that has not been shown in an editor.
+		 */
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		/**
 		 * Register a {@link NotebookSerializer notebook serializer}.
+		 *
+		 * A notebook serializer must to be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
+		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
 		 *
 		 * @param notebookType A notebook.
 		 * @param serializer A notebook serialzier.
@@ -1605,9 +1779,9 @@ declare module 'vscode' {
 
 		// todo@API what is this used for?
 		// todo@API qualify cell, ...NotebookCell...
-		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
+		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 
-		export function registerNotebookCellStatusBarItemProvider(selector: NotebookSelector, provider: NotebookCellStatusBarItemProvider): Disposable;
+		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
 	//#endregion
@@ -1736,17 +1910,10 @@ declare module 'vscode' {
 
 	export namespace notebook {
 
-		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
 
-		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
-		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
-		/**
-		 * All currently known notebook documents.
-		 */
-		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
 		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 
@@ -1819,20 +1986,61 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/119949, Notebook (deprecated)
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorDecorationType
+
+	export interface NotebookEditor {
+		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookRange): void;
+	}
+
+	export interface NotebookDecorationRenderOptions {
+		backgroundColor?: string | ThemeColor;
+		borderColor?: string | ThemeColor;
+		top: ThemableDecorationAttachmentRenderOptions;
+	}
+
+	export interface NotebookEditorDecorationType {
+		readonly key: string;
+		dispose(): void;
+	}
 
 	export namespace notebook {
-		/** @deprecated use NotebookController */
-		export function createNotebookCellExecutionTask(uri: Uri, index: number, kernelId: string): NotebookCellExecutionTask | undefined;
+		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
 	}
 
-	export interface NotebookFilter {
-		readonly viewType?: string;
-		readonly scheme?: string;
-		readonly pattern?: GlobPattern;
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookConcatTextDocument
+
+	export namespace notebook {
+		/**
+		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
+		 * but a selector can be provided to narrow to down the set of cells.
+		 *
+		 * @param notebook
+		 * @param selector
+		 */
+		// todo@API really needed? we didn't find a user here
+		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 	}
 
-	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
+	export interface NotebookConcatTextDocument {
+		readonly uri: Uri;
+		readonly isClosed: boolean;
+		dispose(): void;
+		readonly onDidChange: Event<void>;
+		readonly version: number;
+		getText(): string;
+		getText(range: Range): string;
+
+		offsetAt(position: Position): number;
+		positionAt(offset: number): Position;
+		validateRange(range: Range): Range;
+		validatePosition(position: Position): Position;
+
+		locationAt(positionOrRange: Position | Range): Location;
+		positionAt(location: Location): Position;
+		contains(uri: Uri): boolean;
+	}
 
 	//#endregion
 
@@ -1888,17 +2096,6 @@ declare module 'vscode' {
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
-	export interface NotebookDocumentContentOptions {
-		/**
-		 * Not ready for production or development use yet.
-		 */
-		viewOptions?: {
-			displayName: string;
-			filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern; })[];
-			exclusive?: boolean;
-		};
-	}
-
 	export namespace notebook {
 
 		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
@@ -1908,60 +2105,19 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorDecorationType
+	//#region https://github.com/microsoft/vscode/issues/106744, LiveShare
 
-	export interface NotebookEditor {
-		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookRange): void;
-	}
-
-	export interface NotebookDecorationRenderOptions {
-		backgroundColor?: string | ThemeColor;
-		borderColor?: string | ThemeColor;
-		top: ThemableDecorationAttachmentRenderOptions;
-	}
-
-	export interface NotebookEditorDecorationType {
-		readonly key: string;
-		dispose(): void;
+	export interface NotebookRegistrationData {
+		displayName: string;
+		filenamePattern: (GlobPattern | { include: GlobPattern; exclude: GlobPattern; })[];
+		exclusive?: boolean;
 	}
 
 	export namespace notebook {
-		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/106744, NotebookConcatTextDocument
-
-	export namespace notebook {
-		/**
-		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
-		 * but a selector can be provided to narrow to down the set of cells.
-		 *
-		 * @param notebook
-		 * @param selector
-		 */
-		// todo@API really needed? we didn't find a user here
-		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
-	}
-
-	export interface NotebookConcatTextDocument {
-		readonly uri: Uri;
-		readonly isClosed: boolean;
-		dispose(): void;
-		readonly onDidChange: Event<void>;
-		readonly version: number;
-		getText(): string;
-		getText(range: Range): string;
-
-		offsetAt(position: Position): number;
-		positionAt(offset: number): Position;
-		validateRange(range: Range): Range;
-		validatePosition(position: Position): Position;
-
-		locationAt(positionOrRange: Position | Range): Location;
-		positionAt(location: Location): Position;
-		contains(uri: Uri): boolean;
+		// SPECIAL overload with NotebookRegistrationData
+		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions, registrationData?: NotebookRegistrationData): Disposable;
+		// SPECIAL overload with NotebookRegistrationData
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions, registration?: NotebookRegistrationData): Disposable;
 	}
 
 	//#endregion
@@ -2567,7 +2723,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or directory.
 		 */
-		uri: Uri;
+		uri?: Uri;
 
 		/**
 		 * Display name describing the test item.
@@ -2590,7 +2746,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or directory.
 		 */
-		readonly uri: Uri;
+		readonly uri?: Uri;
 
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
@@ -2822,7 +2978,7 @@ declare module 'vscode' {
 		/**
 		 * URI this TestItem is associated with. May be a file or file.
 		 */
-		readonly uri: Uri;
+		readonly uri?: Uri;
 
 		/**
 		 * Display name describing the test case.
@@ -3037,6 +3193,7 @@ declare module 'vscode' {
 	export interface OpenEditorInfo {
 		name: string;
 		resource: Uri;
+		isActive: boolean;
 	}
 
 	export namespace window {
@@ -3081,9 +3238,23 @@ declare module 'vscode' {
 		Ignore = 5
 	}
 
-	export interface PortAttributes {
+	export class PortAttributes {
+		/**
+		 * The port number associated with this this set of attributes.
+		 */
 		port: number;
-		autoForwardAction: PortAutoForwardAction
+
+		/**
+		 * The action to be taken when this port is detected for auto forwarding.
+		 */
+		autoForwardAction: PortAutoForwardAction;
+
+		/**
+		 * Creates a new PortAttributes object
+		 * @param port the port number
+		 * @param autoForwardAction the action to take when this port is detected
+		 */
+		constructor(port: number, autoForwardAction: PortAutoForwardAction);
 	}
 
 	export interface PortAttributesProvider {
@@ -3112,7 +3283,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	// region https://github.com/microsoft/vscode/issues/119904 @eamodio
+	//#region https://github.com/microsoft/vscode/issues/119904 @eamodio
 
 	export interface SourceControlInputBox {
 
@@ -3120,6 +3291,35 @@ declare module 'vscode' {
 		 * Sets focus to the input.
 		 */
 		focus(): void;
+	}
+
+	//#endregion
+
+	//#region FileSystemProvider stat readonly - https://github.com/microsoft/vscode/issues/73122
+
+	export enum FilePermission {
+		/**
+		 * The file is readonly.
+		 *
+		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered  with
+		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
+		 * is set. As a consequence, it is not possible to have a readonly file system provider
+		 * registered where some `FileStat` are not readonly.
+		 */
+		Readonly = 1
+	}
+
+	/**
+	 * The `FileStat`-type represents metadata about a file
+	 */
+	export interface FileStat {
+
+		/**
+		 * The permissions of the file, e.g. whether the file is readonly.
+		 *
+		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
+		 */
+		permissions?: FilePermission;
 	}
 
 	//#endregion

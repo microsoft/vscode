@@ -26,7 +26,7 @@ export class DeleteOperations {
 
 			if (deleteSelection.isEmpty()) {
 				let position = selection.getPosition();
-				let rightOfPosition = MoveOperations.right(config, model, position.lineNumber, position.column);
+				let rightOfPosition = MoveOperations.right(config, model, position);
 				deleteSelection = new Range(
 					rightOfPosition.lineNumber,
 					rightOfPosition.column,
@@ -194,17 +194,19 @@ export class DeleteOperations {
 			}
 		}
 
-		return Range.fromPositions(DeleteOperations.decreasePositionInModelBy1Column(position, model) || position, position);
+		return Range.fromPositions(DeleteOperations.getPositionAfterDeleteLeft(position, model), position);
 	}
 
-	private static decreasePositionInModelBy1Column(position: Position, model: ICursorSimpleModel): Position | undefined {
+	private static getPositionAfterDeleteLeft(position: Position, model: ICursorSimpleModel): Position {
 		if (position.column > 1) {
-			return position.delta(0, -1);
+			// Convert 1-based columns to 0-based offsets and back.
+			const idx = strings.getLeftDeleteOffset(position.column - 1, model.getLineContent(position.lineNumber));
+			return position.with(undefined, idx + 1);
 		} else if (position.lineNumber > 1) {
 			const newLine = position.lineNumber - 1;
 			return new Position(newLine, model.getLineMaxColumn(newLine));
 		} else {
-			return undefined;
+			return position;
 		}
 	}
 

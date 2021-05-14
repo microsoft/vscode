@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import * as DOM from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -12,14 +13,11 @@ import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/commo
 import { CodeCellRenderTemplate, ICellOutputViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellUri, NotebookCellOutputsSplice, IOrderedMimeType, mimeTypeIsAlwaysSecure, INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellUri, NotebookCellOutputsSplice, IOrderedMimeType, INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -125,6 +123,9 @@ export class CellOutputElement extends Disposable {
 		}
 
 		const notebookUri = CellUri.parse(this.viewCell.uri)?.notebook;
+		if (!notebookUri) {
+			return undefined;
+		}
 
 		if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
 			const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
@@ -357,8 +358,7 @@ export class CellOutputContainer extends Disposable {
 		private templateData: CodeCellRenderTemplate,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@ITextFileService private readonly textFileService: ITextFileService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -444,18 +444,7 @@ export class CellOutputContainer extends Disposable {
 	}
 
 	private _calcuateOutputsToRender(): ICellOutputViewModel[] {
-		const outputs = this.viewCell.outputsViewModels.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputsViewModels.length));
-		if (!this.notebookEditor.viewModel!.metadata.trusted) {
-			// not trusted
-			const secureOutput = outputs.filter(output => {
-				const mimeTypes = output.model.outputs.map(op => op.mime);
-				return mimeTypes.some(mimeTypeIsAlwaysSecure);
-			});
-
-			return secureOutput;
-		}
-
-		return outputs;
+		return this.viewCell.outputsViewModels.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputsViewModels.length));
 	}
 
 	private _outputHeightTimer: any = null;
@@ -574,20 +563,7 @@ export class CellOutputContainer extends Disposable {
 			actionHandler: {
 				callback: (content) => {
 					if (content === 'command:workbench.action.openLargeOutput') {
-						const content = JSON.stringify(this.viewCell.outputsViewModels.map(output => {
-							return output.toRawJSON();
-						}));
-						const edits = format(content, undefined, {});
-						const metadataSource = applyEdits(content, edits);
-
-						return this.textFileService.untitled.resolve({
-							associatedResource: undefined,
-							mode: 'json',
-							initialValue: metadataSource
-						}).then(model => {
-							const resource = model.resource;
-							this.openerService.open(resource);
-						});
+						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.viewModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
 					}
 
 					return;

@@ -457,10 +457,12 @@ interface IWorkbench {
 	}
 
 	env: {
+		readonly uriScheme: string;
 		/**
 		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+		openUri(uri: URI): Promise<boolean>;
 	}
 
 	/**
@@ -559,6 +561,16 @@ namespace env {
 		const workbench = await workbenchPromise;
 
 		return workbench.env.retrievePerformanceMarks();
+	}
+
+	export async function getUriScheme(): Promise<string> {
+		const workbench = await workbenchPromise;
+		return workbench.env.uriScheme;
+	}
+
+	export async function openUri(target: URI): Promise<boolean> {
+		const workbench = await workbenchPromise;
+		return workbench.env.openUri(target);
 	}
 }
 
