@@ -546,9 +546,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
-		this._processManager.onProcessReady(() => {
+		this._processManager.onProcessReady((processTraits) => {
 			if (this._processManager.os === OperatingSystem.Windows) {
-				xterm.setOption('windowsMode', true);
+				xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
 				// Force line data to be sent when the cursor is moved, the main purpose for
 				// this is because ConPTY will often not do a line feed but instead move the
 				// cursor, in which case we still want to send the current line's data to tasks.

@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -281,7 +281,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
 	readonly onProcessReplay = this._onProcessReplay.event;
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
@@ -377,7 +377,7 @@ export class PersistentTerminalProcess extends Disposable {
 			}
 			this._isStarted = true;
 		} else {
-			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd });
+			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() <= 19041 });
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 			this._onProcessShellTypeChanged.fire(this._terminalProcess.shellType);
 			this.triggerReplay();
