@@ -25,7 +25,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EMPTY_WORKSPACE, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -448,11 +448,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('workspace.trust.startupPrompt.never', "Do not ask for trust when an untrusted workspace is opened."),
 				]
 			},
-			[WORKSPACE_TRUST_EMPTY_WORKSPACE]: {
+			[WORKSPACE_TRUST_EMPTY_WINDOW]: {
 				type: 'boolean',
 				default: false,
 				included: !isWeb,
-				description: localize('workspace.trust.emptyWorkspace.description', "Controls whether or not the empty workspace is trusted within VS Code."),
+				description: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code."),
 				scope: ConfigurationScope.APPLICATION
 			}
 		}
