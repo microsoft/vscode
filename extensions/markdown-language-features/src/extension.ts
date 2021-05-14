@@ -78,6 +78,7 @@ function registerMarkdownCommands(
 	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
+	commandManager.register(new commands.ShowStaticPreviewCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand(previewManager));
 	commandManager.register(new commands.RefreshPreviewCommand(previewManager, engine));
 	commandManager.register(new commands.MoveCursorToPositionCommand());

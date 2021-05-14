@@ -490,6 +490,8 @@ export interface ManagedMarkdownPreview {
 
 export class StaticMarkdownPreview extends Disposable implements ManagedMarkdownPreview {
 
+	// public static readonly viewType = 'markdown.staticPreview';
+
 	public static revive(
 		resource: vscode.Uri,
 		webview: vscode.WebviewPanel,
@@ -503,6 +505,26 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 	): StaticMarkdownPreview {
 		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, engine, scrollLine);
 	}
+
+	// public static create(
+	// 	resource: vscode.Uri,
+	// 	contentProvider: MarkdownContentProvider,
+	// 	previewConfigurations: MarkdownPreviewConfigurationManager,
+	// 	topmostLineMonitor: TopmostLineMonitor,
+	// 	logger: Logger,
+	// 	contributionProvider: MarkdownContributionProvider,
+	// 	engine: MarkdownEngine,
+	// 	scrollLine?: number,
+	// ): StaticMarkdownPreview {
+
+	// 	// const webview = vscode.window.createWebviewPanel(
+	// 	// 	StaticMarkdownPreview.viewType,
+	// 	// 	StaticMarkdownPreview.getPreviewTitle(resource, false),
+	// 	// 	previewColumn, { enableFindWidget: true, });
+
+	// 	vscode.window
+	// 	return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, engine, scrollLine);
+	// }
 
 	private readonly preview: MarkdownPreview;
 
@@ -582,6 +604,10 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 	public get resourceColumn() {
 		return this._webviewPanel.viewColumn || vscode.ViewColumn.One;
 	}
+
+	// private static getPreviewTitle(resource: vscode.Uri): string {
+	// 	return localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
+	// }
 }
 
 interface DynamicPreviewInput {

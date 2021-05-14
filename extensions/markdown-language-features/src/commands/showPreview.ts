@@ -12,6 +12,7 @@ import { TelemetryReporter } from '../telemetryReporter';
 interface ShowPreviewSettings {
 	readonly sideBySide?: boolean;
 	readonly locked?: boolean;
+	readonly static?: boolean;
 }
 
 async function showPreview(
@@ -38,6 +39,14 @@ async function showPreview(
 	}
 
 	const resourceColumn = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One;
+
+	if (previewSettings.static) {
+		if (!vscode.window.activeTextEditor) {
+			return;
+		}
+		webviewManager.resolveCustomTextEditorFromCurrentPanel(vscode.window.activeTextEditor.document);
+	}
+
 	webviewManager.openDynamicPreview(resource, {
 		resourceColumn: resourceColumn,
 		previewColumn: previewSettings.sideBySide ? resourceColumn + 1 : resourceColumn,
@@ -83,8 +92,6 @@ export class ShowPreviewToSideCommand implements Command {
 		});
 	}
 }
-
-
 export class ShowLockedPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showLockedPreviewToSide';
 
@@ -97,6 +104,21 @@ export class ShowLockedPreviewToSideCommand implements Command {
 		showPreview(this.webviewManager, this.telemetryReporter, uri, {
 			sideBySide: true,
 			locked: true
+		});
+	}
+}
+
+export class ShowStaticPreviewCommand implements Command {
+	public readonly id = 'markdown.showStaticPreview';
+
+	public constructor(
+		private readonly webviewManager: MarkdownPreviewManager,
+		private readonly telemetryReporter: TelemetryReporter
+	) { }
+
+	public execute(uri?: vscode.Uri) {
+		showPreview(this.webviewManager, this.telemetryReporter, uri, {
+			static: true
 		});
 	}
 }

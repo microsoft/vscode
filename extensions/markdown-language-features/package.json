@@ -23,6 +23,7 @@
     "onCommand:markdown.showPreview",
     "onCommand:markdown.showPreviewToSide",
     "onCommand:markdown.showLockedPreviewToSide",
+    "onCommand:markdown.showStaticPreview",
     "onCommand:markdown.showSource",
     "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
@@ -69,6 +70,12 @@
       {
         "command": "markdown.showLockedPreviewToSide",
         "title": "%markdown.showLockedPreviewToSide.title%",
+        "category": "Markdown",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "markdown.showStaticPreview",
+        "title": "%markdown.showStaticPreview.title%",
         "category": "Markdown",
         "icon": "$(open-preview)"
       },
@@ -150,6 +157,11 @@
         },
         {
           "command": "markdown.showLockedPreviewToSide",
+          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "group": "navigation"
+        },
+        {
+          "command": "markdown.showStaticPreview",
           "when": "editorLangId == markdown && !notebookEditorFocused",
           "group": "navigation"
         },
