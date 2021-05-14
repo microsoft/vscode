@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
+import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -22,7 +22,7 @@ interface TerminalData {
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
 const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.play, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.active', "Task is running") };
 const SUCCEEDED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeeded', "Task succeeded") };
-const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Warning, tooltip: nls.localize('taskTerminalStatus.errors', "Task has errors") };
+const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errors', "Task has errors") };
 
 export class TaskTerminalStatus extends Disposable {
 	private terminalMap: Map<Task, TerminalData> = new Map();
@@ -31,7 +31,7 @@ export class TaskTerminalStatus extends Disposable {
 		super();
 		this._register(taskService.onDidStateChange((event) => {
 			switch (event.kind) {
-				case TaskEventKind.Start:
+				case TaskEventKind.ProcessStarted:
 				case TaskEventKind.Active: this.eventActive(event); break;
 				case TaskEventKind.Inactive: this.eventInactive(event); break;
 				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
@@ -71,7 +71,7 @@ export class TaskTerminalStatus extends Disposable {
 
 	private eventInactive(event: TaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
-		if (!terminalData) {
+		if (!terminalData || !terminalData.problemMatcher) {
 			return;
 		}
 		terminalData.terminal.statusList.remove(terminalData.status);
@@ -87,7 +87,11 @@ export class TaskTerminalStatus extends Disposable {
 		if (!terminalData) {
 			return;
 		}
+
 		terminalData.terminal.statusList.remove(terminalData.status);
-		terminalData.terminal.statusList.add(ACTIVE_TASK_STATUS);
+		// We don't want to show an infinite status for a background task that doesn't have a problem matcher.
+		if ((terminalData.problemMatcher instanceof StartStopProblemCollector) || (terminalData.problemMatcher?.problemMatchers.length > 0)) {
+			terminalData.terminal.statusList.add(ACTIVE_TASK_STATUS);
+		}
 	}
 }
