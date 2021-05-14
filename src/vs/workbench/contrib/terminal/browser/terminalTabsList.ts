@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,8 +26,12 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/wor
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IListDragAndDrop, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
+import { disposableTimeout } from 'vs/base/common/async';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { URI } from 'vs/base/common/uri';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -47,7 +51,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService
 	) {
@@ -66,13 +71,14 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				additionalScrollHeight: TAB_HEIGHT
+				additionalScrollHeight: TAB_HEIGHT,
+				dnd: new TerminalTabsDragAndDrop(_terminalService, _terminalInstanceService)
 			},
 			contextKeyService,
 			listService,
 			themeService,
 			configurationService,
-			keybindingService
+			keybindingService,
 		);
 		this._terminalService.onInstancesChanged(() => this.render());
 		this._terminalService.onInstanceTitleChanged(() => this.render());
@@ -383,5 +389,79 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 			}, "Terminal {0} {1}", instance.instanceId, instance.title);
 		}
 		return ariaLabel;
+	}
+}
+
+class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
+	private _autoFocusInstance: ITerminalInstance | undefined;
+	private _autoFocusDisposable: IDisposable = Disposable.None;
+
+	constructor(
+		private _terminalService: ITerminalService,
+		private _terminalInstanceService: ITerminalInstanceService
+	) { }
+
+	getDragURI(instance: ITerminalInstance): string | null {
+		return null;
+	}
+
+	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean {
+		let result = true;
+
+		const didChangeAutoFocusInstance = this._autoFocusInstance !== targetInstance;
+		if (didChangeAutoFocusInstance) {
+			this._autoFocusDisposable.dispose();
+			this._autoFocusInstance = targetInstance;
+		}
+
+		if (!targetInstance) {
+			return result;
+		}
+
+		const isExternalDragOver = !(data instanceof ElementsDragAndDropData);
+		if (didChangeAutoFocusInstance && isExternalDragOver) {
+			this._autoFocusDisposable = disposableTimeout(() => {
+				this._terminalService.setActiveInstance(targetInstance);
+				this._autoFocusInstance = undefined;
+			}, 500);
+		}
+
+		return result;
+	}
+
+	drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+		this._autoFocusDisposable.dispose();
+		this._autoFocusInstance = undefined;
+
+		const isExternalDrop = !(data instanceof ElementsDragAndDropData);
+		if (isExternalDrop) {
+			this._handleExternalDrop(targetInstance, originalEvent);
+		}
+	}
+
+	private async _handleExternalDrop(instance: ITerminalInstance | undefined, e: DragEvent) {
+		if (!instance || !e.dataTransfer) {
+			return;
+		}
+
+		// Check if files were dragged from the tree explorer
+		let path: string | undefined;
+		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+		if (resources) {
+			path = URI.parse(JSON.parse(resources)[0]).fsPath;
+		} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+			// Check if the file was dragged from the filesystem
+			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+		}
+
+		if (!path) {
+			return;
+		}
+
+		this._terminalService.setActiveInstance(instance);
+
+		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
+		instance.sendText(preparedPath, false);
+		instance.focus();
 	}
 }
