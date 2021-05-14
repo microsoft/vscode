@@ -22,7 +22,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions, TerminalSettingId, IProcessTraits } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -79,15 +79,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _shellLaunchConfig?: IShellLaunchConfig;
 	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
 	private _isScreenReaderModeEnabled: boolean = false;
-	private _hasRemoteAuthority: boolean = false;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
 	private readonly _onPtyReconnect = this._register(new Emitter<void>());
 	get onPtyReconnect(): Event<void> { return this._onPtyReconnect.event; }
 
-	private readonly _onProcessReady = this._register(new Emitter<IProcessTraits>());
-	get onProcessReady(): Event<IProcessTraits> { return this._onProcessReady.event; }
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 	private readonly _onProcessStateChange = this._register(new Emitter<void>());
 	get onProcessStateChange(): Event<void> { return this._onProcessStateChange.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
@@ -202,7 +201,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			} else {
 				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 			}
-			this._hasRemoteAuthority = !!this.remoteAuthority;
 
 			// Create variable resolver
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
@@ -213,7 +211,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// they're connected to the remote.
 			this.userHome = this._pathService.resolvedUserHome?.fsPath;
 			this.os = OS;
-			if (this._hasRemoteAuthority) {
+			if (!!this.remoteAuthority) {
 				const userHomeUri = await this._pathService.userHome();
 				this.userHome = userHomeUri.path;
 				const remoteEnv = await this._remoteAgentService.getEnvironment();
@@ -300,7 +298,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			dispose(this._processListeners);
 		}
 		this._processListeners = [
-			newProcess.onProcessReady(async (e: IProcessTraits) => {
+			newProcess.onProcessReady((e: IProcessReadyEvent) => {
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
 				this._onProcessReady.fire(e);

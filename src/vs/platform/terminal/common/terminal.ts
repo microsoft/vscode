@@ -418,7 +418,11 @@ export interface ITerminalLaunchError {
 	code?: number;
 }
 
-export interface IProcessTraits { pid: number, cwd: string, requiresWindowsMode?: boolean }
+export interface IProcessReadyEvent {
+	pid: number,
+	cwd: string,
+	requiresWindowsMode?: boolean
+}
 
 /**
  * An interface representing a raw terminal child process, this contains a subset of the
@@ -439,7 +443,7 @@ export interface ITerminalChildProcess {
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
-	onProcessReady: Event<IProcessTraits>;
+	onProcessReady: Event<IProcessReadyEvent>;
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;

@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IProcessTraits, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -19,8 +19,8 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessData: Event<string | IProcessDataEvent> = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
-	readonly _onProcessReady = this._register(new Emitter<IProcessTraits>());
-	get onProcessReady(): Event<IProcessTraits> { return this._onProcessReady.event; }
+	readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
@@ -124,7 +124,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	handleExit(e: number | undefined) {
 		this._onProcessExit.fire(e);
 	}
-	handleReady(e: IProcessTraits) {
+	handleReady(e: IProcessReadyEvent) {
 		this._onProcessReady.fire(e);
 	}
 	handleTitleChanged(e: string) {
