@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -249,7 +248,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			this.peek.value!.create();
 		}
 
-		alert(toPlainText(message.message));
+		alert(renderStringAsPlaintext(message.message));
 		this.peek.value!.setModel(dto);
 		this.currentPeekUri = uri;
 	}
@@ -416,7 +415,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 
 		this.test = test;
 		this.show(message.location.range, hintDiffPeekHeight(message));
-		this.setTitle(firstLine(toPlainText(message.message)), test.label);
+		this.setTitle(firstLine(renderStringAsPlaintext(message.message)), test.label);
 
 		const [original, modified] = await Promise.all([
 			this.modelService.createModelReference(expectedUri),
@@ -488,7 +487,7 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 
 		this.test = test;
 
-		const messageStr = toPlainText(message.message);
+		const messageStr = renderStringAsPlaintext(message.message);
 		this.show(message.location.range, hintPeekStrHeight(messageStr));
 		this.setTitle(firstLine(messageStr), test.label);
 
@@ -525,10 +524,6 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 
 const hintDiffPeekHeight = (message: ITestMessage) =>
 	Math.max(hintPeekStrHeight(message.actualOutput), hintPeekStrHeight(message.expectedOutput));
-
-const toPlainText = (message: IMarkdownString | string) => typeof message === 'string'
-	? message
-	: renderMarkdownAsPlaintext(message);
 
 const firstLine = (str: string) => {
 	const index = str.indexOf('\n');
