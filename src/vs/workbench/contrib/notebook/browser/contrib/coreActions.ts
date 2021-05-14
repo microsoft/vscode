@@ -568,7 +568,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: executeCellCondition,
+			precondition: ContextKeyExpr.or(executeCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -584,20 +584,33 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			return;
 		}
 
-		const executionP = runCell(accessor, context);
-
-		// Try to select below, fall back on inserting
-		const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
-		if (nextCell) {
-			context.notebookEditor.focusNotebookCell(nextCell, 'container');
-		} else {
-			const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
-			if (newCell) {
-				context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		if (context.cell.cellKind === CellKind.Markup) {
+			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			if (nextCell) {
+				context.notebookEditor.focusNotebookCell(nextCell, 'container');
+			} else {
+				const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Markup, 'below');
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				}
 			}
-		}
+			return;
+		} else {
+			const executionP = runCell(accessor, context);
 
-		return executionP;
+			// Try to select below, fall back on inserting
+			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			if (nextCell) {
+				context.notebookEditor.focusNotebookCell(nextCell, 'container');
+			} else {
+				const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				}
+			}
+
+			return executionP;
+		}
 	}
 });
 
