@@ -70,8 +70,14 @@ export interface ISettingSearchResult {
 }
 
 export interface ProcessExplorerStyles extends WindowStyles {
-	hoverBackground?: string;
-	hoverForeground?: string;
+	listHoverBackground?: string;
+	listHoverForeground?: string;
+	listFocusBackground?: string;
+	listFocusForeground?: string;
+	listFocusOutline?: string;
+	listActiveSelectionBackground?: string;
+	listActiveSelectionForeground?: string;
+	listHoverOutline?: string;
 }
 
 export interface ProcessExplorerData extends WindowData {
