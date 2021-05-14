@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { promisify } from 'util';
+import { exec } from 'child_process';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme, screen, Display } from 'electron';
@@ -15,7 +18,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { SymlinkSupport } from 'vs/base/node/pfs';
+import { symlink, SymlinkSupport } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -23,12 +26,14 @@ import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { ILogService } from 'vs/platform/log/common/log';
-import { dirname, join } from 'vs/base/common/path';
+import { dirname, join, resolve } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { realpath } from 'vs/base/node/extpath';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -52,7 +57,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService
+		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -255,6 +261,104 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
+	//#region macOS Shell Command
+
+	installShellCommand(windowId: number | undefined): Promise<void> {
+		return this.handleShellCommand(windowId, true);
+	}
+
+	uninstallShellCommand(windowId: number | undefined): Promise<void> {
+		return this.handleShellCommand(windowId, false);
+	}
+
+	private async handleShellCommand(windowId: number | undefined, create: boolean): Promise<void> {
+		const linkSource = resolve(this.environmentMainService.appRoot, 'bin', 'code');
+		const linkTarget = `/usr/local/bin/${this.productService.applicationName}`;
+
+		// Ensure source exists
+		const sourceExists = await this.fileService.exists(URI.file(linkSource));
+		if (!sourceExists) {
+			throw new Error(localize('sourceMissing', "Unable to find shell script in '{0}'", linkSource));
+		}
+
+		// Create symlink
+		if (create) {
+
+			// Only install unless already existing
+			try {
+				const { symbolicLink } = await SymlinkSupport.stat(linkTarget);
+				if (symbolicLink && !symbolicLink.dangling) {
+					const linkTargetRealPath = await realpath(linkTarget);
+					if (linkSource === linkTargetRealPath) {
+						return;
+					}
+				}
+
+				// Different target, delete it first
+				await this.fileService.del(URI.file(linkTarget));
+			} catch (err) {
+				if (err.code !== 'ENOENT') {
+					throw err; // throw on any error but file not found
+				}
+			}
+
+			try {
+				await symlink(linkSource, linkTarget);
+			} catch (error) {
+				if (error.code === 'EACCES' || error.code === 'ENOENT') {
+					const { response } = await this.showMessageBox(windowId, {
+						type: 'info',
+						message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
+						buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
+						cancelId: 1
+					});
+
+					if (response === 0 /* OK */) {
+						try {
+							const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + linkSource + '\' \'' + linkTarget + '\'\\" with administrator privileges"';
+							await promisify(exec)(command);
+						} catch (error) {
+							throw new Error(localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."));
+						}
+					}
+				} else {
+					throw error;
+				}
+			}
+		}
+
+		// Delete symlink
+		else {
+			try {
+				await this.fileService.del(URI.file(linkTarget));
+			} catch (error) {
+				switch (error.code) {
+					case 'EACCES':
+						const { response } = await this.showMessageBox(windowId, {
+							type: 'info',
+							message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
+							buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
+							cancelId: 1
+						});
+
+						if (response === 0 /* OK */) {
+							try {
+								const command = 'osascript -e "do shell script \\"rm \'' + linkTarget + '\'\\" with administrator privileges"';
+								await promisify(exec)(command);
+							} catch (error) {
+								throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", linkTarget));
+							}
+						}
+						break;
+					case 'ENOENT':
+						break; // ignore file not found
+					default:
+						throw error;
+				}
+			}
+		}
+	}
 
 	//#region Dialog
 

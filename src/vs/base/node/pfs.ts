@@ -643,4 +643,8 @@ export async function exists(path: string): Promise<boolean> {
 	}
 }
 
+export function symlink(source: string, target: string): Promise<void> {
+	return fs.promises.symlink(source, target);
+}
+
 //#endregion
