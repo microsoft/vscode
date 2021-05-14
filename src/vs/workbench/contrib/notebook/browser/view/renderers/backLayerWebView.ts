@@ -472,7 +472,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		runGutter: number,
 	}) {
 		this.options = options;
+		this._updateStyles();
+	}
 
+	private _updateStyles() {
 		this._sendMessageToWebview({
 			type: 'notebookStyles',
 			styles: this._generateStyles()
@@ -1124,11 +1127,6 @@ var requirejs = (function() {
 					}
 			}
 		}));
-
-		this._sendMessageToWebview({
-			type: 'notebookStyles',
-			styles: this._generateStyles()
-		});
 	}
 
 	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
@@ -1218,6 +1216,7 @@ var requirejs = (function() {
 		const mdCells = [...this.markdownPreviewMapping.values()];
 		this.markdownPreviewMapping.clear();
 		this.initializeMarkdown(mdCells);
+		this._updateStyles();
 	}
 
 	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
