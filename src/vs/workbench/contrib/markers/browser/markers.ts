@@ -12,7 +12,8 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { MarkersFilters } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { Event } from 'vs/base/common/event';
 import { IView } from 'vs/workbench/common/views';
-import { MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { MarkerElement, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { URI as Uri } from 'vs/base/common/uri';
 
 export interface IMarkersView extends IView {
 
@@ -28,6 +29,8 @@ export interface IMarkersView extends IView {
 
 	collapseAll(): void;
 	setMultiline(multiline: boolean): void;
+
+	getMarkers(): ResourceMarkers[];
 }
 
 export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
@@ -48,5 +51,25 @@ export class ActivityUpdater extends Disposable implements IWorkbenchContributio
 		const total = errors + warnings + infos;
 		const message = localize('totalProblems', 'Total {0} Problems', total);
 		this.activity.value = this.activityService.showViewActivity(Constants.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+	}
+}
+
+export class DiagnosticOutput {
+	constructor(
+		private readonly separatorConf: string
+	) { }
+
+	fsPath: string = '';
+	code: string | number | { value: string | number; target: Uri; } | undefined = '';
+	message: string = '';
+	startLine: number = -1;
+	startColumn: number = -1;
+	endLine: number = -1;
+	endColumn: number = -1;
+	severity: number = -1;
+	owner: string = '';
+
+	public toString(): string {
+		return this.fsPath + this.separatorConf + this.code + this.separatorConf + this.severity + this.separatorConf + this.message + this.separatorConf + this.owner + this.separatorConf + this.startLine + this.separatorConf + this.startColumn + this.separatorConf + this.endLine + this.separatorConf + this.endColumn;
 	}
 }

@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ActivityUpdater, IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
+import { ActivityUpdater, DiagnosticOutput, IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -30,6 +30,14 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { Schemas } from 'vs/base/common/network';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.MARKER_OPEN_ACTION_ID,
@@ -100,6 +108,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
 			'type': 'boolean',
 			'default': false
+		},
+		'problems.exportSeparator': {
+			'description': Messages.PROBLEMS_PANEL_EXPORT_SEPARATOR,
+			'type': 'string',
+			'default': '|'
 		}
 	}
 });
@@ -329,6 +342,66 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	}
 	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
 		return view.collapseAll();
+	}
+});
+
+registerAction2(class extends ViewAction<IMarkersView> {
+	constructor() {
+		super({
+			id: `workbench.actions.treeView.${Constants.MARKERS_VIEW_ID}.exportAll`,
+			title: localize('exportAllMarkers', "Export All Markers"),
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyEqualsExpr.create('view', Constants.MARKERS_VIEW_ID),
+				group: 'navigation',
+				order: 3
+			},
+			icon: Codicon.exportIcon,
+			viewId: Constants.MARKERS_VIEW_ID
+		});
+	}
+	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
+		let configurationService = serviceAccessor.get(IConfigurationService);
+		let separatorConf = configurationService.getValue<string>('problems.exportSeparator');
+		let fileDialogService = serviceAccessor.get(IFileDialogService);
+		let fileService = serviceAccessor.get(IFileService);
+		let pathService = serviceAccessor.get(IPathService);
+		let notificationService = serviceAccessor.get(INotificationService);
+
+		let fileMarkers = view.getMarkers();
+		let diagnosticOutputs: DiagnosticOutput[] = [];
+		for (let fileMarker of fileMarkers) {
+			for (let marker of fileMarker.markers) {
+				let myDiagnosticOutput: DiagnosticOutput = new DiagnosticOutput(separatorConf);
+				myDiagnosticOutput.fsPath = marker.resource.fsPath;
+				myDiagnosticOutput.code = marker.marker.code;
+				myDiagnosticOutput.message = marker.marker.message;
+				myDiagnosticOutput.startLine = marker.marker.startLineNumber;
+				myDiagnosticOutput.startColumn = marker.marker.startColumn;
+				myDiagnosticOutput.endLine = marker.marker.endLineNumber;
+				myDiagnosticOutput.endColumn = marker.marker.endColumn;
+				myDiagnosticOutput.severity = marker.marker.severity;
+				myDiagnosticOutput.owner = marker.marker.owner;
+				diagnosticOutputs.push(myDiagnosticOutput);
+			}
+		}
+		let header = 'file' + separatorConf + 'code' + separatorConf + 'severity' + separatorConf + 'message' + separatorConf + 'owner' + separatorConf + 'start line' + separatorConf + 'start column' + separatorConf + 'end line' + separatorConf + 'end column\r\n';
+
+		let defaultUri = await pathService.userHome();
+		const fileUri = await fileDialogService.showSaveDialog({
+			availableFileSystems: [Schemas.file],
+			saveLabel: mnemonicButtonLabel(localize('exportButton', "Export")),
+			title: localize('chooseWhereToExport', "Choose where to export"),
+			defaultUri
+		});
+		if (!fileUri) {
+			return;
+		}
+
+		let output = header + diagnosticOutputs.join('\r\n');
+		await fileService.writeFile(fileUri, VSBuffer.fromString(output));
+
+		notificationService.info(localize('successfulMarkerExport', "Successfully exported all markers"));
 	}
 });
 

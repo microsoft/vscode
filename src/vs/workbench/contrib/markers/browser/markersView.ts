@@ -478,6 +478,11 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.markersViewModel.multiline = multiline;
 	}
 
+
+	getMarkers(): ResourceMarkers[] {
+		return this.markersModel.resourceMarkers;
+	}
+
 	private onDidChangeMarkersViewVisibility(visible: boolean): void {
 		this.onVisibleDisposables.clear();
 		if (visible) {
