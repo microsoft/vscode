@@ -44,6 +44,7 @@ export interface NotebookLayoutConfiguration {
 	cellStatusBarHeight: number;
 	cellToolbarLocation: string | { [key: string]: string };
 	cellToolbarInteraction: string;
+	compactView: boolean;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -101,7 +102,8 @@ export class NotebookOptions {
 			collapsedIndicatorHeight: 24,
 			showCellStatusBar,
 			cellToolbarLocation,
-			cellToolbarInteraction
+			cellToolbarInteraction,
+			compactView
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
@@ -129,10 +131,11 @@ export class NotebookOptions {
 			}
 
 			if (compactView) {
-				const compactView = this.configurationService.getValue<boolean>('notebook.experimental.compactView');
+				const compactViewValue = this.configurationService.getValue<boolean>('notebook.experimental.compactView');
 				configuration = Object.assign(configuration, {
-					...(compactView ? compactConfigConstants : defaultConfigConstants)
+					...(compactViewValue ? compactConfigConstants : defaultConfigConstants),
 				});
+				configuration.compactView = compactViewValue;
 			}
 
 			this._layoutConfiguration = configuration;
