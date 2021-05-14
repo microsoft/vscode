@@ -1019,9 +1019,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const description = nls.localize('TerminalTaskSystem.terminalDescription', 'Task');
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
+			let os: Platform.OperatingSystem;
+			switch (platform) {
+				case Platform.Platform.Windows: os = Platform.OperatingSystem.Windows; break;
+				case Platform.Platform.Mac: os = Platform.OperatingSystem.Macintosh; break;
+				case Platform.Platform.Linux:
+				default: os = Platform.OperatingSystem.Linux; break;
+			}
 			const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({
 				allowAutomationShell: true,
-				os: Platform.OS,
+				os,
 				remoteAuthority: this.environmentService.remoteAuthority
 			});
 			const defaultConfig = {

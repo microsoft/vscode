@@ -15,6 +15,7 @@ const MARKDOWN_PREVIEW_PADDING = 8;
 const CELL_RIGHT_MARGIN = 16;
 const CELL_RUN_GUTTER = 28;
 const CODE_CELL_LEFT_MARGIN = 32;
+const MARKDOWN_CELL_LEFT_MARGIN = 32;
 const BOTTOM_CELL_TOOLBAR_GAP = 18;
 const BOTTOM_CELL_TOOLBAR_HEIGHT = 22;
 
@@ -50,6 +51,7 @@ export interface NotebookLayoutConfiguration {
 	cellBottomMargin: number;
 	cellOutputPadding: number;
 	codeCellLeftMargin: number;
+	markdownCellLeftMargin: number;
 	markdownCellTopMargin: number;
 	markdownCellBottomMargin: number;
 	markdownPreviewPadding: number;
@@ -90,6 +92,7 @@ export class NotebookOptions {
 			cellTopMargin: CELL_TOP_MARGIN,
 			cellBottomMargin: CELL_BOTTOM_MARGIN,
 			codeCellLeftMargin: CODE_CELL_LEFT_MARGIN,
+			markdownCellLeftMargin: MARKDOWN_CELL_LEFT_MARGIN,
 			markdownCellTopMargin: MARKDOWN_CELL_TOP_MARGIN,
 			markdownCellBottomMargin: MARKDOWN_CELL_BOTTOM_MARGIN,
 			bottomCellToolbarGap: BOTTOM_CELL_TOOLBAR_GAP,
@@ -235,6 +238,7 @@ export class NotebookOptions {
 			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
 			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
 			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			markdownLeftMargin: this._layoutConfiguration.markdownCellLeftMargin,
 			leftMargin: this._layoutConfiguration.codeCellLeftMargin, // CODE_CELL_LEFT_MARGIN,
 			rightMargin: this._layoutConfiguration.cellRightMargin, // CELL_RIGHT_MARGIN,
 			runGutter: this._layoutConfiguration.cellRunGutter, // CELL_RUN_GUTTER,
@@ -246,6 +250,7 @@ export class NotebookOptions {
 			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
 			outputNodeLeftPadding: 32,
 			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			markdownLeftMargin: 0,
 			leftMargin: 0,
 			rightMargin: 0,
 			runGutter: 0

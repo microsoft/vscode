@@ -119,8 +119,9 @@ export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStarte
 export interface IGettingStartedService {
 	_serviceBrand: undefined,
 
-	readonly onDidAddCategory: Event<IGettingStartedCategoryWithProgress>
-	readonly onDidRemoveCategory: Event<string>
+	readonly onDidAddCategory: Event<void>
+	readonly onDidRemoveCategory: Event<void>
+
 	readonly onDidChangeStep: Event<IGettingStartedStepWithProgress>
 	readonly onDidChangeCategory: Event<IGettingStartedCategoryWithProgress>
 
@@ -136,11 +137,11 @@ export interface IGettingStartedService {
 export class GettingStartedService extends Disposable implements IGettingStartedService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAddCategory = new Emitter<IGettingStartedCategoryWithProgress>();
-	onDidAddCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidAddCategory.event;
+	private readonly _onDidAddCategory = new Emitter<void>();
+	onDidAddCategory: Event<void> = this._onDidAddCategory.event;
 
-	private readonly _onDidRemoveCategory = new Emitter<string>();
-	onDidRemoveCategory: Event<string> = this._onDidRemoveCategory.event;
+	private readonly _onDidRemoveCategory = new Emitter<void>();
+	onDidRemoveCategory: Event<void> = this._onDidRemoveCategory.event;
 
 	private readonly _onDidChangeCategory = new Emitter<IGettingStartedCategoryWithProgress>();
 	onDidChangeCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidChangeCategory.event;
@@ -162,6 +163,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 	private tasExperimentService?: ITASExperimentService;
 	private sessionInstalledExtensions = new Set<string>();
+
+	private trackedContextKeys = new Set<string>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -200,6 +203,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				this.sessionInstalledExtensions.add(e.identifier.id);
 			}
 			this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
+		}));
+
+		this._register(this.contextService.onDidChangeContext(event => {
+			if (event.affectsSome(this.trackedContextKeys)) { this._onDidAddCategory.fire(); }
 		}));
 
 		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
@@ -288,7 +295,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidChangeStep.fire(this.getStepProgress(existingStep));
 	}
 
-	private registerExtensionContributions(extension: IExtensionDescription) {
+	private async registerExtensionContributions(extension: IExtensionDescription) {
 		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
 			? URI.parse(path, true)
 			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
@@ -348,17 +355,24 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 
 
-		extension.contributes?.walkthroughs?.forEach(walkthrough => {
-			const categoryID = extension.identifier.value + '#walkthrough#' + walkthrough.id;
+		await Promise.all(extension.contributes?.walkthroughs?.map(async walkthrough => {
+			const categoryID = extension.identifier.value + '#' + walkthrough.id;
+
+			const override = await Promise.race([
+				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryID}.when`),
+				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
+			]);
+
 			if (
 				this.sessionInstalledExtensions.has(extension.identifier.value)
 				&& walkthrough.primary
-				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true())
+				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value);
 				sectionToOpen = categoryID;
 			}
-			this.registerWalkthrough({
+
+			const walkthoughDescriptior = {
 				content: { type: 'steps' },
 				description: walkthrough.description,
 				title: walkthrough.title,
@@ -371,42 +385,45 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						: DefaultIconPath
 				},
 				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
-			},
-				(walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
-					const description = parseDescription(step.description || '');
-					const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
-					if (buttonDescription) {
-						description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
-					}
-					const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
+			} as const;
 
-					let media: IGettingStartedStep['media'];
-					if (typeof step.media.path === 'string' && step.media.path.endsWith('.md')) {
-						media = {
-							type: 'markdown',
-							path: convertExtensionPathToFileURI(step.media.path),
-							base: convertExtensionPathToFileURI(dirname(step.media.path)),
-							root: FileAccess.asFileUri(extension.extensionLocation),
-						};
-					} else {
-						const altText = (step.media as any).altText;
-						if (altText === undefined) {
-							console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
-						}
-						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
-					}
+			const steps = (walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
+				const description = parseDescription(step.description || '');
+				const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
+				if (buttonDescription) {
+					description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
+				}
+				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 
-					return ({
-						description, media,
-						completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
-						id: fullyQualifiedID,
-						title: step.title,
-						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
-						category: categoryID,
-						order: index,
-					});
-				}));
-		});
+				let media: IGettingStartedStep['media'];
+				if (typeof step.media.path === 'string' && step.media.path.endsWith('.md')) {
+					media = {
+						type: 'markdown',
+						path: convertExtensionPathToFileURI(step.media.path),
+						base: convertExtensionPathToFileURI(dirname(step.media.path)),
+						root: FileAccess.asFileUri(extension.extensionLocation),
+					};
+				} else {
+					const altText = (step.media as any).altText;
+					if (altText === undefined) {
+						console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
+					}
+					media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
+				}
+
+				return ({
+					description, media,
+					completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
+					id: fullyQualifiedID,
+					title: step.title,
+					when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
+					category: categoryID,
+					order: index,
+				});
+			});
+
+			this.registerWalkthrough(walkthoughDescriptior, steps);
+		}));
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') !== 'hide') {
 
@@ -448,7 +465,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		extension.contributes?.startEntries?.forEach(section => {
 			const categoryID = extension.identifier.value + '#startEntry#' + idForStartEntry(section);
 			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveCategory.fire(categoryID);
+			this._onDidRemoveCategory.fire();
 		});
 
 		extension.contributes?.walkthroughs?.forEach(section => {
@@ -458,7 +475,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				this.steps.delete(fullyQualifiedID);
 			});
 			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveCategory.fire(categoryID);
+			this._onDidRemoveCategory.fire();
 		});
 	}
 
@@ -610,7 +627,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const category: IGettingStartedCategory = { ...categoryDescriptor };
 
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
-		this._onDidAddCategory.fire(this.getCategoryProgress(category));
+		this._onDidAddCategory.fire();
 	}
 
 	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
@@ -626,8 +643,29 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
 			this.steps.set(step.id, step);
 			this.registerDoneListeners(step);
+			this.trackedContextKeys.add(step.when.serialize());
 		});
-		this._onDidAddCategory.fire(this.getCategoryProgress(category));
+
+		if (this.contextService.contextMatchesRules(category.when)) {
+			this._onDidAddCategory.fire();
+		}
+
+		this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryDescriptor.id}.when`).then(override => {
+			if (override) {
+				const old = category.when;
+				const gnu = ContextKeyExpr.deserialize(override) ?? old;
+				this.trackedContextKeys.add(override);
+				category.when = gnu;
+
+				if (this.contextService.contextMatchesRules(old) && !this.contextService.contextMatchesRules(gnu)) {
+					this._onDidRemoveCategory.fire();
+				} else if (!this.contextService.contextMatchesRules(old) && this.contextService.contextMatchesRules(gnu)) {
+					this._onDidAddCategory.fire();
+				}
+			}
+		});
+
+		this.trackedContextKeys.add(category.when.serialize());
 	}
 
 	private getStep(id: string): IGettingStartedStep {

@@ -87,6 +87,7 @@ class CellStatusBarHelper extends Disposable {
 		this._register(this._cell.model.onDidChangeContent(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeLanguage(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeMetadata(() => this._updateSoon()));
+		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeOutputs(() => this._updateSoon()));
 	}
 

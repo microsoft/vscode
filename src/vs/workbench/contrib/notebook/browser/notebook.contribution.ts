@@ -318,7 +318,7 @@ class CellInfoContentProvider {
 
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
-				const metadataSource = getFormatedMetadataJSON(ref.object.notebook, cell.metadata || {}, cell.language);
+				const metadataSource = getFormatedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
 				result = this._modelService.createModel(
 					metadataSource,
 					mode,

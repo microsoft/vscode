@@ -21,7 +21,7 @@ import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/c
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookKernel, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookKernel, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -133,7 +133,7 @@ export interface IGenericCellViewModel {
 	id: string;
 	handle: number;
 	uri: URI;
-	metadata: NotebookCellMetadata | undefined;
+	metadata: NotebookCellMetadata;
 	outputIsHovered: boolean;
 	outputIsFocused: boolean;
 	outputsViewModels: ICellOutputViewModel[];
@@ -262,7 +262,8 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	getText(): string;
 	getTextLength(): number;
 	getHeight(lineHeight: number): number;
-	metadata: NotebookCellMetadata | undefined;
+	metadata: NotebookCellMetadata;
+	internalMetadata: NotebookCellInternalMetadata;
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;
 	resolveTextModel(): Promise<ITextModel>;
@@ -822,6 +823,7 @@ export enum CursorAtBoundary {
 
 export interface CellViewModelStateChangeEvent {
 	readonly metadataChanged?: boolean;
+	readonly internalMetadataChanged?: boolean;
 	readonly runStateChanged?: boolean;
 	readonly selectionChanged?: boolean;
 	readonly focusModeChanged?: boolean;

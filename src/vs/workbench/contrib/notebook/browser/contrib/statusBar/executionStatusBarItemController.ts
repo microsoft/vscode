@@ -89,7 +89,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 		super();
 
 		this._update();
-		this._register(this._cell.model.onDidChangeMetadata(() => this._update()));
+		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
 	}
 
 	private async _update() {
@@ -107,13 +107,13 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 			return;
 		}
 
-		const item = this._getItemForState(cell.metadata?.runState, cell.metadata?.lastRunSuccess);
+		const item = this._getItemForState(cell.internalMetadata.runState, cell.internalMetadata.lastRunSuccess);
 
 		// Show the execution spinner for a minimum time
-		if (cell.metadata?.runState === NotebookCellExecutionState.Executing) {
+		if (cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			this._currentExecutingStateTimer = setTimeout(() => {
 				this._currentExecutingStateTimer = undefined;
-				if (cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
+				if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 					this._update();
 				}
 			}, ExecutionStateCellStatusBarHelper.MIN_SPINNER_TIME);
@@ -123,7 +123,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 	}
 
 	private _getItemForState(runState: NotebookCellExecutionState | undefined, lastRunSuccess: boolean | undefined): INotebookCellStatusBarItem | undefined {
-		if (runState === NotebookCellExecutionState.Idle && lastRunSuccess) {
+		if (!runState && lastRunSuccess) {
 			return <INotebookCellStatusBarItem>{
 				text: '$(notebook-state-success)',
 				color: themeColorFromId(cellStatusIconSuccess),
@@ -131,7 +131,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
 			};
-		} else if (runState === NotebookCellExecutionState.Idle && lastRunSuccess === false) {
+		} else if (!runState && lastRunSuccess === false) {
 			return <INotebookCellStatusBarItem>{
 				text: '$(notebook-state-error)',
 				color: themeColorFromId(cellStatusIconError),
@@ -179,21 +179,22 @@ class TimerCellStatusBarHelper extends Disposable {
 
 		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarHelper.UPDATE_INTERVAL));
 		this._update();
-		this._register(this._cell.model.onDidChangeMetadata(() => this._update()));
+		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
 	}
 
 	private async _update() {
 		let item: INotebookCellStatusBarItem | undefined;
-		if (this._cell.metadata?.runState === NotebookCellExecutionState.Executing) {
-			const startTime = this._cell.metadata.runStartTime;
-			const adjustment = this._cell.metadata.runStartTimeAdjustment;
+		const state = this._cell.internalMetadata.runState;
+		if (state === NotebookCellExecutionState.Executing) {
+			const startTime = this._cell.internalMetadata.runStartTime;
+			const adjustment = this._cell.internalMetadata.runStartTimeAdjustment;
 			if (typeof startTime === 'number') {
 				item = this._getTimeItem(startTime, Date.now(), adjustment);
 				this._scheduler.schedule();
 			}
-		} else if (this._cell.metadata?.runState === NotebookCellExecutionState.Idle) {
-			const startTime = this._cell.metadata.runStartTime;
-			const endTime = this._cell.metadata.runEndTime;
+		} else if (!state) {
+			const startTime = this._cell.internalMetadata.runStartTime;
+			const endTime = this._cell.internalMetadata.runEndTime;
 			if (typeof startTime === 'number' && typeof endTime === 'number') {
 				item = this._getTimeItem(startTime, endTime);
 			}
@@ -250,7 +251,7 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 		NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this._contextKeyService).set('idle');
 
 		this._update();
-		this._register(this._cell.model.onDidChangeMetadata(() => this._update()));
+		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
 	}
 
 	private async _update() {
@@ -261,7 +262,7 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 	}
 
 	private _getItemsForCell(cell: ICellViewModel): INotebookCellStatusBarItem[] {
-		if (typeof cell.metadata?.runState !== 'undefined' || typeof cell.metadata?.lastRunSuccess !== 'undefined') {
+		if (typeof cell.internalMetadata.runState !== 'undefined' || typeof cell.internalMetadata.lastRunSuccess !== 'undefined') {
 			return [];
 		}
 

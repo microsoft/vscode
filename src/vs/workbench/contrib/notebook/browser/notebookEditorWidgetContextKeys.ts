@@ -69,9 +69,9 @@ export class NotebookEditorContextKeys {
 				if (!e.runStateChanged) {
 					return;
 				}
-				if (c.metadata?.runState === NotebookCellExecutionState.Pending) {
+				if (c.internalMetadata.runState === NotebookCellExecutionState.Pending) {
 					executionCount++;
-				} else if (c.metadata?.runState === NotebookCellExecutionState.Idle) {
+				} else if (!c.internalMetadata.runState) {
 					executionCount--;
 				}
 				this._someCellRunning.set(executionCount > 0);
