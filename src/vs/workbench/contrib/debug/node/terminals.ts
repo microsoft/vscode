@@ -54,16 +54,13 @@ export function hasChildProcesses(processId: number | undefined): Promise<boolea
 
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
-
 			return new Promise<boolean>(async (resolve) => {
-
+				// See #123296
 				const windowsProcessTree = await import('windows-process-tree');
 				windowsProcessTree.getProcessTree(processId, (processTree) => {
 					resolve(processTree.children.length > 0);
 				});
-
 			});
-
 		} else {
 			return spawnAsPromised('/usr/bin/pgrep', ['-lP', String(processId)]).then(stdout => {
 				const r = stdout.trim();
