@@ -88,7 +88,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
-		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '-1' }));
+		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
 
 		this.createHeaderElement(this.rootElement);
 
@@ -109,6 +109,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 			this.rootElement.style.setProperty('--workspace-trust-check-color', colors.debugIconStartForeground?.toString() || '');
 			this.rootElement.style.setProperty('--workspace-trust-x-color', colors.editorErrorForeground?.toString() || '');
 		}));
+	}
+
+	override focus() {
+		this.rootElement.focus();
 	}
 
 	override async setInput(input: WorkspaceTrustEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -195,6 +199,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		this.headerContainer.className = this.getHeaderContainerClass(isWorkspaceTrusted);
+		this.rootElement.setAttribute('aria-label', `${localize('root element label', "Manage Workspace Trust")}:  ${this.headerContainer.innerText}`);
 
 		// Settings
 		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.restrictedSettings.default).length;
@@ -213,6 +218,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
 		this.rendering = false;
+		console.log(document.activeElement);
 	}
 
 	private getExtensionCountByUntrustedWorkspaceSupport(extensions: IExtensionStatus[], trustRequestType: ExtensionUntrustedWorkpaceSupportType): number {
