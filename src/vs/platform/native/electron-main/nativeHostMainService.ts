@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { promisify } from 'util';
+import * as fs from 'fs';
 import { exec } from 'child_process';
+import { promisify } from 'util';
+import { localize } from 'vs/nls';
+import { realpath } from 'vs/base/node/extpath';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme, screen, Display } from 'electron';
@@ -18,7 +20,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { symlink, SymlinkSupport } from 'vs/base/node/pfs';
+import { exists, SymlinkSupport } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -32,8 +34,6 @@ import { memoize } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { realpath } from 'vs/base/node/extpath';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -57,8 +57,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IFileService private readonly fileService: IFileService
+		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) {
 		super();
 
@@ -277,7 +276,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const linkTarget = `/usr/local/bin/${this.productService.applicationName}`;
 
 		// Ensure source exists
-		const sourceExists = await this.fileService.exists(URI.file(linkSource));
+		const sourceExists = await exists(linkSource);
 		if (!sourceExists) {
 			throw new Error(localize('sourceMissing', "Unable to find shell script in '{0}'", linkSource));
 		}
@@ -296,15 +295,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 
 				// Different target, delete it first
-				await this.fileService.del(URI.file(linkTarget));
-			} catch (err) {
-				if (err.code !== 'ENOENT') {
-					throw err; // throw on any error but file not found
+				await fs.promises.unlink(linkTarget);
+			} catch (error) {
+				if (error.code !== 'ENOENT') {
+					throw error; // throw on any error but file not found
 				}
 			}
 
 			try {
-				await symlink(linkSource, linkTarget);
+				await fs.promises.symlink(linkSource, linkTarget);
 			} catch (error) {
 				if (error.code === 'EACCES' || error.code === 'ENOENT') {
 					const { response } = await this.showMessageBox(windowId, {
@@ -316,10 +315,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 					if (response === 0 /* OK */) {
 						try {
-							const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + linkSource + '\' \'' + linkTarget + '\'\\" with administrator privileges"';
+							const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${linkSource}\' \'${linkTarget}\'\\" with administrator privileges"`;
 							await promisify(exec)(command);
 						} catch (error) {
-							throw new Error(localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."));
+							throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", linkTarget));
 						}
 					}
 				} else {
@@ -331,7 +330,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Delete symlink
 		else {
 			try {
-				await this.fileService.del(URI.file(linkTarget));
+				await fs.promises.unlink(linkTarget);
 			} catch (error) {
 				switch (error.code) {
 					case 'EACCES':
@@ -344,7 +343,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 						if (response === 0 /* OK */) {
 							try {
-								const command = 'osascript -e "do shell script \\"rm \'' + linkTarget + '\'\\" with administrator privileges"';
+								const command = `osascript -e "do shell script \\"rm \'${linkTarget}\'\\" with administrator privileges"`;
 								await promisify(exec)(command);
 							} catch (error) {
 								throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", linkTarget));
