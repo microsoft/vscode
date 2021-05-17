@@ -445,6 +445,10 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
+	isResolved(): this is IResolvedFileWorkingCopy<T> {
+		return !!this.model;
+	}
+
 	async resolve(options?: IFileWorkingCopyResolveOptions): Promise<void> {
 		this.trace('[file working copy] resolve() - enter');
 
@@ -1172,6 +1176,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 			return; // ignore if not resolved or not dirty and not enforced
 		}
 
+		this.trace('[file working copy] revert()');
+
 		// Unset flags
 		const wasDirty = this.dirty;
 		const undoSetDirty = this.doSetDirty(false);
@@ -1234,10 +1240,6 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 	//#endregion
 
 	//#region Utilities
-
-	isResolved(): this is IResolvedFileWorkingCopy<T> {
-		return !!this.model;
-	}
 
 	isReadonly(): boolean {
 		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
