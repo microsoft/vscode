@@ -94,9 +94,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}));
 
 		// Working copy operations
-		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => await this.onWillRunWorkingCopyFileOperation(e)));
-		//this._register(workingCopyFileService.onDidFailWorkingCopyFileOperation(e => this.onDidFailWorkingCopyFileOperation(e)));
-		//this._register(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
+		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => this.onWillRunWorkingCopyFileOperation(e)));
 	}
 
 	override dispose() {
@@ -145,9 +143,17 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
+				// If there's an old resource this was a move and we must resolve the backup at the same time as the webview
+				// This is because the backup must be ready upon model creation, and the input resolve method comes after
+				let backupID = webviewInput.backupId;
+				if (webviewInput.oldResource && !webviewInput.backupId) {
+					const backup = await this.workingCopyBackupService.resolve<CustomDocumentBackupData>({ resource: webviewInput.oldResource, typeId: NO_TYPE_ID });
+					backupID = backup?.meta?.backupId;
+				}
+
 				let modelRef: IReference<ICustomEditorModel>;
 				try {
-					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId: webviewInput.backupId }, cancellation);
+					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId: backupID }, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
@@ -266,18 +272,23 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		if (e.operation !== FileOperation.MOVE) {
 			return;
 		}
-		const models = [];
-		for (const file of e.files) {
-			if (file.source) {
-				models.push(...(await this._customEditorService.models.getAllModels(file.source)));
+		e.waitUntil((async () => {
+			const models = [];
+			for (const file of e.files) {
+				if (file.source) {
+					models.push(...(await this._customEditorService.models.getAllModels(file.source)));
+				}
 			}
-		}
-		for (const model of models) {
-			if (model instanceof MainThreadCustomEditorModel) {
-				const workingCopy = await model.backup(CancellationToken.None);
-				await this.workingCopyBackupService.backup({ resource: model.resource, typeId: model.typeId }, workingCopy.content, undefined, workingCopy.meta);
+			for (const model of models) {
+				if (model instanceof MainThreadCustomEditorModel) {
+					const workingCopy = await model.backup(CancellationToken.None);
+					const identifier = { resource: model.editorResource, typeId: model.typeId };
+					await this.workingCopyBackupService.backup(identifier, workingCopy.content, undefined, workingCopy.meta);
+					const hasBackup = this.workingCopyBackupService.hasBackupSync(identifier);
+					console.log(hasBackup);
+				}
 			}
-		}
+		})());
 	}
 	//#endregion
 }
@@ -342,7 +353,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		let untitledDocumentData: VSBuffer | undefined;
 		if (editors.length !== 0) {
 			untitledDocumentData = editors[0].untitledDocumentData;
-			options.backupId = editors[0].backupId;
 		}
 		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, untitledDocumentData, cancellation);
 		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, !!untitledDocumentData, getEditors);

@@ -18,15 +18,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
-import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -57,7 +54,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public static override readonly typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private readonly _oldResource?: URI;
+	public readonly oldResource?: URI;
 	private _defaultDirtyState: boolean | undefined;
 
 	private _backupId: string | undefined;
@@ -81,11 +78,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 	) {
 		super(id, viewType, '', webview, webviewWorkbenchService);
 		this._editorResource = resource;
-		this._oldResource = options.oldResource;
+		this.oldResource = options.oldResource;
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;
 		this._untitledDocumentData = options.untitledDocumentData;
@@ -217,11 +213,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 		if (this.isDisposed()) {
 			return null;
-		}
-
-		if (this._oldResource && !this._backupId) {
-			const backup = await this.workingCopyBackupService.resolve<CustomDocumentBackupData>({ resource: this._oldResource, typeId: NO_TYPE_ID });
-			this._backupId = backup?.meta?.backupId;
 		}
 
 		if (!this._modelRef) {
