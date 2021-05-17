@@ -72,6 +72,7 @@ export interface ITerminalGroup {
 	resizePanes(relativeSizes: number[]): void;
 	setActiveInstanceByIndex(index: number): void;
 	attachToElement(element: HTMLElement): void;
+	removeInstance(instance: ITerminalInstance): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
@@ -143,6 +144,7 @@ export interface ITerminalService {
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
+	unsplitInstance(instance: ITerminalInstance): void;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -523,6 +525,8 @@ export interface ITerminalInstance {
 	 * @param container The element to attach the terminal instance to.
 	 */
 	attachToElement(container: HTMLElement): Promise<void> | void;
+
+	detachFromElement(): void;
 
 	/**
 	 * Configure the dimensions of the terminal instance.

@@ -5,7 +5,7 @@
 
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -233,6 +233,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	private _groupElement: HTMLElement | undefined;
 	private _panelPosition: Position = Position.BOTTOM;
 	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
+	private _instanceDisposables: Map<number, IDisposable[]> = new Map();
 
 	private _activeInstanceIndex: number;
 	private _isVisible: boolean = false;
@@ -317,8 +318,10 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	private _initInstanceListeners(instance: ITerminalInstance): void {
-		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
-		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
+		this._instanceDisposables.set(instance.instanceId, [
+			instance.onDisposed(instance => this._onInstanceDisposed(instance)),
+			instance.onFocused(instance => this._setActiveInstance(instance))
+		]);
 	}
 
 	private _onInstanceDisposed(instance: ITerminalInstance): void {
@@ -406,6 +409,42 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
 		this.setVisible(this._isVisible);
+	}
+
+	removeInstance(instance: ITerminalInstance): void {
+		const index = this._terminalInstances.indexOf(instance);
+		if (index === -1) {
+			return;
+		}
+
+		const wasActiveInstance = instance === this.activeInstance;
+		this._terminalInstances.splice(index, 1);
+		instance.detachFromElement();
+
+		// TODO: Share code with onInstanceDisposed
+		// Adjust focus if the instance was active
+		if (wasActiveInstance && this._terminalInstances.length > 0) {
+			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
+			this.setActiveInstanceByIndex(newIndex);
+			// TODO: Only focus the new instance if the group had focus?
+			if (this.activeInstance) {
+				this.activeInstance.focus(true);
+			}
+		} else if (index < this._activeInstanceIndex) {
+			// Adjust active instance index if needed
+			this._activeInstanceIndex--;
+		}
+
+		this._splitPaneContainer?.remove(instance);
+
+		// Dispose listeners
+		const disposables = this._instanceDisposables.get(instance.instanceId);
+		if (disposables) {
+			dispose(disposables);
+			this._instanceDisposables.delete(instance.instanceId);
+		}
+
+		this._onInstancesChanged.fire();
 	}
 
 	get title(): string {

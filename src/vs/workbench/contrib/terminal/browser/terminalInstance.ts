@@ -604,6 +604,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 	}
 
+	detachFromElement(): void {
+		if (!this._wrapperElement) {
+			return;
+		}
+		this._container?.removeChild(this._wrapperElement);
+		this._wrapperElement = undefined;
+
+		// TODO: Don't allow reattach init of xterm
+	}
+
 	private async _attachToElement(container: HTMLElement): Promise<void> {
 		if (this._wrapperElement) {
 			throw new Error('The terminal instance has already been attached to a container');
@@ -900,7 +910,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	override dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
-
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);
@@ -921,7 +930,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._xterm) {
 			const buffer = this._xterm.buffer;
 			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
-			this._xterm.dispose();
+			try {
+				this._xterm.dispose();
+			} catch {
+				// No op, exception may get thrown from removeChild
+			}
 		}
 
 		if (this._pressAnyKeyToCloseListener) {
