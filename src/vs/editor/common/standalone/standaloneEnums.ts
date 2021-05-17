@@ -278,23 +278,24 @@ export enum EditorOption {
 	tabCompletion = 108,
 	tabIndex = 109,
 	unusualLineTerminators = 110,
-	useTabStops = 111,
-	wordSeparators = 112,
-	wordWrap = 113,
-	wordWrapBreakAfterCharacters = 114,
-	wordWrapBreakBeforeCharacters = 115,
-	wordWrapColumn = 116,
-	wordWrapOverride1 = 117,
-	wordWrapOverride2 = 118,
-	wrappingIndent = 119,
-	wrappingStrategy = 120,
-	showDeprecated = 121,
-	inlineHints = 122,
-	editorClassName = 123,
-	pixelRatio = 124,
-	tabFocusMode = 125,
-	layoutInfo = 126,
-	wrappingInfo = 127
+	useShadowDOM = 111,
+	useTabStops = 112,
+	wordSeparators = 113,
+	wordWrap = 114,
+	wordWrapBreakAfterCharacters = 115,
+	wordWrapBreakBeforeCharacters = 116,
+	wordWrapColumn = 117,
+	wordWrapOverride1 = 118,
+	wordWrapOverride2 = 119,
+	wrappingIndent = 120,
+	wrappingStrategy = 121,
+	showDeprecated = 122,
+	inlayHints = 123,
+	editorClassName = 124,
+	pixelRatio = 125,
+	tabFocusMode = 126,
+	layoutInfo = 127,
+	wrappingInfo = 128
 }
 
 /**
@@ -353,7 +354,7 @@ export enum IndentAction {
 	Outdent = 3
 }
 
-export enum InlineHintKind {
+export enum InlayHintKind {
 	Other = 0,
 	Type = 1,
 	Parameter = 2

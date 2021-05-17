@@ -325,8 +325,11 @@ export class SingleUseTestCollection implements IDisposable {
 					case 'range':
 						this.pushDiff([TestDiffOpType.Update, { extId, item: { range: Convert.Range.from(value) }, }]);
 						break;
+					case 'error':
+						this.pushDiff([TestDiffOpType.Update, { extId, item: { error: Convert.MarkdownString.fromStrict(value) || null }, }]);
+						break;
 					default:
-						this.pushDiff([TestDiffOpType.Update, { extId, item: { [key]: value } }]);
+						this.pushDiff([TestDiffOpType.Update, { extId, item: { [key]: value ?? null } }]);
 						break;
 				}
 				break;
@@ -350,7 +353,8 @@ export class SingleUseTestCollection implements IDisposable {
 
 		const parentId = parent ? parent.item.extId : null;
 		const expand = actual.resolveHandler ? TestItemExpandState.Expandable : TestItemExpandState.NotExpandable;
-		const pExpandLvls = parent?.expandLevels;
+		// always expand root node to know if there are tests (and whether to show the welcome view)
+		const pExpandLvls = parent ? parent.expandLevels : 1;
 		const src = { controller: controllerId, tree: this.testIdToInternal.object.id };
 		const internal: OwnedCollectionTestItem = {
 			actual,

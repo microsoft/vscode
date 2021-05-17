@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContext, ContextKeyExpression, ContextKeyExprType } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IResolveResult {
@@ -247,13 +247,15 @@ export class KeybindingResolver {
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string): ResolvedKeybindingItem | null {
+	public lookupPrimaryKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybindingItem | null {
 		let items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
 		}
 
-		return items[items.length - 1];
+		const itemMatchingContext = context &&
+			Array.from(items).reverse().find(item => context.contextMatchesRules(item.when));
+		return itemMatchingContext ?? items[items.length - 1];
 	}
 
 	public resolve(context: IContext, currentChord: string | null, keypress: string): IResolveResult | null {

@@ -5,7 +5,7 @@
 
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICellViewModel, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, INotebookEditor, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -13,8 +13,10 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 export class NotebookEditorContextKeys {
 
 	private readonly _notebookKernelCount: IContextKey<number>;
+	private readonly _notebookKernelSelected: IContextKey<boolean>;
 	private readonly _interruptibleKernel: IContextKey<boolean>;
 	private readonly _someCellRunning: IContextKey<boolean>;
+	private _viewType!: IContextKey<string>;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _viewModelDisposables = new DisposableStore();
@@ -26,15 +28,15 @@ export class NotebookEditorContextKeys {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
+		this._notebookKernelSelected = NOTEBOOK_KERNEL_SELECTED.bindTo(contextKeyService);
 		this._interruptibleKernel = NOTEBOOK_INTERRUPTIBLE_KERNEL.bindTo(contextKeyService);
 		this._someCellRunning = NOTEBOOK_HAS_RUNNING_CELL.bindTo(contextKeyService);
+		this._viewType = NOTEBOOK_VIEW_TYPE.bindTo(contextKeyService);
 
-		this._disposables.add(_editor.onDidChangeModel(() => this._initCellListeners()));
-		this._initCellListeners();
-
-		this._updateKernelContext();
+		this._disposables.add(_editor.onDidChangeModel(this._handleDidChangeModel, this));
 		this._disposables.add(_notebookKernelService.onDidAddKernel(this._updateKernelContext, this));
 		this._disposables.add(_notebookKernelService.onDidChangeNotebookKernelBinding(this._updateKernelContext, this));
+		this._handleDidChangeModel();
 	}
 
 	dispose(): void {
@@ -43,14 +45,18 @@ export class NotebookEditorContextKeys {
 		this._notebookKernelCount.reset();
 		this._interruptibleKernel.reset();
 		this._someCellRunning.reset();
+		this._viewType.reset();
+		dispose(this._cellStateListeners);
+		this._cellStateListeners.length = 0;
 	}
 
-	private _initCellListeners(): void {
+	private _handleDidChangeModel(): void {
+
+		this._updateKernelContext();
 
 		this._viewModelDisposables.clear();
 		dispose(this._cellStateListeners);
 		this._cellStateListeners.length = 0;
-		this._updateKernelContext();
 
 		if (!this._editor.hasModel()) {
 			return;
@@ -63,9 +69,9 @@ export class NotebookEditorContextKeys {
 				if (!e.runStateChanged) {
 					return;
 				}
-				if (c.metadata?.runState === NotebookCellExecutionState.Pending) {
+				if (c.internalMetadata.runState === NotebookCellExecutionState.Pending) {
 					executionCount++;
-				} else if (c.metadata?.runState === NotebookCellExecutionState.Idle) {
+				} else if (!c.internalMetadata.runState) {
 					executionCount--;
 				}
 				this._someCellRunning.set(executionCount > 0);
@@ -83,6 +89,7 @@ export class NotebookEditorContextKeys {
 				dispose(deletedCells);
 			});
 		}));
+		this._viewType.set(this._editor.viewModel.viewType);
 	}
 
 	private _updateKernelContext(): void {
@@ -92,8 +99,9 @@ export class NotebookEditorContextKeys {
 			return;
 		}
 
-		const { bound, all } = this._notebookKernelService.getNotebookKernels(this._editor.viewModel.notebookDocument);
+		const { selected, all } = this._notebookKernelService.getMatchingKernel(this._editor.viewModel.notebookDocument);
 		this._notebookKernelCount.set(all.length);
-		this._interruptibleKernel.set(bound?.implementsInterrupt ?? false);
+		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
+		this._notebookKernelSelected.set(Boolean(selected));
 	}
 }

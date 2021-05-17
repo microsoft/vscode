@@ -60,7 +60,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: localize('noTestProvidersRegistered', "No test providers are registered for this workspace."),
+	content: localize('noTestProvidersRegistered', "No tests have been found in this workspace yet."),
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
@@ -69,9 +69,10 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 			key: 'searchMarketplaceForTestExtensions',
 			comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'],
 		},
-		"[Search Marketplace](command:{0})",
-		`workbench.extensions.search?${encodeURIComponent(JSON.stringify(['@tag:testing']))}`
+		"[Find Test Extensions](command:{0})",
+		'testing.searchForTestExtension'
 	),
+	order: 10
 });
 
 viewsRegistry.registerViews([{
@@ -93,16 +94,19 @@ registerAction2(Action.AutoRunOnAction);
 registerAction2(Action.CancelTestRunAction);
 registerAction2(Action.ClearTestResultsAction);
 registerAction2(Action.CollapseAllAction);
+registerAction2(Action.DebugAction);
 registerAction2(Action.DebugAllAction);
 registerAction2(Action.DebugAtCursor);
 registerAction2(Action.DebugCurrentFile);
 registerAction2(Action.DebugFailedTests);
 registerAction2(Action.DebugLastRun);
 registerAction2(Action.DebugSelectedAction);
-registerAction2(Action.EditFocusedTest);
+registerAction2(Action.GoToTest);
+registerAction2(Action.HideTestAction);
 registerAction2(Action.RefreshTestsAction);
 registerAction2(Action.ReRunFailedTests);
 registerAction2(Action.ReRunLastRun);
+registerAction2(Action.RunAction);
 registerAction2(Action.RunAllAction);
 registerAction2(Action.RunAtCursor);
 registerAction2(Action.RunCurrentFile);
@@ -113,6 +117,7 @@ registerAction2(Action.TestingSortByLocationAction);
 registerAction2(Action.TestingSortByNameAction);
 registerAction2(Action.TestingViewAsListAction);
 registerAction2(Action.TestingViewAsTreeAction);
+registerAction2(Action.UnhideTestAction);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);

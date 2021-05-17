@@ -30,7 +30,7 @@ interface INotebookAndEditorDelta {
 }
 
 class NotebookAndEditorState {
-	static compute(before: NotebookAndEditorState | undefined, after: NotebookAndEditorState): INotebookAndEditorDelta {
+	static delta(before: NotebookAndEditorState | undefined, after: NotebookAndEditorState): INotebookAndEditorDelta {
 		if (!before) {
 			return {
 				addedDocuments: [...after.documents],
@@ -107,7 +107,7 @@ export class MainThreadNotebooksAndEditors {
 		extHostContext.set(MainContext.MainThreadNotebookDocuments, this._mainThreadNotebooks);
 		extHostContext.set(MainContext.MainThreadNotebookEditors, this._mainThreadEditors);
 
-		this._notebookService.onDidAddNotebookDocument(() => this._updateState(), this, this._disposables);
+		this._notebookService.onWillAddNotebookDocument(() => this._updateState(), this, this._disposables);
 		this._notebookService.onDidRemoveNotebookDocument(() => this._updateState(), this, this._disposables);
 		this._editorService.onDidActiveEditorChange(() => this._updateState(), this, this._disposables);
 		this._editorService.onDidVisibleEditorsChange(() => this._updateState(), this, this._disposables);
@@ -170,7 +170,7 @@ export class MainThreadNotebooksAndEditors {
 		}
 
 		const newState = new NotebookAndEditorState(new Set(this._notebookService.listNotebookDocuments()), editors, activeEditor, visibleEditorsMap);
-		this._onDelta(NotebookAndEditorState.compute(this._currentState, newState));
+		this._onDelta(NotebookAndEditorState.delta(this._currentState, newState));
 		this._currentState = newState;
 	}
 
@@ -234,7 +234,8 @@ export class MainThreadNotebooksAndEditors {
 				language: cell.language,
 				cellKind: cell.cellKind,
 				outputs: cell.outputs,
-				metadata: cell.metadata
+				metadata: cell.metadata,
+				internalMetadata: cell.internalMetadata,
 			}))
 		};
 	}

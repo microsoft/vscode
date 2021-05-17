@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 
 
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
@@ -23,6 +24,10 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		this.trusted = trusted;
 	}
 
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
 	getTrustedFolders(): URI[] {
 		throw new Error('Method not implemented.');
 	}
@@ -31,15 +36,15 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
+	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
 		throw new Error('Method not implemented.');
 	}
 
-	setTrustedFolders(folders: URI[]): void {
+	async setTrustedFolders(folders: URI[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
-	setFoldersTrust(folders: URI[], trusted: boolean): void {
+	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -55,7 +60,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return this.trusted;
 	}
 
-	setWorkspaceTrust(trusted: boolean): void {
+	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		if (this.trusted !== trusted) {
 			this.trusted = trusted;
 			this._onDidChangeTrust.fire(this.trusted);
@@ -64,21 +69,25 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 }
 
 export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
-	_serviceBrand: undefined;
+	_serviceBrand: any;
 
-	onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions> = Event.None;
-	onDidCompleteWorkspaceTrustRequest: Event<boolean> = Event.None;
+	private readonly _onDidInitiateWorkspaceTrustRequest = new Emitter<WorkspaceTrustRequestOptions>();
+	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
 
+	private readonly _onDidCompleteWorkspaceTrustRequest = new Emitter<boolean>();
+	readonly onDidCompleteWorkspaceTrustRequest = this._onDidCompleteWorkspaceTrustRequest.event;
+
+	constructor(private readonly _trusted: boolean) { }
 
 	cancelRequest(): void {
 		throw new Error('Method not implemented.');
 	}
 
-	completeRequest(trusted?: boolean): void {
+	async completeRequest(trusted?: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
-		return Promise.resolve(true);
+	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
+		return this._trusted;
 	}
 }

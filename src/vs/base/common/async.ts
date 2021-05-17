@@ -536,7 +536,6 @@ export class Limiter<T> {
 
 	get size(): number {
 		return this._size;
-		// return this.runningPromises + this.outstandingPromises.length;
 	}
 
 	queue(factory: ITask<Promise<T>>): Promise<T> {
@@ -1179,7 +1178,7 @@ export namespace Promises {
 	 * Interface of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
 	 */
 	interface PromiseWithAllSettled<T> {
-		allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>>;
+		allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]>;
 	}
 
 	/**
@@ -1188,7 +1187,7 @@ export namespace Promises {
 	 * in the order of the original passed in promises array.
 	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
 	 */
-	export async function allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+	export async function allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
 		if (typeof (Promise as unknown as PromiseWithAllSettled<T>).allSettled === 'function') {
 			return allSettledNative(promises); // in some environments we can benefit from native implementation
 		}
@@ -1196,11 +1195,11 @@ export namespace Promises {
 		return allSettledShim(promises);
 	}
 
-	async function allSettledNative<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+	async function allSettledNative<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
 		return (Promise as unknown as PromiseWithAllSettled<T>).allSettled(promises);
 	}
 
-	async function allSettledShim<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+	async function allSettledShim<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
 		return Promise.all(promises.map(promise => (promise.then(value => {
 			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
 

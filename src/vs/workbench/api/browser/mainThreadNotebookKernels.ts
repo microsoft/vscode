@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
@@ -23,14 +23,13 @@ abstract class MainThreadKernel implements INotebookKernel {
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
-	readonly selector: NotebookSelector;
+	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
 
 	implementsInterrupt: boolean;
 	label: string;
 	description?: string;
 	detail?: string;
-	isPreferred?: boolean;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
 	localResourceRoot: URI;
@@ -43,17 +42,16 @@ abstract class MainThreadKernel implements INotebookKernel {
 		return flatten(this.preloads.map(p => p.provides));
 	}
 
-	constructor(data: INotebookKernelDto2) {
+	constructor(data: INotebookKernelDto2, private _modeService: IModeService) {
 		this.id = data.id;
-		this.selector = data.selector;
+		this.viewType = data.viewType;
 		this.extension = data.extensionId;
 
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
 		this.description = data.description;
 		this.detail = data.detail;
-		this.isPreferred = data.isPreferred;
-		this.supportedLanguages = data.supportedLanguages;
+		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _modeService.getRegisteredModes();
 		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
 		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
@@ -75,12 +73,8 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.detail = data.detail;
 			event.detail = true;
 		}
-		if (data.isPreferred !== undefined) {
-			this.isPreferred = data.isPreferred;
-			event.isPreferred = true;
-		}
 		if (data.supportedLanguages !== undefined) {
-			this.supportedLanguages = data.supportedLanguages;
+			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._modeService.getRegisteredModes();
 			event.supportedLanguages = true;
 		}
 		if (data.hasExecutionOrder !== undefined) {
@@ -105,6 +99,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IModeService private readonly _modeService: IModeService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
@@ -127,19 +122,16 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private _onEditorAdd(editor: INotebookEditor) {
 
 		const ipcListener = editor.onDidReceiveMessage(e => {
-			if (e.forRenderer) {
-				return;
-			}
 			if (!editor.hasModel()) {
 				return;
 			}
-			const { bound: kernel } = this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument);
-			if (!kernel) {
+			const { selected } = this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument);
+			if (!selected) {
 				return;
 			}
 			for (let [handle, candidate] of this._kernels) {
-				if (candidate[0] === kernel) {
-					this._proxy.$acceptRendererMessage(handle, editor.getId(), e.message);
+				if (candidate[0] === selected) {
+					this._proxy.$acceptKernelMessageFromRenderer(handle, editor.getId(), e.message);
 					break;
 				}
 			}
@@ -163,17 +155,17 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				continue;
 			}
-			if (this._notebookKernelService.getNotebookKernels(editor.viewModel.notebookDocument).bound !== kernel) {
+			if (this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument).selected !== kernel) {
 				// different kernel
 				continue;
 			}
 			if (editorId === undefined) {
 				// all editors
-				editor.postMessage(undefined, message);
+				editor.postMessage(message);
 				didSend = true;
 			} else if (editor.getId() === editorId) {
 				// selected editors
-				editor.postMessage(undefined, message);
+				editor.postMessage(message);
 				didSend = true;
 				break;
 			}
@@ -192,17 +184,17 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
 				await that._proxy.$cancelCells(handle, uri, handles);
 			}
-		}(data);
-		const registration = this._notebookKernelService.registerKernel(kernel);
+		}(data, this._modeService);
 
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
 			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, false);
+				this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
 			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, true);
+				this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
 			}
 		});
 
+		const registration = this._notebookKernelService.registerKernel(kernel);
 		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
 	}
 
@@ -218,6 +210,13 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		if (tuple) {
 			tuple[1].dispose();
 			this._kernels.delete(handle);
+		}
+	}
+
+	$updateNotebookPriority(handle: number, notebook: UriComponents, value: number | undefined): void {
+		const tuple = this._kernels.get(handle);
+		if (tuple) {
+			this._notebookKernelService.updateKernelNotebookAffinity(tuple[0], URI.revive(notebook), value);
 		}
 	}
 }

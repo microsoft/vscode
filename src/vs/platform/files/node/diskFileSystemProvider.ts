@@ -47,7 +47,7 @@ export class DiskFileSystemProvider extends Disposable implements
 	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
 
 	constructor(
-		private readonly logService: ILogService,
+		protected readonly logService: ILogService,
 		private readonly options?: IDiskFileSystemProviderOptions
 	) {
 		super();
@@ -542,7 +542,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			return this.watchRecursive(resource, opts.excludes);
 		}
 
-		return this.watchNonRecursive(resource); // TODO@bpasero ideally the same watcher can be used in both cases
+		return this.watchNonRecursive(resource);
 	}
 
 	private watchRecursive(resource: URI, excludes: string[]): IDisposable {

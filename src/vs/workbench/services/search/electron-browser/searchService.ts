@@ -138,7 +138,8 @@ export class DiskSearch implements ISearchResultProvider {
 						c({
 							limitHit: ev.limitHit,
 							results: result,
-							stats: ev.stats
+							stats: ev.stats,
+							messages: ev.messages,
 						});
 					} else {
 						e(ev.error);

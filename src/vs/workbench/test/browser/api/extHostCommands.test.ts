@@ -68,7 +68,7 @@ suite('ExtHostCommands', function () {
 			override $registerCommand(id: string): void {
 				//
 			}
-			async override $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
+			override async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
 				count++;
 				assert.strictEqual(retry, count === 1);
 				if (count === 1) {

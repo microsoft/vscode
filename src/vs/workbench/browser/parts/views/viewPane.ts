@@ -445,6 +445,10 @@ export abstract class ViewPane extends Pane implements IView {
 		this.scrollableElement.scanDomNode();
 	}
 
+	onRootScroll() {
+		// noop
+	}
+
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
 			// Progress bar
@@ -575,7 +579,7 @@ export abstract class ViewPane extends Pane implements IView {
 						if (typeof node === 'string') {
 							append(p, document.createTextNode(node));
 						} else {
-							const link = this.instantiationService.createInstance(Link, node);
+							const link = this.instantiationService.createInstance(Link, node, {});
 							append(p, link.el);
 							disposables.add(link);
 							disposables.add(attachLinkStyler(link, this.themeService));
@@ -605,8 +609,10 @@ export abstract class ViewPane extends Pane implements IView {
 }
 
 export abstract class ViewAction<T extends IView> extends Action2 {
-	constructor(readonly desc: Readonly<IAction2Options> & { viewId: string }) {
+	override readonly desc: Readonly<IAction2Options> & { viewId: string };
+	constructor(desc: Readonly<IAction2Options> & { viewId: string }) {
 		super(desc);
+		this.desc = desc;
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {

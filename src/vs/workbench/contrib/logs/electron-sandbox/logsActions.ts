@@ -41,7 +41,7 @@ export class OpenExtensionLogsFolderAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const folderStat = await this.fileService.resolve(this.environmentSerice.extHostLogsPath);
 		if (folderStat.children && folderStat.children[0]) {
 			return this.nativeHostService.showItemInFolder(folderStat.children[0].resource.fsPath);

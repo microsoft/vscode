@@ -18,7 +18,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -30,7 +30,6 @@ import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
-import { GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { hash } from 'vs/base/common/hash';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
@@ -211,7 +210,7 @@ class ResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMore', localize('learnMore', "Learn More"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		await this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=868264'));
 	}
 }
@@ -224,7 +223,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', localize('dontShowAgain', "Don't Show Again"));
 	}
 
-	async override run(notification: IDisposable): Promise<void> {
+	override async run(notification: IDisposable): Promise<void> {
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
 
 		// Hide notification
@@ -244,7 +243,7 @@ class ResolveSaveConflictAction extends Action {
 		super('workbench.files.action.resolveConflict', localize('compareChanges', "Compare"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.resource;
 			const name = basename(resource);
@@ -276,7 +275,7 @@ class SaveModelElevatedAction extends Action {
 		super('workbench.files.action.saveModelElevated', triedToUnlock ? isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") : isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({
 				writeElevated: true,
@@ -295,7 +294,7 @@ class RetrySaveModelAction extends Action {
 		super('workbench.files.action.saveModel', localize('retry', "Retry"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({ reason: SaveReason.EXPLICIT });
 		}
@@ -310,7 +309,7 @@ class DiscardModelAction extends Action {
 		super('workbench.files.action.discardModel', localize('discard', "Discard"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.revert();
 		}
@@ -321,13 +320,12 @@ class SaveModelAsAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorService private editorService: IEditorService
 	) {
 		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			const editor = this.findEditor();
 			if (editor) {
@@ -338,25 +336,22 @@ class SaveModelAsAction extends Action {
 
 	private findEditor(): IEditorIdentifier | undefined {
 		let preferredMatchingEditor: IEditorIdentifier | undefined;
-		let otherMatchingEditors: IEditorIdentifier[] = [];
 
-		FindEditorLoop: for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			const editors = this.editorService.findEditors(this.model.resource, group);
-			for (const editor of editors) {
-				if (editor instanceof FileEditorInput) {
-					// We prefer a `FileEditorInput` for "Save As", but it is possible
-					// that a custom editor is leveraging the text file model and as
-					// such we need to fallback to any other editor having the resource
-					// opened for running the save.
-					preferredMatchingEditor = { editor, groupId: group.id };
-					break FindEditorLoop;
-				}
-
-				otherMatchingEditors.push({ editor, groupId: group.id });
+		const editors = this.editorService.findEditors(this.model.resource);
+		for (const identifier of editors) {
+			if (identifier.editor instanceof FileEditorInput) {
+				// We prefer a `FileEditorInput` for "Save As", but it is possible
+				// that a custom editor is leveraging the text file model and as
+				// such we need to fallback to any other editor having the resource
+				// opened for running the save.
+				preferredMatchingEditor = identifier;
+				break;
+			} else if (!preferredMatchingEditor) {
+				preferredMatchingEditor = identifier;
 			}
 		}
 
-		return preferredMatchingEditor || otherMatchingEditors[0];
+		return preferredMatchingEditor;
 	}
 }
 
@@ -368,7 +363,7 @@ class UnlockModelAction extends Action {
 		super('workbench.files.action.unlock', localize('overwrite', "Overwrite"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({ writeUnlock: true, reason: SaveReason.EXPLICIT });
 		}
@@ -383,7 +378,7 @@ class SaveModelIgnoreModifiedSinceAction extends Action {
 		super('workbench.files.action.saveIgnoreModifiedSince', localize('overwrite', "Overwrite"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 		}
@@ -398,7 +393,7 @@ class ConfigureSaveConflictAction extends Action {
 		super('workbench.files.action.configureSaveConflict', localize('configure', "Configure"));
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.preferencesService.openSettings(undefined, 'files.saveConflictResolution');
 	}
 }

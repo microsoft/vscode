@@ -97,7 +97,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 		return false;
 	}
 
-	async override save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._modifiedTextModel) {
 
 			if (this.isUntitled()) {
@@ -112,12 +112,12 @@ export class NotebookDiffEditorInput extends EditorInput {
 		return undefined;
 	}
 
-	async override saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._modifiedTextModel || !this.viewType) {
 			return undefined;
 		}
 
-		const provider = this._notebookService.getContributedNotebookProvider(this.viewType!);
+		const provider = this._notebookService.getContributedNotebookType(this.viewType!);
 
 		if (!provider) {
 			return undefined;
@@ -158,7 +158,7 @@ ${patterns}
 	// called when users rename a notebook document
 	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._modifiedTextModel) {
-			const contributedNotebookProviders = this._notebookService.getContributedNotebookProviders(target);
+			const contributedNotebookProviders = this._notebookService.getContributedNotebookTypes(target);
 
 			if (contributedNotebookProviders.find(provider => provider.id === this._modifiedTextModel!.object.viewType)) {
 				return this._move(group, target);
@@ -171,7 +171,7 @@ ${patterns}
 		return undefined;
 	}
 
-	async override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		if (this._modifiedTextModel && this._modifiedTextModel.object.isDirty()) {
 			await this._modifiedTextModel.object.revert(options);
 		}
@@ -179,7 +179,7 @@ ${patterns}
 		return;
 	}
 
-	async override resolve(): Promise<INotebookDiffEditorModel | null> {
+	override async resolve(): Promise<INotebookDiffEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}

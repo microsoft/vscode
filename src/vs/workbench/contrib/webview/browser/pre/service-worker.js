@@ -27,6 +27,7 @@ const resourceOrigin = searchParams.get('vscode-resource-origin') ?? sw.origin;
  */
 const resourceRoot = rootPath + '/vscode-resource';
 
+const serviceWorkerFetchIgnoreSubdomain = searchParams.get('serviceWorkerFetchIgnoreSubdomain') ?? false;
 
 const resolveTimeout = 30000;
 
@@ -170,8 +171,16 @@ sw.addEventListener('message', async (event) => {
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
 
-	// See if it's a resource request
-	if (requestUrl.origin === resourceOrigin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
+	if (serviceWorkerFetchIgnoreSubdomain && requestUrl.pathname.startsWith(resourceRoot + '/')) {
+		// #121981
+		const ignoreFirstSubdomainRegex = /(.*):\/\/.*?\.(.*)/;
+		const match1 = resourceOrigin.match(ignoreFirstSubdomainRegex);
+		const match2 = requestUrl.origin.match(ignoreFirstSubdomainRegex);
+		if (match1 && match2 && match1[1] === match2[1] && match1[2] === match2[2]) {
+			return event.respondWith(processResourceRequest(event, requestUrl));
+		}
+	} else if (requestUrl.origin === resourceOrigin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
+		// See if it's a resource request
 		return event.respondWith(processResourceRequest(event, requestUrl));
 	}
 
@@ -229,6 +238,7 @@ async function processResourceRequest(event, requestUrl) {
 			status: 200,
 			headers: {
 				'Content-Type': entry.mime,
+				'Access-Control-Allow-Origin': '*',
 				...cacheHeaders
 			}
 		});

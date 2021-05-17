@@ -17,9 +17,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
 import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { decorateFileEditorLabel } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -104,6 +104,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			&& isEqual(this.resource, other.resource));
 	}
 
+	override copy(): IEditorInput {
+		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
+	}
+
 	@memoize
 	private get shortTitle(): string {
 		return this.getName();
@@ -135,7 +139,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		const orphaned = !!this._modelRef?.object.isOrphaned();
 
 		const readonly = this._modelRef
-			? !this._modelRef.object.isEditable() || this._modelRef.object.isOnReadonlyFileSystem()
+			? this._modelRef.object.isEditable() && this._modelRef.object.isOnReadonlyFileSystem()
 			: false;
 
 		return decorateFileEditorLabel(label, {
@@ -159,7 +163,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._modelRef.object.isDirty();
 	}
 
-	public async override save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -176,7 +180,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this;
 	}
 
-	public async override saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -194,7 +198,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this.rename(groupId, target)?.editor;
 	}
 
-	public async override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	public override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		if (this._modelRef) {
 			return this._modelRef.object.revert(options);
 		}
@@ -202,7 +206,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._onDidChangeDirty.fire();
 	}
 
-	public async override resolve(): Promise<null> {
+	public override async resolve(): Promise<null> {
 		await super.resolve();
 
 		if (this.isDisposed()) {
@@ -213,7 +217,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
-
+			// If we're loading untitled file data we should ensure it's dirty
+			if (this._untitledDocumentData) {
+				this._defaultDirtyState = true;
+			}
 			if (this.isDirty()) {
 				this._onDidChangeDirty.fire();
 			}

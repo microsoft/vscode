@@ -83,6 +83,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
+		sortOrderLexicographicOptions: LexicographicOptions;
 		decorations: {
 			colors: boolean;
 			badges: boolean;
@@ -103,6 +104,18 @@ export const enum SortOrder {
 	FilesFirst = 'filesFirst',
 	Type = 'type',
 	Modified = 'modified'
+}
+
+export const enum LexicographicOptions {
+	Default = 'default',
+	Upper = 'upper',
+	Lower = 'lower',
+	Unicode = 'unicode',
+}
+
+export interface ISortOrderConfiguration {
+	sortOrder: SortOrder;
+	lexicographicOptions: LexicographicOptions;
 }
 
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {

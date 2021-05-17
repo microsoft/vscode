@@ -135,6 +135,6 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return panes;
 	}
 
-	abstract getTitle(): string;
+	abstract override getTitle(): string;
 
 }

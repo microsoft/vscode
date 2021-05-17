@@ -372,7 +372,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 			if (resolverResult.options?.trust === RemoteTrustOption.DisableTrust) {
 				promptForMachineTrust = false;
-				this._workspaceTrustManagementService.setWorkspaceTrust(true);
+				await this._workspaceTrustManagementService.setWorkspaceTrust(true);
 			} else if (resolverResult.options?.trust === RemoteTrustOption.MachineTrusted) {
 				promptForMachineTrust = false;
 			}
@@ -475,7 +475,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	public async override getInspectPort(tryEnableInspector: boolean): Promise<number> {
+	public override async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
 		if (localProcessExtensionHost) {
 			return localProcessExtensionHost.getInspectPort(tryEnableInspector);

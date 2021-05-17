@@ -31,11 +31,11 @@ export class GettingStartedInput extends EditorInput {
 	}
 
 	constructor(
-		options: { selectedCategory?: string, selectedTask?: string }
+		options: { selectedCategory?: string, selectedStep?: string }
 	) {
 		super();
 		this.selectedCategory = options.selectedCategory;
-		this.selectedTask = options.selectedTask;
+		this.selectedStep = options.selectedStep;
 	}
 
 	override getName() {
@@ -43,5 +43,5 @@ export class GettingStartedInput extends EditorInput {
 	}
 
 	selectedCategory: string | undefined;
-	selectedTask: string | undefined;
+	selectedStep: string | undefined;
 }

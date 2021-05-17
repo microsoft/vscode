@@ -6,13 +6,59 @@
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { Promises } from 'vs/base/common/async';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
 
+/**
+ * The working copy backup tracker deals with:
+ * - restoring backups that exist
+ * - creating backups for dirty working copies
+ * - deleting backups for saved working copies
+ * - handling backups on shutdown
+ */
 export abstract class WorkingCopyBackupTracker extends Disposable {
+
+	constructor(
+		protected readonly workingCopyBackupService: IWorkingCopyBackupService,
+		protected readonly workingCopyService: IWorkingCopyService,
+		protected readonly logService: ILogService,
+		private readonly lifecycleService: ILifecycleService,
+		protected readonly filesConfigurationService: IFilesConfigurationService,
+		private readonly workingCopyEditorService: IWorkingCopyEditorService,
+		protected readonly editorService: IEditorService
+	) {
+		super();
+
+		// Fill in initial dirty working copies
+		this.workingCopyService.dirtyWorkingCopies.forEach(workingCopy => this.onDidRegister(workingCopy));
+
+		this.registerListeners();
+	}
+
+	private registerListeners() {
+
+		// Working Copy events
+		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
+		this._register(this.workingCopyService.onDidUnregister(workingCopy => this.onDidUnregister(workingCopy)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
+		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
+
+		// Lifecycle (handled in subclasses)
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason), 'veto.backups'));
+
+		// Once a handler registers, restore backups
+		this._register(this.workingCopyEditorService.onDidRegisterHandler(handler => this.restoreBackups(handler)));
+	}
+
+
+	//#region Backup Creator
 
 	// A map from working copy to a version ID we compute on each content
 	// change. This version ID allows to e.g. ask if a backup for a specific
@@ -35,33 +81,6 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		[AutoSaveMode.AFTER_SHORT_DELAY]: 2000, // explicitly higher to prevent races
 		[AutoSaveMode.AFTER_LONG_DELAY]: 1000
 	};
-
-	constructor(
-		protected readonly workingCopyBackupService: IWorkingCopyBackupService,
-		protected readonly workingCopyService: IWorkingCopyService,
-		protected readonly logService: ILogService,
-		private readonly lifecycleService: ILifecycleService,
-		protected readonly filesConfigurationService: IFilesConfigurationService
-	) {
-		super();
-
-		// Fill in initial dirty working copies
-		this.workingCopyService.dirtyWorkingCopies.forEach(workingCopy => this.onDidRegister(workingCopy));
-
-		this.registerListeners();
-	}
-
-	private registerListeners() {
-
-		// Working Copy events
-		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
-		this._register(this.workingCopyService.onDidUnregister(workingCopy => this.onDidUnregister(workingCopy)));
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
-		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
-
-		// Lifecycle (handled in subclasses)
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason), 'veto.backups'));
-	}
 
 	private onDidRegister(workingCopy: IWorkingCopy): void {
 		if (workingCopy.isDirty()) {
@@ -182,4 +201,94 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	}
 
 	protected abstract onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
+
+	//#endregion
+
+
+	//#region Backup Restorer
+
+	protected readonly unrestoredBackups = new Set<IWorkingCopyIdentifier>();
+	protected readonly whenReady = this.resolveBackupsToRestore();
+
+	private _isReady = false;
+	protected get isReady(): boolean { return this._isReady; }
+
+	private async resolveBackupsToRestore(): Promise<void> {
+
+		// Wait for resolving backups until we are restored to reduce startup pressure
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		// Remember each backup that needs to restore
+		for (const backup of await this.workingCopyBackupService.getBackups()) {
+			this.unrestoredBackups.add(backup);
+		}
+
+		this._isReady = true;
+	}
+
+	protected async restoreBackups(handler: IWorkingCopyEditorHandler): Promise<void> {
+
+		// Wait for backups to be resolved
+		await this.whenReady;
+
+		// Figure out already opened editors for backups vs
+		// non-opened.
+		const openedEditorsForBackups: IEditorInput[] = [];
+		const nonOpenedEditorsForBackups: IEditorInput[] = [];
+
+		// Ensure each backup that can be handled has an
+		// associated editor.
+		const restoredBackups = new Set<IWorkingCopyIdentifier>();
+		for (const unrestoredBackup of this.unrestoredBackups) {
+			const canHandleUnrestoredBackup = handler.handles(unrestoredBackup);
+			if (!canHandleUnrestoredBackup) {
+				continue;
+			}
+
+			// Collect already opened editors for backup
+			let hasOpenedEditorForBackup = false;
+			for (const { editor } of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+				const isUnrestoredBackupOpened = handler.isOpen(unrestoredBackup, editor);
+				if (isUnrestoredBackupOpened) {
+					openedEditorsForBackups.push(editor);
+					hasOpenedEditorForBackup = true;
+				}
+			}
+
+			// Otherwise, make sure to create at least one editor
+			// for the backup to show
+			if (!hasOpenedEditorForBackup) {
+				nonOpenedEditorsForBackups.push(await handler.createEditor(unrestoredBackup));
+			}
+
+			// Remember as (potentially) restored
+			restoredBackups.add(unrestoredBackup);
+		}
+
+		// Ensure editors are opened for each backup without editor
+		// in the background without stealing focus
+		if (nonOpenedEditorsForBackups.length > 0) {
+			await this.editorService.openEditors(nonOpenedEditorsForBackups.map(nonOpenedEditorForBackup => ({
+				editor: nonOpenedEditorForBackup,
+				options: {
+					pinned: true,
+					preserveFocus: true,
+					inactive: true
+				}
+			})));
+
+			openedEditorsForBackups.push(...nonOpenedEditorsForBackups);
+		}
+
+		// Then, resolve each editor to make sure the working copy
+		// is loaded and the dirty editor appears properly
+		await Promises.settled(openedEditorsForBackups.map(openedEditorsForBackup => openedEditorsForBackup.resolve()));
+
+		// Finally, remove all handled backups from the list
+		for (const restoredBackup of restoredBackups) {
+			this.unrestoredBackups.delete(restoredBackup);
+		}
+	}
+
+	//#endregion
 }

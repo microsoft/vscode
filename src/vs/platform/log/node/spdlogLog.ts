@@ -7,19 +7,18 @@ import { LogLevel, ILogger, AbstractMessageLogger } from 'vs/platform/log/common
 import * as spdlog from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 
-async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number): Promise<spdlog.RotatingLogger | null> {
+async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number): Promise<spdlog.Logger | null> {
 	// Do not crash if spdlog cannot be loaded
 	try {
 		const _spdlog = await import('spdlog');
-		_spdlog.setAsyncMode(8192, 500);
-		return _spdlog.createRotatingLoggerAsync(name, logfilePath, filesize, filecount);
+		return _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
 	} catch (e) {
 		console.error(e);
 	}
 	return null;
 }
 
-export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): spdlog.RotatingLogger {
+export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): Promise<spdlog.Logger> {
 	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
 	return _spdlog.createRotatingLogger(name, filename, filesize, filecount);
 }
@@ -29,7 +28,7 @@ interface ILog {
 	message: string;
 }
 
-function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string): void {
+function log(logger: spdlog.Logger, level: LogLevel, message: string): void {
 	switch (level) {
 		case LogLevel.Trace: logger.trace(message); break;
 		case LogLevel.Debug: logger.debug(message); break;
@@ -39,13 +38,14 @@ function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string): v
 		case LogLevel.Critical: logger.critical(message); break;
 		default: throw new Error('Invalid log level');
 	}
+	logger.flush();
 }
 
 export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 
 	private buffer: ILog[] = [];
 	private readonly _loggerCreationPromise: Promise<void>;
-	private _logger: spdlog.RotatingLogger | undefined;
+	private _logger: spdlog.Logger | undefined;
 
 	constructor(
 		private readonly name: string,

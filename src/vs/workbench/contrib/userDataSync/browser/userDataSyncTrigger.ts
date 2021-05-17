@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SettingsEditor2Input, KeybindingsEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
+import { SettingsEditor2Input, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -16,6 +16,7 @@ import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDa
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { isWeb } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 
 export class UserDataSyncTrigger extends Disposable implements IWorkbenchContribution {
 

@@ -18,8 +18,11 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, diff, ICellRange, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, diff, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookViewModel', () => {
@@ -36,21 +39,19 @@ suite('NotebookViewModel', () => {
 	test('ctor', function () {
 		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
-		const eventDispatcher = new NotebookEventDispatcher();
-		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService, textModelService);
+		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
+		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, instantiationService, bulkEditService, undoRedoService, textModelService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 
 	test('insert/delete', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				assert.strictEqual(viewModel.cellAt(0)?.metadata?.editable, true);
-				assert.strictEqual(viewModel.cellAt(1)?.metadata?.editable, false);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
 				assert.strictEqual(viewModel.length, 3);
@@ -68,9 +69,9 @@ suite('NotebookViewModel', () => {
 	test('move cells down', async function () {
 		await withTestNotebook(
 			[
-				['//a', 'javascript', CellKind.Code, [], { editable: true }],
-				['//b', 'javascript', CellKind.Code, [], { editable: true }],
-				['//c', 'javascript', CellKind.Code, [], { editable: true }],
+				['//a', 'javascript', CellKind.Code, [], {}],
+				['//b', 'javascript', CellKind.Code, [], {}],
+				['//c', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -97,9 +98,9 @@ suite('NotebookViewModel', () => {
 	test('move cells up', async function () {
 		await withTestNotebook(
 			[
-				['//a', 'javascript', CellKind.Code, [], { editable: true }],
-				['//b', 'javascript', CellKind.Code, [], { editable: true }],
-				['//c', 'javascript', CellKind.Code, [], { editable: true }],
+				['//a', 'javascript', CellKind.Code, [], {}],
+				['//b', 'javascript', CellKind.Code, [], {}],
+				['//c', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -120,8 +121,8 @@ suite('NotebookViewModel', () => {
 	test('index', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -175,10 +176,10 @@ suite('NotebookViewModel Decorations', () => {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -231,12 +232,12 @@ suite('NotebookViewModel Decorations', () => {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 6;', 'javascript', CellKind.Code, [], { editable: false }],
-				['var e = 7;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+				['var e = 6;', 'javascript', CellKind.Code, [], {}],
+				['var e = 7;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -334,14 +335,14 @@ suite('NotebookViewModel API', () => {
 	test('#115432, get nearest code cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['b = 2;', 'python', CellKind.Code, [], {}],
 				['var c = 3', 'javascript', CellKind.Code, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'TypeScript', CellKind.Code, [], {}],
-				['# header f', 'markdown', CellKind.Markdown, [], {}]
+				['# header f', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -358,9 +359,9 @@ suite('NotebookViewModel API', () => {
 	test('#108464, get nearest code cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}]
+				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -372,9 +373,9 @@ suite('NotebookViewModel API', () => {
 	test('getCells', async () => {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}]
+				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;

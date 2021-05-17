@@ -69,9 +69,10 @@ export class CachedExtensionScanner {
 
 		const version = this._productService.version;
 		const commit = this._productService.commit;
+		const date = this._productService.date;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.language;
-		const input = new ExtensionScannerInput(version, commit, locale, devMode, path, isBuiltin, false, translations);
+		const input = new ExtensionScannerInput(version, date, commit, locale, devMode, path, isBuiltin, false, translations);
 		return ExtensionScanner.scanSingleExtension(input, log);
 	}
 
@@ -245,6 +246,7 @@ export class CachedExtensionScanner {
 
 		const version = productService.version;
 		const commit = productService.commit;
+		const date = productService.date;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.language;
 
@@ -253,7 +255,7 @@ export class CachedExtensionScanner {
 			notificationService,
 			environmentService,
 			BUILTIN_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
+			new ExtensionScannerInput(version, date, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
 			log
 		);
 
@@ -266,7 +268,7 @@ export class CachedExtensionScanner {
 			const controlFile = fs.promises.readFile(controlFilePath, 'utf8')
 				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
-			const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
+			const input = new ExtensionScannerInput(version, date, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
 			const extraBuiltinExtensions = Promise.all([builtInExtensions, controlFile])
 				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
 				.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
@@ -279,7 +281,7 @@ export class CachedExtensionScanner {
 			notificationService,
 			environmentService,
 			USER_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
+			new ExtensionScannerInput(version, date, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
 			log
 		));
 
@@ -288,7 +290,7 @@ export class CachedExtensionScanner {
 		if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI) {
 			const extDescsP = environmentService.extensionDevelopmentLocationURI.filter(extLoc => extLoc.scheme === Schemas.file).map(extLoc => {
 				return ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(version, commit, locale, devMode, originalFSPath(extLoc), false, true, translations), log
+					new ExtensionScannerInput(version, date, commit, locale, devMode, originalFSPath(extLoc), false, true, translations), log
 				);
 			});
 			developedExtensions = Promise.all(extDescsP).then((extDescArrays: IExtensionDescription[][]) => {

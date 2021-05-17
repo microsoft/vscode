@@ -156,6 +156,11 @@
 	padding: 0 22px 8px;
 }
 
+.search-view .messages .message .providerMessage {
+	display: inline-block;
+	margin-left: 4px;
+}
+
 .search-view .message p:first-child {
 	margin-top: 0px;
 	margin-bottom: 0px;

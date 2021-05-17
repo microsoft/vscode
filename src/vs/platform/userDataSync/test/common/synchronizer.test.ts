@@ -41,7 +41,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return super.getLatestRemoteUserData(manifest, lastSyncUserData);
 	}
 
-	protected async override doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
+	protected override async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
 		this.cancelled = false;
 		this.onDoSyncCall.fire();
 		await this.syncBarrier.wait();
@@ -145,18 +145,18 @@ class TestSynchroniser extends AbstractSynchroniser {
 		await this.updateLastSyncUserData(remoteUserData);
 	}
 
-	async override stop(): Promise<void> {
+	override async stop(): Promise<void> {
 		this.cancelled = true;
 		this.syncBarrier.open();
 		super.stop();
 	}
 
-	async override triggerLocalChange(): Promise<void> {
+	override async triggerLocalChange(): Promise<void> {
 		super.triggerLocalChange();
 	}
 
 	onDidTriggerLocalChangeCall: Emitter<void> = this._register(new Emitter<void>());
-	protected async override doTriggerLocalChange(): Promise<void> {
+	protected override async doTriggerLocalChange(): Promise<void> {
 		await super.doTriggerLocalChange();
 		this.onDidTriggerLocalChangeCall.fire();
 	}

@@ -143,7 +143,7 @@ suite('File Service', () => {
 		const service = new FileService(new NullLogService());
 
 		const provider = new class extends NullFileSystemProvider {
-			async override stat(resource: URI): Promise<IStat> {
+			override async stat(resource: URI): Promise<IStat> {
 				return {
 					mtime: Date.now(),
 					ctime: Date.now(),

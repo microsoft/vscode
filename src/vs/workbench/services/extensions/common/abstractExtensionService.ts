@@ -42,7 +42,7 @@ export function parseScannedExtension(extension: ITranslatedScannedExtension): I
 		identifier: new ExtensionIdentifier(`${extension.packageJSON.publisher}.${extension.packageJSON.name}`),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: false,
-		isUnderDevelopment: false,
+		isUnderDevelopment: extension.isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.packageJSON,
 	};
@@ -805,7 +805,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Called by extension host
 
-	public _logOrShowMessage(severity: Severity, msg: string): void {
+	protected _logOrShowMessage(severity: Severity, msg: string): void {
 		if (this._isDev) {
 			this._showMessageToUser(severity, msg);
 		} else {
@@ -830,6 +830,21 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
 		this._extensionHostActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
+	}
+
+	public _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
+		type ExtensionActivationErrorClassification = {
+			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			error: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+		};
+		type ExtensionActivationErrorEvent = {
+			extensionId: string;
+			error: string;
+		};
+		this._telemetryService.publicLog2<ExtensionActivationErrorEvent, ExtensionActivationErrorClassification>('extensionActivationError', {
+			extensionId: extensionId.value,
+			error: error.message
+		});
 	}
 
 	public _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {

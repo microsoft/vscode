@@ -49,6 +49,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -121,6 +122,7 @@ export class ExtensionsListView extends ViewPane {
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWorkbenchExtensionManagementService protected readonly extensionManagementService: IWorkbenchExtensionManagementService,
+		@IWorkspaceContextService protected readonly workspaceService: IWorkspaceContextService,
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -394,8 +396,8 @@ export class ExtensionsListView extends ViewPane {
 			extensions = this.filterEnabledExtensions(local, runningExtensions, query, options);
 		}
 
-		else if (/@trustRequired/i.test(value)) {
-			extensions = this.filterTrustRequiredExtensions(local, query, options);
+		else if (/@workspaceUnsupported/i.test(value)) {
+			extensions = this.filterWorkspaceUnsupportedExtensions(local, query, options);
 		}
 
 		return { extensions, canIncludeInstalledExtensions };
@@ -548,32 +550,46 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterTrustRequiredExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterWorkspaceUnsupportedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
 		let value = query.value;
-		const onStartOnly = /@trustRequired:onStart/i.test(value);
-		if (onStartOnly) {
-			value = value.replace(/@trustRequired:onStart/g, '');
+		const untrustedPartiallySupportedOnly = /@workspaceUnsupported:untrustedPartial/i.test(value);
+		if (untrustedPartiallySupportedOnly) {
+			value = value.replace(/@workspaceUnsupported:untrustedPartial/g, '');
 		}
-		const onDemandOnly = /@trustRequired:onDemand/i.test(value);
-		if (onDemandOnly) {
-			value = value.replace(/@trustRequired:onDemand/g, '');
+		const untrustedUnsupportedOnly = /@workspaceUnsupported:untrusted/i.test(value);
+		if (untrustedUnsupportedOnly) {
+			value = value.replace(/@workspaceUnsupported:untrusted/g, '');
 		}
-
-		value = value.replace(/@trustRequired/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
-
-		const result = local.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) !== 'never' && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
-
-		if (onStartOnly) {
-			const onStartExtensions = result.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onStart');
-			return this.sortExtensions(onStartExtensions, options);
+		const virtualUnsupportedOnly = /@workspaceUnsupported:virtual/i.test(value);
+		if (virtualUnsupportedOnly) {
+			value = value.replace(/@workspaceUnsupported:virtual/g, '');
 		}
 
-		if (onDemandOnly) {
-			const onDemandExtensions = result.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onDemand');
-			return this.sortExtensions(onDemandExtensions, options);
+		value = value.replace(/@workspaceUnsupported/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const isVirtualWorkspace = getVirtualWorkspaceScheme(this.workspaceService.getWorkspace()) !== undefined;
+		const virtualUnsupportedExtensions = local.filter(extension => extension.local && !this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.local.manifest) && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+
+		let trustRequiringExtensions = local.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) !== true && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+		if (isVirtualWorkspace) {
+			trustRequiringExtensions = trustRequiringExtensions.filter(extension => extension.local && this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.local.manifest));
 		}
 
-		return this.sortExtensions(result, options);
+		if (untrustedUnsupportedOnly) {
+			const untrustedUnsupportedExtensions = trustRequiringExtensions.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) === false);
+			return this.sortExtensions(untrustedUnsupportedExtensions, options);
+		}
+
+		if (untrustedPartiallySupportedOnly) {
+			const untrustedPartiallySupportedExtensions = trustRequiringExtensions.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) === 'limited');
+			return this.sortExtensions(untrustedPartiallySupportedExtensions, options);
+		}
+
+		if (virtualUnsupportedOnly) {
+			return this.sortExtensions(virtualUnsupportedExtensions, options);
+		}
+
+		return this.sortExtensions(trustRequiringExtensions, options);
 	}
 
 
@@ -964,8 +980,9 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isBuiltInExtensionsQuery(query)
 			|| this.isSearchBuiltInExtensionsQuery(query)
 			|| this.isBuiltInGroupExtensionsQuery(query)
-			|| this.isTrustRequiredExtensionsQuery(query)
-			|| this.isTrustRequiredGroupExtensionsQuery(query);
+			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
+			|| this.isWorkspaceUnsupportedExtensionsQuery(query)
+			|| this.isWorkspaceUnsupportedGroupExtensionsQuery(query);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -980,12 +997,16 @@ export class ExtensionsListView extends ViewPane {
 		return /^\s*@builtin:.+$/i.test(query.trim());
 	}
 
-	static isTrustRequiredExtensionsQuery(query: string): boolean {
-		return /^\s*@trustRequired$/i.test(query.trim());
+	static isSearchWorkspaceUnsupportedExtensionsQuery(query: string): boolean {
+		return /@workspaceUnsupported\s.+/i.test(query);
 	}
 
-	static isTrustRequiredGroupExtensionsQuery(query: string): boolean {
-		return /^\s*@trustRequired:.+$/i.test(query.trim());
+	static isWorkspaceUnsupportedExtensionsQuery(query: string): boolean {
+		return /^\s*@workspaceUnsupported$/i.test(query.trim());
+	}
+
+	static isWorkspaceUnsupportedGroupExtensionsQuery(query: string): boolean {
+		return /^\s*@workspaceUnsupported:.+$/i.test(query.trim());
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -1039,7 +1060,7 @@ export class ExtensionsListView extends ViewPane {
 
 export class ServerInstalledExtensionsView extends ExtensionsListView {
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query ? query : '@installed';
 		if (!ExtensionsListView.isLocalExtensionsQuery(query)) {
 			query = query += ' @installed';
@@ -1051,7 +1072,7 @@ export class ServerInstalledExtensionsView extends ExtensionsListView {
 
 export class EnabledExtensionsView extends ExtensionsListView {
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@enabled';
 		return ExtensionsListView.isEnabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
@@ -1059,39 +1080,45 @@ export class EnabledExtensionsView extends ExtensionsListView {
 
 export class DisabledExtensionsView extends ExtensionsListView {
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@disabled';
 		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
 }
 
 export class BuiltInFeatureExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:features');
 	}
 }
 
 export class BuiltInThemesExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:themes');
 	}
 }
 
 export class BuiltInProgrammingLanguageExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:basics');
 	}
 }
 
-export class TrustRequiredOnStartExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@trustRequired') ? this.showEmptyModel() : super.show('@trustRequired:onStart');
+export class UntrustedWorkspaceUnsupportedExtensionsView extends ExtensionsListView {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== '@workspaceUnsupported') ? this.showEmptyModel() : super.show('@workspaceUnsupported:untrusted');
 	}
 }
 
-export class TrustRequiredOnDemandExtensionsView extends ExtensionsListView {
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@trustRequired') ? this.showEmptyModel() : super.show('@trustRequired:onDemand');
+export class UntrustedWorkspacePartiallySupportedExtensionsView extends ExtensionsListView {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== '@workspaceUnsupported') ? this.showEmptyModel() : super.show('@workspaceUnsupported:untrustedPartial');
+	}
+}
+
+export class VirtualWorkspaceUnsupportedExtensionsView extends ExtensionsListView {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== '@workspaceUnsupported') ? this.showEmptyModel() : super.show('@workspaceUnsupported:virtual');
 	}
 }
 
@@ -1106,7 +1133,7 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 		}));
 	}
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		if (query && query.trim() !== this.recommendedExtensionsQuery) {
 			return this.showEmptyModel();
 		}
@@ -1131,7 +1158,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 		}));
 	}
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== this.recommendedExtensionsQuery) ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery);
 	}
 }
@@ -1146,7 +1173,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.show(this.recommendedExtensionsQuery)));
 	}
 
-	async override show(query: string): Promise<IPagedModel<IExtension>> {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
 		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);

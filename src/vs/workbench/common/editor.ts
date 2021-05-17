@@ -24,6 +24,13 @@ import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
+// Static values for editor contributions
+export const EditorExtensions = {
+	Editors: 'workbench.contributions.editors',
+	Associations: 'workbench.editors.associations',
+	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
+};
+
 // Editor State Context Keys
 export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
@@ -176,6 +183,11 @@ export interface IEditorControl extends ICompositeControl { }
 export interface IFileEditorInputFactory {
 
 	/**
+	 * The type identifier of the file editor input.
+	 */
+	typeId: string;
+
+	/**
 	 * Creates new new editor input capable of showing files.
 	 */
 	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
@@ -184,11 +196,6 @@ export interface IFileEditorInputFactory {
 	 * Check if the provided object is a file editor input.
 	 */
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
-}
-
-export interface ICustomEditorInputFactory {
-	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
-	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
 
 export interface IEditorInputFactoryRegistry {
@@ -202,16 +209,6 @@ export interface IEditorInputFactoryRegistry {
 	 * Returns the file editor input factory to use for file inputs.
 	 */
 	getFileEditorInputFactory(): IFileEditorInputFactory;
-
-	/**
-	 * Registers the custom editor input factory to use for custom inputs.
-	 */
-	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void;
-
-	/**
-	 * Returns the custom editor input factory to use for custom inputs.
-	 */
-	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
 	/**
 	 * Registers a editor input serializer for the given editor input to the registry.
@@ -436,6 +433,11 @@ export interface IEditorInput extends IDisposable {
 	resolve(): Promise<IEditorModel | null>;
 
 	/**
+	 * Returns if the input requires workspace trust or not.
+	 */
+	requiresWorkspaceTrust(): boolean
+
+	/**
 	 * Returns if this input is readonly or not.
 	 */
 	isReadonly(): boolean;
@@ -509,6 +511,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * Returns a copy of the current editor input. Used when we can't just reuse the input
+	 */
+	copy(): IEditorInput;
 }
 
 /**
@@ -570,6 +577,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return { typeId: this.typeId };
 	}
 
+	requiresWorkspaceTrust(): boolean {
+		return false;
+	}
+
 	isReadonly(): boolean {
 		return true;
 	}
@@ -610,6 +621,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	matches(otherInput: unknown): boolean {
 		return this === otherInput;
+	}
+
+	copy(): IEditorInput {
+		return this;
 	}
 
 	isDisposed(): boolean {
@@ -784,6 +799,10 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.description;
 	}
 
+	override requiresWorkspaceTrust(): boolean {
+		return this.primary.requiresWorkspaceTrust() || this.secondary.requiresWorkspaceTrust();
+	}
+
 	override isReadonly(): boolean {
 		return this.primary.isReadonly();
 	}
@@ -879,6 +898,10 @@ export class EditorModel extends Disposable implements IEditorModel {
 export interface IEditorInputWithOptions {
 	editor: IEditorInput;
 	options?: IEditorOptions | ITextEditorOptions;
+}
+
+export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
+	group?: IEditorGroup;
 }
 
 export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
@@ -1435,7 +1458,6 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 
 	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
-	private readonly customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
 	private readonly editorInputSerializerConstructors: Map<string /* Type ID */, IConstructorSignature0<IEditorInputSerializer>> = new Map();
 	private readonly editorInputSerializerInstances: Map<string /* Type ID */, IEditorInputSerializer> = new Map();
@@ -1489,21 +1511,9 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	getEditorInputSerializer(arg1: string | IEditorInput): IEditorInputSerializer | undefined {
 		return this.editorInputSerializerInstances.get(typeof arg1 === 'string' ? arg1 : arg1.typeId);
 	}
-
-	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void {
-		this.customEditorInputFactoryInstances.set(scheme, factory);
-	}
-
-	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined {
-		return this.customEditorInputFactoryInstances.get(scheme);
-	}
 }
 
-export const Extensions = {
-	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
-};
-
-Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
+Registry.add(EditorExtensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
 export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
 	if (!paths || !paths.length) {

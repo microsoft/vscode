@@ -57,17 +57,6 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceCellOutput(index: number, outputs: vscode.NotebookCellOutput[]): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.Output,
-			index,
-			outputs: outputs.map(output => {
-				return extHostConverter.NotebookCellOutput.from(output);
-			})
-		});
-	}
-
 	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
 		this._throwIfFinalized();
 		if (from === to && cells.length === 0) {
@@ -111,7 +100,7 @@ export class ExtHostNotebookEditor {
 			const that = this;
 			this._editor = {
 				get document() {
-					return that.notebookData.notebookDocument;
+					return that.notebookData.apiNotebook;
 				},
 				get selections() {
 					return that._selections;

@@ -63,6 +63,7 @@ import { ITimerService } from 'vs/workbench/services/timer/browser/timerService'
 import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class BrowserMain extends Disposable {
 
@@ -106,16 +107,22 @@ class BrowserMain extends Disposable {
 			const commandService = accessor.get(ICommandService);
 			const lifecycleService = accessor.get(ILifecycleService);
 			const timerService = accessor.get(ITimerService);
+			const openerService = accessor.get(IOpenerService);
+			const productService = accessor.get(IProductService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
 				},
 				env: {
+					uriScheme: productService.urlProtocol,
 					async retrievePerformanceMarks() {
 						await timerService.whenReady();
 
 						return timerService.getPerformanceMarks();
+					},
+					async openUri(uri: URI): Promise<boolean> {
+						return openerService.open(uri, {});
 					}
 				},
 				shutdown: () => lifecycleService.shutdown()
@@ -203,9 +210,10 @@ class BrowserMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
-		// TODO @lszomoru: Following two services shall be merged into single service
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, configurationService, environmentService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, environmentService, storageService, uriIdentityService, configurationService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+
+		// Update workspace trust so that configuration is updated accordingly
 		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
 
@@ -278,7 +286,16 @@ class BrowserMain extends Disposable {
 		} catch (error) {
 			onUnexpectedError(error);
 		}
-		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
+
+		let userDataProvider: IFileSystemProvider | undefined;
+		if (indexedDBUserDataProvider) {
+			userDataProvider = indexedDBUserDataProvider;
+		} else {
+			logService.info('using in-memory user data provider');
+			userDataProvider = new InMemoryFileSystemProvider();
+		}
+
+		fileService.registerProvider(Schemas.userData, userDataProvider);
 
 		if (indexedDBUserDataProvider) {
 			registerAction2(class ResetUserDataAction extends Action2 {
@@ -310,6 +327,7 @@ class BrowserMain extends Disposable {
 		}
 
 		fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

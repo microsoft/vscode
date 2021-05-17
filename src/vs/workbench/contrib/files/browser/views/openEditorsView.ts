@@ -493,7 +493,7 @@ interface IEditorGroupTemplateData {
 class OpenEditorActionRunner extends ActionRunner {
 	public editor: OpenEditor | undefined;
 
-	async override run(action: IAction): Promise<void> {
+	override async run(action: IAction): Promise<void> {
 		if (!this.editor) {
 			return;
 		}

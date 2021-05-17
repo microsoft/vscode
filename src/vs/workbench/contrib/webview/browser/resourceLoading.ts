@@ -47,9 +47,9 @@ export async function loadLocalResource(
 	requestUri: URI,
 	ifNoneMatch: string | undefined,
 	options: {
-		extensionLocation: URI | undefined;
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
+		remoteAuthority: string | undefined;
 	},
 	fileService: IFileService,
 	requestService: IRequestService,
@@ -58,7 +58,7 @@ export async function loadLocalResource(
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.extensionLocation);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.remoteAuthority);
 
 	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -117,23 +117,23 @@ export async function loadLocalResource(
 function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
-	extensionLocation: URI | undefined,
+	remoteAuthority: string | undefined,
 ): URI | undefined {
 	for (const root of roots) {
 		if (containsResource(root, requestUri)) {
-			return normalizeResourcePath(requestUri, extensionLocation);
+			return normalizeResourcePath(requestUri, remoteAuthority);
 		}
 	}
 
 	return undefined;
 }
 
-function normalizeResourcePath(resource: URI, extensionLocation: URI | undefined): URI {
-	// If we are loading a file resource from a webview created by a remote extension, rewrite the uri to go remote
-	if (resource.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote) {
+function normalizeResourcePath(resource: URI, remoteAuthority: string | undefined): URI {
+	// If the uri was from a remote authority, make we go to the remote to load it
+	if (remoteAuthority && resource.scheme === Schemas.file) {
 		return URI.from({
 			scheme: Schemas.vscodeRemote,
-			authority: extensionLocation.authority,
+			authority: remoteAuthority,
 			path: '/vscode-resource',
 			query: JSON.stringify({
 				requestResourcePath: resource.path

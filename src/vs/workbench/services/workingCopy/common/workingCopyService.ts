@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export const IWorkingCopyService = createDecorator<IWorkingCopyService>('workingCopyService');
 
@@ -20,12 +20,24 @@ export interface IWorkingCopyService {
 
 	//#region Events
 
+	/**
+	 * An event for when a working copy was registered.
+	 */
 	readonly onDidRegister: Event<IWorkingCopy>;
 
+	/**
+	 * An event for when a working copy was unregistered.
+	 */
 	readonly onDidUnregister: Event<IWorkingCopy>;
 
+	/**
+	 * An event for when a working copy dirty state changed.
+	 */
 	readonly onDidChangeDirty: Event<IWorkingCopy>;
 
+	/**
+	 * An event for when a working copy's content changed.
+	 */
 	readonly onDidChangeContent: Event<IWorkingCopy>;
 
 	//#endregion
@@ -33,10 +45,19 @@ export interface IWorkingCopyService {
 
 	//#region Dirty Tracking
 
+	/**
+	 * The number of dirty working copies that are registered.
+	 */
 	readonly dirtyCount: number;
 
-	readonly dirtyWorkingCopies: IWorkingCopy[];
+	/**
+	 * All dirty working copies that are registered.
+	 */
+	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
 
+	/**
+	 * Whether there is any registered working copy that is dirty.
+	 */
 	readonly hasDirty: boolean;
 
 	/**
@@ -54,7 +75,10 @@ export interface IWorkingCopyService {
 
 	//#region Registry
 
-	readonly workingCopies: IWorkingCopy[];
+	/**
+	 * All working copies that are registered.
+	 */
+	readonly workingCopies: readonly IWorkingCopy[];
 
 	/**
 	 * Register a new working copy with the service. This method will
@@ -65,6 +89,13 @@ export interface IWorkingCopyService {
 	 * resource.
 	 */
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable;
+
+	/**
+	 * Whether a working copy with the given resource or identifier
+	 * exists.
+	 */
+	has(identifier: IWorkingCopyIdentifier): boolean;
+	has(resource: URI): boolean;
 
 	//#endregion
 }
@@ -149,6 +180,16 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		if (workingCopy.isDirty()) {
 			this._onDidChangeDirty.fire(workingCopy);
 		}
+	}
+
+	has(identifier: IWorkingCopyIdentifier): boolean;
+	has(resource: URI): boolean;
+	has(resourceOrIdentifier: URI | IWorkingCopyIdentifier): boolean {
+		if (URI.isUri(resourceOrIdentifier)) {
+			return this.mapResourceToWorkingCopies.has(resourceOrIdentifier);
+		}
+
+		return this.mapResourceToWorkingCopies.get(resourceOrIdentifier.resource)?.has(resourceOrIdentifier.typeId) ?? false;
 	}
 
 	//#endregion

@@ -18,28 +18,29 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorsOrder, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Iterable } from 'vs/base/common/iterator';
+import { flatten } from 'vs/base/common/arrays';
+
+// Kernel Command
+export const SELECT_KERNEL_ID = 'notebook.selectKernel';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
-const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
-const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
-const NOTEBOOK_FOCUS_PREVIOUS_EDITOR = 'notebook.focusPreviousEditor';
-const NOTEBOOK_FOCUS_NEXT_EDITOR = 'notebook.focusNextEditor';
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
 
@@ -61,9 +62,6 @@ const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
 const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
-
-const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
-const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
 
 const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
 const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
@@ -95,7 +93,7 @@ export interface INotebookActionContext {
 	readonly cell?: ICellViewModel;
 	readonly notebookEditor: IActiveNotebookEditor;
 	readonly ui?: boolean;
-	readonly selectedCells?: ICellViewModel[];
+	readonly selectedCells?: readonly ICellViewModel[];
 }
 
 export interface INotebookCellActionContext extends INotebookActionContext {
@@ -181,11 +179,11 @@ export abstract class NotebookAction extends Action2 {
 		super(desc);
 	}
 
-	async run(accessor: ServicesAccessor, context?: any): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): Promise<void> {
 		const isFromUI = !!context;
 		const from = isFromUI ? (this.isNotebookActionContext(context) ? 'notebookToolbar' : 'editorToolbar') : undefined;
 		if (!this.isNotebookActionContext(context)) {
-			context = this.getEditorContextFromArgsOrActive(accessor, context);
+			context = this.getEditorContextFromArgsOrActive(accessor, context, ...additionalArgs);
 			if (!context) {
 				return;
 			}
@@ -196,7 +194,7 @@ export abstract class NotebookAction extends Action2 {
 			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
 		}
 
-		this.runWithContext(accessor, context);
+		return this.runWithContext(accessor, context);
 	}
 
 	abstract runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void>;
@@ -205,8 +203,75 @@ export abstract class NotebookAction extends Action2 {
 		return !!context && !!(context as INotebookActionContext).notebookEditor;
 	}
 
-	protected getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any): INotebookActionContext | undefined {
+	protected getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): INotebookActionContext | undefined {
 		return getContextFromActiveEditor(accessor.get(IEditorService));
+	}
+}
+
+// todo@rebornix, replace NotebookAction with this
+export abstract class NotebookMultiCellAction<T> extends Action2 {
+	constructor(desc: IAction2Options) {
+		if (desc.f1 !== false) {
+			desc.f1 = false;
+			const f1Menu = {
+				id: MenuId.CommandPalette,
+				when: NOTEBOOK_IS_ACTIVE_EDITOR
+			};
+
+			if (!desc.menu) {
+				desc.menu = [];
+			} else if (!Array.isArray(desc.menu)) {
+				desc.menu = [desc.menu];
+			}
+
+			desc.menu = [
+				...desc.menu,
+				f1Menu
+			];
+		}
+
+		desc.category = NOTEBOOK_ACTIONS_CATEGORY;
+
+		super(desc);
+	}
+
+	abstract parseArgs(accessor: ServicesAccessor, ...args: any[]): T | undefined;
+	abstract runWithContext(accessor: ServicesAccessor, context: T): Promise<void>;
+
+	protected isNotebookActionContext(context?: unknown): context is INotebookActionContext {
+		return !!context && !!(context as INotebookActionContext).notebookEditor;
+	}
+	private isEditorContext(context?: unknown): boolean {
+		return !!context && (context as IEditorCommandsContext).groupId !== undefined;
+	}
+	protected getEditorFromArgsOrActivePane(accessor: ServicesAccessor, context?: UriComponents): IActiveNotebookEditor | undefined {
+		const editorFromUri = getContextFromUri(accessor, context)?.notebookEditor;
+
+		if (editorFromUri) {
+			return editorFromUri;
+		}
+
+		const editor = getNotebookEditorFromEditorPane(accessor.get(IEditorService).activeEditorPane);
+		if (!editor || !editor.hasModel()) {
+			return;
+		}
+
+		return editor;
+	}
+
+	async run(accessor: ServicesAccessor, ...additionalArgs: any[]): Promise<void> {
+		const context = additionalArgs[0];
+		const isFromCellToolbar = this.isNotebookActionContext(context);
+		const isFromEditorToolbar = this.isEditorContext(context);
+		const from = isFromCellToolbar ? 'cellToolbar' : (isFromEditorToolbar ? 'editorToolbar' : 'other');
+		const parsedArgs = this.parseArgs(accessor, ...additionalArgs);
+		if (!parsedArgs) {
+			return;
+		}
+
+		const telemetryService = accessor.get(ITelemetryService);
+		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+		return this.runWithContext(accessor, parsedArgs);
 	}
 }
 
@@ -219,7 +284,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 		return undefined;
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
 		if (this.isCellActionContext(context)) {
 			const telemetryService = accessor.get(ITelemetryService);
 			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellToolbar' });
@@ -242,19 +307,108 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 }
 
-const executeCellCondition = ContextKeyExpr.or(
-	ContextKeyExpr.and(
-		ContextKeyExpr.or(
-			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'idle'),
-			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'succeeded'),
-			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'failed'),
-		),
-		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0)),
-	NOTEBOOK_CELL_TYPE.isEqualTo('markdown'));
+const executeCellCondition = ContextKeyExpr.and(
+	ContextKeyExpr.or(
+		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'idle'),
+		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'succeeded'),
+		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'failed'),
+	),
+	ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0));
 
 const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0);
 
-registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
+interface IMultiCellArgs {
+	ranges: ICellRange[];
+	document?: URI;
+}
+
+function isMultiCellArgs(arg: unknown): arg is IMultiCellArgs {
+	if (arg === undefined) {
+		return false;
+	}
+	const ranges = (arg as IMultiCellArgs).ranges;
+	if (!ranges) {
+		return false;
+	}
+
+	if (!Array.isArray(ranges) || ranges.some(range => !isICellRange(range))) {
+		return false;
+	}
+
+	if ((arg as IMultiCellArgs).document) {
+		const uri = URI.revive((arg as IMultiCellArgs).document);
+
+		if (!uri) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function isNotebookActionContext(context?: unknown): context is INotebookActionContext {
+	return !!context && !!(context as INotebookActionContext).notebookEditor;
+}
+
+function getEditorFromArgsOrActivePane(accessor: ServicesAccessor, context?: UriComponents): IActiveNotebookEditor | undefined {
+	const editorFromUri = getContextFromUri(accessor, context)?.notebookEditor;
+
+	if (editorFromUri) {
+		return editorFromUri;
+	}
+
+	const editor = getNotebookEditorFromEditorPane(accessor.get(IEditorService).activeEditorPane);
+	if (!editor || !editor.hasModel()) {
+		return;
+	}
+
+	return editor;
+}
+
+function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args: any[]) {
+	const firstArg = args[0];
+	if (isNotebookActionContext(firstArg)) {
+		// from UI
+		return firstArg;
+	}
+
+	// then it's from keybindings or commands
+	// todo@rebornix assertType
+	if (isMultiCellArgs(firstArg)) {
+		const editor = getEditorFromArgsOrActivePane(accessor, firstArg.document);
+		if (!editor) {
+			return;
+		}
+
+		const ranges = firstArg.ranges;
+		const selectedCells = flatten(ranges.map(range => editor.viewModel.getCells(range).slice(0)));
+		return {
+			notebookEditor: editor,
+			selectedCells
+		};
+	}
+
+	// handle legacy arguments
+	if (isICellRange(firstArg)) {
+		// cellRange, document
+		const secondArg = args[1];
+		const editor = getEditorFromArgsOrActivePane(accessor, secondArg);
+		if (!editor) {
+			return;
+		}
+
+		return {
+			notebookEditor: editor,
+			selectedCells: editor.viewModel.getCells(firstArg)
+		};
+	}
+
+	// let's just execute the active cell
+	const context = getContextFromActiveEditor(accessor.get(IEditorService));
+	return context;
+}
+
+registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_COMMAND_ID,
@@ -277,25 +431,35 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 				description: localize('notebookActions.execute', "Execute Cell"),
 				args: [
 					{
-						name: 'range',
-						description: 'The cell range',
+						name: 'options',
+						description: 'The cell range options',
 						schema: {
 							'type': 'object',
-							'required': ['start', 'end'],
+							'required': ['ranges'],
 							'properties': {
-								'start': {
-									'type': 'number'
+								'ranges': {
+									'type': 'array',
+									items: [
+										{
+											'type': 'object',
+											'required': ['start', 'end'],
+											'properties': {
+												'start': {
+													'type': 'number'
+												},
+												'end': {
+													'type': 'number'
+												}
+											}
+										}
+									]
 								},
-								'end': {
-									'type': 'number'
+								'document': {
+									'type': 'object',
+									'description': 'The document uri',
 								}
 							}
 						}
-					},
-					{
-						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
 					}
 				]
 			},
@@ -303,47 +467,11 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 		});
 	}
 
-	override getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
-		if (!context) {
-			return;
-		}
-
-		if (typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
-			throw new Error(`The first argument '${context}' is not a valid CellRange`);
-		}
-
-		if (additionalArgs.length && additionalArgs[0]) {
-			const uri = URI.revive(additionalArgs[0]);
-
-			if (!uri) {
-				throw new Error(`The second argument '${uri}' is not a valid Uri`);
-			}
-
-			const widget = getWidgetFromUri(accessor, uri);
-			if (widget) {
-				return {
-					notebookEditor: widget,
-					cell: widget.viewModel.cellAt(context.start)!
-				};
-			} else {
-				throw new Error(`There is no editor opened for resource ${uri}`);
-			}
-		}
-
-		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
-
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.length) {
-			return;
-		}
-
-		// TODO@rebornix, support multiple cells
-		return {
-			notebookEditor: activeEditorContext.notebookEditor,
-			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)!
-		};
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		return runCell(accessor, context);
 	}
 });
@@ -353,7 +481,7 @@ const cellCancelCondition = ContextKeyExpr.or(
 	ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'pending'),
 );
 
-registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
+registerAction2(class CancelExecuteCell extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
 			id: CANCEL_CELL_COMMAND_ID,
@@ -369,65 +497,51 @@ registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 				description: localize('notebookActions.cancel', "Stop Cell Execution"),
 				args: [
 					{
-						name: 'range',
-						description: 'The cell range',
+						name: 'options',
+						description: 'The cell range options',
 						schema: {
 							'type': 'object',
-							'required': ['start', 'end'],
+							'required': ['ranges'],
 							'properties': {
-								'start': {
-									'type': 'number'
+								'ranges': {
+									'type': 'array',
+									items: [
+										{
+											'type': 'object',
+											'required': ['start', 'end'],
+											'properties': {
+												'start': {
+													'type': 'number'
+												},
+												'end': {
+													'type': 'number'
+												}
+											}
+										}
+									]
 								},
-								'end': {
-									'type': 'number'
+								'document': {
+									'type': 'object',
+									'description': 'The document uri',
 								}
 							}
 						}
-					},
-					{
-						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
 					}
 				]
 			},
 		});
 	}
 
-	override getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
-		if (!context || typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
-			return;
-		}
-
-		if (additionalArgs.length && additionalArgs[0]) {
-			const uri = URI.revive(additionalArgs[0]);
-
-			if (uri) {
-				const widget = getWidgetFromUri(accessor, uri);
-				if (widget) {
-					return {
-						notebookEditor: widget,
-						cell: widget.viewModel.cellAt(context.start)!
-					};
-				}
-			}
-		}
-
-		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
-
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.length) {
-			return;
-		}
-
-		// TODO@rebornix, support multiple cells
-		return {
-			notebookEditor: activeEditorContext.notebookEditor,
-			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)!
-		};
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		return context.notebookEditor.cancelNotebookCells(Iterable.single(context.cell));
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		if (context.ui && context.cell) {
+			return context.notebookEditor.cancelNotebookCells(Iterable.single(context.cell));
+		} else if (context.selectedCells) {
+			return context.notebookEditor.cancelNotebookCells(context.selectedCells);
+		}
 	}
 });
 
@@ -454,7 +568,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: executeCellCondition,
+			precondition: ContextKeyExpr.or(executeCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -470,20 +584,33 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			return;
 		}
 
-		const executionP = runCell(accessor, context);
-
-		// Try to select below, fall back on inserting
-		const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
-		if (nextCell) {
-			context.notebookEditor.focusNotebookCell(nextCell, 'container');
-		} else {
-			const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
-			if (newCell) {
-				context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		if (context.cell.cellKind === CellKind.Markup) {
+			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			if (nextCell) {
+				context.notebookEditor.focusNotebookCell(nextCell, 'container');
+			} else {
+				const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Markup, 'below');
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				}
 			}
-		}
+			return;
+		} else {
+			const executionP = runCell(accessor, context);
 
-		return executionP;
+			// Try to select below, fall back on inserting
+			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			if (nextCell) {
+				context.notebookEditor.focusNotebookCell(nextCell, 'container');
+			} else {
+				const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				}
+			}
+
+			return executionP;
+		}
 	}
 });
 
@@ -514,7 +641,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	}
 });
 
-registerAction2(class extends NotebookAction {
+registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
 	constructor() {
 		super({
 			id: RENDER_ALL_MARKDOWN_CELLS,
@@ -527,7 +654,7 @@ registerAction2(class extends NotebookAction {
 	}
 });
 
-registerAction2(class extends NotebookAction {
+registerAction2(class ExecuteNotebookAction extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
@@ -575,8 +702,8 @@ registerAction2(class extends NotebookAction {
 
 function renderAllMarkdownCells(context: INotebookActionContext): void {
 	context.notebookEditor.viewModel.viewCells.forEach(cell => {
-		if (cell.cellKind === CellKind.Markdown) {
-			cell.editState = CellEditState.Preview;
+		if (cell.cellKind === CellKind.Markup) {
+			cell.updateEditState(CellEditState.Preview, 'renderAllMarkdownCells');
 		}
 	});
 }
@@ -629,7 +756,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class ChangeCellToCodeAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
@@ -653,7 +780,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class ChangeCellToMarkdownAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
@@ -673,14 +800,11 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Markdown, context);
+		await changeCellToKind(CellKind.Markup, context);
 	}
 });
 
-async function runCell(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-	if (context.cell.metadata?.runState === NotebookCellExecutionState.Executing) {
-		return;
-	}
+async function runCell(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const group = editorGroupService.activeGroup;
@@ -691,11 +815,13 @@ async function runCell(accessor: ServicesAccessor, context: INotebookCellActionC
 		}
 	}
 
-	if (context.cell.cellKind === CellKind.Markdown) {
-		context.notebookEditor.focusNotebookCell(context.cell, 'container');
-		return;
-	} else {
+	if (context.ui && context.cell) {
+		if (context.cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
+			return;
+		}
 		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
+	} else if (context.selectedCells) {
+		return context.notebookEditor.executeNotebookCells(context.selectedCells);
 	}
 }
 
@@ -742,7 +868,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		return null;
 	}
 
-	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing ? 'editor' : 'container');
+	notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
 
 	return newCell;
 }
@@ -761,7 +887,7 @@ abstract class InsertCellCommand extends NotebookAction {
 	}
 }
 
-registerAction2(class extends InsertCellCommand {
+registerAction2(class InsertCodeCellAboveAction extends InsertCellCommand {
 	constructor() {
 		super(
 			{
@@ -782,7 +908,7 @@ registerAction2(class extends InsertCellCommand {
 	}
 });
 
-registerAction2(class extends InsertCellCommand {
+registerAction2(class InsertCodeCellBelowAction extends InsertCellCommand {
 	constructor() {
 		super(
 			{
@@ -803,7 +929,7 @@ registerAction2(class extends InsertCellCommand {
 	}
 });
 
-registerAction2(class extends NotebookAction {
+registerAction2(class InsertCodeCellAtTopAction extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -813,7 +939,7 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
 		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
@@ -828,7 +954,7 @@ registerAction2(class extends NotebookAction {
 	}
 });
 
-registerAction2(class extends NotebookAction {
+registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -838,7 +964,7 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async override run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
 		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
@@ -846,7 +972,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Markdown, 'above', undefined, true);
+		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Markup, 'above', undefined, true);
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
@@ -875,7 +1001,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
-registerAction2(class extends InsertCellCommand {
+registerAction2(class InsertMarkdownCellAboveAction extends InsertCellCommand {
 	constructor() {
 		super(
 			{
@@ -886,12 +1012,12 @@ registerAction2(class extends InsertCellCommand {
 					order: 2
 				}
 			},
-			CellKind.Markdown,
+			CellKind.Markup,
 			'above');
 	}
 });
 
-registerAction2(class extends InsertCellCommand {
+registerAction2(class InsertMarkdownCellBelowAction extends InsertCellCommand {
 	constructor() {
 		super(
 			{
@@ -902,7 +1028,7 @@ registerAction2(class extends InsertCellCommand {
 					order: 3
 				}
 			},
-			CellKind.Markdown,
+			CellKind.Markup,
 			'below');
 	}
 });
@@ -929,7 +1055,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
 		super(
 			{
@@ -958,7 +1084,14 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+const quitEditCondition = ContextKeyExpr.and(
+	NOTEBOOK_EDITOR_FOCUSED,
+	InputFocusedContext,
+	EditorContextKeys.hoverVisible.toNegated(),
+	EditorContextKeys.hasNonEmptySelection.toNegated(),
+	EditorContextKeys.hasMultipleSelections.toNegated()
+);
+registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	constructor() {
 		super(
 			{
@@ -974,23 +1107,27 @@ registerAction2(class extends NotebookCellAction {
 					group: CELL_TITLE_CELL_GROUP_ID
 				},
 				icon: icons.stopEditIcon,
-				keybinding: {
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
-						InputFocusedContext,
-						EditorContextKeys.hoverVisible.toNegated(),
-						EditorContextKeys.hasNonEmptySelection.toNegated(),
-						EditorContextKeys.hasMultipleSelections.toNegated()
-					),
-					primary: KeyCode.Escape,
-					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
-				},
+				keybinding: [
+					{
+						when: quitEditCondition,
+						primary: KeyCode.Escape,
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
+					},
+					{
+						when: quitEditCondition,
+						primary: KeyMod.WinCtrl | KeyCode.Enter,
+						win: {
+							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+						},
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+					},
+				]
 			});
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		if (context.cell.cellKind === CellKind.Markdown) {
-			context.cell.editState = CellEditState.Preview;
+		if (context.cell.cellKind === CellKind.Markup) {
+			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
 		}
 
 		return context.notebookEditor.focusNotebookCell(context.cell, 'container');
@@ -1060,7 +1197,7 @@ export function runDeleteAction(viewModel: NotebookViewModel, cell: ICellViewMod
 	}
 }
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class DeleteCellAction extends NotebookCellAction {
 	constructor() {
 		super(
 			{
@@ -1092,195 +1229,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super({
-			id: NOTEBOOK_FOCUS_NEXT_EDITOR,
-			title: localize('cursorMoveDown', 'Focus Next Cell Editor'),
-			keybinding: [
-				{
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
-						ContextKeyExpr.has(InputFocusedContextKey),
-						EditorContextKeys.editorTextFocus,
-						NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
-						NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
-					primary: KeyCode.DownArrow,
-					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-				},
-				{
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED),
-					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-					mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
-					weight: KeybindingWeight.WorkbenchContrib
-				}
-			]
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const editor = context.notebookEditor;
-		const activeCell = context.cell;
-
-		const idx = editor.viewModel.getCellIndex(activeCell);
-		if (typeof idx !== 'number') {
-			return;
-		}
-
-		const newCell = editor.viewModel.cellAt(idx + 1);
-
-		if (!newCell) {
-			return;
-		}
-
-		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.editState === CellEditState.Preview ? 'container' : 'editor';
-		editor.focusNotebookCell(newCell, newFocusMode);
-		editor.cursorNavigationMode = true;
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super({
-			id: NOTEBOOK_FOCUS_PREVIOUS_EDITOR,
-			title: localize('cursorMoveUp', 'Focus Previous Cell Editor'),
-			keybinding: {
-				when: ContextKeyExpr.and(
-					NOTEBOOK_EDITOR_FOCUSED,
-					ContextKeyExpr.has(InputFocusedContextKey),
-					EditorContextKeys.editorTextFocus,
-					NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'),
-					NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
-				primary: KeyCode.UpArrow,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			},
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const editor = context.notebookEditor;
-		const activeCell = context.cell;
-
-		const idx = editor.viewModel.getCellIndex(activeCell);
-		if (typeof idx !== 'number') {
-			return;
-		}
-
-		if (idx < 1) {
-			// we don't do loop
-			return;
-		}
-
-		const newCell = editor.viewModel.cellAt(idx - 1);
-
-		if (!newCell) {
-			return;
-		}
-
-		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.editState === CellEditState.Preview ? 'container' : 'editor';
-		editor.focusNotebookCell(newCell, newFocusMode);
-		editor.cursorNavigationMode = true;
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super({
-			id: FOCUS_IN_OUTPUT_COMMAND_ID,
-			title: localize('focusOutput', 'Focus In Active Cell Output'),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS),
-				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const editor = context.notebookEditor;
-		const activeCell = context.cell;
-		editor.focusNotebookCell(activeCell, 'output');
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super({
-			id: FOCUS_OUT_OUTPUT_COMMAND_ID,
-			title: localize('focusOutputOut', 'Focus Out Active Cell Output'),
-			keybinding: {
-				when: NOTEBOOK_EDITOR_FOCUSED,
-				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.UpArrow, },
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const editor = context.notebookEditor;
-		const activeCell = context.cell;
-		editor.focusNotebookCell(activeCell, 'editor');
-	}
-});
-
-
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super({
-			id: NOTEBOOK_FOCUS_TOP,
-			title: localize('focusFirstCell', 'Focus First Cell'),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyCode.Home,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const editor = context.notebookEditor;
-		if (!editor.viewModel || !editor.viewModel.length) {
-			return;
-		}
-
-		const firstCell = editor.viewModel.cellAt(0);
-		if (firstCell) {
-			editor.focusNotebookCell(firstCell, 'container');
-		}
-	}
-});
-
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super({
-			id: NOTEBOOK_FOCUS_BOTTOM,
-			title: localize('focusLastCell', 'Focus Last Cell'),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyCode.End,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const editor = context.notebookEditor;
-		if (!editor.viewModel || !editor.viewModel.length) {
-			return;
-		}
-
-		const firstCell = editor.viewModel.cellAt(editor.viewModel.length - 1);
-		if (firstCell) {
-			editor.focusNotebookCell(firstCell, 'container');
-		}
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
+registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
@@ -1315,15 +1264,15 @@ registerAction2(class extends NotebookCellAction {
 
 		editor.viewModel.notebookDocument.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
-		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
+		if (context.cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.viewModel.notebookDocument.applyEdits([{
-				editType: CellEditType.Metadata, index, metadata: {
-					...context.cell.metadata,
-					runState: NotebookCellExecutionState.Idle,
-					runStartTime: undefined,
-					runStartTimeAdjustment: undefined,
-					runEndTime: undefined,
-					executionOrder: undefined
+				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
+					runState: null,
+					runStartTime: null,
+					runStartTimeAdjustment: null,
+					runEndTime: null,
+					executionOrder: null,
+					lastRunSuccess: null
 				}
 			}], true, undefined, () => undefined, undefined);
 		}
@@ -1415,13 +1364,14 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const modelService = accessor.get(IModelService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const providerLanguages = [
+		const providerLanguages = new Set([
 			...(context.notebookEditor.activeKernel?.supportedLanguages ?? modeService.getRegisteredModes()),
 			'markdown'
-		];
+		]);
+
 		providerLanguages.forEach(languageId => {
 			let description: string;
-			if (context.cell.cellKind === CellKind.Markdown ? (languageId === 'markdown') : (languageId === context.cell.language)) {
+			if (context.cell.cellKind === CellKind.Markup ? (languageId === 'markdown') : (languageId === context.cell.language)) {
 				description = localize('languageDescription', "({0}) - Current Language", languageId);
 			} else {
 				description = localize('languageDescriptionConfigured', "({0})", languageId);
@@ -1465,11 +1415,11 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 	private async setLanguage(context: IChangeCellContext, languageId: string) {
 		if (languageId === 'markdown' && context.cell?.language !== 'markdown') {
-			const newCell = await changeCellToKind(CellKind.Markdown, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown');
+			const newCell = await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown');
 			if (newCell) {
 				context.notebookEditor.focusNotebookCell(newCell, 'editor');
 			}
-		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markdown) {
+		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
 			await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, languageId);
 		} else {
 			const index = context.notebookEditor.viewModel.notebookDocument.cells.indexOf(context.cell.model);
@@ -1500,7 +1450,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 	}
 });
 
-registerAction2(class extends NotebookAction {
+registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
@@ -1527,15 +1477,15 @@ registerAction2(class extends NotebookAction {
 			})), true, undefined, () => undefined, undefined);
 
 		const clearExecutionMetadataEdits = editor.viewModel.notebookDocument.cells.map((cell, index) => {
-			if (cell.metadata && cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
+			if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 				return {
-					editType: CellEditType.Metadata, index, metadata: {
-						...cell.metadata,
-						runState: NotebookCellExecutionState.Idle,
-						runStartTime: undefined,
-						runStartTimeAdjustment: undefined,
-						runEndTime: undefined,
-						executionOrder: undefined
+					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
+						runState: null,
+						runStartTime: null,
+						runStartTimeAdjustment: null,
+						runEndTime: null,
+						executionOrder: null,
+						lastRunSuccess: null
 					}
 				};
 			} else {
@@ -1548,7 +1498,7 @@ registerAction2(class extends NotebookAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class CenterActiveCellAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: CENTER_ACTIVE_CELL,
@@ -1578,7 +1528,8 @@ abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 
 		const metadataDelta = this.getMetadataDelta();
 		const edits: ICellEditOperation[] = [];
-		for (const cell of context.selectedCells || []) {
+		const targetCells = (context.cell ? [context.cell] : context.selectedCells) ?? [];
+		for (const cell of targetCells) {
 			const index = textModel.cells.indexOf(cell.model);
 			if (index >= 0) {
 				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...metadataDelta } });
@@ -1591,7 +1542,7 @@ abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 	abstract getMetadataDelta(): NotebookCellMetadata;
 }
 
-registerAction2(class extends ChangeNotebookCellMetadataAction {
+registerAction2(class CollapseCellInputAction extends ChangeNotebookCellMetadataAction {
 	constructor() {
 		super({
 			id: COLLAPSE_CELL_INPUT_COMMAND_ID,
@@ -1614,7 +1565,7 @@ registerAction2(class extends ChangeNotebookCellMetadataAction {
 	}
 });
 
-registerAction2(class extends ChangeNotebookCellMetadataAction {
+registerAction2(class ExpandCellInputAction extends ChangeNotebookCellMetadataAction {
 	constructor() {
 		super({
 			id: EXPAND_CELL_INPUT_COMMAND_ID,
@@ -1637,7 +1588,7 @@ registerAction2(class extends ChangeNotebookCellMetadataAction {
 	}
 });
 
-registerAction2(class extends ChangeNotebookCellMetadataAction {
+registerAction2(class CollapseCellOutputAction extends ChangeNotebookCellMetadataAction {
 	constructor() {
 		super({
 			id: COLLAPSE_CELL_OUTPUT_COMMAND_ID,
@@ -1660,7 +1611,7 @@ registerAction2(class extends ChangeNotebookCellMetadataAction {
 	}
 });
 
-registerAction2(class extends ChangeNotebookCellMetadataAction {
+registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAction {
 	constructor() {
 		super({
 			id: EXPAND_CELL_OUTPUT_COMMAND_ID,
@@ -1683,19 +1634,6 @@ registerAction2(class extends ChangeNotebookCellMetadataAction {
 	}
 });
 
-// Revisit once we have a story for trusted workspace
-CommandsRegistry.registerCommand('notebook.trust', (accessor, args) => {
-	const uri = URI.revive(args as UriComponents);
-	const notebookService = accessor.get<INotebookService>(INotebookService);
-
-
-	const document = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
-
-	if (document) {
-		document.applyEdits([{ editType: CellEditType.DocumentMetadata, metadata: { ...document.metadata, ...{ trusted: true } } }], true, undefined, () => undefined, undefined, false);
-	}
-});
-
 CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, args): {
 	viewType: string;
 	displayName: string;
@@ -1703,7 +1641,7 @@ CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, a
 	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
 }[] => {
 	const notebookService = accessor.get<INotebookService>(INotebookService);
-	const contentProviders = notebookService.getContributedNotebookProviders();
+	const contentProviders = notebookService.getContributedNotebookTypes();
 	return contentProviders.map(provider => {
 		const filenamePatterns = provider.selectors.map(selector => {
 			if (typeof selector === 'string') {
@@ -1750,14 +1688,14 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 }[]> => {
 	const notebookKernelService = accessor.get(INotebookKernelService);
 	const uri = URI.revive(args.uri as UriComponents);
-	const kernels = notebookKernelService.getNotebookKernels({ uri, viewType: args.viewType });
+	const kernels = notebookKernelService.getMatchingKernel({ uri, viewType: args.viewType });
 
 	return kernels.all.map(provider => ({
 		id: provider.id,
 		label: provider.label,
 		description: provider.description,
 		detail: provider.detail,
-		isPreferred: provider.isPreferred,
+		isPreferred: false, // todo@jrieken,@rebornix
 		preloads: provider.preloadUris,
 	}));
 });

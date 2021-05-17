@@ -6,12 +6,13 @@
 import * as assert from 'assert';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/base/common/uri';
-import { TestWorkingCopy, TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 suite('WorkingCopyService', () => {
 
 	test('registry - basics', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const onDidChangeDirty: IWorkingCopy[] = [];
 		service.onDidChangeDirty(copy => onDidChangeDirty.push(copy));
@@ -32,6 +33,8 @@ suite('WorkingCopyService', () => {
 
 		// resource 1
 		const resource1 = URI.file('/some/folder/file.txt');
+		assert.strictEqual(service.has(resource1), false);
+		assert.strictEqual(service.has({ resource: resource1, typeId: 'testWorkingCopyType' }), false);
 		const copy1 = new TestWorkingCopy(resource1);
 		const unregister1 = service.registerWorkingCopy(copy1);
 
@@ -41,6 +44,8 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(onDidRegister[0], copy1);
 		assert.strictEqual(service.dirtyCount, 0);
 		assert.strictEqual(service.isDirty(resource1), false);
+		assert.strictEqual(service.has(resource1), true);
+		assert.strictEqual(service.has(copy1), true);
 		assert.strictEqual(service.hasDirty, false);
 
 		copy1.setDirty(true);
@@ -74,6 +79,7 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(onDidUnregister.length, 1);
 		assert.strictEqual(onDidUnregister[0], copy1);
 		assert.strictEqual(service.workingCopies.length, 0);
+		assert.strictEqual(service.has(resource1), false);
 
 		// resource 2
 		const resource2 = URI.file('/some/folder/file-dirty.txt');
@@ -105,7 +111,7 @@ suite('WorkingCopyService', () => {
 	});
 
 	test('registry - multiple copies on same resource throws (same type ID)', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const resource = URI.parse('custom://some/folder/custom.txt');
 
@@ -118,7 +124,7 @@ suite('WorkingCopyService', () => {
 	});
 
 	test('registry - multiple copies on same resource is supported (different type ID)', () => {
-		const service = new TestWorkingCopyService();
+		const service = new WorkingCopyService();
 
 		const resource = URI.parse('custom://some/folder/custom.txt');
 

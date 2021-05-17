@@ -154,6 +154,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 export class PortRestore implements IWorkbenchContribution {
 	constructor(
 		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
+		@ILogService readonly logService: ILogService
 	) {
 		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
 			Event.once(this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet)(async () => {
@@ -165,6 +166,7 @@ export class PortRestore implements IWorkbenchContribution {
 	}
 
 	private async restore() {
+		this.logService.trace('ForwardedPorts: Doing first restore.');
 		return this.remoteExplorerService.restore();
 	}
 }
@@ -542,24 +544,25 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 	private async forwardCandidates(): Promise<RemoteTunnel[] | undefined> {
 		const attributes = await this.remoteExplorerService.tunnelModel.getAttributes(this.remoteExplorerService.tunnelModel.candidates.map(candidate => candidate.port));
-		const allTunnels = <RemoteTunnel[]>(await Promise.all(this.remoteExplorerService.tunnelModel.candidates.map(async (value) => {
+		const allTunnels: RemoteTunnel[] = [];
+		for (const value of this.remoteExplorerService.tunnelModel.candidates) {
 			if (!value.detail) {
-				return undefined;
+				continue;
 			}
 
 			const address = makeAddress(value.host, value.port);
 			if (this.initialCandidates.has(address)) {
-				return undefined;
+				continue;
 			}
 			if (this.notifiedOnly.has(address) || this.autoForwarded.has(address)) {
-				return undefined;
+				continue;
 			}
 			const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, value.host, value.port);
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, value.host, value.port)) {
-				return undefined;
+				continue;
 			}
 			if (attributes?.get(value.port)?.onAutoForward === OnPortForward.Ignore) {
-				return undefined;
+				continue;
 			}
 			const forwarded = await this.remoteExplorerService.forward(value, undefined, undefined, undefined, undefined, undefined, false);
 			if (!alreadyForwarded && forwarded) {
@@ -567,8 +570,10 @@ class ProcAutomaticPortForwarding extends Disposable {
 			} else if (forwarded) {
 				this.notifiedOnly.add(address);
 			}
-			return forwarded;
-		}))).filter(tunnel => !!tunnel);
+			if (forwarded) {
+				allTunnels.push(forwarded);
+			}
+		}
 		if (allTunnels.length === 0) {
 			return undefined;
 		}

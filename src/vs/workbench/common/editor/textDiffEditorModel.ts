@@ -31,7 +31,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		this.updateTextDiffEditorModel();
 	}
 
-	async override resolve(): Promise<void> {
+	override async resolve(): Promise<void> {
 		await super.resolve();
 
 		this.updateTextDiffEditorModel();

@@ -111,10 +111,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	}
 
 	/**
-	 * Implements vscode.test.createTestRunTask
+	 * Implements vscode.test.createTestRun
 	 */
-	public createTestRunTask<T>(extensionId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist = true): vscode.TestRunTask<T> {
-		return this.runQueue.createTestRunTask(extensionId, request, name, persist);
+	public createTestRun<T>(extensionId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist = true): vscode.TestRun<T> {
+		return this.runQueue.createTestRun(extensionId, request, name, persist);
 	}
 
 	/**
@@ -194,14 +194,15 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		const collection = disposable.add(this.ownedTests.createForHierarchy(
 			diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
 		disposable.add(toDisposable(() => cancellation.dispose(true)));
+		const subscribes: Promise<void>[] = [];
 		for (const [id, controller] of this.controllers) {
-			subscribeFn(id, controller.instance);
+			subscribes.push(subscribeFn(id, controller.instance));
 		}
 
-		// note: we don't increment the root count initially -- this is done by the
+		// note: we don't increment the count initially -- this is done by the
 		// main thread, incrementing once per extension host. We just push the
 		// diff to signal that roots have been discovered.
-		collection.pushDiff([TestDiffOpType.DeltaRootsComplete, -1]);
+		Promise.all(subscribes).then(() => collection.pushDiff([TestDiffOpType.IncrementPendingExtHosts, -1]));
 		this.testControllers.set(subscriptionKey, { store: disposable, collection, subscribeFn });
 	}
 
@@ -317,7 +318,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 /**
  * Queues runs for a single extension and provides the currently-executing
- * run so that `createTestRunTask` can be properly correlated.
+ * run so that `createTestRun` can be properly correlated.
  */
 class TestRunQueue {
 	private readonly state = new Map</* extensionId */ string, {
@@ -374,9 +375,9 @@ class TestRunQueue {
 	}
 
 	/**
-	 * Implements the public `createTestRunTask` API.
+	 * Implements the public `createTestRun` API.
 	 */
-	public createTestRunTask<T>(extensionId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist: boolean): vscode.TestRunTask<T> {
+	public createTestRun<T>(extensionId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist: boolean): vscode.TestRun<T> {
 		const state = this.state.get(extensionId);
 		// If the request is for the currently-executing `runTests`, then correlate
 		// it to that existing run. Otherwise return a new, detached run.
@@ -465,7 +466,7 @@ class TestRunDto {
 	}
 }
 
-class TestRunTask<T> implements vscode.TestRunTask<T> {
+class TestRunTask<T> implements vscode.TestRun<T> {
 	readonly #proxy: MainThreadTestingShape;
 	readonly #req: TestRunDto;
 	readonly #taskId = generateUuid();
@@ -552,7 +553,9 @@ export const createDefaultDocumentTestRoot = async <T>(
 		TestItemFilteredWrapper.removeFilter(document);
 	});
 
-	return TestItemFilteredWrapper.getWrapperForTestItem(root, document);
+	const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(root, document);
+	wrapper.refreshMatch();
+	return wrapper;
 };
 
 /*
@@ -623,6 +626,7 @@ export class TestItemFilteredWrapper extends TestItemImpl {
 		this.description = actual.description;
 		this.error = actual.error;
 		this.status = actual.status;
+		this.range = actual.range;
 		this.resolveHandler = actual.resolveHandler;
 
 		const wrapperApi = getPrivateApiFor(this);
@@ -648,7 +652,7 @@ export class TestItemFilteredWrapper extends TestItemImpl {
 	 * if the test itself has a location that matches, or if any of its
 	 * children do.
 	 */
-	private refreshMatch() {
+	public refreshMatch() {
 		const didMatch = this._cachedMatchesFilter;
 
 		// The `children` of the wrapper only include the children who match the
@@ -662,7 +666,7 @@ export class TestItemFilteredWrapper extends TestItemImpl {
 			}
 		}
 
-		const nowMatches = this.children.size > 0 || this.actual.uri.toString() === this.filterDocument.uri.toString();
+		const nowMatches = this.children.size > 0 || this.actual.uri?.toString() === this.filterDocument.uri.toString();
 		this._cachedMatchesFilter = nowMatches;
 
 		if (nowMatches !== didMatch) {

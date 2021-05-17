@@ -13,8 +13,8 @@ export interface IComputedStateAccessor<T> {
 	getOwnState(item: T): TestResultState | undefined;
 	getCurrentComputedState(item: T): TestResultState;
 	setComputedState(item: T, state: TestResultState): void;
-	getChildren(item: T): IterableIterator<T>;
-	getParents(item: T): IterableIterator<T>;
+	getChildren(item: T): Iterable<T>;
+	getParents(item: T): Iterable<T>;
 }
 
 /**

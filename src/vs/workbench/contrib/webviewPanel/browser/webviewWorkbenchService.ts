@@ -114,7 +114,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 	}
 
 	@memoize
-	public async override resolve() {
+	public override async resolve() {
 		if (!this.#resolved) {
 			this.#resolved = true;
 			this.#resolvePromise = this._webviewWorkbenchService.resolveWebview(this);

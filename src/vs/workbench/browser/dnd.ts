@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Registry } from 'vs/platform/registry/common/platform';
 import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IRecentFile, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename, isEqual } from 'vs/base/common/resources';
@@ -20,7 +21,7 @@ import { MIME_BINARY } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, GroupIdentifier, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -229,17 +230,18 @@ export class ResourcesDropHandler {
 	}
 
 	private async handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
+		const fileEditorFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
-		// Untitled: always ensure that we open a new untitled editor for each file we drop
+		// Untitled: always ensure that we open a new untitled text editor for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			const untitledEditorResource = this.editorService.createEditorInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
-			if (untitledEditorResource) {
-				droppedDirtyEditor.resource = untitledEditorResource;
+			const untitledTextEditorResource = this.editorService.createEditorInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
+			if (untitledTextEditorResource) {
+				droppedDirtyEditor.resource = untitledTextEditorResource;
 			}
 		}
 
 		// File: ensure the file is not dirty or opened already
-		else if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen({ resource: droppedDirtyEditor.resource })) {
+		else if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpened({ resource: droppedDirtyEditor.resource, typeId: fileEditorFactory.typeId })) {
 			return false;
 		}
 

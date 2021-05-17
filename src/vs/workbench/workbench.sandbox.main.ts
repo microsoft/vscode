@@ -67,6 +67,7 @@ import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupServ
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/platform/checksum/electron-sandbox/checksumService';
 import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
+import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -100,6 +101,9 @@ import 'vs/workbench/contrib/codeEditor/electron-sandbox/codeEditor.contribution
 // Debug
 import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
 
+// Extensions Management
+import 'vs/workbench/contrib/extensions/electron-sandbox/extensions.contribution';
+
 // Telemetry Opt Out
 import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-sandbox/telemetryOptOut.contribution';
 
@@ -130,5 +134,11 @@ import 'vs/workbench/contrib/tags/electron-sandbox/tags.contribution';
 
 // Performance
 import 'vs/workbench/contrib/performance/electron-sandbox/performance.contribution';
+
+// Tasks
+import 'vs/workbench/contrib/tasks/electron-sandbox/taskService';
+
+// External terminal
+import 'vs/workbench/contrib/externalTerminal/electron-sandbox/externalTerminal.contribution';
 
 //#endregion

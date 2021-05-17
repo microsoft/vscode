@@ -20,15 +20,17 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "main": "./out/main",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask"
   ],
-  "workspaceTrust": {
-    "request": "never",
-    "description": "This extension only provides tasks. Trust is already required by the tasks system before any task providers are called."
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "configuration": {
@@ -37,13 +39,13 @@
       "title": "Grunt",
       "properties": {
         "grunt.autoDetect": {
-          "scope": "resource",
+          "scope": "application",
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
+          "default": "off",
           "description": "%config.grunt.autoDetect%"
         }
       }

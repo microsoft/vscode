@@ -70,6 +70,23 @@ export interface IBaseResourceEditorInput {
 	readonly forceUntitled?: boolean;
 }
 
+/**
+ * This identifier allows to uniquely identify an editor with a
+ * resource and type identifier.
+ */
+export interface IResourceEditorInputIdentifier {
+
+	/**
+	 * The resource URI of the editor.
+	 */
+	readonly resource: URI;
+
+	/**
+	 * The type of the editor.
+	 */
+	readonly typeId: string;
+}
+
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**

@@ -11,14 +11,16 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension, isThemeColor } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { CodeCellLayoutInfo, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
@@ -30,21 +32,19 @@ export interface IClickTarget {
 
 export const enum ClickTargetType {
 	Container = 0,
-	CellStatus = 1,
-	ContributedTextItem = 2,
-	ContributedCommandItem = 3
+	ContributedTextItem = 1,
+	ContributedCommandItem = 2
 }
 
 export class CellEditorStatusBar extends Disposable {
-	readonly cellRunStatusContainer: HTMLElement;
 	readonly statusBarContainer: HTMLElement;
-	readonly durationContainer: HTMLElement;
 
-	private readonly leftContributedItemsContainer: HTMLElement;
-	private readonly rightContributedItemsContainer: HTMLElement;
+	private readonly leftItemsContainer: HTMLElement;
+	private readonly rightItemsContainer: HTMLElement;
 	private readonly itemsDisposable: DisposableStore;
 
-	private items: CellStatusBarItem[] = [];
+	private leftItems: CellStatusBarItem[] = [];
+	private rightItems: CellStatusBarItem[] = [];
 	private width: number = 0;
 
 	private currentContext: INotebookCellActionContext | undefined;
@@ -53,33 +53,26 @@ export class CellEditorStatusBar extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this.statusBarContainer = DOM.append(container, $('.cell-statusbar-container'));
 		this.statusBarContainer.tabIndex = -1;
 		const leftItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-left'));
 		const rightItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-right'));
-		this.cellRunStatusContainer = DOM.append(leftItemsContainer, $('.cell-run-status'));
-		this.durationContainer = DOM.append(leftItemsContainer, $('.cell-run-duration'));
-		this.leftContributedItemsContainer = DOM.append(leftItemsContainer, $('.cell-contributed-items.cell-contributed-items-left'));
-		this.rightContributedItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items.cell-contributed-items-right'));
+		this.leftItemsContainer = DOM.append(leftItemsContainer, $('.cell-contributed-items.cell-contributed-items-left'));
+		this.rightItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items.cell-contributed-items-right'));
 
 		this.itemsDisposable = this._register(new DisposableStore());
+
+		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.update(this.currentContext)));
 
 		this._register(DOM.addDisposableListener(this.statusBarContainer, DOM.EventType.CLICK, e => {
 			if (e.target === leftItemsContainer || e.target === rightItemsContainer || e.target === this.statusBarContainer) {
 				// hit on empty space
 				this._onDidClick.fire({
 					type: ClickTargetType.Container,
-					event: e
-				});
-			} else if (e.target && (
-				this.cellRunStatusContainer.contains(e.target as Node)
-				|| this.durationContainer.contains(e.target as Node)
-			)) {
-				this._onDidClick.fire({
-					type: ClickTargetType.CellStatus,
 					event: e
 				});
 			} else {
@@ -99,31 +92,42 @@ export class CellEditorStatusBar extends Disposable {
 		}));
 	}
 
-	update(context: INotebookCellActionContext) {
-		this.currentContext = context;
-		this.itemsDisposable.clear();
-		this.updateStatusBarItems();
-	}
+	private layout(): void {
+		if (!this.currentContext) {
+			return;
+		}
 
-	layout(width: number): void {
+		// TODO@roblou maybe more props should be in common layoutInfo?
+		const layoutInfo = this.currentContext.cell.layoutInfo as CodeCellLayoutInfo | MarkdownCellLayoutInfo;
+		const width = layoutInfo.editorWidth;
+		if (!width) {
+			return;
+		}
+
 		this.width = width;
 		this.statusBarContainer.style.width = `${width}px`;
 
 		const maxItemWidth = this.getMaxItemWidth();
-		this.items.forEach(item => item.maxWidth = maxItemWidth);
+		this.leftItems.forEach(item => item.maxWidth = maxItemWidth);
+		this.rightItems.forEach(item => item.maxWidth = maxItemWidth);
 	}
 
 	private getMaxItemWidth() {
 		return this.width / 2;
 	}
 
-	private async updateStatusBarItems() {
+	update(context: INotebookCellActionContext) {
+		this.currentContext = context;
+		this.itemsDisposable.clear();
+
 		if (!this.currentContext) {
 			return;
 		}
 
-		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
+		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => this.layout()));
 		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
+		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
+		this.layout();
 		this.updateActiveCell();
 		this.updateRenderedItems();
 	}
@@ -134,22 +138,44 @@ export class CellEditorStatusBar extends Disposable {
 	}
 
 	private updateRenderedItems(): void {
-		DOM.clearNode(this.leftContributedItemsContainer);
-		DOM.clearNode(this.rightContributedItemsContainer);
-
 		const items = this.currentContext!.cell.getCellStatusBarItems();
 		items.sort((itemA, itemB) => {
 			return (itemB.priority ?? 0) - (itemA.priority ?? 0);
 		});
 
 		const maxItemWidth = this.getMaxItemWidth();
-		const leftItems = items.filter(item => item.alignment === CellStatusbarAlignment.Left)
-			.map(item => this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item, maxItemWidth)));
-		const rightItems = items.filter(item => item.alignment === CellStatusbarAlignment.Right).reverse()
-			.map(item => this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item, maxItemWidth)));
-		leftItems.forEach(itemView => this.leftContributedItemsContainer.appendChild(itemView.container));
-		rightItems.forEach(itemView => this.rightContributedItemsContainer.appendChild(itemView.container));
-		this.items = [...leftItems, ...rightItems];
+		const newLeftItems = items.filter(item => item.alignment === CellStatusbarAlignment.Left);
+		const newRightItems = items.filter(item => item.alignment === CellStatusbarAlignment.Right).reverse();
+
+		const updateItems = (renderedItems: CellStatusBarItem[], newItems: INotebookCellStatusBarItem[], container: HTMLElement) => {
+			if (renderedItems.length > newItems.length) {
+				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
+				for (let deletedItem of deleted) {
+					container.removeChild(deletedItem.container);
+					deletedItem.dispose();
+				}
+			}
+
+			newItems.forEach((newLeftItem, i) => {
+				const existingItem = renderedItems[i];
+				if (existingItem) {
+					existingItem.updateItem(newLeftItem, maxItemWidth);
+				} else {
+					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, newLeftItem, maxItemWidth);
+					renderedItems.push(item);
+					container.appendChild(item.container);
+				}
+			});
+		};
+
+		updateItems(this.leftItems, newLeftItems, this.leftItemsContainer);
+		updateItems(this.rightItems, newRightItems, this.rightItemsContainer);
+	}
+
+	override dispose() {
+		super.dispose();
+		dispose(this.leftItems);
+		dispose(this.rightItems);
 	}
 }
 
@@ -161,24 +187,41 @@ class CellStatusBarItem extends Disposable {
 		this.container.style.maxWidth = v + 'px';
 	}
 
+	private _currentItem!: INotebookCellStatusBarItem;
+	private _itemDisposables = this._register(new DisposableStore());
+
 	constructor(
 		private readonly _context: INotebookCellActionContext,
-		private readonly _itemModel: INotebookCellStatusBarItem,
+		itemModel: INotebookCellStatusBarItem,
 		maxWidth: number | undefined,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ICommandService private readonly commandService: ICommandService,
-		@INotificationService private readonly notificationService: INotificationService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
-		new SimpleIconLabel(this.container).text = this._itemModel.text.replace(/\n/g, ' ');
 
-		if (this._itemModel.opacity) {
-			this.container.style.opacity = this._itemModel.opacity;
+		this.updateItem(itemModel, maxWidth);
+	}
+
+	updateItem(item: INotebookCellStatusBarItem, maxWidth: number | undefined) {
+		this._itemDisposables.clear();
+
+		if (!this._currentItem || this._currentItem.text !== item.text) {
+			new SimpleIconLabel(this.container).text = item.text.replace(/\n/g, ' ');
 		}
 
-		if (this._itemModel.onlyShowWhenActive) {
-			this.container.classList.add('cell-status-item-show-when-active');
-		}
+		const resolveColor = (color: ThemeColor | string) => {
+			return isThemeColor(color) ?
+				(this._themeService.getColorTheme().getColor(color.id)?.toString() || '') :
+				color;
+		};
+
+		this.container.style.color = item.color ? resolveColor(item.color) : '';
+		this.container.style.backgroundColor = item.backgroundColor ? resolveColor(item.backgroundColor) : '';
+		this.container.style.opacity = item.opacity ? item.opacity : '';
+
+		this.container.classList.toggle('cell-status-item-show-when-active', !!item.onlyShowWhenActive);
 
 		if (typeof maxWidth === 'number') {
 			this.maxWidth = maxWidth;
@@ -186,41 +229,39 @@ class CellStatusBarItem extends Disposable {
 
 		let ariaLabel: string;
 		let role: string | undefined;
-		if (this._itemModel.accessibilityInformation) {
-			ariaLabel = this._itemModel.accessibilityInformation.label;
-			role = this._itemModel.accessibilityInformation.role;
+		if (item.accessibilityInformation) {
+			ariaLabel = item.accessibilityInformation.label;
+			role = item.accessibilityInformation.role;
 		} else {
-			ariaLabel = this._itemModel.text ? stripIcons(this._itemModel.text).trim() : '';
+			ariaLabel = item.text ? stripIcons(item.text).trim() : '';
 		}
 
-		if (ariaLabel) {
-			this.container.setAttribute('aria-label', ariaLabel);
-		}
+		this.container.setAttribute('aria-label', ariaLabel);
+		this.container.setAttribute('role', role || '');
+		this.container.title = item.tooltip ?? '';
 
-		if (role) {
-			this.container.setAttribute('role', role);
-		}
-
-		this.container.title = this._itemModel.tooltip ?? '';
-
-		if (this._itemModel.command) {
-			this.container.classList.add('cell-status-item-has-command');
+		this.container.classList.toggle('cell-status-item-has-command', !!item.command);
+		if (item.command) {
 			this.container.tabIndex = 0;
 
-			this._register(DOM.addDisposableListener(this.container, DOM.EventType.CLICK, _e => {
+			this._itemDisposables.add(DOM.addDisposableListener(this.container, DOM.EventType.CLICK, _e => {
 				this.executeCommand();
 			}));
-			this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, e => {
+			this._itemDisposables.add(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, e => {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
 					this.executeCommand();
 				}
 			}));
+		} else {
+			this.container.removeAttribute('tabIndex');
 		}
+
+		this._currentItem = item;
 	}
 
 	private async executeCommand(): Promise<void> {
-		const command = this._itemModel.command;
+		const command = this._currentItem.command;
 		if (!command) {
 			return;
 		}
@@ -230,11 +271,11 @@ class CellStatusBarItem extends Disposable {
 
 		args.unshift(this._context);
 
-		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
+		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
 		try {
-			await this.commandService.executeCommand(id, ...args);
+			await this._commandService.executeCommand(id, ...args);
 		} catch (error) {
-			this.notificationService.error(toErrorMessage(error));
+			this._notificationService.error(toErrorMessage(error));
 		}
 	}
 }

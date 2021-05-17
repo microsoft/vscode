@@ -10,8 +10,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, CodeCellRenderTemplate, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -40,8 +39,10 @@ export class CodeCell extends Disposable {
 		const width = this.viewCell.layoutInfo.editorWidth;
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+
 		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
-			? lineNum * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING
+			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
 			: this.viewCell.layoutInfo.editorHeight;
 
 		this.layoutEditor(
@@ -90,10 +91,10 @@ export class CodeCell extends Disposable {
 		}));
 		updateForFocusMode();
 
-		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel.metadata).editable) });
+		templateData.editor?.updateOptions({ readOnly: notebookEditor.viewModel.options.isReadOnly });
 		this._register(viewCell.onDidChangeState((e) => {
 			if (e.metadataChanged) {
-				templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel.metadata).editable) });
+				templateData.editor?.updateOptions({ readOnly: notebookEditor.viewModel.options.isReadOnly });
 
 				if (this.updateForCollapseState()) {
 					this.relayoutCell();
@@ -203,12 +204,8 @@ export class CodeCell extends Disposable {
 		this._register(templateData.editor.onDidBlurEditorWidget(() => {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
-			// so we don't want to update the focus state too eagerly
-			if (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)) {
-				setTimeout(() => {
-					updateFocusMode();
-				}, 300);
-			} else {
+			// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
+			if (!(document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement))) {
 				updateFocusMode();
 			}
 		}));
@@ -228,11 +225,11 @@ export class CodeCell extends Disposable {
 
 		this.viewCell.layoutChange({});
 
-		if (this.viewCell.metadata?.inputCollapsed && this.viewCell.metadata.outputCollapsed) {
+		if (this.viewCell.metadata.inputCollapsed && this.viewCell.metadata.outputCollapsed) {
 			this.viewUpdateAllCollapsed();
-		} else if (this.viewCell.metadata?.inputCollapsed) {
+		} else if (this.viewCell.metadata.inputCollapsed) {
 			this.viewUpdateInputCollapsed();
-		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputsViewModels.length) {
+		} else if (this.viewCell.metadata.outputCollapsed && this.viewCell.outputsViewModels.length) {
 			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();
@@ -293,7 +290,6 @@ export class CodeCell extends Disposable {
 
 	private layoutEditor(dimension: IDimension): void {
 		this.templateData.editor?.layout(dimension);
-		this.templateData.statusBar.layout(dimension.width);
 	}
 
 	private onCellWidthChange(): void {

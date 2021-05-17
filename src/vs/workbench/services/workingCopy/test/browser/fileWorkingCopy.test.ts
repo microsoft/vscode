@@ -38,7 +38,16 @@ export class TestFileWorkingCopyModel extends Disposable implements IFileWorking
 		this.doUpdate(newContents);
 	}
 
+	private throwOnSnapshot = false;
+	setThrowOnSnapshot(): void {
+		this.throwOnSnapshot = true;
+	}
+
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+		if (this.throwOnSnapshot) {
+			throw new Error('Fail');
+		}
+
 		const stream = newWriteableBufferStream();
 		stream.end(VSBuffer.fromString(this.contents));
 
@@ -88,8 +97,8 @@ suite('FileWorkingCopy', function () {
 	let accessor: TestServiceAccessor;
 	let workingCopy: FileWorkingCopy<TestFileWorkingCopyModel>;
 
-	function createWorkingCopy() {
-		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', resource, basename(resource), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService);
+	function createWorkingCopy(uri: URI = resource) {
+		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
 	}
 
 	setup(() => {
@@ -101,6 +110,10 @@ suite('FileWorkingCopy', function () {
 
 	teardown(() => {
 		workingCopy.dispose();
+	});
+
+	test('requires good file system URI', async () => {
+		assert.throws(() => createWorkingCopy(URI.from({ scheme: 'unknown', path: 'somePath' })));
 	});
 
 	test('orphaned tracking', async () => {
@@ -252,6 +265,7 @@ suite('FileWorkingCopy', function () {
 		await workingCopy.resolve();
 
 		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(workingCopy.isReadonly(), false);
 		assert.strictEqual(workingCopy.model?.contents, 'hello backup');
 
 		workingCopy.model.updateContents('hello updated');
@@ -652,5 +666,25 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isDisposed(), true);
 		assert.strictEqual(disposedEvent, true);
 		assert.strictEqual(disposedModelEvent, true);
+	});
+
+	test('readonly change event', async () => {
+		accessor.fileService.readonly = true;
+
+		await workingCopy.resolve();
+
+		assert.strictEqual(workingCopy.isReadonly(), true);
+
+		accessor.fileService.readonly = false;
+
+		let readonlyEvent = false;
+		workingCopy.onDidChangeReadonly(() => {
+			readonlyEvent = true;
+		});
+
+		await workingCopy.resolve();
+
+		assert.strictEqual(workingCopy.isReadonly(), false);
+		assert.strictEqual(readonlyEvent, true);
 	});
 });

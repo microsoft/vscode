@@ -13,7 +13,7 @@ import { join, basename, dirname, posix } from 'vs/base/common/path';
 import { copy, rimraf, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream, promises } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions, FilePermission } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -56,6 +56,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	private invalidStatSize: boolean = false;
 	private smallStatSize: boolean = false;
+	private readonly: boolean = false;
 
 	private _testCapabilities!: FileSystemProviderCapabilities;
 	override get capabilities(): FileSystemProviderCapabilities {
@@ -88,19 +89,25 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		this.smallStatSize = enabled;
 	}
 
-	async override stat(resource: URI): Promise<IStat> {
+	setReadonly(readonly: boolean): void {
+		this.readonly = readonly;
+	}
+
+	override async stat(resource: URI): Promise<IStat> {
 		const res = await super.stat(resource);
 
 		if (this.invalidStatSize) {
-			res.size = String(res.size) as any; // for https://github.com/microsoft/vscode/issues/72909
+			(res as any).size = String(res.size) as any; // for https://github.com/microsoft/vscode/issues/72909
 		} else if (this.smallStatSize) {
-			res.size = 1;
+			(res as any).size = 1;
+		} else if (this.readonly) {
+			(res as any).permissions = FilePermission.Readonly;
 		}
 
 		return res;
 	}
 
-	async override read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+	override async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		const bytesRead = await super.read(fd, pos, data, offset, length);
 
 		this.totalBytesRead += bytesRead;
@@ -108,7 +115,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return bytesRead;
 	}
 
-	async override readFile(resource: URI): Promise<Uint8Array> {
+	override async readFile(resource: URI): Promise<Uint8Array> {
 		const res = await super.readFile(resource);
 
 		this.totalBytesRead += res.byteLength;
@@ -213,6 +220,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.name, 'index.html');
 		assert.strictEqual(resolved.isFile, true);
 		assert.strictEqual(resolved.isDirectory, false);
+		assert.strictEqual(resolved.readonly, false);
 		assert.strictEqual(resolved.isSymbolicLink, false);
 		assert.strictEqual(resolved.resource.toString(), resource.toString());
 		assert.strictEqual(resolved.children, undefined);
@@ -233,6 +241,7 @@ flakySuite('Disk File Service', function () {
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
 		assert.ok(result!.isDirectory);
+		assert.strictEqual(result.readonly, false);
 		assert.ok(result.mtime! > 0);
 		assert.ok(result.ctime! > 0);
 		assert.strictEqual(result.children!.length, testsElements.length);
@@ -2389,5 +2398,33 @@ flakySuite('Disk File Service', function () {
 
 		await fileProvider.close(fdWrite);
 		await fileProvider.close(fdRead);
+	});
+
+	test('readonly - is handled properly for a single resource', async () => {
+		fileProvider.setReadonly(true);
+
+		const resource = URI.file(join(testDir, 'index.html'));
+
+		const resolveResult = await service.resolve(resource);
+		assert.strictEqual(resolveResult.readonly, true);
+
+		const readResult = await service.readFile(resource);
+		assert.strictEqual(readResult.readonly, true);
+
+		let writeFileError: Error | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString('Hello Test'));
+		} catch (error) {
+			writeFileError = error;
+		}
+		assert.ok(writeFileError);
+
+		let deleteFileError: Error | undefined = undefined;
+		try {
+			await service.del(resource);
+		} catch (error) {
+			deleteFileError = error;
+		}
+		assert.ok(deleteFileError);
 	});
 });

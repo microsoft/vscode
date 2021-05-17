@@ -14,13 +14,15 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { append, $ } from 'vs/base/browser/dom';
+import { append, $, createStyleSheet } from 'vs/base/browser/dom';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -310,8 +312,7 @@ class ProcessExplorer {
 			renderers,
 			new ProcessTreeDataSource(),
 			{
-				identityProvider:
-				{
+				identityProvider: {
 					getId: (element: ProcessTree | ProcessItem | MachineProcessInformation | ProcessInformation | IRemoteDiagnosticError) => {
 						if (isProcessItem(element)) {
 							return element.pid.toString();
@@ -331,7 +332,7 @@ class ProcessExplorer {
 
 						return 'header';
 					}
-				}
+				},
 			});
 
 		this.tree.setInput({ processes: { processRoots } });
@@ -378,21 +379,45 @@ class ProcessExplorer {
 	}
 
 	private applyStyles(styles: ProcessExplorerStyles): void {
-		const styleTag = document.createElement('style');
+		const styleElement = createStyleSheet();
 		const content: string[] = [];
 
-		if (styles.hoverBackground) {
-			content.push(`.monaco-list-row:hover  { background-color: ${styles.hoverBackground}; }`);
+		if (styles.listFocusBackground) {
+			content.push(`.monaco-list:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
+			content.push(`.monaco-list:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`);
 		}
 
-		if (styles.hoverForeground) {
-			content.push(`.monaco-list-row:hover { color: ${styles.hoverForeground}; }`);
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-list:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
 		}
 
-		styleTag.textContent = content.join('\n');
-		if (document.head) {
-			document.head.appendChild(styleTag);
+		if (styles.listActiveSelectionBackground) {
+			content.push(`.monaco-list:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
+			content.push(`.monaco-list:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`);
 		}
+
+		if (styles.listActiveSelectionForeground) {
+			content.push(`.monaco-list:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
+		}
+
+		if (styles.listHoverBackground) {
+			content.push(`.monaco-list-row:hover:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
+		}
+
+		if (styles.listHoverForeground) {
+			content.push(`.monaco-list-row:hover:not(.selected):not(.focused) { color: ${styles.listHoverForeground}; }`);
+		}
+
+		if (styles.listFocusOutline) {
+			content.push(`.monaco-list:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
+		}
+
+		if (styles.listHoverOutline) {
+			content.push(`.monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
+		}
+
+		styleElement.textContent = content.join('\n');
+
 		if (styles.color) {
 			document.body.style.color = styles.color;
 		}
@@ -475,9 +500,24 @@ class ProcessExplorer {
 	}
 }
 
+function createCodiconStyleSheet() {
+	const codiconStyleSheet = createStyleSheet();
+	codiconStyleSheet.id = 'codiconStyles';
+
+	const iconsStyleSheet = getIconsStyleSheet();
+	function updateAll() {
+		codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
+	}
+
+	const delayer = new RunOnceScheduler(updateAll, 0);
+	iconsStyleSheet.onDidChange(() => delayer.schedule());
+	delayer.schedule();
+}
+
 export function startup(configuration: ProcessExplorerWindowConfiguration): void {
 	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
 	document.body.classList.add(platformClass); // used by our fonts
+	createCodiconStyleSheet();
 	applyZoom(configuration.data.zoomLevel);
 
 	new ProcessExplorer(configuration.windowId, configuration.data);

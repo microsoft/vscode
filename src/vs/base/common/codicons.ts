@@ -141,7 +141,6 @@ export namespace Codicon {
 	export const tagAdd = new Codicon('tag-add', { fontCharacter: '\\ea66' });
 	export const tagRemove = new Codicon('tag-remove', { fontCharacter: '\\ea66' });
 	export const person = new Codicon('person', { fontCharacter: '\\ea67' });
-	export const personAdd = new Codicon('person-add', { fontCharacter: '\\ea67' });
 	export const personFollow = new Codicon('person-follow', { fontCharacter: '\\ea67' });
 	export const personOutline = new Codicon('person-outline', { fontCharacter: '\\ea67' });
 	export const personFilled = new Codicon('person-filled', { fontCharacter: '\\ea67' });
@@ -567,6 +566,14 @@ export namespace Codicon {
 	export const terminalPowershell = new Codicon('terminal-powershell', { fontCharacter: '\\ebc7' });
 	export const terminalTmux = new Codicon('terminal-tmux', { fontCharacter: '\\ebc8' });
 	export const terminalUbuntu = new Codicon('terminal-ubuntu', { fontCharacter: '\\ebc9' });
+	export const terminalBash = new Codicon('terminal-bash', { fontCharacter: '\\ebca' });
+	export const arrowSwap = new Codicon('arrow-swap', { fontCharacter: '\\ebcb' });
+	export const copy = new Codicon('copy', { fontCharacter: '\\ebcc' });
+	export const personAdd = new Codicon('person-add', { fontCharacter: '\\ebcd' });
+	export const filterFilled = new Codicon('filter-filled', { fontCharacter: '\\ebce' });
+	export const wand = new Codicon('wand', { fontCharacter: '\\ebcf' });
+	export const debugLineByLine = new Codicon('debug-line-by-line', { fontCharacter: '\\ebd0' });
+	export const inspect = new Codicon('inspect', { fontCharacter: '\\ebd1' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

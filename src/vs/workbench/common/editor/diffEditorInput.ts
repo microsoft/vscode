@@ -58,7 +58,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.name;
 	}
 
-	override getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
 		if (typeof this.description !== 'string') {
 
 			// Pass the description of the modified side in case both original
@@ -88,7 +88,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return undefined;
 	}
 
-	async override resolve(): Promise<EditorModel> {
+	override async resolve(): Promise<EditorModel> {
 
 		// Create Model - we never reuse our cached model if refresh is true because we cannot
 		// decide for the inputs within if the cached model can be reused or not. There may be

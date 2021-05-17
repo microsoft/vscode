@@ -181,9 +181,11 @@ export interface IOpenDialogOptions {
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
 export interface ICustomDialogOptions {
-	markdownDetails?: ICustomDialogMarkdown[]
+	buttonDetails?: string[];
+	markdownDetails?: ICustomDialogMarkdown[];
 	classes?: string[];
 	icon?: Codicon;
+	disableCloseAction?: boolean;
 }
 
 export interface ICustomDialogMarkdown {

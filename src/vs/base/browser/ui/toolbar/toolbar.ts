@@ -202,7 +202,7 @@ class ToggleMenuAction extends Action {
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.toggleDropdownMenu();
 	}
 

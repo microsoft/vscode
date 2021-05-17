@@ -121,7 +121,7 @@ export class WebviewEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	public async override setInput(input: EditorInput, options: EditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	public override async setInput(input: EditorInput, options: EditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (input.matches(this.input)) {
 			return;
 		}

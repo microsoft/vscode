@@ -6,14 +6,12 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { IRelativePattern } from 'vs/base/common/glob';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
-import { INotebookCellStatusBarItemProvider, INotebookExclusiveDocumentFilter, NotebookDataDto, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookDataDto, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
@@ -22,7 +20,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
+	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider, disposable: IDisposable }>();
 	private readonly _notebookSerializer = new Map<number, IDisposable>();
 	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
 
@@ -43,15 +41,10 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		dispose(this._notebookSerializer.values());
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: {
-		transientOutputs: boolean;
-		transientCellMetadata: TransientCellMetadata;
-		transientDocumentMetadata: TransientDocumentMetadata;
-		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
-	}): Promise<void> {
-		let contentOptions = { transientOutputs: options.transientOutputs, transientCellMetadata: options.transientCellMetadata, transientDocumentMetadata: options.transientDocumentMetadata };
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): Promise<void> {
+		let contentOptions = { ...options };
 
-		const controller: IMainNotebookController = {
+		const controller: INotebookContentProvider = {
 			get options() {
 				return contentOptions;
 			},
@@ -60,7 +53,6 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
-			viewOptions: options.viewOptions,
 			open: async (uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken) => {
 				const data = await this._proxy.$openNotebook(viewType, uri, backupId, untitledDocumentData, token);
 				return {
@@ -79,7 +71,11 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			}
 		};
 
-		const disposable = this._notebookService.registerNotebookController(viewType, extension, controller);
+		const disposable = new DisposableStore();
+		disposable.add(this._notebookService.registerNotebookController(viewType, extension, controller));
+		if (data) {
+			disposable.add(this._notebookService.registerContributedNotebookType(viewType, data));
+		}
 		this._notebookProviders.set(viewType, { controller, disposable });
 	}
 
@@ -104,7 +100,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		}
 	}
 
-	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions): void {
+	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): void {
 		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: (data: VSBuffer): Promise<NotebookDataDto> => {
@@ -114,7 +110,12 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				return this._proxy.$notebookToData(handle, data, CancellationToken.None);
 			}
 		});
-		this._notebookSerializer.set(handle, registration);
+		const disposables = new DisposableStore();
+		disposables.add(registration);
+		if (data) {
+			disposables.add(this._notebookService.registerContributedNotebookType(viewType, data));
+		}
+		this._notebookSerializer.set(handle, disposables);
 	}
 
 	$unregisterNotebookSerializer(handle: number): void {
@@ -129,7 +130,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		}
 	}
 
-	async $registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, selector: NotebookSelector): Promise<void> {
+	async $registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, viewType: string): Promise<void> {
 		const that = this;
 		const provider: INotebookCellStatusBarItemProvider = {
 			async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken) {
@@ -143,7 +144,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					}
 				};
 			},
-			selector: selector
+			viewType
 		};
 
 		if (typeof eventHandle === 'number') {

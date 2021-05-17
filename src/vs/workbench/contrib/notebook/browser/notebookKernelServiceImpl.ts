@@ -4,27 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelBindEvent, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { score } from 'vs/workbench/contrib/notebook/common/notebookSelector';
-import { LRUCache } from 'vs/base/common/map';
+import { INotebookKernelBindEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { runWhenIdle } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual } from 'vs/base/common/resources';
 
-interface IKernelInfo {
-	kernel: INotebookKernel;
-	score: number;
+class KernelInfo {
+
+	private static _logicClock = 0;
+
+	readonly kernel: INotebookKernel;
+	public score: number;
+	readonly time: number;
+
+	readonly notebookPriorities = new ResourceMap<number>();
+
+	constructor(kernel: INotebookKernel) {
+		this.kernel = kernel;
+		this.score = -1;
+		this.time = KernelInfo._logicClock++;
+	}
 }
 
-class ScoreInfo {
-	constructor(private readonly _anchor: INotebookTextModelLike) { }
-
-	equals(candidate: INotebookTextModelLike): boolean {
-		return this._anchor.viewType === candidate.viewType && isEqual(this._anchor.uri, candidate.uri);
+class NotebookTextModelLikeId {
+	static str(k: INotebookTextModelLike): string {
+		return `${k.viewType}/${k.uri.toString()}`;
+	}
+	static obj(s: string): INotebookTextModelLike {
+		const idx = s.indexOf('/');
+		return {
+			viewType: s.substr(0, idx),
+			uri: URI.parse(s.substr(idx + 1))
+		};
 	}
 }
 
@@ -32,46 +47,98 @@ export class NotebookKernelService implements INotebookKernelService {
 
 	declare _serviceBrand: undefined;
 
-	private static _storageKey = 'notebook.kernelBindings';
+	private readonly _disposables = new DisposableStore();
+	private readonly _kernels = new Map<string, KernelInfo>();
 
-	private readonly _kernels = new Map<string, IKernelInfo>();
-	private readonly _kernelBindings = new LRUCache<string, string>(1000, 0.7);
-	private _scoreInfo?: ScoreInfo;
+	private readonly _typeBindings = new LRUCache<string, string>(100, 0.7);
+	private readonly _notebookBindings = new LRUCache<string, string>(1000, 0.7);
 
 	private readonly _onDidChangeNotebookKernelBinding = new Emitter<INotebookKernelBindEvent>();
 	private readonly _onDidAddKernel = new Emitter<INotebookKernel>();
 	private readonly _onDidRemoveKernel = new Emitter<INotebookKernel>();
+	private readonly _onDidChangeNotebookAffinity = new Emitter<void>();
 
 	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
 	readonly onDidRemoveKernel: Event<INotebookKernel> = this._onDidRemoveKernel.event;
+	readonly onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;
+
+	private static _storageNotebookBinding = 'notebook.controller2NotebookBindings';
+	private static _storageTypeBinding = 'notebook.controller2TypeBindings';
 
 	constructor(
-		@IStorageService private _storageService: IStorageService,
-		@ILogService logService: ILogService,
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 
+		// auto associate kernels to new notebook documents, also emit event when
+		// a notebook has been closed (but don't update the memento)
+		this._disposables.add(_notebookService.onDidAddNotebookDocument(this._tryAutoBindNotebook, this));
+		this._disposables.add(_notebookService.onWillRemoveNotebookDocument(notebook => {
+			const kernelId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
+			if (kernelId) {
+				this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: kernelId, newKernel: undefined });
+			}
+		}));
+
+		// restore from storage
 		try {
-			const value = _storageService.get(NotebookKernelService._storageKey, StorageScope.WORKSPACE, '[]');
-			const data = JSON.parse(value);
-			this._kernelBindings.fromJSON(data);
+			const data = JSON.parse(this._storageService.get(NotebookKernelService._storageNotebookBinding, StorageScope.WORKSPACE, '[]'));
+			this._notebookBindings.fromJSON(data);
 		} catch {
-			logService.warn('FAILED to restore kernel bindings');
+			// ignore
+		}
+		try {
+			const data = JSON.parse(this._storageService.get(NotebookKernelService._storageTypeBinding, StorageScope.GLOBAL, '[]'));
+			this._typeBindings.fromJSON(data);
+		} catch {
+			// ignore
 		}
 	}
 
-	private _persistBindings(): void {
-		runWhenIdle(() => {
-			const raw = JSON.stringify(this._kernelBindings);
-			this._storageService.store(NotebookKernelService._storageKey, raw, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		}, 100);
-	}
-
 	dispose() {
+		this._disposables.dispose();
 		this._onDidChangeNotebookKernelBinding.dispose();
 		this._onDidAddKernel.dispose();
 		this._onDidRemoveKernel.dispose();
 		this._kernels.clear();
+	}
+
+	private _persistSoonHandle?: IDisposable;
+
+	private _persistMementos(): void {
+		this._persistSoonHandle?.dispose();
+		this._persistSoonHandle = runWhenIdle(() => {
+			this._storageService.store(NotebookKernelService._storageNotebookBinding, JSON.stringify(this._notebookBindings), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this._storageService.store(NotebookKernelService._storageTypeBinding, JSON.stringify(this._typeBindings), StorageScope.GLOBAL, StorageTarget.USER);
+		}, 100);
+	}
+
+	private static _score(kernel: INotebookKernel, notebook: INotebookTextModelLike): number {
+		if (kernel.viewType === '*') {
+			return 5;
+		} else if (kernel.viewType === notebook.viewType) {
+			return 10;
+		} else {
+			return 0;
+		}
+	}
+
+	private _tryAutoBindNotebook(notebook: INotebookTextModel, onlyThisKernel?: INotebookKernel): void {
+
+		const id = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
+		if (!id) {
+			// no kernel associated
+			return;
+		}
+		const existingKernel = this._kernels.get(id);
+		if (!existingKernel || !NotebookKernelService._score(existingKernel.kernel, notebook)) {
+			// associated kernel not known, not matching
+			return;
+		}
+		if (!onlyThisKernel || existingKernel.kernel === onlyThisKernel) {
+			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: undefined, newKernel: existingKernel.kernel.id });
+		}
 	}
 
 	registerKernel(kernel: INotebookKernel): IDisposable {
@@ -79,75 +146,90 @@ export class NotebookKernelService implements INotebookKernelService {
 			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
 		}
 
-		this._scoreInfo = undefined;
-		this._kernels.set(kernel.id, { kernel, score: -1 });
+		this._kernels.set(kernel.id, new KernelInfo(kernel));
 		this._onDidAddKernel.fire(kernel);
 
+		// auto associate the new kernel to existing notebooks it was
+		// associated to in the past.
+		for (const notebook of this._notebookService.getNotebookTextModels()) {
+			this._tryAutoBindNotebook(notebook, kernel);
+		}
+
 		return toDisposable(() => {
-			this._scoreInfo = undefined;
 			if (this._kernels.delete(kernel.id)) {
 				this._onDidRemoveKernel.fire(kernel);
 			}
-			for (let [uri, candidate] of Array.from(this._kernelBindings)) {
+			for (const [key, candidate] of Array.from(this._notebookBindings)) {
 				if (candidate === kernel.id) {
-					this._kernelBindings.delete(uri);
-					this._onDidChangeNotebookKernelBinding.fire({ notebook: URI.parse(uri), oldKernel: kernel.id, newKernel: undefined });
+					this._onDidChangeNotebookKernelBinding.fire({ notebook: NotebookTextModelLikeId.obj(key).uri, oldKernel: kernel.id, newKernel: undefined });
 				}
 			}
 		});
 	}
 
-	getNotebookKernels(notebook: INotebookTextModelLike): { bound: INotebookKernel | undefined, all: INotebookKernel[] } {
-
-		// update score if needed
-		if (!this._scoreInfo?.equals(notebook)) {
-			for (let item of this._kernels.values()) {
-				item.score = score(item.kernel.selector, notebook.uri, notebook.viewType);
-			}
-			this._scoreInfo = new ScoreInfo(notebook);
-		}
+	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult {
 
 		// all applicable kernels
-		const all = Array.from(this._kernels.values())
-			.filter(item => item.score > 0)
-			.sort((a, b) => {
-				// (1) sort by preference
-				if (a.kernel.isPreferred !== b.kernel.isPreferred) {
-					if (a.kernel.isPreferred) {
-						return -1;
-					} else {
-						return 1;
-					}
-				}
-				// (2) sort by score
-				if (b.score !== a.score) {
-					return b.score - a.score;
-				}
-				// (3) sort by name
-				return a.kernel.label.localeCompare(b.kernel.label);
-			})
-			.map(item => item.kernel);
+		const kernels: { kernel: INotebookKernel, instanceAffinity: number, typeAffinity: number, score: number }[] = [];
+		for (const info of this._kernels.values()) {
+			const score = NotebookKernelService._score(info.kernel, notebook);
+			if (score) {
+				kernels.push({
+					score,
+					kernel: info.kernel,
+					instanceAffinity: info.notebookPriorities.get(notebook.uri) ?? 1 /* vscode.NotebookControllerPriority.Default */,
+					typeAffinity: this._typeBindings.get(info.kernel.viewType) === info.kernel.id ? 1 : 0
+				});
+			}
+		}
+
+		const all = kernels
+			.sort((a, b) => b.instanceAffinity - a.instanceAffinity || b.typeAffinity - a.typeAffinity || a.score - b.score || a.kernel.label.localeCompare(b.kernel.label))
+			.map(obj => obj.kernel);
 
 		// bound kernel
-		const boundId = this._kernelBindings.get(notebook.uri.toString());
-		const bound = boundId ? this._kernels.get(boundId)?.kernel : undefined;
+		const selectedId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
+		const selected = selectedId ? this._kernels.get(selectedId)?.kernel : undefined;
 
-		return { all, bound };
+		return { all, selected, suggested: all.length === 1 ? all[0] : undefined };
+	}
+
+	// default kernel for notebookType
+	selectKernelForNotebookType(kernel: INotebookKernel, typeId: string): void {
+		const existing = this._typeBindings.get(typeId);
+		if (existing !== kernel.id) {
+			this._typeBindings.set(typeId, kernel.id);
+			this._persistMementos();
+			this._onDidChangeNotebookAffinity.fire();
+		}
 	}
 
 	// a notebook has one kernel, a kernel has N notebooks
 	// notebook <-1----N-> kernel
-	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel | undefined): void {
-		const key = notebook.uri.toString();
-		const oldKernel = this._kernelBindings.get(key);
+	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void {
+		const key = NotebookTextModelLikeId.str(notebook);
+		const oldKernel = this._notebookBindings.get(key);
 		if (oldKernel !== kernel?.id) {
 			if (kernel) {
-				this._kernelBindings.set(key, kernel.id);
+				this._notebookBindings.set(key, kernel.id);
 			} else {
-				this._kernelBindings.delete(key);
+				this._notebookBindings.delete(key);
 			}
-			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel?.id });
-			this._persistBindings();
+			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel.id });
+			this._persistMementos();
 		}
+	}
+
+	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
+		const info = this._kernels.get(kernel.id);
+		if (!info) {
+			throw new Error(`UNKNOWN kernel '${kernel.id}'`);
+		}
+		if (preference === undefined) {
+			info.notebookPriorities.delete(notebook);
+		} else {
+			info.notebookPriorities.set(notebook, preference);
+		}
+		this._onDidChangeNotebookAffinity.fire();
 	}
 }

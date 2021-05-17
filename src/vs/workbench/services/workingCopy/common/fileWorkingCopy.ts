@@ -3,21 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackup, IWorkingCopyBackupMeta, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyBackupService, IWorkingCopyBackupMeta, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { hash } from 'vs/base/common/hash';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IAction, toAction } from 'vs/base/common/actions';
+import { isWindows } from 'vs/base/common/platform';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 
 export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 
@@ -133,7 +143,7 @@ export interface IFileWorkingCopyModelContentChangedEvent {
  * of functionality can be built on top, such as saving in
  * a secure way to prevent data loss.
  */
-export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWorkingCopy, Disposable {
+export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IResourceWorkingCopy {
 
 	/**
 	 * An event for when a file working copy was resolved.
@@ -156,14 +166,9 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	readonly onDidRevert: Event<void>;
 
 	/**
-	 * An event for when the orphaned state of the file working copy changes.
+	 * An event for when the readonly state of the file working copy changes.
 	 */
-	readonly onDidChangeOrphaned: Event<void>;
-
-	/**
-	 * An event for when the file working copy has been disposed.
-	 */
-	readonly onWillDispose: Event<void>;
+	readonly onDidChangeReadonly: Event<void>;
 
 	/**
 	 * Provides access to the underlying model of this file
@@ -204,9 +209,9 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	isResolved(): this is IResolvedFileWorkingCopy<T>;
 
 	/**
-	 * Whether the file working copy has been disposed or not.
+	 * Whether the file working copy is readonly or not.
 	 */
-	isDisposed(): boolean;
+	isReadonly(): boolean;
 }
 
 export interface IResolvedFileWorkingCopy<T extends IFileWorkingCopyModel> extends IFileWorkingCopy<T> {
@@ -316,7 +321,7 @@ interface IFileWorkingCopyBackupMetaData extends IWorkingCopyBackupMeta {
 	orphaned: boolean;
 }
 
-export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable implements IFileWorkingCopy<T>  {
+export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWorkingCopy implements IFileWorkingCopy<T>  {
 
 	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.None;
 
@@ -343,27 +348,28 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
 
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
-	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
-
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	//#endregion
 
 	constructor(
 		readonly typeId: string,
-		readonly resource: URI,
+		resource: URI,
 		readonly name: string,
 		private readonly modelFactory: IFileWorkingCopyModelFactory<T>,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
-		super();
+		super(resource, fileService);
 
 		if (!fileService.canHandleResource(this.resource)) {
 			throw new Error(`The file working copy resource ${this.resource.toString(true)} does not have an associated file system provider.`);
@@ -371,73 +377,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
-
-		this.registerListeners();
 	}
-
-	//#region Orphaned Tracking
-
-	private inOrphanMode = false;
-
-	private registerListeners(): void {
-		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
-	}
-
-	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
-		let fileEventImpactsUs = false;
-		let newInOrphanModeGuess: boolean | undefined;
-
-		// If we are currently orphaned, we check if the file was added back
-		if (this.inOrphanMode) {
-			const fileWorkingCopyResourceAdded = e.contains(this.resource, FileChangeType.ADDED);
-			if (fileWorkingCopyResourceAdded) {
-				newInOrphanModeGuess = false;
-				fileEventImpactsUs = true;
-			}
-		}
-
-		// Otherwise we check if the file was deleted
-		else {
-			const fileWorkingCopyResourceDeleted = e.contains(this.resource, FileChangeType.DELETED);
-			if (fileWorkingCopyResourceDeleted) {
-				newInOrphanModeGuess = true;
-				fileEventImpactsUs = true;
-			}
-		}
-
-		if (fileEventImpactsUs && this.inOrphanMode !== newInOrphanModeGuess) {
-			let newInOrphanModeValidated: boolean = false;
-			if (newInOrphanModeGuess) {
-
-				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
-				// Since we do not want to mark the working copy as orphaned, we have to check if the
-				// file is really gone and not just a faulty file event.
-				await timeout(100);
-
-				if (this.isDisposed()) {
-					newInOrphanModeValidated = true;
-				} else {
-					const exists = await this.fileService.exists(this.resource);
-					newInOrphanModeValidated = !exists;
-				}
-			}
-
-			if (this.inOrphanMode !== newInOrphanModeValidated && !this.isDisposed()) {
-				this.setOrphaned(newInOrphanModeValidated);
-			}
-		}
-	}
-
-	private setOrphaned(orphaned: boolean): void {
-		if (this.inOrphanMode !== orphaned) {
-			this.inOrphanMode = orphaned;
-
-			this._onDidChangeOrphaned.fire();
-		}
-	}
-
-	//#endregion
 
 	//#region Dirty
 
@@ -584,7 +524,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			ctime,
 			size,
 			etag,
-			value: buffer
+			value: buffer,
+			readonly: false
 		}, true /* dirty (resolved from buffer) */);
 	}
 
@@ -623,7 +564,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			value: backup.value
+			value: backup.value,
+			readonly: false
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
@@ -709,6 +651,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			ctime: content.ctime,
 			size: content.size,
 			etag: content.etag,
+			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false
@@ -833,7 +776,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 				ctime: this.lastResolvedFileStat.ctime,
 				size: this.lastResolvedFileStat.size,
 				etag: this.lastResolvedFileStat.etag,
-				orphaned: this.inOrphanMode
+				orphaned: this.isOrphaned()
 			};
 		}
 
@@ -1036,12 +979,19 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 						saveCancellation.dispose();
 					}
 
-					// Write them to disk
-					const stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), {
+					const writeFileOptions: IWriteFileOptions = {
 						mtime: lastResolvedFileStat.mtime,
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						unlock: options.writeUnlock
-					});
+					};
+
+					// Write them to disk
+					let stat: IFileStatWithMetadata;
+					if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
+						stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+					} else {
+						stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+					}
 
 					this.handleSaveSuccess(stat, versionId, options);
 				} catch (error) {
@@ -1095,21 +1045,103 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		}
 
 		// Delegate to save error handler
-		let throwError = true;
 		if (this.isTextFileModel(this.model)) {
 			this.textFileService.files.saveErrorHandler.onSaveError(error, this.model);
-			throwError = false;
+		} else {
+			this.doHandleSaveError(error);
 		}
 
 		// Emit as event
 		this._onDidSaveError.fire();
+	}
 
-		if (throwError) {
-			throw error;
+	private doHandleSaveError(error: Error): void {
+		const fileOperationError = error as FileOperationError;
+		const primaryActions: IAction[] = [];
+
+		let message: string;
+
+		// Dirty write prevention
+		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+			message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Do you want to overwrite the file with your changes?", this.name);
+
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ignoreModifiedSince: true }) }));
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
 		}
+
+		// Any other save error
+		else {
+			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
+			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
+			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
+			const canSaveElevated = this.elevatedFileService.isSupported(this.resource);
+
+			// Save Elevated
+			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {
+				primaryActions.push(toAction({
+					id: 'fileWorkingCopy.saveElevated',
+					label: triedToUnlock ?
+						isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") :
+						isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."),
+					run: () => {
+						this.save({ writeElevated: true, writeUnlock: triedToUnlock, reason: SaveReason.EXPLICIT });
+					}
+				}));
+			}
+
+			// Unlock
+			else if (isWriteLocked) {
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.unlock', label: localize('overwrite', "Overwrite"), run: () => this.save({ writeUnlock: true, reason: SaveReason.EXPLICIT }) }));
+			}
+
+			// Retry
+			else {
+				primaryActions.push(toAction({ id: 'fileWorkingCopy.retry', label: localize('retry', "Retry"), run: () => this.save({ reason: SaveReason.EXPLICIT }) }));
+			}
+
+			// Save As
+			primaryActions.push(toAction({
+				id: 'fileWorkingCopy.saveAs',
+				label: localize('saveAs', "Save As..."),
+				run: () => {
+					const editor = this.workingCopyEditorService.findEditor(this);
+					if (editor) {
+						this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+					}
+				}
+			}));
+
+			// Discard
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
+
+			// Message
+			if (isWriteLocked) {
+				if (triedToUnlock && canSaveElevated) {
+					message = isWindows ?
+						localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is read-only. Select 'Overwrite as Admin' to retry as administrator.", this.name) :
+						localize('readonlySaveErrorSudo', "Failed to save '{0}': File is read-only. Select 'Overwrite as Sudo' to retry as superuser.", this.name);
+				} else {
+					message = localize('readonlySaveError', "Failed to save '{0}': File is read-only. Select 'Overwrite' to attempt to make it writeable.", this.name);
+				}
+			} else if (canSaveElevated && isPermissionDenied) {
+				message = isWindows ?
+					localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", this.name) :
+					localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", this.name);
+			} else {
+				message = localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", this.name, toErrorMessage(error, false));
+			}
+		}
+
+		// Show to the user as notification
+		const handle = this.notificationService.notify({ id: `${hash(this.resource.toString())}`, severity: Severity.Error, message, actions: { primary: primaryActions } });
+
+		// Remove automatically when we get saved/reverted
+		const listener = Event.once(Event.any(this.onDidSave, this.onDidRevert))(() => handle.close());
+		Event.once(handle.onDidClose)(() => listener.dispose());
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
+		const oldReadonly = this.isReadonly();
 
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
@@ -1123,6 +1155,11 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		// sync.
 		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
 			this.lastResolvedFileStat = newFileStat;
+		}
+
+		// Signal that the readonly state changed
+		if (this.isReadonly() !== oldReadonly) {
+			this._onDidChangeReadonly.fire();
 		}
 	}
 
@@ -1182,7 +1219,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			case FileWorkingCopyState.ERROR:
 				return this.inErrorMode;
 			case FileWorkingCopyState.ORPHAN:
-				return this.inOrphanMode;
+				return this.isOrphaned();
 			case FileWorkingCopyState.PENDING_SAVE:
 				return this.saveSequentializer.hasPending();
 			case FileWorkingCopyState.SAVED:
@@ -1203,7 +1240,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	}
 
 	isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	private trace(msg: string): void {
@@ -1214,23 +1251,12 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 	//#region Dispose
 
-	private disposed = false;
-
-	isDisposed(): boolean {
-		return this.disposed;
-	}
-
 	override dispose(): void {
 		this.trace('[file working copy] dispose()');
 
 		// State
-		this.disposed = true;
 		this.inConflictMode = false;
-		this.inOrphanMode = false;
 		this.inErrorMode = false;
-
-		// Event
-		this._onWillDispose.fire();
 
 		super.dispose();
 	}

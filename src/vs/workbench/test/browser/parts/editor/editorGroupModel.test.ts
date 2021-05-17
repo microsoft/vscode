@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroupModel, ISerializedEditorGroupModel, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputSerializer, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputSerializer, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -120,7 +120,7 @@ suite('Workbench editor group model', () => {
 			super();
 		}
 		override get typeId() { return 'testEditorInputForGroups'; }
-		async override resolve(): Promise<IEditorModel> { return null!; }
+		override async resolve(): Promise<IEditorModel> { return null!; }
 
 		override matches(other: TestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof TestEditorInput;
@@ -143,7 +143,7 @@ suite('Workbench editor group model', () => {
 			super();
 		}
 		override get typeId() { return 'testEditorInputForGroups-nonSerializable'; }
-		async override resolve(): Promise<IEditorModel | null> { return null; }
+		override async resolve(): Promise<IEditorModel | null> { return null; }
 
 		override matches(other: NonSerializableTestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -158,11 +158,11 @@ suite('Workbench editor group model', () => {
 			super();
 		}
 		override get typeId() { return 'testFileEditorInputForGroups'; }
-		async override resolve(): Promise<IEditorModel | null> { return null; }
+		override async resolve(): Promise<IEditorModel | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
 		setPreferredResource(resource: URI): void { }
-		setEncoding(encoding: string) { }
+		async setEncoding(encoding: string) { }
 		getEncoding() { return undefined; }
 		setPreferredEncoding(encoding: string) { }
 		setForceOpenAsBinary(): void { }

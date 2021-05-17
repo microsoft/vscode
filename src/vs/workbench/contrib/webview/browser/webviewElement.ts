@@ -5,7 +5,9 @@
 
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -28,9 +30,11 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		webviewThemeDataProvider: WebviewThemeDataProvider,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
+		@IMenuService menuService: IMenuService,
 		@INotificationService notificationService: INotificationService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRequestService requestService: IRequestService,
@@ -39,6 +43,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider, {
+			contextMenuService,
 			notificationService,
 			logService,
 			telemetryService,
@@ -46,7 +51,8 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			requestService,
 			fileService,
 			tunnelService,
-			remoteAuthorityResolverService
+			remoteAuthorityResolverService,
+			menuService,
 		});
 
 		/* __GDPR__
@@ -99,6 +105,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			id: this.id,
 			extensionId: extension?.id.value ?? '', // The extensionId and purpose in the URL are used for filtering in js-debug:
 			purpose: options.purpose,
+			serviceWorkerFetchIgnoreSubdomain: options.serviceWorkerFetchIgnoreSubdomain,
 			...extraParams
 		} as const;
 

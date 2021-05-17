@@ -19,18 +19,20 @@ import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { BuiltinGettingStartedCategory, BuiltinGettingStartedItem, BuiltinGettingStartedStartEntry, startEntries, walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
+import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, BuiltinGettingStartedStartEntry, startEntries, walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
+import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { dirname } from 'vs/base/common/path';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -44,15 +46,19 @@ type LegacyButtonConfig =
 	| { title: string, command?: never, link: string }
 	| { title: string, command: string, link?: never, sideBySide?: boolean };
 
-export interface IGettingStartedTask {
+export interface IGettingStartedStep {
 	id: string
 	title: string
 	description: LinkedText[]
 	category: GettingStartedCategory | string
 	when: ContextKeyExpression
 	order: number
-	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
-	media: { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
+	/** @deprecated */
+	doneOn?: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
+	completionEvents: string[]
+	media:
+	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
+	| { type: 'markdown', path: URI, base: URI, root: URI }
 }
 
 export interface IGettingStartedWalkthroughDescriptor {
@@ -65,7 +71,7 @@ export interface IGettingStartedWalkthroughDescriptor {
 	| { type: 'image', path: string }
 	when: ContextKeyExpression
 	content:
-	| { type: 'items' }
+	| { type: 'steps' }
 }
 
 export interface IGettingStartedStartEntryDescriptor {
@@ -91,18 +97,18 @@ export interface IGettingStartedCategory {
 	| { type: 'image', path: string }
 	when: ContextKeyExpression
 	content:
-	| { type: 'items', items: IGettingStartedTask[] }
+	| { type: 'steps', steps: IGettingStartedStep[] }
 	| { type: 'startEntry', command: string }
 }
 
-type TaskProgress = { done?: boolean; };
-export interface IGettingStartedTaskWithProgress extends IGettingStartedTask, Required<TaskProgress> { }
+type StepProgress = { done?: boolean; };
+export interface IGettingStartedStepWithProgress extends IGettingStartedStep, Required<StepProgress> { }
 
 export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStartedCategory, 'content'> {
 	content:
 	| {
-		type: 'items',
-		items: IGettingStartedTaskWithProgress[],
+		type: 'steps',
+		steps: IGettingStartedStepWithProgress[],
 		done: boolean;
 		stepsComplete: number
 		stepsTotal: number
@@ -113,49 +119,52 @@ export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStarte
 export interface IGettingStartedService {
 	_serviceBrand: undefined,
 
-	readonly onDidAddCategory: Event<IGettingStartedCategoryWithProgress>
-	readonly onDidRemoveCategory: Event<string>
-	readonly onDidChangeTask: Event<IGettingStartedTaskWithProgress>
+	readonly onDidAddCategory: Event<void>
+	readonly onDidRemoveCategory: Event<void>
+
+	readonly onDidChangeStep: Event<IGettingStartedStepWithProgress>
 	readonly onDidChangeCategory: Event<IGettingStartedCategoryWithProgress>
 
-	readonly onDidProgressTask: Event<IGettingStartedTaskWithProgress>
+	readonly onDidProgressStep: Event<IGettingStartedStepWithProgress>
 
 	getCategories(): IGettingStartedCategoryWithProgress[]
 
 	progressByEvent(eventName: string): void;
-	progressTask(id: string): void;
-	deprogressTask(id: string): void;
+	progressStep(id: string): void;
+	deprogressStep(id: string): void;
 }
 
 export class GettingStartedService extends Disposable implements IGettingStartedService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAddCategory = new Emitter<IGettingStartedCategoryWithProgress>();
-	onDidAddCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidAddCategory.event;
+	private readonly _onDidAddCategory = new Emitter<void>();
+	onDidAddCategory: Event<void> = this._onDidAddCategory.event;
 
-	private readonly _onDidRemoveCategory = new Emitter<string>();
-	onDidRemoveCategory: Event<string> = this._onDidRemoveCategory.event;
+	private readonly _onDidRemoveCategory = new Emitter<void>();
+	onDidRemoveCategory: Event<void> = this._onDidRemoveCategory.event;
 
 	private readonly _onDidChangeCategory = new Emitter<IGettingStartedCategoryWithProgress>();
 	onDidChangeCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidChangeCategory.event;
 
-	private readonly _onDidChangeTask = new Emitter<IGettingStartedTaskWithProgress>();
-	onDidChangeTask: Event<IGettingStartedTaskWithProgress> = this._onDidChangeTask.event;
+	private readonly _onDidChangeStep = new Emitter<IGettingStartedStepWithProgress>();
+	onDidChangeStep: Event<IGettingStartedStepWithProgress> = this._onDidChangeStep.event;
 
-	private readonly _onDidProgressTask = new Emitter<IGettingStartedTaskWithProgress>();
-	onDidProgressTask: Event<IGettingStartedTaskWithProgress> = this._onDidProgressTask.event;
+	private readonly _onDidProgressStep = new Emitter<IGettingStartedStepWithProgress>();
+	onDidProgressStep: Event<IGettingStartedStepWithProgress> = this._onDidProgressStep.event;
 
 	private memento: Memento;
-	private taskProgress: Record<string, TaskProgress>;
+	private stepProgress: Record<string, StepProgress>;
 
-	private commandListeners = new Map<string, string[]>();
-	private eventListeners = new Map<string, string[]>();
+	private sessionEvents = new Set<string>();
+	private completionListeners = new Map<string, Set<string>>();
 
 	private gettingStartedContributions = new Map<string, IGettingStartedCategory>();
-	private tasks = new Map<string, IGettingStartedTask>();
+	private steps = new Map<string, IGettingStartedStep>();
 
 	private tasExperimentService?: ITASExperimentService;
 	private sessionInstalledExtensions = new Set<string>();
+
+	private trackedContextKeys = new Set<string>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -176,24 +185,33 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this.tasExperimentService = tasExperimentService;
 
 		this.memento = new Memento('gettingStartedService', this.storageService);
-		this.taskProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 
 		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
 			added.forEach(e => this.registerExtensionContributions(e.description));
 			removed.forEach(e => this.unregisterExtensionContributions(e.description));
 		});
 
-		this._register(this.commandService.onDidExecuteCommand(command => this.progressByCommand(command.commandId)));
+		this._register(this.commandService.onDidExecuteCommand(command => this.progressByEvent(`onCommand:${command.commandId}`)));
+
+		this.extensionManagementService.getInstalled().then(installed => {
+			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
+		});
 
 		this._register(this.extensionManagementService.onDidInstallExtension(async e => {
 			if (await this.hostService.hadLastFocus()) {
 				this.sessionInstalledExtensions.add(e.identifier.id);
 			}
+			this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 		}));
 
-		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+		this._register(this.contextService.onDidChangeContext(event => {
+			if (event.affectsSome(this.trackedContextKeys)) { this._onDidAddCategory.fire(); }
+		}));
+
+		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
-			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		}));
 
 		startEntries.forEach(async (entry, index) => {
@@ -214,19 +232,27 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				order: index,
 				when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true()
 			},
-				category.content.items.map((item, index) => {
-					this.getTaskOverrides(item, category.id);
+				category.content.steps.map((step, index) => {
+					this.getStepOverrides(step, category.id);
 					return ({
-						...item,
-						description: parseDescription(item.description),
+						...step,
+						completionEvents: step.completionEvents ?? [],
+						description: parseDescription(step.description),
 						category: category.id,
 						order: index,
-						when: ContextKeyExpr.deserialize(item.when) ?? ContextKeyExpr.true(),
-						media: {
-							type: item.media.type,
-							altText: item.media.altText,
-							path: convertPaths(item.media.path)
-						}
+						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
+						media: step.media.type === 'image'
+							? {
+								type: 'image',
+								altText: step.media.altText,
+								path: convertInternalMediaPathsToBrowserURIs(step.media.path)
+							}
+							: {
+								type: 'markdown',
+								path: convertInternalMediaPathToFileURI(step.media.path),
+								base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+								root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+							},
 					});
 				}));
 		});
@@ -240,32 +266,41 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideCategory.${category.id}.description`),
 		]);
 
+		if (!(title || description)) { return; }
+
 		const existing = assertIsDefined(this.gettingStartedContributions.get(category.id));
 		existing.title = title ?? existing.title;
 		existing.description = description ?? existing.description;
 		this._onDidChangeCategory.fire(this.getCategoryProgress(existing));
 	}
 
-	private async getTaskOverrides(item: BuiltinGettingStartedItem, categoryId: string) {
+	private async getStepOverrides(step: BuiltinGettingStartedStep, categoryId: string) {
 		if (!this.tasExperimentService) { return; }
 
 		const [title, description, media] = await Promise.all([
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideTask.${item.id}.title`),
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideTask.${item.id}.description`),
-			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideTask.${item.id}.media`),
+			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.title`),
+			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.description`),
+			this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideStep.${step.id}.media`),
 		]);
+
+		if (!(title || description || media)) { return; }
 
 		const existingCategory = assertIsDefined(this.gettingStartedContributions.get(categoryId));
 		if (existingCategory.content.type === 'startEntry') { throw Error('Unexpected content type'); }
-		const existingItem = assertIsDefined(existingCategory.content.items.find(_item => _item.id === item.id));
-		existingItem.title = title ?? existingItem.title;
-		existingItem.description = description ? parseDescription(description) : existingItem.description;
-		existingItem.media.path = media ? convertPaths(media) : existingItem.media.path;
-		this._onDidChangeTask.fire(this.getTaskProgress(existingItem));
+		const existingStep = assertIsDefined(existingCategory.content.steps.find(_step => _step.id === step.id));
+
+		existingStep.title = title ?? existingStep.title;
+		existingStep.description = description ? parseDescription(description) : existingStep.description;
+		existingStep.media.path = media ? convertInternalMediaPathsToBrowserURIs(media) : existingStep.media.path;
+		this._onDidChangeStep.fire(this.getStepProgress(existingStep));
 	}
 
-	private registerExtensionContributions(extension: IExtensionDescription) {
-		const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
+	private async registerExtensionContributions(extension: IExtensionDescription) {
+		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
+			? URI.parse(path, true)
+			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
+
+		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
 				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
@@ -293,7 +328,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			return;
 		}
 
-		if (!this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions')) {
+		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
 			console.warn('Extension', extension.identifier.value, 'contributes welcome page content but the welcome page extension contribution feature flag has not been set. Set `workbench.welcomePage.experimental.extensionContributions` to begin using this experimental feature.');
 			return;
 		}
@@ -320,20 +355,27 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 
 
-		extension.contributes?.walkthroughs?.forEach(section => {
-			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
+		await Promise.all(extension.contributes?.walkthroughs?.map(async walkthrough => {
+			const categoryID = extension.identifier.value + '#' + walkthrough.id;
+
+			const override = await Promise.race([
+				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryID}.when`),
+				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
+			]);
+
 			if (
 				this.sessionInstalledExtensions.has(extension.identifier.value)
-				&& section.primary
-				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(section.when) ?? ContextKeyExpr.true())
+				&& walkthrough.primary
+				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value);
 				sectionToOpen = categoryID;
 			}
-			this.registerWalkthrough({
-				content: { type: 'items' },
-				description: section.description,
-				title: section.title,
+
+			const walkthoughDescriptior = {
+				content: { type: 'steps' },
+				description: walkthrough.description,
+				title: walkthrough.title,
 				id: categoryID,
 				order: Math.min(),
 				icon: {
@@ -342,44 +384,75 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
 						: DefaultIconPath
 				},
-				when: ContextKeyExpr.deserialize(section.when) ?? ContextKeyExpr.true(),
-			},
-				section.tasks.map((task, index) => {
-					const description = parseDescription(task.description);
-					const buttonDescription = (task as any as { button: LegacyButtonConfig }).button;
-					if (buttonDescription) {
-						description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
-					}
-					const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + task.id;
-					return ({
-						description: description,
-						media: { type: 'image', altText: task.media.altText, path: convertPaths(task.media.path) },
-						doneOn: task.doneOn?.command
-							? { commandExecuted: task.doneOn.command }
-							: { eventFired: 'markDone:' + fullyQualifiedID },
-						id: fullyQualifiedID,
-						title: task.title,
-						when: ContextKeyExpr.deserialize(task.when) ?? ContextKeyExpr.true(),
-						category: categoryID,
-						order: index,
-					});
-				}));
-		});
+				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
+			} as const;
 
-		if (sectionToOpen) {
+			const steps = (walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
+				const description = parseDescription(step.description || '');
+				const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
+				if (buttonDescription) {
+					description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
+				}
+				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
+
+				let media: IGettingStartedStep['media'];
+				if (typeof step.media.path === 'string' && step.media.path.endsWith('.md')) {
+					media = {
+						type: 'markdown',
+						path: convertExtensionPathToFileURI(step.media.path),
+						base: convertExtensionPathToFileURI(dirname(step.media.path)),
+						root: FileAccess.asFileUri(extension.extensionLocation),
+					};
+				} else {
+					const altText = (step.media as any).altText;
+					if (altText === undefined) {
+						console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
+					}
+					media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
+				}
+
+				return ({
+					description, media,
+					completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
+					id: fullyQualifiedID,
+					title: step.title,
+					when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
+					category: categoryID,
+					order: index,
+				});
+			});
+
+			this.registerWalkthrough(walkthoughDescriptior, steps);
+		}));
+
+		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') !== 'hide') {
+
+			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
 			for (const group of this.editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
-					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(sectionToOpen);
-					return;
+					if (!group.activeEditor.selectedCategory) {
+						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(sectionToOpen);
+						return;
+					}
 				}
 			}
 
-			if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openToSide') {
-				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {}, SIDE_GROUP);
-			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'open') {
+			// Otherwise, try to find a getting started input somewhere with no selected walkthrough, and open it to this one.
+			for (const group of this.editorGroupsService.groups) {
+				for (const editor of group.editors) {
+					if (editor instanceof GettingStartedInput) {
+						if (!editor.selectedCategory) {
+							editor.selectedCategory = sectionToOpen;
+							group.openEditor(editor, { revealIfOpened: true });
+							return;
+						}
+					}
+				}
+			}
+
+			// Otherwise, just make a new one.
+			if (this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
 				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {});
-			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openInBackground') {
-				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), { inactive: true });
 			}
 		}
 	}
@@ -392,35 +465,84 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		extension.contributes?.startEntries?.forEach(section => {
 			const categoryID = extension.identifier.value + '#startEntry#' + idForStartEntry(section);
 			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveCategory.fire(categoryID);
+			this._onDidRemoveCategory.fire();
 		});
 
 		extension.contributes?.walkthroughs?.forEach(section => {
 			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
-			section.tasks.forEach(task => {
-				const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + task.id;
-				this.tasks.delete(fullyQualifiedID);
+			section.steps.forEach(step => {
+				const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + step.id;
+				this.steps.delete(fullyQualifiedID);
 			});
 			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveCategory.fire(categoryID);
+			this._onDidRemoveCategory.fire();
 		});
 	}
 
-	private registerDoneListeners(task: IGettingStartedTask) {
-		if (task.doneOn.commandExecuted) {
-			const existing = this.commandListeners.get(task.doneOn.commandExecuted);
-			if (existing) { existing.push(task.id); }
-			else {
-				this.commandListeners.set(task.doneOn.commandExecuted, [task.id]);
+	private registerDoneListeners(step: IGettingStartedStep) {
+		if (step.doneOn) {
+			if (step.doneOn.commandExecuted) { step.completionEvents.push(`onCommand:${step.doneOn.commandExecuted}`); }
+			if (step.doneOn.eventFired) { step.completionEvents.push(`onEvent:${step.doneOn.eventFired}`); }
+		}
+
+		if (!step.completionEvents.length) {
+			step.completionEvents = coalesce(flatten(
+				step.description
+					.filter(linkedText => linkedText.nodes.length === 1) // only buttons
+					.map(linkedText =>
+						linkedText.nodes
+							.filter(((node): node is ILink => typeof node !== 'string'))
+							.map(({ href }) => {
+								if (href.startsWith('command:')) {
+									return 'onCommand:' + href.slice('command:'.length, href.includes('?') ? href.indexOf('?') : undefined);
+								}
+								if (href.startsWith('https://')) {
+									return 'onLink:' + href;
+								}
+								return undefined;
+							}))));
+		}
+
+		if (!step.completionEvents.length) {
+			step.completionEvents.push('stepSelected');
+		}
+
+		for (let event of step.completionEvents) {
+			const [_, eventType, argument] = /^([^:]*):?(.*)$/.exec(event) ?? [];
+
+			if (!eventType) {
+				console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+				continue;
+			}
+
+			switch (eventType) {
+				case 'onLink': case 'onEvent': break;
+				case 'stepSelected':
+					event = eventType + ':' + step.id;
+					break;
+				case 'onCommand':
+					event = eventType + ':' + argument.replace(/^toSide:/, '');
+					break;
+				case 'extensionInstalled':
+					event = eventType + ':' + argument.toLowerCase();
+					break;
+				default:
+					console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+					continue;
+			}
+
+			this.registerCompletionListener(event, step);
+			if (this.sessionEvents.has(event)) {
+				this.progressStep(step.id);
 			}
 		}
-		if (task.doneOn.eventFired) {
-			const existing = this.eventListeners.get(task.doneOn.eventFired);
-			if (existing) { existing.push(task.id); }
-			else {
-				this.eventListeners.set(task.doneOn.eventFired, [task.id]);
-			}
+	}
+
+	private registerCompletionListener(event: string, step: IGettingStartedStep) {
+		if (!this.completionListeners.has(event)) {
+			this.completionListeners.set(event, new Set());
 		}
+		this.completionListeners.get(event)?.add(step.id);
 	}
 
 	getCategories(): IGettingStartedCategoryWithProgress[] {
@@ -429,18 +551,18 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			.sort((a, b) => a.order - b.order)
 			.filter(category => this.contextService.contextMatchesRules(category.when))
 			.map(category => {
-				if (category.content.type === 'items') {
+				if (category.content.type === 'steps') {
 					return {
 						...category,
 						content: {
-							type: 'items' as const,
-							items: category.content.items.filter(item => this.contextService.contextMatchesRules(item.when))
+							type: 'steps' as const,
+							steps: category.content.steps.filter(step => this.contextService.contextMatchesRules(step.when))
 						}
 					};
 				}
 				return category;
 			})
-			.filter(category => category.content.type !== 'items' || category.content.items.length)
+			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
 			.map(category => this.getCategoryProgress(category));
 		return categoriesWithCompletion;
 	}
@@ -450,54 +572,49 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			return { ...category, content: category.content };
 		}
 
-		const tasksWithProgress = category.content.items.map(task => this.getTaskProgress(task));
-		const tasksComplete = tasksWithProgress.filter(task => task.done);
+		const stepsWithProgress = category.content.steps.map(step => this.getStepProgress(step));
+		const stepsComplete = stepsWithProgress.filter(step => step.done);
 
 		return {
 			...category,
 			content: {
-				type: 'items',
-				items: tasksWithProgress,
-				stepsComplete: tasksComplete.length,
-				stepsTotal: tasksWithProgress.length,
-				done: tasksComplete.length === tasksWithProgress.length,
+				type: 'steps',
+				steps: stepsWithProgress,
+				stepsComplete: stepsComplete.length,
+				stepsTotal: stepsWithProgress.length,
+				done: stepsComplete.length === stepsWithProgress.length,
 			}
 		};
 	}
 
-	private getTaskProgress(task: IGettingStartedTask): IGettingStartedTaskWithProgress {
+	private getStepProgress(step: IGettingStartedStep): IGettingStartedStepWithProgress {
 		return {
-			...task,
+			...step,
 			done: false,
-			...this.taskProgress[task.id]
+			...this.stepProgress[step.id]
 		};
 	}
 
-	progressTask(id: string) {
-		const oldProgress = this.taskProgress[id];
+	progressStep(id: string) {
+		const oldProgress = this.stepProgress[id];
 		if (!oldProgress || oldProgress.done !== true) {
-			this.taskProgress[id] = { done: true };
+			this.stepProgress[id] = { done: true };
 			this.memento.saveMemento();
-			const task = this.getTask(id);
-			this._onDidProgressTask.fire(this.getTaskProgress(task));
+			const step = this.getStep(id);
+			this._onDidProgressStep.fire(this.getStepProgress(step));
 		}
 	}
 
-	deprogressTask(id: string) {
-		delete this.taskProgress[id];
+	deprogressStep(id: string) {
+		delete this.stepProgress[id];
 		this.memento.saveMemento();
-		const task = this.getTask(id);
-		this._onDidProgressTask.fire(this.getTaskProgress(task));
-	}
-
-	private progressByCommand(command: string) {
-		const listening = this.commandListeners.get(command) ?? [];
-		listening.forEach(id => this.progressTask(id));
+		const step = this.getStep(id);
+		this._onDidProgressStep.fire(this.getStepProgress(step));
 	}
 
 	progressByEvent(event: string): void {
-		const listening = this.eventListeners.get(event) ?? [];
-		listening.forEach(id => this.progressTask(id));
+		this.sessionEvents.add(event);
+		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
 	}
 
 	private registerStartEntry(categoryDescriptor: IGettingStartedStartEntryDescriptor): void {
@@ -510,30 +627,51 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const category: IGettingStartedCategory = { ...categoryDescriptor };
 
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
-		this._onDidAddCategory.fire(this.getCategoryProgress(category));
+		this._onDidAddCategory.fire();
 	}
 
-	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, items: IGettingStartedTask[]): void {
+	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
 		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
 		if (oldCategory) {
-			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor})`);
+			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor.id})`);
 			return;
 		}
 
-		const category: IGettingStartedCategory = { ...categoryDescriptor, content: { type: 'items', items } };
+		const category: IGettingStartedCategory = { ...categoryDescriptor, content: { type: 'steps', steps } };
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
-		items.forEach(task => {
-			if (this.tasks.has(task.id)) { throw Error('Attempting to register task with id ' + task.id + ' twice. Second is dropped.'); }
-			this.tasks.set(task.id, task);
-			this.registerDoneListeners(task);
+		steps.forEach(step => {
+			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
+			this.steps.set(step.id, step);
+			this.registerDoneListeners(step);
+			this.trackedContextKeys.add(step.when.serialize());
 		});
-		this._onDidAddCategory.fire(this.getCategoryProgress(category));
+
+		if (this.contextService.contextMatchesRules(category.when)) {
+			this._onDidAddCategory.fire();
+		}
+
+		this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryDescriptor.id}.when`).then(override => {
+			if (override) {
+				const old = category.when;
+				const gnu = ContextKeyExpr.deserialize(override) ?? old;
+				this.trackedContextKeys.add(override);
+				category.when = gnu;
+
+				if (this.contextService.contextMatchesRules(old) && !this.contextService.contextMatchesRules(gnu)) {
+					this._onDidRemoveCategory.fire();
+				} else if (!this.contextService.contextMatchesRules(old) && this.contextService.contextMatchesRules(gnu)) {
+					this._onDidAddCategory.fire();
+				}
+			}
+		});
+
+		this.trackedContextKeys.add(category.when.serialize());
 	}
 
-	private getTask(id: string): IGettingStartedTask {
-		const task = this.tasks.get(id);
-		if (!task) { throw Error('Attempting to access task which does not exist in registry ' + id); }
-		return task;
+	private getStep(id: string): IGettingStartedStep {
+		const step = this.steps.get(id);
+		if (!step) { throw Error('Attempting to access step which does not exist in registry ' + id); }
+		return step;
 	}
 }
 
@@ -541,18 +679,23 @@ const idForStartEntry = (entry: IStartEntry): string => `${entry.title}#${entry.
 
 const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
 
-const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
-	const convertPath = (path: string) => path.startsWith('https://')
+
+const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
+	? URI.parse(path, true)
+	: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
+
+const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
+	const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
 		? URI.parse(path, true)
 		: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 	if (typeof path === 'string') {
-		const converted = convertPath(path);
+		const converted = convertInternalMediaPathToBrowserURI(path);
 		return { hc: converted, dark: converted, light: converted };
 	} else {
 		return {
-			hc: convertPath(path.hc),
-			light: convertPath(path.light),
-			dark: convertPath(path.dark)
+			hc: convertInternalMediaPathToBrowserURI(path.hc),
+			light: convertInternalMediaPathToBrowserURI(path.light),
+			dark: convertInternalMediaPathToBrowserURI(path.dark)
 		};
 	}
 };
@@ -574,7 +717,7 @@ registerAction2(class extends Action2 {
 		for (const key in record) {
 			if (Object.prototype.hasOwnProperty.call(record, key)) {
 				try {
-					gettingStartedService.deprogressTask(key);
+					gettingStartedService.deprogressStep(key);
 				} catch (e) {
 					console.error(e);
 				}

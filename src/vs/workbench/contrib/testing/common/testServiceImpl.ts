@@ -198,11 +198,11 @@ export class TestService extends Disposable implements ITestService {
 
 		const result = this.testResults.createLiveResult(req);
 		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			modal: true,
 			message: localize('testTrust', "Running tests may execute code in your workspace."),
 		});
 
 		if (!trust) {
+			result.markComplete();
 			return result;
 		}
 
@@ -453,7 +453,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 * @inheritdoc
 	 */
 	public getReviverDiff() {
-		const ops: TestsDiff = [[TestDiffOpType.DeltaRootsComplete, this.pendingRootCount]];
+		const ops: TestsDiff = [[TestDiffOpType.IncrementPendingExtHosts, this.pendingRootCount]];
 
 		const queue = [this.roots];
 		while (queue.length) {

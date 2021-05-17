@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 export const enum WorkingCopyCapabilities {
@@ -42,6 +41,27 @@ export interface IWorkingCopyBackup {
 	 * the time the backup was made.
 	 */
 	content?: VSBufferReadable | VSBufferReadableStream;
+}
+
+/**
+ * Working copy backup metadata that can be associated
+ * with the backup.
+ *
+ * Some properties may be reserved as outlined here and
+ * cannot be used.
+ */
+export interface IWorkingCopyBackupMeta {
+
+	/**
+	 * Any property needs to be serializable through JSON.
+	 */
+	[key: string]: unknown;
+
+	/**
+	 * `typeId` is a reverved property that cannot be used
+	 * as backup metadata.
+	 */
+	typeId?: never;
 }
 
 /**

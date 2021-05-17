@@ -114,7 +114,8 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 			language: cell.language,
 			cellKind: cell.cellKind,
 			outputs: cell.outputs,
-			metadata: cell.metadata
+			metadata: cell.metadata,
+			internalMetadata: cell.internalMetadata,
 		};
 	}
 
@@ -137,7 +138,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 	async $applyEdits(resource: UriComponents, cellEdits: IImmediateCellEditOperation[], computeUndoRedo = true): Promise<void> {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		if (!textModel) {
-			throw new Error(`Can't apply edits to unknown notebook model: ${resource}`);
+			throw new Error(`Can't apply edits to unknown notebook model: ${URI.revive(resource).toString()}`);
 		}
 
 		try {

@@ -61,7 +61,7 @@ import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustI
 import { isWeb } from 'vs/base/common/platform';
 import { isWorkspaceTrustEnabled } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -114,7 +114,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 		super('extension.promptExtensionInstallFailure');
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (isPromiseCanceledError(this.error)) {
 			return;
 		}
@@ -260,7 +260,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		}
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
@@ -533,7 +533,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 		return false;
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (!this.extension) {
 			return;
 		}
@@ -664,7 +664,7 @@ export class UninstallAction extends ExtensionAction {
 		this.enabled = true;
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
@@ -712,7 +712,7 @@ export class UpdateAction extends ExtensionAction {
 		this.label = this.extension.outdated ? this.getUpdateLabel(this.extension.latestVersion) : this.getUpdateLabel();
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
@@ -918,7 +918,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		return groups;
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const runtimeExtensions = await this.extensionService.getExtensions();
 		return super.run({ actionGroups: await this.getActionGroups(runtimeExtensions), disposeActionsOnHide: true });
 	}
@@ -977,7 +977,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 		}
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (this.extension) {
 			await this.action.run(this.extension.identifier.id);
 		}
@@ -1056,7 +1056,7 @@ export class EnableForWorkspaceAction extends ExtensionAction {
 		}
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
@@ -1087,7 +1087,7 @@ export class EnableGloballyAction extends ExtensionAction {
 		}
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
@@ -1124,7 +1124,7 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 		}
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
@@ -1161,7 +1161,7 @@ export class DisableGloballyAction extends ExtensionAction {
 		}
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
@@ -1417,7 +1417,7 @@ export class SetColorThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
 	}
 
-	async override run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.colorThemes = await this.workbenchThemeService.getColorThemes();
 
 		this.update();
@@ -1470,7 +1470,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
 	}
 
-	async override run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 		this.update();
 		if (!this.enabled) {
@@ -1524,7 +1524,7 @@ export class SetProductIconThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetProductIconThemeAction.EnabledClass : SetProductIconThemeAction.DisabledClass;
 	}
 
-	async override run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.productIconThemes = await this.workbenchThemeService.getProductIconThemes();
 		this.update();
 		if (!this.enabled) {
@@ -1597,7 +1597,7 @@ export class InstallRecommendedExtensionAction extends Action {
 		this.extensionId = extensionId;
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const viewlet = await this.viewletService.openViewlet(VIEWLET_ID, true);
 		const viewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		viewPaneContainer.search(`@id:${this.extensionId}`);
@@ -1670,7 +1670,7 @@ export class SearchExtensionsAction extends Action {
 		super('extensions.searchExtensions', localize('search recommendations', "Search Extensions"), undefined, true);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		const viewPaneContainer = (await this.viewletService.openViewlet(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		viewPaneContainer.search(this.searchValue);
 		viewPaneContainer.focus();
@@ -1982,7 +1982,7 @@ export class ToggleSyncExtensionAction extends ExtensionDropDownAction {
 		}
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		return super.run({
 			actionGroups: [
 				[
@@ -2086,7 +2086,8 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -2106,6 +2107,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	update(): void {
 		this.class = `${SystemDisabledWarningAction.CLASS} hide`;
 		this.tooltip = '';
+		this.enabled = false;
 		if (
 			!this.extension ||
 			!this.extension.local ||
@@ -2115,10 +2117,9 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		) {
 			return;
 		}
-		const virtualWorkspaceLocation = getVirtualWorkspaceLocation(this.workspaceContextService.getWorkspace());
-		if (virtualWorkspaceLocation && this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace) {
+		if (this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace) {
 			this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
-			this.tooltip = localize('disabled because of virtual workspace', "This extension has defined that it cannot run in {0} workspace", this.labelService.getHostLabel(virtualWorkspaceLocation.scheme, virtualWorkspaceLocation.authority));
+			this.tooltip = localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces.");
 			return;
 		}
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
@@ -2162,14 +2163,26 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
-		if (isWorkspaceTrustEnabled(this.configurationService) && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+
+		const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
+		if (isWorkspaceTrustEnabled(this.configurationService) && untrustedSupportType !== true && !this.workspaceTrustService.isWorkpaceTrusted()) {
+			const untrustedWorkspaceSupport = this.extension.local.manifest.capabilities?.untrustedWorkspaces;
+			const untrustedDetails = untrustedWorkspaceSupport?.supported !== true ? untrustedWorkspaceSupport?.description : undefined;
+			this.enabled = true;
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
-			this.tooltip = localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted");
+			this.tooltip = untrustedDetails || (untrustedSupportType === 'limited' ?
+				localize('extension limited because of trust requirement', "This extension has limited features because the current workspace is not trusted.") :
+				localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted."));
 			return;
 		}
 	}
 
 	override run(): Promise<any> {
+		// Only enabled by the workspace trust version of this action
+		// If other actions enable, add a new member to control this
+		if (this.enabled) {
+			this.commandService.executeCommand('workbench.trust.manage');
+		}
 		return Promise.resolve(null);
 	}
 }
@@ -2263,7 +2276,7 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 		return this.extensionsWorkbenchService.local.some(l => this.isEnabled(l));
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "Select Extension"), matchOnDetail: true });
 		if (extensionPick && extensionPick.extension) {
 			const versionPick = await this.quickInputService.pick(extensionPick.versions.map(v => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === extensionPick.extension.version ? ` (${localize('current', "Current")})` : ''}` })), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true });
@@ -2361,7 +2374,7 @@ export abstract class AbstractInstallExtensionsInServerAction extends Action {
 		this.tooltip = this.label;
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		return this.selectAndInstallExtensions();
 	}
 

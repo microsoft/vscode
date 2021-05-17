@@ -41,13 +41,13 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		this.localExtensionManagementService = localExtensionManagementServer.extensionManagementService;
 	}
 
-	async override install(vsix: URI): Promise<ILocalExtension> {
+	override async install(vsix: URI): Promise<ILocalExtension> {
 		const local = await super.install(vsix);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
-	async override installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	override async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		const local = await this.doInstallFromGallery(extension, installOptions);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;

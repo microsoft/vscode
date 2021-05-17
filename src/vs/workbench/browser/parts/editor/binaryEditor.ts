@@ -70,7 +70,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	async override setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
 

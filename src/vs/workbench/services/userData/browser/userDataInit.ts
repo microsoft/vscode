@@ -292,7 +292,7 @@ class ExtensionsPreviewInitializer extends AbstractExtensionsInitializer {
 		throw new Error('should not be called directly');
 	}
 
-	protected async override doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+	protected override async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
 		const remoteExtensions = await this.parseExtensions(remoteUserData);
 		if (!remoteExtensions) {
 			this.logService.info('Skipping initializing extensions because remote extensions does not exist.');

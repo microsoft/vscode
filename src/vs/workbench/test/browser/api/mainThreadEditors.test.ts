@@ -111,7 +111,7 @@ suite('MainThreadEditors', () => {
 				}
 				return Promise.resolve(Object.create(null));
 			}
-			async override getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<any> {
+			override async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<any> {
 				return undefined;
 			}
 		});

@@ -26,7 +26,7 @@ suite('ExtHostTreeView', function () {
 
 		onRefresh = new Emitter<{ [treeItemHandle: string]: ITreeItem }>();
 
-		async override $registerTreeViewDataProvider(treeViewId: string): Promise<void> {
+		override async $registerTreeViewDataProvider(treeViewId: string): Promise<void> {
 		}
 
 		override $refresh(viewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
