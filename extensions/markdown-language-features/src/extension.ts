@@ -52,12 +52,7 @@ function registerMarkdownLanguageFeatures(
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
-	const charPattern = '(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})';
-
 	return vscode.Disposable.from(
-		vscode.languages.setLanguageConfiguration('markdown', {
-			wordPattern: new RegExp(`${charPattern}((${charPattern}|[_])?${charPattern})*`, 'ug'),
-		}),
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
 		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()),
 		vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)),
