@@ -12,11 +12,12 @@ import { TelemetryReporter } from '../telemetryReporter';
 interface ShowPreviewSettings {
 	readonly sideBySide?: boolean;
 	readonly locked?: boolean;
+	readonly static?: boolean;
 }
 
 async function showPreview(
 	webviewManager: MarkdownPreviewManager,
-	telemetryReporter: TelemetryReporter,
+	telemetryReporter: TelemetryReporter | undefined,
 	uri: vscode.Uri | undefined,
 	previewSettings: ShowPreviewSettings,
 ): Promise<any> {
@@ -29,7 +30,7 @@ async function showPreview(
 	}
 
 	if (!(resource instanceof vscode.Uri)) {
-		if (!vscode.window.activeTextEditor) {
+		if (!vscode.window.activeTextEditor && !previewSettings.static) {
 			// this is most likely toggling the preview
 			return vscode.commands.executeCommand('markdown.showSource');
 		}
@@ -37,36 +38,22 @@ async function showPreview(
 		return;
 	}
 
+	if (previewSettings.static) {
+		webviewManager.openStaticPreview(resource);
+		return;
+	}
 	const resourceColumn = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One;
 	webviewManager.openDynamicPreview(resource, {
 		resourceColumn: resourceColumn,
 		previewColumn: previewSettings.sideBySide ? resourceColumn + 1 : resourceColumn,
 		locked: !!previewSettings.locked
 	});
-
-	telemetryReporter.sendTelemetryEvent('openPreview', {
-		where: previewSettings.sideBySide ? 'sideBySide' : 'inPlace',
-		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
-	});
-}
-
-async function showStaticPreview(
-	webviewManager: MarkdownPreviewManager,
-	uri: vscode.Uri | undefined,
-): Promise<any> {
-	let resource = uri;
-	if (!(resource instanceof vscode.Uri)) {
-		if (vscode.window.activeTextEditor) {
-			// we are relaxed and don't check for markdown files
-			resource = vscode.window.activeTextEditor.document.uri;
-		}
+	if (telemetryReporter) {
+		telemetryReporter.sendTelemetryEvent('openPreview', {
+			where: previewSettings.sideBySide ? 'sideBySide' : 'inPlace',
+			how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
+		});
 	}
-
-	if (!(resource instanceof vscode.Uri)) {
-		// nothing found that could be shown or toggled
-		return;
-	}
-	webviewManager.openStaticPreview(resource);
 }
 
 export class ShowPreviewCommand implements Command {
@@ -128,7 +115,9 @@ export class ShowStaticPreviewCommand implements Command {
 	) { }
 
 	public execute(uri?: vscode.Uri) {
-		showStaticPreview(this.webviewManager, uri);
+		showPreview(this.webviewManager, undefined, uri, {
+			static: true
+		});
 	}
 }
 
