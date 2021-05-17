@@ -665,8 +665,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 				args: [
 					{
 						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
+						description: 'The document uri'
 					}
 				]
 			},
