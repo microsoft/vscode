@@ -936,11 +936,14 @@ export class TerminalService implements ITerminalService {
 
 		// Add welcome message and title annotation for local terminals launched within remote or
 		// virtual workspaces
-		const isRemoteWorkspace = !!VirtualWorkspaceContext.getValue(this._contextKeyService) ||
-			this._remoteAgentService.getConnection() && (typeof shellLaunchConfig.cwd === 'string' || shellLaunchConfig.cwd?.scheme === Schemas.file);
-		if (isRemoteWorkspace) {
-			shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminal', "Warning: This shell is running on your local machine"), true);
-			shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+		if (typeof shellLaunchConfig.cwd === 'string' || shellLaunchConfig.cwd?.scheme === Schemas.file) {
+			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
+				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a \x1b[3mlocal\x1b[23m folder, NOT to the virtual folder"), true);
+				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+			} else if (this._remoteAgentService.getConnection()) {
+				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalRemote', "⚠ : This shell is running on your \x1b[3mlocal\x1b[23m machine, NOT on the connected remote machine"), true);
+				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+			}
 		}
 
 		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
