@@ -32,7 +32,6 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -176,8 +175,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IListService private readonly _listService: IListService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IListService private readonly _listService: IListService
 	) {
 	}
 
@@ -291,7 +289,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}));
 
 		// Set color based on user set (instance.changeColor) or a themeIcon
-		const icon = this._getCustomIcon(instance.icon);
+		const icon = instance.icon;
 		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
 		const extras = [];
 		if (color) {
@@ -376,39 +374,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			return icon;
 		}
 		return Codicon.terminal.id;
-	}
-
-	private _getCustomIcon(iconPath?: any): string | undefined | ThemeIcon {
-		if ((iconPath as ThemeIcon).color) {
-			return iconPath;
-		} else if (typeof iconPath === 'object' && 'path' in iconPath) {
-			return DOM.asCSSUrl(URI.revive(iconPath));
-		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
-			const uris = this.getIconUris(iconPath);
-			if (this._themeService.getColorTheme().type === ColorScheme.LIGHT) {
-				return DOM.asCSSUrl(URI.revive(uris.light));
-			} else {
-				return DOM.asCSSUrl(URI.revive(uris.dark));
-			}
-		}
-		return undefined;
-	}
-
-	getIconUris(iconPath: string | { dark: URI, light: URI } | ThemeIcon): { dark: URI, light: URI } {
-		const dark = this.getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
-		const light = this.getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
-		return {
-			dark: typeof dark === 'string' ? URI.file(dark) : dark,
-			light: typeof light === 'string' ? URI.file(light) : light
-		};
-	}
-
-	getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
-		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
-	}
-
-	getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
-		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
 	}
 }
 

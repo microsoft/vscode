@@ -16,9 +16,13 @@ import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platfor
 import { IShellLaunchConfig, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { URI } from 'vs/base/common/uri';
+import * as DOM from 'vs/base/browser/dom';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -44,6 +48,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _terminalService: ITerminalService,
 		private readonly _workspaceContextService: IWorkspaceContextService,
 		private readonly _remoteAgentService: IRemoteAgentService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		if (this._remoteAgentService.getConnection()) {
 			this._remoteAgentService.getEnvironment().then(env => this._primaryBackendOs = env?.os || OS);
@@ -106,7 +111,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		shellLaunchConfig.iconPath = shellLaunchConfig.iconPath || resolvedProfile.icon || Codicon.terminal.id;
+		shellLaunchConfig.iconPath = this._getCustomIcon(shellLaunchConfig.iconPath) || resolvedProfile.icon || Codicon.terminal.id;
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
 			shellLaunchConfig.name = resolvedProfile.profileName;
@@ -132,6 +137,41 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment> {
 		return this._context.getEnvironment(remoteAuthority);
+	}
+
+	private _getCustomIcon(iconPath?: any): string | undefined | ThemeIcon | Codicon {
+		if (iconRegistry.get(iconPath)) {
+			return iconRegistry.get(iconPath);
+		} else if ((iconPath as ThemeIcon).color) {
+			return iconPath;
+		} else if (typeof iconPath === 'object' && 'path' in iconPath) {
+			return DOM.asCSSUrl(URI.revive(iconPath));
+		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
+			const uris = this._getIconUris(iconPath);
+			if (this._themeService.getColorTheme().type === ColorScheme.LIGHT) {
+				return DOM.asCSSUrl(URI.revive(uris.light));
+			} else {
+				return DOM.asCSSUrl(URI.revive(uris.dark));
+			}
+		}
+		return undefined;
+	}
+
+	private _getIconUris(iconPath: string | { dark: URI, light: URI } | ThemeIcon): { dark: URI, light: URI } {
+		const dark = this._getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
+		const light = this._getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
+		return {
+			dark: typeof dark === 'string' ? URI.file(dark) : dark,
+			light: typeof light === 'string' ? URI.file(light) : light
+		};
+	}
+
+	private _getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
+	}
+
+	private _getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
 	}
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
@@ -382,6 +422,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 		@ITerminalService terminalService: ITerminalService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(
 			{
@@ -405,7 +446,8 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 			logService,
 			terminalService,
 			workspaceContextService,
-			remoteAgentService
+			remoteAgentService,
+			themeService
 		);
 	}
 }
