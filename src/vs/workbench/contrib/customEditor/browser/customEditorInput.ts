@@ -57,7 +57,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public readonly oldResource?: URI;
 	private _defaultDirtyState: boolean | undefined;
 
-	private _backupId: string | undefined;
+	private readonly _backupId: string | undefined;
 
 	private readonly _untitledDocumentData: VSBuffer | undefined;
 
