@@ -29,7 +29,7 @@ interface IIconFontExtensionPoint {
 const iconRegistry: IIconRegistry = Registry.as<IIconRegistry>(IconRegistryExtensions.IconContribution);
 
 const iconReferenceSchema = iconRegistry.getIconReferenceSchema();
-const iconIdPattern = `^${CSSIcon.iconNameSegment}-(${CSSIcon.iconNameSegment})+`;
+const iconIdPattern = `^${CSSIcon.iconNameSegment}-(${CSSIcon.iconNameSegment})+$`;
 
 const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIconExtensionPoint[]>({
 	extensionPoint: 'icons',
