@@ -324,14 +324,31 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		]);
 	}
 
-	private _onInstanceDisposed(instance: ITerminalInstance): void {
-		// Get the index of the instance and remove it from the list
+	private _onInstanceDisposed(instance: ITerminalInstance) {
+		this._removeInstance(instance);
+	}
+
+	removeInstance(instance: ITerminalInstance): void {
+		this._removeInstance(instance);
+
+		// Dispose instance event listeners
+		const disposables = this._instanceDisposables.get(instance.instanceId);
+		if (disposables) {
+			dispose(disposables);
+			this._instanceDisposables.delete(instance.instanceId);
+		}
+	}
+
+	private _removeInstance(instance: ITerminalInstance) {
 		const index = this._terminalInstances.indexOf(instance);
-		const wasActiveInstance = instance === this.activeInstance;
-		if (index !== -1) {
-			this._terminalInstances.splice(index, 1);
+		if (index === -1) {
+			return;
 		}
 
+		const wasActiveInstance = instance === this.activeInstance;
+		this._terminalInstances.splice(index, 1);
+
+		// TODO: Share code with onInstanceDisposed
 		// Adjust focus if the instance was active
 		if (wasActiveInstance && this._terminalInstances.length > 0) {
 			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
@@ -345,10 +362,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this._activeInstanceIndex--;
 		}
 
-		// Remove the instance from the split pane if it has been created
-		if (this._splitPaneContainer) {
-			this._splitPaneContainer.remove(instance);
-		}
+		this._splitPaneContainer?.remove(instance);
 
 		// Fire events and dispose group if it was the last instance
 		if (this._terminalInstances.length === 0) {
@@ -409,42 +423,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
 		this.setVisible(this._isVisible);
-	}
-
-	removeInstance(instance: ITerminalInstance): void {
-		const index = this._terminalInstances.indexOf(instance);
-		if (index === -1) {
-			return;
-		}
-
-		const wasActiveInstance = instance === this.activeInstance;
-		this._terminalInstances.splice(index, 1);
-		instance.detachFromElement();
-
-		// TODO: Share code with onInstanceDisposed
-		// Adjust focus if the instance was active
-		if (wasActiveInstance && this._terminalInstances.length > 0) {
-			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
-			this.setActiveInstanceByIndex(newIndex);
-			// TODO: Only focus the new instance if the group had focus?
-			if (this.activeInstance) {
-				this.activeInstance.focus(true);
-			}
-		} else if (index < this._activeInstanceIndex) {
-			// Adjust active instance index if needed
-			this._activeInstanceIndex--;
-		}
-
-		this._splitPaneContainer?.remove(instance);
-
-		// Dispose listeners
-		const disposables = this._instanceDisposables.get(instance.instanceId);
-		if (disposables) {
-			dispose(disposables);
-			this._instanceDisposables.delete(instance.instanceId);
-		}
-
-		this._onInstancesChanged.fire();
 	}
 
 	get title(): string {

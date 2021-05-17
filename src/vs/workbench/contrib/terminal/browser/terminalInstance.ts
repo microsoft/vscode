@@ -604,16 +604,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 	}
 
-	detachFromElement(): void {
-		if (!this._wrapperElement) {
-			return;
-		}
-		this._container?.removeChild(this._wrapperElement);
-		this._wrapperElement = undefined;
-
-		// TODO: Don't allow reattach init of xterm
-	}
-
 	private async _attachToElement(container: HTMLElement): Promise<void> {
 		if (this._wrapperElement) {
 			throw new Error('The terminal instance has already been attached to a container');
