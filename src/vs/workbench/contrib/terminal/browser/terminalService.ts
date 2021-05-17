@@ -526,10 +526,6 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		if (this._activeGroupIndex === index) {
-			return;
-		}
-
 		this._activeGroupIndex = index;
 
 		this._terminalGroups.forEach((g, i) => g.setVisible(i === this._activeGroupIndex));

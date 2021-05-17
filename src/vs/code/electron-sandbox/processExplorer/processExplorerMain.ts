@@ -379,21 +379,45 @@ class ProcessExplorer {
 	}
 
 	private applyStyles(styles: ProcessExplorerStyles): void {
-		const styleTag = document.createElement('style');
+		const styleElement = createStyleSheet();
 		const content: string[] = [];
 
-		if (styles.hoverBackground) {
-			content.push(`.monaco-list-row:hover  { background-color: ${styles.hoverBackground}; }`);
+		if (styles.listFocusBackground) {
+			content.push(`.monaco-list:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
+			content.push(`.monaco-list:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`);
 		}
 
-		if (styles.hoverForeground) {
-			content.push(`.monaco-list-row:hover { color: ${styles.hoverForeground}; }`);
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-list:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
 		}
 
-		styleTag.textContent = content.join('\n');
-		if (document.head) {
-			document.head.appendChild(styleTag);
+		if (styles.listActiveSelectionBackground) {
+			content.push(`.monaco-list:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
+			content.push(`.monaco-list:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`);
 		}
+
+		if (styles.listActiveSelectionForeground) {
+			content.push(`.monaco-list:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
+		}
+
+		if (styles.listHoverBackground) {
+			content.push(`.monaco-list-row:hover:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
+		}
+
+		if (styles.listHoverForeground) {
+			content.push(`.monaco-list-row:hover:not(.selected):not(.focused) { color: ${styles.listHoverForeground}; }`);
+		}
+
+		if (styles.listFocusOutline) {
+			content.push(`.monaco-list:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
+		}
+
+		if (styles.listHoverOutline) {
+			content.push(`.monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
+		}
+
+		styleElement.textContent = content.join('\n');
+
 		if (styles.color) {
 			document.body.style.color = styles.color;
 		}

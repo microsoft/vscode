@@ -29,7 +29,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, ExperimentalUndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -52,6 +52,7 @@ import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
@@ -186,12 +187,15 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IUndoRedoService undoRedoService: IUndoRedoService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
+		const undoRedoPerCell = configurationService.getValue<boolean>(ExperimentalUndoRedoPerCell);
+
 		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
 			getComparisonKey: (uri: URI): string => {
-				return getCellUndoRedoComparisonKey(uri);
+				return getCellUndoRedoComparisonKey(uri, undoRedoPerCell);
 			}
 		}));
 	}
