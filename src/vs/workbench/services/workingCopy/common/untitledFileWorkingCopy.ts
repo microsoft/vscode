@@ -244,7 +244,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 
 	//#region Save
 
-	save(options?: ISaveOptions): Promise<boolean> {
+	async save(options?: ISaveOptions): Promise<boolean> {
 		this.trace('[untitled file working copy] save() - enter');
 
 		// TODO needs to extract the code for bringing up save dialog
@@ -252,7 +252,9 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 		// Also, who is disposing the untitled after save and open the
 		// new editor?
 
-		throw new Error('Method not implemented.');
+		await this.revert();
+
+		return true;
 	}
 
 	//#endregion
