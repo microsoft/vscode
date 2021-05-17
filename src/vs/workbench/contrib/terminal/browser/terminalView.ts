@@ -463,20 +463,7 @@ function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon)
 		}
 		return `${label} $(${primaryStatus.icon.id})`;
 	}
-	// const icon = this._getIcon(instance.icon);
-	// const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
-	// if (typeof icon === 'string' && icon.startsWith('url')) {
-	// 	const codicon = label.element.querySelector<HTMLElement>('.codicon');
-	// 	if (codicon) {
-	// 		codicon.style.backgroundImage = icon;
-	// 		codicon.style.backgroundSize = '16px';
-	// 		codicon.style.color = 'transparent';
-	// 		codicon.style.content = '';
-	// 	}
-	// }
-	// if (color) {
-	// 	label.element.classList.add(color);
-	// }
+
 	return '';
 }
 

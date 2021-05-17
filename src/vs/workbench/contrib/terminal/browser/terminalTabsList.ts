@@ -255,21 +255,19 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-		const iconClass = typeof instance.icon === 'object' && 'id' in instance.icon ? instance.icon?.id
-			: typeof instance.icon === 'string' && iconRegistry.get(instance.icon) ? instance.icon
-				: Codicon.terminal.id;
+		const iconId = this._getIconId(instance.icon);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
 			const primaryStatus = instance.statusList.primary;
 			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
-				label = `${prefix}$(${primaryStatus.icon?.id || iconClass})`;
+				label = `${prefix}$(${primaryStatus.icon?.id || iconId})`;
 			} else {
-				label = `${prefix}$(${iconClass})`;
+				label = `${prefix}$(${iconId})`;
 			}
 		} else {
 			this.fillActionBar(instance, template);
-			label = `${prefix}$(${iconClass})`;
+			label = `${prefix}$(${iconId})`;
 			// Only add the title if the icon is set, this prevents the title jumping around for
 			// example when launching with a ShellLaunchConfig.name and no icon
 			if (instance.icon) {
@@ -291,10 +289,19 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				instance.dispose();
 			}
 		}));
-		const icon = this._getIcon(instance.icon);
+
+		// Set color based on user set (instance.changeColor) or a themeIcon
+		const icon = this._getCustomIcon(instance.icon);
 		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
 		const extras = [];
-		if (typeof icon === 'string' && icon.startsWith('url')) {
+		if (color) {
+			extras.push(color);
+		}
+
+		// If this is a custom, URI based icon, set the
+		// default codicon to transparent
+		// and add it as a background image
+		if (icon && typeof icon === 'string' && icon.startsWith('url')) {
 			const codicon = template.element.querySelector<HTMLElement>('.codicon');
 			if (codicon) {
 				codicon.style.backgroundImage = icon;
@@ -303,9 +310,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				codicon.style.content = '';
 			}
 		}
-		if (color) {
-			extras.push(color);
-		}
+
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
@@ -363,10 +368,18 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		this._listService.lastFocusedList?.focusNext();
 	}
 
-	private _getIcon(iconPath?: any): Codicon | ThemeIcon | undefined | string {
-		if (typeof iconPath === 'string') {
-			return iconRegistry.get(iconPath);
-		} else if ((iconPath as ThemeIcon).color) {
+	private _getIconId(icon: any): string {
+		// case: Codicon or ThemeIcon
+		if (typeof icon === 'object' && 'id' in icon) {
+			return icon.id;
+		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {
+			return icon;
+		}
+		return Codicon.terminal.id;
+	}
+
+	private _getCustomIcon(iconPath?: any): string | undefined | ThemeIcon {
+		if ((iconPath as ThemeIcon).color) {
 			return iconPath;
 		} else if (typeof iconPath === 'object' && 'path' in iconPath) {
 			return DOM.asCSSUrl(URI.revive(iconPath));
