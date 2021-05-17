@@ -147,8 +147,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				// This is because the backup must be ready upon model creation, and the input resolve method comes after
 				let backupID = webviewInput.backupId;
 				if (webviewInput.oldResource && !webviewInput.backupId) {
-					const backup = await this.workingCopyBackupService.resolve<CustomDocumentBackupData>({ resource: webviewInput.oldResource, typeId: NO_TYPE_ID });
+					const backupIdentifier = { resource: webviewInput.oldResource, typeId: NO_TYPE_ID };
+					const backup = await this.workingCopyBackupService.resolve<CustomDocumentBackupData>(backupIdentifier);
 					backupID = backup?.meta?.backupId;
+					this.workingCopyBackupService.discardBackup(backupIdentifier);
 				}
 
 				let modelRef: IReference<ICustomEditorModel>;
