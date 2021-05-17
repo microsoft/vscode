@@ -393,10 +393,6 @@ export interface IShellLaunchConfig {
 	 */
 	iconPath?: any;
 
-	darkIcon?: URI;
-
-	lightIcon?: URI;
-
 	icon?: string;
 
 	/**

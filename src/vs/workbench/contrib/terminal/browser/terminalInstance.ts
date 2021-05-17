@@ -317,6 +317,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
+	// TODO:@meganrogge move all of this to profile resolver service
 	getIconUris(iconPath: string | { dark: URI, light: URI } | ThemeIcon): { dark: URI, light: URI } {
 		const dark = this.getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
 		const light = this.getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
