@@ -248,26 +248,23 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-		console.log(instance.icon);
-		const iconClass = typeof instance.icon === 'string' ? instance.icon : undefined;
+		const iconClass = typeof instance.icon === 'string' ? instance.icon : instance.icon?.id;
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
-		if (typeof instance.icon === 'object' && 'id' in instance.icon) {
-			if (!hasText) {
-				const primaryStatus = instance.statusList.primary;
-				if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
-					label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
-				} else {
-					label = `${prefix}$(${instance.icon?.id})`;
-				}
+		if (!hasText) {
+			const primaryStatus = instance.statusList.primary;
+			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
+				label = `${prefix}$(${primaryStatus.icon?.id || iconClass})`;
 			} else {
-				this.fillActionBar(instance, template);
-				label = `${prefix}$(${instance.icon?.id})`;
-				// Only add the title if the icon is set, this prevents the title jumping around for
-				// example when launching with a ShellLaunchConfig.name and no icon
-				if (instance.icon) {
-					label += ` ${instance.title}`;
-				}
+				label = `${prefix}$(${iconClass})`;
+			}
+		} else {
+			this.fillActionBar(instance, template);
+			label = `${prefix}$(${iconClass})`;
+			// Only add the title if the icon is set, this prevents the title jumping around for
+			// example when launching with a ShellLaunchConfig.name and no icon
+			if (instance.icon) {
+				label += ` ${instance.title}`;
 			}
 		}
 

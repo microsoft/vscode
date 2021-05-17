@@ -289,3 +289,11 @@
 	margin-left: 4px;
 	color: inherit;
 }
+
+.monaco-workbench .tabs-list .uri-icon,
+.monaco-workbench .tabs-list .uri-icon {
+	background-repeat: no-repeat;
+	background-position: left;
+	background-size: contain;
+	vertical-align: text-bottom;
+}

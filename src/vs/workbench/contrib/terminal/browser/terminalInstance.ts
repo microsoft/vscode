@@ -348,8 +348,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return path;
 		} else if (typeof path === 'object' && 'path' in path) {
 			const c = `${dom.asCSSUrl(URI.revive(path))}`;
-			dom.createCSSRule(`.customized`, `background-image: ${c}`);
-			return 'customized';
+			dom.createCSSRule(`.uri-icon`, `background-image: ${c}`);
+			return 'uri-icon';
 		} else if (typeof path === 'object' && 'light' in path && 'dark' in path) {
 			const uris = this.getIconUris(path);
 			return this.getIconClass(uris);
