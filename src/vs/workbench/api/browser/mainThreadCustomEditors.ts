@@ -16,7 +16,7 @@ import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resour
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
@@ -35,10 +35,11 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -61,7 +62,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 	) {
 		super();
 
@@ -90,6 +92,11 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			},
 			resolveWebview: () => { throw new Error('not implemented'); }
 		}));
+
+		// Working copy operations
+		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => await this.onWillRunWorkingCopyFileOperation(e)));
+		//this._register(workingCopyFileService.onDidFailWorkingCopyFileOperation(e => this.onDidFailWorkingCopyFileOperation(e)));
+		//this._register(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 	}
 
 	override dispose() {
@@ -253,6 +260,26 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}
 		return model;
 	}
+
+	//#region Working Copy
+	private async onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent) {
+		if (e.operation !== FileOperation.MOVE) {
+			return;
+		}
+		const models = [];
+		for (const file of e.files) {
+			if (file.source) {
+				models.push(...(await this._customEditorService.models.getAllModels(file.source)));
+			}
+		}
+		for (const model of models) {
+			if (model instanceof MainThreadCustomEditorModel) {
+				const workingCopy = await model.backup(CancellationToken.None);
+				await this.workingCopyBackupService.backup({ resource: model.resource, typeId: model.typeId }, workingCopy.content, undefined, workingCopy.meta);
+			}
+		}
+	}
+	//#endregion
 }
 
 namespace HotExitState {
@@ -315,6 +342,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		let untitledDocumentData: VSBuffer | undefined;
 		if (editors.length !== 0) {
 			untitledDocumentData = editors[0].untitledDocumentData;
+			options.backupId = editors[0].backupId;
 		}
 		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, untitledDocumentData, cancellation);
 		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, !!untitledDocumentData, getEditors);
