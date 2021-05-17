@@ -418,7 +418,8 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon.id, instance.color);
+		//TODO:@meganrgge fix
+		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, typeof instance.icon === 'string' ? instance.icon : '', instance.color);
 	}
 
 	private _removeGroup(group: ITerminalGroup): void {

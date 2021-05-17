@@ -18,6 +18,7 @@ import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/termi
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Codicon } from 'vs/base/common/codicons';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -254,7 +255,7 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
-	readonly icon?: ThemeIcon;
+	readonly icon?: ThemeIcon | Codicon | string;
 	readonly color?: string;
 
 	readonly statusList: ITerminalStatusList;
