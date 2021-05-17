@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/bannerpart';
 import { localize } from 'vs/nls';
-import { $, append, clearNode } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, clearNode, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -23,6 +23,9 @@ import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND } from 'vs/workbench/common/theme';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 
 // Icons
@@ -57,6 +60,8 @@ registerThemingParticipant((theme, collector) => {
 
 // Banner Part
 
+const CONTEXT_BANNER_FOCUSED = new RawContextKey<boolean>('bannerFocused', false, localize('bannerFocused', "Whether the banner has keyboard focus"));
+
 export class BannerPart extends Part implements IBannerService {
 	declare readonly _serviceBrand: undefined;
 
@@ -84,9 +89,14 @@ export class BannerPart extends Part implements IBannerService {
 	private readonly markdownRenderer: MarkdownRenderer;
 	private visible = false;
 
+	private actionBar: ActionBar | undefined;
+	private messageActionsContainer: HTMLElement | undefined;
+	private focusedActionIndex: number = -1;
+
 	constructor(
 		@IThemeService themeService: IThemeService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -98,6 +108,17 @@ export class BannerPart extends Part implements IBannerService {
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.element.tabIndex = 0;
+
+		// Restore focused action if needed
+		this._register(addDisposableListener(this.element, EventType.FOCUS, () => {
+			if (this.focusedActionIndex !== -1) {
+				this.focusActionLink();
+			}
+		}));
+
+		// Track focus
+		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
+		CONTEXT_BANNER_FOCUSED.bindTo(scopedContextKeyService).set(true);
 
 		return this.element;
 	}
@@ -117,6 +138,31 @@ export class BannerPart extends Part implements IBannerService {
 		this.item = undefined;
 	}
 
+	private focusActionLink(): void {
+		const length = this.item?.actions?.length ?? 0;
+
+		if (this.focusedActionIndex < length) {
+			const actionLink = this.messageActionsContainer?.children[this.focusedActionIndex];
+			if (actionLink instanceof HTMLElement) {
+				this.actionBar?.setFocusable(false);
+				actionLink.focus();
+			}
+		} else {
+			this.actionBar?.focus(0);
+		}
+	}
+
+	private getAriaLabel(item: IBannerItem): string | undefined {
+		if (item.ariaLabel) {
+			return item.ariaLabel;
+		}
+		if (typeof item.message === 'string') {
+			return item.message;
+		}
+
+		return undefined;
+	}
+
 	private getBannerMessage(message: MarkdownString | string): HTMLElement {
 		if (typeof message === 'string') {
 			const element = $('span');
@@ -130,9 +176,29 @@ export class BannerPart extends Part implements IBannerService {
 	private setVisibility(visible: boolean): void {
 		if (visible !== this.visible) {
 			this.visible = visible;
+			this.focusedActionIndex = -1;
 
 			this._onDidChangeSize.fire(undefined);
 		}
+	}
+
+	focus(): void {
+		this.focusedActionIndex = -1;
+		this.element.focus();
+	}
+
+	focusNextAction(): void {
+		const length = this.item?.actions?.length ?? 0;
+		this.focusedActionIndex = this.focusedActionIndex < length ? this.focusedActionIndex + 1 : 0;
+
+		this.focusActionLink();
+	}
+
+	focusPreviousAction(): void {
+		const length = this.item?.actions?.length ?? 0;
+		this.focusedActionIndex = this.focusedActionIndex > 0 ? this.focusedActionIndex - 1 : length;
+
+		this.focusActionLink();
 	}
 
 	hide(id: string): void {
@@ -156,6 +222,12 @@ export class BannerPart extends Part implements IBannerService {
 		// Clear previous item
 		clearNode(this.element);
 
+		// Banner aria label
+		const ariaLabel = this.getAriaLabel(item);
+		if (ariaLabel) {
+			this.element.setAttribute('aria-label', ariaLabel);
+		}
+
 		// Icon
 		const iconContainer = append(this.element, $('div.icon-container'));
 		iconContainer.setAttribute('aria-hidden', 'true');
@@ -163,26 +235,27 @@ export class BannerPart extends Part implements IBannerService {
 
 		// Message
 		const messageContainer = append(this.element, $('div.message-container'));
+		messageContainer.setAttribute('aria-hidden', 'true');
 		messageContainer.appendChild(this.getBannerMessage(item.message));
 
 		// Message Actions
 		if (item.actions) {
-			const actionContainer = append(this.element, $('div.message-actions-container'));
+			this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
 
 			for (const action of item.actions) {
 				const actionLink = this._register(this.instantiationService.createInstance(Link, action, {}));
 				actionLink.el.tabIndex = -1;
 				actionLink.el.setAttribute('role', 'button');
-				actionContainer.appendChild(actionLink.el);
+				this.messageActionsContainer.appendChild(actionLink.el);
 			}
 		}
 
 		// Action
 		const actionBarContainer = append(this.element, $('div.action-container'));
-		const actionBar = this._register(new ActionBar(actionBarContainer));
+		this.actionBar = this._register(new ActionBar(actionBarContainer));
 		const closeAction = this._register(new Action('banner.close', 'Close Banner', bannerCloseIcon.classNames, true, () => this.close(item)));
-		actionBar.push(closeAction, { icon: true, label: false });
-		actionBar.setFocusable(false);
+		this.actionBar.push(closeAction, { icon: true, label: false });
+		this.actionBar.setFocusable(false);
 
 		this.setVisibility(true);
 		this.item = item;
@@ -196,6 +269,42 @@ export class BannerPart extends Part implements IBannerService {
 }
 
 registerSingleton(IBannerService, BannerPart);
+
+
+// Keybindings
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.banner.focusBanner',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Escape,
+	when: CONTEXT_BANNER_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const bannerService = accessor.get(IBannerService);
+		bannerService.focus();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.banner.focusNextAction',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.RightArrow,
+	when: CONTEXT_BANNER_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const bannerService = accessor.get(IBannerService);
+		bannerService.focusNextAction();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.banner.focusPreviousAction',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.LeftArrow,
+	when: CONTEXT_BANNER_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const bannerService = accessor.get(IBannerService);
+		bannerService.focusPreviousAction();
+	}
+});
 
 
 // Actions
