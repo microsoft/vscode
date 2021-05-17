@@ -67,10 +67,10 @@ export interface NotebookDocumentMetadata {
 	[key: string]: unknown;
 }
 
+// Aligns with the vscode.d.ts version
 export enum NotebookCellExecutionState {
-	Idle = 1,
 	Pending = 2,
-	Executing = 3,
+	Executing = 3
 }
 
 export interface INotebookCellPreviousExecutionResult {
@@ -80,12 +80,6 @@ export interface INotebookCellPreviousExecutionResult {
 }
 
 export interface NotebookCellMetadata {
-	executionOrder?: number;
-	lastRunSuccess?: boolean;
-	runState?: NotebookCellExecutionState;
-	runStartTime?: number;
-	runStartTimeAdjustment?: number;
-	runEndTime?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
 
@@ -93,6 +87,15 @@ export interface NotebookCellMetadata {
 	 * custom metadata
 	 */
 	[key: string]: unknown;
+}
+
+export interface NotebookCellInternalMetadata {
+	executionOrder?: number;
+	lastRunSuccess?: boolean;
+	runState?: NotebookCellExecutionState;
+	runStartTime?: number;
+	runStartTimeAdjustment?: number;
+	runEndTime?: number;
 }
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
@@ -177,7 +180,7 @@ export interface ICellOutput {
 	appendData(items: IOutputItemDto[]): void;
 }
 
-export interface CellMetadataChangedEvent {
+export interface CellInternalMetadataChangedEvent {
 	readonly runStateChanged?: boolean;
 }
 
@@ -187,10 +190,12 @@ export interface ICell {
 	language: string;
 	cellKind: CellKind;
 	outputs: ICellOutput[];
-	metadata?: NotebookCellMetadata;
+	metadata: NotebookCellMetadata;
+	internalMetadata: NotebookCellInternalMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
-	onDidChangeMetadata: Event<CellMetadataChangedEvent>;
+	onDidChangeMetadata: Event<void>;
+	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
 }
 
 export interface INotebookTextModel {
@@ -224,6 +229,7 @@ export interface IMainCellDto {
 	cellKind: CellKind;
 	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
+	internalMetadata?: NotebookCellInternalMetadata;
 }
 
 export type NotebookCellsSplice2 = [
@@ -244,7 +250,8 @@ export enum NotebookCellsChangeType {
 	OutputItem = 9,
 	ChangeCellContent = 10,
 	ChangeDocumentMetadata = 11,
-	Unknown = 12
+	ChangeCellInternalMetadata = 12,
+	Unknown = 100
 }
 
 export interface NotebookCellsInitializeEvent<T> {
@@ -295,6 +302,12 @@ export interface NotebookCellsChangeMetadataEvent {
 	readonly metadata: NotebookCellMetadata;
 }
 
+export interface NotebookCellsChangeInternalMetadataEvent {
+	readonly kind: NotebookCellsChangeType.ChangeCellInternalMetadata;
+	readonly index: number;
+	readonly internalMetadata: NotebookCellInternalMetadata;
+}
+
 export interface NotebookDocumentChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeDocumentMetadata;
 	readonly metadata: NotebookDocumentMetadata;
@@ -304,14 +317,14 @@ export interface NotebookDocumentUnknownChangeEvent {
 	readonly kind: NotebookCellsChangeType.Unknown;
 }
 
-export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent;
+export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent;
 
 export type NotebookCellsChangedEventDto = {
 	readonly rawEvents: NotebookRawContentEventDto[];
 	readonly versionId: number;
 };
 
-export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
 
 export enum SelectionStateType {
 	Handle = 0,
@@ -347,7 +360,8 @@ export const enum CellEditType {
 	DocumentMetadata = 5,
 	Move = 6,
 	OutputItems = 7,
-	PartialMetadata = 8
+	PartialMetadata = 8,
+	PartialInternalMetadata = 9,
 }
 
 export interface ICellDto2 {
@@ -356,6 +370,7 @@ export interface ICellDto2 {
 	cellKind: CellKind;
 	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
+	internalMetadata?: NotebookCellInternalMetadata;
 }
 
 export interface ICellReplaceEdit {
@@ -392,6 +407,7 @@ export interface ICellMetadataEdit {
 	metadata: NotebookCellMetadata;
 }
 
+// These types are nullable because we need to use 'null' on the EH side so it is JSON-stringified
 export type NullablePartialNotebookCellMetadata = {
 	[Key in keyof Partial<NotebookCellMetadata>]: NotebookCellMetadata[Key] | null
 };
@@ -399,13 +415,28 @@ export type NullablePartialNotebookCellMetadata = {
 export interface ICellPartialMetadataEdit {
 	editType: CellEditType.PartialMetadata;
 	index: number;
-	metadata: Partial<NullablePartialNotebookCellMetadata>;
+	metadata: NullablePartialNotebookCellMetadata;
 }
 
 export interface ICellPartialMetadataEditByHandle {
 	editType: CellEditType.PartialMetadata;
 	handle: number;
-	metadata: Partial<NullablePartialNotebookCellMetadata>;
+	metadata: NullablePartialNotebookCellMetadata;
+}
+
+export type NullablePartialNotebookCellInternalMetadata = {
+	[Key in keyof Partial<NotebookCellInternalMetadata>]: NotebookCellInternalMetadata[Key] | null
+};
+export interface ICellPartialInternalMetadataEdit {
+	editType: CellEditType.PartialInternalMetadata;
+	index: number;
+	internalMetadata: NullablePartialNotebookCellInternalMetadata;
+}
+
+export interface ICellPartialInternalMetadataEditByHandle {
+	editType: CellEditType.PartialInternalMetadata;
+	handle: number;
+	internalMetadata: NullablePartialNotebookCellInternalMetadata;
 }
 
 export interface ICellLanguageEdit {
@@ -426,8 +457,8 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit;
-export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
+export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit | ICellPartialInternalMetadataEdit | ICellPartialInternalMetadataEditByHandle | ICellPartialMetadataEdit;
+export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | ICellPartialInternalMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
 
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
@@ -444,7 +475,11 @@ export interface INotebookContributionData {
 }
 
 
-export function getCellUndoRedoComparisonKey(uri: URI) {
+export function getCellUndoRedoComparisonKey(uri: URI, undoRedoPerCell: boolean) {
+	if (undoRedoPerCell) {
+		return uri.toString();
+	}
+
 	const data = CellUri.parse(uri);
 	if (!data) {
 		return uri.toString();
@@ -858,6 +893,8 @@ export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
+export const ExperimentalCompactView = 'notebook.experimental.compactView';
+export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

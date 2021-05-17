@@ -80,7 +80,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
+		const exec = 'windowsExec' in settings && settings.windowsExec ? settings.windowsExec : WindowsExternalTerminalService.getDefaultTerminalWindows();
 
 		return new Promise<number | undefined>((resolve, reject) => {
 

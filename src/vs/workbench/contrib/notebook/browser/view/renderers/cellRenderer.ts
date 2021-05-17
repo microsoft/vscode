@@ -46,7 +46,7 @@ import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -263,11 +263,11 @@ abstract class AbstractCellRenderer {
 				return;
 			}
 
-			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
+			if (templateData.currentRenderedCell.metadata.inputCollapsed) {
 				textModel.applyEdits([
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
 				], true, undefined, () => undefined, undefined);
-			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
+			} else if (templateData.currentRenderedCell.metadata.outputCollapsed) {
 				textModel.applyEdits([
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
 				], true, undefined, () => undefined, undefined);
@@ -519,7 +519,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private updateCollapsedState(element: MarkdownCellViewModel) {
-		if (element.metadata?.inputCollapsed) {
+		if (element.metadata.inputCollapsed) {
 			this.notebookEditor.hideMarkdownPreviews([element]);
 		} else {
 			this.notebookEditor.unhideMarkdownPreviews([element]);
@@ -787,8 +787,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			const clickedOnInput = e.offsetY < (cell.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
 			const viewModel = this.notebookEditor.viewModel!;
 			const metadata: Partial<NotebookCellMetadata> = clickedOnInput ?
-				{ inputCollapsed: !cell.metadata?.inputCollapsed } :
-				{ outputCollapsed: !cell.metadata?.outputCollapsed };
+				{ inputCollapsed: !cell.metadata.inputCollapsed } :
+				{ outputCollapsed: !cell.metadata.outputCollapsed };
 			viewModel.notebookDocument.applyEdits([
 				{
 					editType: CellEditType.PartialMetadata,
@@ -804,7 +804,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				return;
 			}
 
-			const metadata: Partial<NotebookCellMetadata> = cell.metadata?.inputCollapsed ?
+			const metadata: Partial<NotebookCellMetadata> = cell.metadata.inputCollapsed ?
 				{ inputCollapsed: false } :
 				{ outputCollapsed: false };
 			const viewModel = this.notebookEditor.viewModel!;
@@ -843,25 +843,25 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 	}
 
-	private updateForMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, editorOptions: CellEditorOptions): void {
+	private updateForInternalMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, editorOptions: CellEditorOptions): void {
 		if (!this.notebookEditor.hasModel()) {
 			return;
 		}
 
-		const metadata = element.metadata;
-		this.updateExecutionOrder(metadata, templateData);
+		const internalMetadata = element.internalMetadata;
+		this.updateExecutionOrder(internalMetadata, templateData);
 
-		if (metadata.runState === NotebookCellExecutionState.Executing) {
+		if (internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			templateData.progressBar.infinite().show(500);
 		} else {
 			templateData.progressBar.hide();
 		}
 	}
 
-	private updateExecutionOrder(metadata: NotebookCellMetadata, templateData: CodeCellRenderTemplate): void {
+	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata, templateData: CodeCellRenderTemplate): void {
 		if (this.notebookEditor.activeKernel?.implementsExecutionOrder) {
-			const executionOrderLabel = typeof metadata.executionOrder === 'number' ?
-				`[${metadata.executionOrder}]` :
+			const executionOrderLabel = typeof internalMetadata.executionOrder === 'number' ?
+				`[${internalMetadata.executionOrder}]` :
 				'[ ]';
 			templateData.executionOrderLabel.innerText = executionOrderLabel;
 		} else {
@@ -950,13 +950,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.updateForLayout(element, templateData);
 		}));
 
-		this.updateForMetadata(element, templateData, cellEditorOptions);
+		this.updateForInternalMetadata(element, templateData, cellEditorOptions);
 		this.updateForHover(element, templateData);
 		this.updateForFocus(element, templateData);
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
 		elementDisposables.add(element.onDidChangeState((e) => {
-			if (e.metadataChanged) {
-				this.updateForMetadata(element, templateData, cellEditorOptions);
+			if (e.internalMetadataChanged) {
+				this.updateForInternalMetadata(element, templateData, cellEditorOptions);
 			}
 
 			if (e.outputIsHoveredChanged) {
@@ -969,11 +969,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			if (e.cellLineNumberChanged) {
 				cellEditorOptions.setLineNumbers(element.lineNumbers);
-			}
-		}));
-		elementDisposables.add(this.notebookEditor.viewModel.notebookDocument.onDidChangeContent(e => {
-			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
-				this.updateForMetadata(element, templateData, cellEditorOptions);
 			}
 		}));
 
@@ -1075,7 +1070,7 @@ export class RunStateRenderer {
 		}
 	}
 
-	renderState(runState: NotebookCellExecutionState = NotebookCellExecutionState.Idle, getCellIndex: () => number, lastRunSuccess: boolean | undefined = undefined) {
+	renderState(runState: NotebookCellExecutionState | undefined, getCellIndex: () => number, lastRunSuccess: boolean | undefined = undefined) {
 		if (this.spinnerTimer) {
 			this.pendingNewState = runState;
 			this.pendingLastRunSuccess = lastRunSuccess;
@@ -1083,10 +1078,10 @@ export class RunStateRenderer {
 		}
 
 		let runStateTooltip: string | undefined;
-		if (runState === NotebookCellExecutionState.Idle && lastRunSuccess) {
+		if (!runState && lastRunSuccess) {
 			aria.alert(`Code cell at ${getCellIndex()} finishes running successfully`);
 			DOM.reset(this.element, renderIcon(successStateIcon));
-		} else if (runState === NotebookCellExecutionState.Idle && !lastRunSuccess) {
+		} else if (!runState && !lastRunSuccess) {
 			aria.alert(`Code cell at ${getCellIndex()} finishes running with errors`);
 			DOM.reset(this.element, renderIcon(errorStateIcon));
 		} else if (runState === NotebookCellExecutionState.Executing) {
@@ -1110,7 +1105,7 @@ export class RunStateRenderer {
 			this.element.innerText = '';
 		}
 
-		if (runState === NotebookCellExecutionState.Idle && typeof lastRunSuccess !== 'boolean') {
+		if (!runState && typeof lastRunSuccess !== 'boolean') {
 			DOM.hide(this.element);
 		} else {
 			this.element.style.display = 'flex';

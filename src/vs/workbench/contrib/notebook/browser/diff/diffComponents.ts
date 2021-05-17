@@ -490,22 +490,6 @@ abstract class AbstractElementRenderer extends Disposable {
 						}
 						break;
 
-					case 'executionOrder':
-						// number
-						if (typeof newMetadataObj[key] === 'number') {
-							result[key] = newMetadataObj[key];
-						} else {
-							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
-						}
-						break;
-					case 'runState':
-						// enum
-						if (typeof newMetadataObj[key] === 'number' && [1, 2, 3, 4].indexOf(newMetadataObj[key]) >= 0) {
-							result[key] = newMetadataObj[key];
-						} else {
-							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
-						}
-						break;
 					default:
 						result[key] = newMetadataObj[key];
 						break;

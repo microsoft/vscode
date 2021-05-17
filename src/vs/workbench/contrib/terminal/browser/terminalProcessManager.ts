@@ -22,7 +22,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -85,8 +85,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private readonly _onPtyReconnect = this._register(new Emitter<void>());
 	get onPtyReconnect(): Event<void> { return this._onPtyReconnect.event; }
 
-	private readonly _onProcessReady = this._register(new Emitter<void>());
-	get onProcessReady(): Event<void> { return this._onProcessReady.event; }
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 	private readonly _onProcessStateChange = this._register(new Emitter<void>());
 	get onProcessStateChange(): Event<void> { return this._onProcessStateChange.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
@@ -139,11 +139,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dataFilter = this._instantiationService.createInstance(SeamlessRelaunchDataFilter);
 		this._dataFilter.onProcessData(ev => {
 			const data = (typeof ev === 'string' ? ev : ev.data);
-			const trackCommit = (typeof ev === 'string' ? false : ev.trackCommit);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
-				this._onProcessData.fire({ data: beforeProcessDataEvent.data, trackCommit });
+				// This event is used by the caller so the object must be reused
+				if (typeof ev !== 'string') {
+					ev.data = beforeProcessDataEvent.data;
+				}
+				this._onProcessData.fire(typeof ev !== 'string' ? ev : { data: beforeProcessDataEvent.data, trackCommit: false });
 			}
 		});
 	}
@@ -198,7 +201,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			} else {
 				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 			}
-			const hasRemoteAuthority = !!this.remoteAuthority;
 
 			// Create variable resolver
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
@@ -209,7 +211,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// they're connected to the remote.
 			this.userHome = this._pathService.resolvedUserHome?.fsPath;
 			this.os = OS;
-			if (hasRemoteAuthority) {
+			if (!!this.remoteAuthority) {
 				const userHomeUri = await this._pathService.userHome();
 				this.userHome = userHomeUri.path;
 				const remoteEnv = await this._remoteAgentService.getEnvironment();
@@ -296,10 +298,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			dispose(this._processListeners);
 		}
 		this._processListeners = [
-			newProcess.onProcessReady((e: { pid: number, cwd: string }) => {
+			newProcess.onProcessReady((e: IProcessReadyEvent) => {
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
-				this._onProcessReady.fire();
+				this._onProcessReady.fire(e);
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
 					// Send any queued data that's waiting

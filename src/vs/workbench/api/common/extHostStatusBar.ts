@@ -43,7 +43,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _timeoutHandle: any;
 	private _accessibilityInformation?: vscode.AccessibilityInformation;
 
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, id: string, name: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number, accessibilityInformation?: vscode.AccessibilityInformation) {
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, id: string, name: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number) {
 		this.#proxy = proxy;
 		this.#commands = commands;
 
@@ -52,7 +52,6 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this._statusName = name;
 		this._alignment = alignment;
 		this._priority = priority;
-		this._accessibilityInformation = accessibilityInformation;
 	}
 
 	public get id(): number {
@@ -233,8 +232,8 @@ export class ExtHostStatusBar {
 		this._statusMessage = new StatusBarMessage(this);
 	}
 
-	createStatusBarEntry(id: string, name: string, alignment?: ExtHostStatusBarAlignment, priority?: number, accessibilityInformation?: vscode.AccessibilityInformation): vscode.StatusBarItem {
-		return new ExtHostStatusBarEntry(this._proxy, this._commands, id, name, alignment, priority, accessibilityInformation);
+	createStatusBarEntry(id: string, name: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem {
+		return new ExtHostStatusBarEntry(this._proxy, this._commands, id, name, alignment, priority);
 	}
 
 	setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): Disposable {

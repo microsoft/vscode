@@ -38,6 +38,7 @@ function log(logger: spdlog.Logger, level: LogLevel, message: string): void {
 		case LogLevel.Critical: logger.critical(message); break;
 		default: throw new Error('Invalid log level');
 	}
+	logger.flush();
 }
 
 export class SpdLogLogger extends AbstractMessageLogger implements ILogger {

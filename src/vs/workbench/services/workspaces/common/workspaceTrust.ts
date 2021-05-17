@@ -37,7 +37,7 @@ export function isWorkspaceTrustEnabled(configurationService: IConfigurationServ
 		return false;
 	}
 
-	return configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
+	return (configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).defaultValue) ?? false;
 }
 
 export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {

@@ -225,11 +225,11 @@ export class CodeCell extends Disposable {
 
 		this.viewCell.layoutChange({});
 
-		if (this.viewCell.metadata?.inputCollapsed && this.viewCell.metadata.outputCollapsed) {
+		if (this.viewCell.metadata.inputCollapsed && this.viewCell.metadata.outputCollapsed) {
 			this.viewUpdateAllCollapsed();
-		} else if (this.viewCell.metadata?.inputCollapsed) {
+		} else if (this.viewCell.metadata.inputCollapsed) {
 			this.viewUpdateInputCollapsed();
-		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputsViewModels.length) {
+		} else if (this.viewCell.metadata.outputCollapsed && this.viewCell.outputsViewModels.length) {
 			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();
