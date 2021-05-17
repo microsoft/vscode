@@ -18,7 +18,7 @@ import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
@@ -32,6 +32,8 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IdGenerator } from 'vs/base/common/idGenerator';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -170,7 +172,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IListService private readonly _listService: IListService
+		@IListService private readonly _listService: IListService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 	}
 
@@ -283,11 +286,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				instance.dispose();
 			}
 		}));
-
-		const color = instance.color ? `terminal-icon-${instance.color}` : typeof instance.icon === 'object' && 'color' in instance.icon ? `terminal-icon-${instance.icon?.color?.id}`.replace('.', '_') : undefined;
+		const icon = this._getIcon(instance.icon);
+		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
 		const extras = [];
-		if (iconClass) {
-			extras.push(iconClass);
+		if (typeof icon === 'string') {
+			extras.push(icon);
 		}
 		if (color) {
 			extras.push(color);
@@ -348,6 +351,63 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 		this._terminalService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
+	}
+
+	private _getIcon(iconPath?: any): Codicon | ThemeIcon | undefined | string {
+		if (typeof iconPath === 'string') {
+			return iconRegistry.get(iconPath);
+		} else if ((iconPath as ThemeIcon).color) {
+			return iconPath;
+		} else if (typeof iconPath === 'object' && 'path' in iconPath) {
+			console.log('here');
+			DOM.createCSSRule(`.uri-icon`, `background-image: ${DOM.asCSSUrl(URI.revive(iconPath))}`);
+			return 'uri-icon';
+		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
+			const uris = this.getIconUris(iconPath);
+			return this.getIconClass(uris);
+		}
+		return undefined;
+	}
+
+	getIconUris(iconPath: string | { dark: URI, light: URI } | ThemeIcon): { dark: URI, light: URI } {
+		const dark = this.getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
+		const light = this.getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
+		return {
+			dark: typeof dark === 'string' ? URI.file(dark) : dark,
+			light: typeof light === 'string' ? URI.file(light) : light
+		};
+	}
+
+	getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
+	}
+
+	getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
+	}
+
+
+	getIconClass(uris: { dark: URI; light?: URI; } | undefined): string | undefined {
+		const iconPathToClass: Record<string, string> = {};
+		const iconClassGenerator = new IdGenerator('terminal-tab-icon-');
+		if (!uris) {
+			return undefined;
+		}
+		let iconClass: string;
+		const icon = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? uris.light : uris.dark;
+		if (!icon) {
+			return undefined;
+		}
+		const key = icon.toString();
+		if (iconPathToClass[key]) {
+			iconClass = iconPathToClass[key];
+		} else {
+			iconClass = iconClassGenerator.nextId();
+			DOM.createCSSRule(`.${iconClass}`, `background-image: ${DOM.asCSSUrl(icon)}`);
+			DOM.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${DOM.asCSSUrl(icon)}`);
+			iconPathToClass[key] = iconClass;
+		}
+		return iconClass;
 	}
 }
 

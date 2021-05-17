@@ -58,8 +58,6 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -318,69 +316,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	// TODO:@meganrogge move all of this to profile resolver service
-	getIconUris(iconPath: string | { dark: URI, light: URI } | ThemeIcon): { dark: URI, light: URI } {
-		const dark = this.getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
-		const light = this.getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
-		return {
-			dark: typeof dark === 'string' ? URI.file(dark) : dark,
-			light: typeof light === 'string' ? URI.file(light) : light
-		};
-	}
-
-	getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
-		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
-	}
-
-	getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
-		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
-	}
-
-
 	private _getIcon(): Codicon | ThemeIcon | undefined | string {
-		const path = this._shellLaunchConfig.iconPath || this._shellLaunchConfig.attachPersistentProcess?.icon;
-		if (!path) {
+		const iconPath = this._shellLaunchConfig.iconPath || this._shellLaunchConfig.attachPersistentProcess?.icon;
+		if (!iconPath) {
 			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
 		}
-		if (typeof path === 'string') {
-			return iconRegistry.get(path);
-		} else if ((path as ThemeIcon).color) {
-			return path;
-		} else if (typeof path === 'object' && 'path' in path) {
-			const c = `${dom.asCSSUrl(URI.revive(path))}`;
-			dom.createCSSRule(`.uri-icon`, `background-image: ${c}`);
-			return 'uri-icon';
-		} else if (typeof path === 'object' && 'light' in path && 'dark' in path) {
-			const uris = this.getIconUris(path);
-			return this.getIconClass(uris);
-		}
-		return undefined;
+		return iconPath;
 	}
 
-	getIconClass(uris: { dark: URI; light?: URI; } | undefined): string | undefined {
-		const iconPathToClass: Record<string, string> = {};
-		const iconClassGenerator = new IdGenerator('terminal-tab-icon-');
-		if (!uris) {
-			return undefined;
-		}
-		let iconClass: string;
-		const icon = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? uris.light : uris.dark;
-		if (!icon) {
-			return undefined;
-		}
-		const key = icon.toString();
-		if (iconPathToClass[key]) {
-			iconClass = iconPathToClass[key];
-		} else {
-			iconClass = iconClassGenerator.nextId();
-			dom.createCSSRule(`.${iconClass}`, `background-image: ${dom.asCSSUrl(icon)}`);
-			dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${dom.asCSSUrl(icon)}`);
-			iconPathToClass[key] = iconClass;
-		}
-		return iconClass;
-	}
-
-	// TODO:@meganrogge how does this fit in w icon - if it's a theme icon or uris...?
 	private _getColor(): string | undefined {
 		if (this.shellLaunchConfig.color) {
 			return this.shellLaunchConfig.color;
