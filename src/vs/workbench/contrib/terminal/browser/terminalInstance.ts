@@ -375,6 +375,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return iconClass;
 	}
 
+	// TODO:@meganrogge how does this fit in w icon - if it's a theme icon or uris...?
 	private _getColor(): string | undefined {
 		if (this.shellLaunchConfig.color) {
 			return this.shellLaunchConfig.color;
