@@ -21,8 +21,6 @@ export interface ValidGhostText extends GhostText {
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
-// TODO:
-// - interaction with other text decorations
 export class GhostTextWidget extends Disposable {
 
 	private static instanceCount = 0;
@@ -41,7 +39,7 @@ export class GhostTextWidget extends Disposable {
 	) {
 		super();
 		this._editor = editor;
-		this._codeEditorDecorationTypeKey = `ghost-text-${++GhostTextWidget.instanceCount}`;
+		this._codeEditorDecorationTypeKey = `0ghost-text-${++GhostTextWidget.instanceCount}`;
 		this._currentGhostText = null;
 		this._hasDecoration = false;
 		this._decorationIds = [];
