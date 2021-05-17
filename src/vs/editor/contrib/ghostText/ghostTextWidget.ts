@@ -76,6 +76,7 @@ export class GhostTextWidget extends Disposable {
 				this._viewZoneId = null;
 			}
 		});
+		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
 		this._currentGhostText = null;
 	}
 
@@ -105,7 +106,7 @@ export class GhostTextWidget extends Disposable {
 		});
 		this._hasDecoration = true;
 		const insertPosition = Range.lift(this._currentGhostText.replaceRange).getEndPosition();
-		this._decorationIds = model.deltaDecorations(this._decorationIds, [{
+		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, [{
 			range: Range.fromPositions(insertPosition, insertPosition),
 			options: this._codeEditorService.resolveDecorationOptions(this._codeEditorDecorationTypeKey, true)
 		}]);
