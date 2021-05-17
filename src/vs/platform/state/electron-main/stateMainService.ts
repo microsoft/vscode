@@ -3,52 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
-import { promises } from 'fs';
-import { writeFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 type StorageDatabase = { [key: string]: unknown; };
 
 export class FileStorage {
 
-	private database: StorageDatabase = Object.create(null);
-	private lastFlushedSerializedDatabase: string | undefined = undefined;
+	private storage: StorageDatabase = Object.create(null);
+	private lastSavedStorageContents = '';
 
 	private readonly flushDelayer = new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
 
+	private initializing: Promise<void> | undefined = undefined;
+	private closing: Promise<void> | undefined = undefined;
+
 	constructor(
-		private readonly dbPath: string,
-		private readonly logService: ILogService
+		private readonly storagePath: URI,
+		private readonly logService: ILogService,
+		private readonly fileService: IFileService
 	) {
 	}
 
-	async init(): Promise<void> {
-		this.database = await this.load();
+	init(): Promise<void> {
+		if (!this.initializing) {
+			this.initializing = this.doInit();
+		}
+
+		return this.initializing;
 	}
 
-	private async load(): Promise<StorageDatabase> {
+	private async doInit(): Promise<void> {
 		try {
-			this.lastFlushedSerializedDatabase = (await promises.readFile(this.dbPath)).toString();
-
-			return JSON.parse(this.lastFlushedSerializedDatabase);
+			this.lastSavedStorageContents = (await this.fileService.readFile(this.storagePath)).value.toString();
+			this.storage = JSON.parse(this.lastSavedStorageContents);
 		} catch (error) {
-			if (error.code !== 'ENOENT') {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 				this.logService.error(error);
 			}
-
-			return Object.create(null);
 		}
 	}
 
 	getItem<T>(key: string, defaultValue: T): T;
 	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
-		const res = this.database[key];
+		const res = this.storage[key];
 		if (isUndefinedOrNull(res)) {
 			return defaultValue;
 		}
@@ -57,21 +63,7 @@ export class FileStorage {
 	}
 
 	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
-
-		// Remove an item when it is undefined or null
-		if (isUndefinedOrNull(data)) {
-			return this.removeItem(key);
-		}
-
-		// Shortcut for primitives that did not change
-		if (typeof data === 'string' || typeof data === 'number' || typeof data === 'boolean') {
-			if (this.database[key] === data) {
-				return;
-			}
-		}
-
-		this.database[key] = data;
-		this.save();
+		this.setItems([{ key, data }]);
 	}
 
 	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
@@ -79,21 +71,22 @@ export class FileStorage {
 
 		for (const { key, data } of items) {
 
-			// Remove items when they are undefined or null
-			if (isUndefinedOrNull(data)) {
-				this.database[key] = undefined;
-				save = true;
+			// Shortcut for data that did not change
+			if (this.storage[key] === data) {
+				continue;
 			}
 
-			// Otherwise set items if changed
-			else {
-				if (typeof data === 'string' || typeof data === 'number' || typeof data === 'boolean') {
-					if (this.database[key] === data) {
-						continue; // Shortcut for primitives that did not change
-					}
+			// Remove items when they are undefined or null
+			if (isUndefinedOrNull(data)) {
+				if (!isUndefined(this.storage[key])) {
+					this.storage[key] = undefined;
+					save = true;
 				}
+			}
 
-				this.database[key] = data;
+			// Otherwise add an item
+			else {
+				this.storage[key] = data;
 				save = true;
 			}
 		}
@@ -106,32 +99,49 @@ export class FileStorage {
 	removeItem(key: string): void {
 
 		// Only update if the key is actually present (not undefined)
-		if (!isUndefined(this.database[key])) {
-			this.database[key] = undefined;
+		if (!isUndefined(this.storage[key])) {
+			this.storage[key] = undefined;
 			this.save();
 		}
 	}
 
-	private save(delay?: number): Promise<void> {
+	private async save(delay?: number): Promise<void> {
+		if (this.closing) {
+			return; // already about to close
+		}
+
 		return this.flushDelayer.trigger(() => this.doSave(), delay);
 	}
 
 	private async doSave(): Promise<void> {
-		const serializedDatabase = JSON.stringify(this.database, null, 4);
-		if (serializedDatabase === this.lastFlushedSerializedDatabase) {
-			return; // return early if the database has not changed
+		if (!this.initializing) {
+			return; // if we never initialized, we should not save our state
 		}
 
+		// Make sure to wait for init to finish first
+		await this.initializing;
+
+		// Return early if the database has not changed
+		const serializedDatabase = JSON.stringify(this.storage, null, 4);
+		if (serializedDatabase === this.lastSavedStorageContents) {
+			return;
+		}
+
+		// Write to disk
 		try {
-			await writeFile(this.dbPath, serializedDatabase);
-			this.lastFlushedSerializedDatabase = serializedDatabase;
+			await this.fileService.writeFile(this.storagePath, VSBuffer.fromString(serializedDatabase));
+			this.lastSavedStorageContents = serializedDatabase;
 		} catch (error) {
 			this.logService.error(error);
 		}
 	}
 
-	flush(): Promise<void> {
-		return this.save(0 /* as soon as possible */);
+	async close(): Promise<void> {
+		if (!this.closing) {
+			this.closing = this.flushDelayer.trigger(() => this.doSave(), 0 /* as soon as possible */);
+		}
+
+		return this.closing;
 	}
 }
 
@@ -141,61 +151,39 @@ export class StateMainService implements IStateMainService {
 
 	private static readonly STATE_FILE = 'storage.json';
 
-	private fileStorage: FileStorage;
-	private storageDidInit = false;
+	private readonly fileStorage: FileStorage;
 
 	constructor(
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
-		@ILogService private readonly logService: ILogService
+		@ILogService logService: ILogService,
+		@IFileService fileService: IFileService
 	) {
-		this.fileStorage = new FileStorage(join(environmentMainService.userDataPath, StateMainService.STATE_FILE), logService);
+		this.fileStorage = new FileStorage(URI.file(join(environmentMainService.userDataPath, StateMainService.STATE_FILE)), logService, fileService);
 	}
 
 	async init(): Promise<void> {
-		if (this.storageDidInit) {
-			return;
-		}
-
-		this.storageDidInit = true;
-
 		return this.fileStorage.init();
-	}
-
-	private checkInit(): void {
-		if (!this.storageDidInit) {
-			this.logService.warn('StateMainService used before init()');
-		}
 	}
 
 	getItem<T>(key: string, defaultValue: T): T;
 	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
-		this.checkInit();
-
 		return this.fileStorage.getItem(key, defaultValue);
 	}
 
 	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
-		this.checkInit();
-
 		this.fileStorage.setItem(key, data);
 	}
 
 	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
-		this.checkInit();
-
 		this.fileStorage.setItems(items);
 	}
 
 	removeItem(key: string): void {
-		this.checkInit();
-
 		this.fileStorage.removeItem(key);
 	}
 
-	flush(): Promise<void> {
-		this.checkInit();
-
-		return this.fileStorage.flush();
+	close(): Promise<void> {
+		return this.fileStorage.close();
 	}
 }

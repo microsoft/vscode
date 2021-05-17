@@ -12,8 +12,8 @@ suite('Notebook Undo/Redo', () => {
 	test('Basics', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				const modeService = accessor.get(IModeService);
@@ -57,8 +57,8 @@ suite('Notebook Undo/Redo', () => {
 	test('Invalid replace count should not throw', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				const modeService = accessor.get(IModeService);
@@ -81,8 +81,8 @@ suite('Notebook Undo/Redo', () => {
 	test('Replace beyond length', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
@@ -100,8 +100,8 @@ suite('Notebook Undo/Redo', () => {
 	test('Invalid replace count should not affect undo/redo', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['body', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				const modeService = accessor.get(IModeService);

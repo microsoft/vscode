@@ -35,6 +35,9 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { Iterable } from 'vs/base/common/iterator';
 import { flatten } from 'vs/base/common/arrays';
 
+// Kernel Command
+export const SELECT_KERNEL_ID = 'notebook.selectKernel';
+
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -565,7 +568,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: executeCellCondition,
+			precondition: ContextKeyExpr.or(executeCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -581,20 +584,33 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			return;
 		}
 
-		const executionP = runCell(accessor, context);
-
-		// Try to select below, fall back on inserting
-		const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
-		if (nextCell) {
-			context.notebookEditor.focusNotebookCell(nextCell, 'container');
-		} else {
-			const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
-			if (newCell) {
-				context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		if (context.cell.cellKind === CellKind.Markup) {
+			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			if (nextCell) {
+				context.notebookEditor.focusNotebookCell(nextCell, 'container');
+			} else {
+				const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Markup, 'below');
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				}
 			}
-		}
+			return;
+		} else {
+			const executionP = runCell(accessor, context);
 
-		return executionP;
+			// Try to select below, fall back on inserting
+			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			if (nextCell) {
+				context.notebookEditor.focusNotebookCell(nextCell, 'container');
+			} else {
+				const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				}
+			}
+
+			return executionP;
+		}
 	}
 });
 
@@ -686,7 +702,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 
 function renderAllMarkdownCells(context: INotebookActionContext): void {
 	context.notebookEditor.viewModel.viewCells.forEach(cell => {
-		if (cell.cellKind === CellKind.Markdown) {
+		if (cell.cellKind === CellKind.Markup) {
 			cell.updateEditState(CellEditState.Preview, 'renderAllMarkdownCells');
 		}
 	});
@@ -784,7 +800,7 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Markdown, context);
+		await changeCellToKind(CellKind.Markup, context);
 	}
 });
 
@@ -800,7 +816,7 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 	}
 
 	if (context.ui && context.cell) {
-		if (context.cell.metadata?.runState === NotebookCellExecutionState.Executing) {
+		if (context.cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			return;
 		}
 		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
@@ -956,7 +972,7 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Markdown, 'above', undefined, true);
+		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Markup, 'above', undefined, true);
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
@@ -996,7 +1012,7 @@ registerAction2(class InsertMarkdownCellAboveAction extends InsertCellCommand {
 					order: 2
 				}
 			},
-			CellKind.Markdown,
+			CellKind.Markup,
 			'above');
 	}
 });
@@ -1012,7 +1028,7 @@ registerAction2(class InsertMarkdownCellBelowAction extends InsertCellCommand {
 					order: 3
 				}
 			},
-			CellKind.Markdown,
+			CellKind.Markup,
 			'below');
 	}
 });
@@ -1110,7 +1126,7 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		if (context.cell.cellKind === CellKind.Markdown) {
+		if (context.cell.cellKind === CellKind.Markup) {
 			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
 		}
 
@@ -1248,16 +1264,15 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 
 		editor.viewModel.notebookDocument.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
-		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
+		if (context.cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.viewModel.notebookDocument.applyEdits([{
-				editType: CellEditType.Metadata, index, metadata: {
-					...context.cell.metadata,
-					runState: NotebookCellExecutionState.Idle,
-					runStartTime: undefined,
-					runStartTimeAdjustment: undefined,
-					runEndTime: undefined,
-					executionOrder: undefined,
-					lastRunSuccess: undefined
+				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
+					runState: null,
+					runStartTime: null,
+					runStartTimeAdjustment: null,
+					runEndTime: null,
+					executionOrder: null,
+					lastRunSuccess: null
 				}
 			}], true, undefined, () => undefined, undefined);
 		}
@@ -1356,7 +1371,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 		providerLanguages.forEach(languageId => {
 			let description: string;
-			if (context.cell.cellKind === CellKind.Markdown ? (languageId === 'markdown') : (languageId === context.cell.language)) {
+			if (context.cell.cellKind === CellKind.Markup ? (languageId === 'markdown') : (languageId === context.cell.language)) {
 				description = localize('languageDescription', "({0}) - Current Language", languageId);
 			} else {
 				description = localize('languageDescriptionConfigured', "({0})", languageId);
@@ -1400,11 +1415,11 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 	private async setLanguage(context: IChangeCellContext, languageId: string) {
 		if (languageId === 'markdown' && context.cell?.language !== 'markdown') {
-			const newCell = await changeCellToKind(CellKind.Markdown, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown');
+			const newCell = await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown');
 			if (newCell) {
 				context.notebookEditor.focusNotebookCell(newCell, 'editor');
 			}
-		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markdown) {
+		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
 			await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, languageId);
 		} else {
 			const index = context.notebookEditor.viewModel.notebookDocument.cells.indexOf(context.cell.model);
@@ -1462,16 +1477,15 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			})), true, undefined, () => undefined, undefined);
 
 		const clearExecutionMetadataEdits = editor.viewModel.notebookDocument.cells.map((cell, index) => {
-			if (cell.metadata && cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
+			if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 				return {
-					editType: CellEditType.Metadata, index, metadata: {
-						...cell.metadata,
-						runState: NotebookCellExecutionState.Idle,
-						runStartTime: undefined,
-						runStartTimeAdjustment: undefined,
-						runEndTime: undefined,
-						executionOrder: undefined,
-						lastRunSuccess: undefined
+					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
+						runState: null,
+						runStartTime: null,
+						runStartTimeAdjustment: null,
+						runEndTime: null,
+						executionOrder: null,
+						lastRunSuccess: null
 					}
 				};
 			} else {

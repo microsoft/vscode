@@ -8,7 +8,7 @@ import { IListContextMenuEvent, IListEvent, IListMouseEvent } from 'vs/base/brow
 import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
@@ -21,7 +21,7 @@ import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/c
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookKernel, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookKernel, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -31,6 +31,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -132,7 +133,7 @@ export interface IGenericCellViewModel {
 	id: string;
 	handle: number;
 	uri: URI;
-	metadata: NotebookCellMetadata | undefined;
+	metadata: NotebookCellMetadata;
 	outputIsHovered: boolean;
 	outputIsFocused: boolean;
 	outputsViewModels: ICellOutputViewModel[];
@@ -261,7 +262,8 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	getText(): string;
 	getTextLength(): number;
 	getHeight(lineHeight: number): number;
-	metadata: NotebookCellMetadata | undefined;
+	metadata: NotebookCellMetadata;
+	internalMetadata: NotebookCellInternalMetadata;
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;
 	resolveTextModel(): Promise<ITextModel>;
@@ -382,6 +384,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidScroll: Event<void>;
 
 	readonly onDidChangeActiveCell: Event<void>;
+	readonly notebookOptions: NotebookOptions;
 	isDisposed: boolean;
 	dispose(): void;
 
@@ -820,6 +823,7 @@ export enum CursorAtBoundary {
 
 export interface CellViewModelStateChangeEvent {
 	readonly metadataChanged?: boolean;
+	readonly internalMetadataChanged?: boolean;
 	readonly runStateChanged?: boolean;
 	readonly selectionChanged?: boolean;
 	readonly focusModeChanged?: boolean;
@@ -906,20 +910,6 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
 	return editorPane?.getId() === NOTEBOOK_EDITOR_ID ? editorPane.getControl() as INotebookEditor | undefined : undefined;
-}
-
-let EDITOR_TOP_PADDING = 12;
-const editorTopPaddingChangeEmitter = new Emitter<void>();
-
-export const EditorTopPaddingChangeEvent = editorTopPaddingChangeEmitter.event;
-
-export function updateEditorTopPadding(top: number) {
-	EDITOR_TOP_PADDING = top;
-	editorTopPaddingChangeEmitter.fire();
-}
-
-export function getEditorTopPadding() {
-	return EDITOR_TOP_PADDING;
 }
 
 /**

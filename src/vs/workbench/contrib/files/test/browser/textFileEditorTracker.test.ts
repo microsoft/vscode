@@ -143,15 +143,15 @@ suite('Files - TextFileEditorTracker', () => {
 	test('dirty untitled text file model opens as editor', async function () {
 		const accessor = await createTracker();
 
-		const untitledEditor = accessor.editorService.createEditorInput({ forceUntitled: true }) as UntitledTextEditorInput;
-		const model = disposables.add(await untitledEditor.resolve());
+		const untitledTextEditor = accessor.editorService.createEditorInput({ forceUntitled: true }) as UntitledTextEditorInput;
+		const model = disposables.add(await untitledTextEditor.resolve());
 
-		assert.ok(!accessor.editorService.isOpened(untitledEditor));
+		assert.ok(!accessor.editorService.isOpened(untitledTextEditor));
 
 		model.textEditorModel?.setValue('Super Good');
 
 		await awaitEditorOpening(accessor.editorService);
-		assert.ok(accessor.editorService.isOpened(untitledEditor));
+		assert.ok(accessor.editorService.isOpened(untitledTextEditor));
 	});
 
 	function awaitEditorOpening(editorService: IEditorService): Promise<void> {

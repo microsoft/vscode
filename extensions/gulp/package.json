@@ -39,13 +39,13 @@
       "title": "Gulp",
       "properties": {
         "gulp.autoDetect": {
-          "scope": "resource",
+          "scope": "application",
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
+          "default": "off",
           "description": "%config.gulp.autoDetect%"
         }
       }

@@ -606,7 +606,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					return undefined; // no editor was picked or registered for the identifier
 				}
 
-				return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(resolvedInputWithOptionsAndGroup.editor, resolvedInputWithOptionsAndGroup.options ?? resolvedOptions);
+				return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(
+					resolvedInputWithOptionsAndGroup.editor,
+					this.toOptions(resolvedInputWithOptionsAndGroup.options) ?? resolvedOptions
+				);
 			}
 
 			// Override handling: ask providers to override
@@ -621,7 +624,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 						return override;
 					}
 				} else {
-					return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(resolvedInputWithOptionsAndGroup.editor, resolvedInputWithOptionsAndGroup.options ?? resolvedOptions);
+					return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(
+						resolvedInputWithOptionsAndGroup.editor,
+						this.toOptions(resolvedInputWithOptionsAndGroup.options) ?? resolvedOptions
+					);
 				}
 			}
 
@@ -833,7 +839,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					mapGroupToEditors.set(targetGroup, targetGroupEditors);
 				}
 
-				targetGroupEditors.push(editorOverride ?? { editor, options });
+				targetGroupEditors.push(editorOverride ?
+					{ editor: editorOverride.editor, options: this.toOptions(editorOverride.options) } :
+					{ editor, options }
+				);
 			}
 		}
 
@@ -1013,7 +1022,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Untitled file support
 		const untitledInput = input as IUntitledTextResourceEditorInput;
-		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
+		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource.scheme === Schemas.untitled)) {
 			const untitledOptions = {
 				mode: untitledInput.mode,
 				initialValue: untitledInput.contents,

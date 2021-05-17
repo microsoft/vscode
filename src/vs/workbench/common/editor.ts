@@ -433,6 +433,11 @@ export interface IEditorInput extends IDisposable {
 	resolve(): Promise<IEditorModel | null>;
 
 	/**
+	 * Returns if the input requires workspace trust or not.
+	 */
+	requiresWorkspaceTrust(): boolean
+
+	/**
 	 * Returns if this input is readonly or not.
 	 */
 	isReadonly(): boolean;
@@ -570,6 +575,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 			}
 		*/
 		return { typeId: this.typeId };
+	}
+
+	requiresWorkspaceTrust(): boolean {
+		return false;
 	}
 
 	isReadonly(): boolean {
@@ -788,6 +797,10 @@ export class SideBySideEditorInput extends EditorInput {
 
 	override getDescription(): string | undefined {
 		return this.description;
+	}
+
+	override requiresWorkspaceTrust(): boolean {
+		return this.primary.requiresWorkspaceTrust() || this.secondary.requiresWorkspaceTrust();
 	}
 
 	override isReadonly(): boolean {

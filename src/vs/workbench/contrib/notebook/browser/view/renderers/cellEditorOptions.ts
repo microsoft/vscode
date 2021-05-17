@@ -10,15 +10,14 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EDITOR_BOTTOM_PADDING, EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR } from 'vs/workbench/contrib/notebook/browser/constants';
-import { EditorTopPaddingChangeEvent, getEditorTopPadding, getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 export class CellEditorOptions extends Disposable {
 
@@ -48,27 +47,24 @@ export class CellEditorOptions extends Disposable {
 	private readonly _onDidChange = new Emitter<IEditorOptions>();
 	readonly onDidChange: Event<IEditorOptions> = this._onDidChange.event;
 
-	constructor(readonly configurationService: IConfigurationService, language: string) {
+	constructor(readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, language: string) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook') || e.affectsConfiguration(ShowCellStatusBarKey)) {
+			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
 				this._value = computeEditorOptions();
 				this._onDidChange.fire(this.value);
 			}
 		}));
 
-		this._register(EditorTopPaddingChangeEvent(() => {
-			this._value = computeEditorOptions();
-			this._onDidChange.fire(this.value);
+		this._register(notebookOptions.onDidChangeOptions(e => {
+			if (e.cellStatusBarVisibility || e.editorTopPadding) {
+				this._value = computeEditorOptions();
+				this._onDidChange.fire(this.value);
+			}
 		}));
 
 		const computeEditorOptions = () => {
-			const showCellStatusBar = configurationService.getValue<boolean>(ShowCellStatusBarKey);
-			const editorPadding = {
-				top: getEditorTopPadding(),
-				bottom: showCellStatusBar ? EDITOR_BOTTOM_PADDING : EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR
-			};
-
+			const editorPadding = this.notebookOptions.computeEditorPadding();
 			const renderLiNumbers = configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
 			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 			const editorOptions = deepClone(configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));

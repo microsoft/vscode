@@ -21,18 +21,28 @@
     }
   },
   "contributes": {
-    "notebookMarkupRenderers": [
+    "notebookOutputRenderer": [
       {
         "id": "markdownItRenderer-katex",
         "displayName": "Markdown it katex renderer",
         "entrypoint": "./notebook-out/katex.js",
-        "dependsOn": "markdownItRenderer"
+        "mimeTypes": [
+          "text/markdown"
+        ],
+        "dependencies": [
+          "markdownItRenderer"
+        ]
       },
       {
         "id": "markdownItRenderer-emoji",
         "displayName": "Markdown it emoji renderer",
         "entrypoint": "./notebook-out/emoji.js",
-        "dependsOn": "markdownItRenderer"
+        "mimeTypes": [
+          "text/markdown"
+        ],
+        "dependencies": [
+          "markdownItRenderer"
+        ]
       }
     ]
   },

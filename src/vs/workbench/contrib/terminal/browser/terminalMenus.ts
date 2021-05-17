@@ -6,7 +6,8 @@
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TerminalCommandId, TerminalSettingId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -240,6 +241,16 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
+						id: TerminalCommandId.ChangeColor,
+						title: localize('workbench.action.terminal.changeColor', "Change Color...")
+					},
+					group: ContextMenuGroup.Edit,
+					order: 4
+				}
+			},
+			{
+				id: MenuId.TerminalInlineTabContext, item: {
+					command: {
 						id: TerminalCommandId.Rename,
 						title: localize('workbench.action.terminal.rename', "Rename...")
 					},
@@ -283,6 +294,15 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.ChangeIconInstance,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
+					},
+					group: ContextMenuGroup.Edit
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext, item: {
+					command: {
+						id: TerminalCommandId.ChangeColorInstance,
+						title: localize('workbench.action.terminal.changeColor', "Change Color...")
 					},
 					group: ContextMenuGroup.Edit
 				}

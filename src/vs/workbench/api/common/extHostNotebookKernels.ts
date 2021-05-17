@@ -16,10 +16,10 @@ import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { CellEditType, IImmediateCellEditOperation, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IImmediateCellEditOperation, NotebookCellExecutionState, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { NotebookCellExecutionState } from 'vs/workbench/api/common/extHostTypes';
 import { asArray } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
@@ -40,7 +40,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	constructor(
 		private readonly _mainContext: IMainContext,
 		private readonly _initData: IExtHostInitDataService,
-		private readonly _extHostNotebook: ExtHostNotebookController
+		private readonly _extHostNotebook: ExtHostNotebookController,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = _mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
@@ -53,8 +54,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			}
 		}
 
+
 		const handle = this._handlePool++;
 		const that = this;
+
+		this._logService.trace(`NotebookController[${handle}], CREATED by ${extension.identifier.value}, ${id}`);
 
 		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
 
@@ -164,12 +168,14 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					throw new Error('notebook controller is DISPOSED');
 				}
 				if (!associatedNotebooks.has(cell.notebook.uri)) {
+					that._logService.trace(`NotebookController[${handle}] NOT associated to notebook, associated to THESE notebooks:`, Array.from(associatedNotebooks.keys()).map(u => u.toString()));
 					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
 				}
 				return that._createNotebookCellExecution(cell);
 			},
 			dispose: () => {
 				if (!isDisposed) {
+					this._logService.trace(`NotebookController[${handle}], DISPOSED`);
 					isDisposed = true;
 					this._kernelData.delete(handle);
 					commandDisposables.dispose();
@@ -184,7 +190,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
 			},
 			asWebviewUri(uri: URI) {
-				return asWebviewUri(that._initData.environment, String(handle), uri);
+				return asWebviewUri({ ...that._initData.environment, remote: that._initData.remote }, String(handle), uri);
 			},
 			// --- priority
 			updateNotebookAffinity(notebook, priority) {
@@ -212,6 +218,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			} else {
 				obj.associatedNotebooks.delete(notebook.uri);
 			}
+			this._logService.trace(`NotebookController[${handle}] ASSOCIATE notebook`, notebook.uri.toString(), value);
 			// send event
 			obj.onDidChangeSelection.fire({
 				selected: value,
@@ -236,9 +243,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		try {
+			this._logService.trace(`NotebookController[${handle}] EXECUTE cells`, document.uri.toString(), cells.length);
 			await obj.controller.executeHandler.call(obj.controller, cells, document.apiNotebook, obj.controller);
 		} catch (err) {
 			//
+			this._logService.error(`NotebookController[${handle}] execute cells FAILED`, err);
 			console.error(err);
 		}
 	}
@@ -363,8 +372,8 @@ class NotebookCellExecutionTask extends Disposable {
 		}
 	}
 
-	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellMetadata) {
-		const edit: IImmediateCellEditOperation = { editType: CellEditType.PartialMetadata, handle: this._cell.handle, metadata: mixinMetadata };
+	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellInternalMetadata) {
+		const edit: IImmediateCellEditOperation = { editType: CellEditType.PartialInternalMetadata, handle: this._cell.handle, internalMetadata: mixinMetadata };
 		this.applyEdits([edit]);
 	}
 
@@ -416,7 +425,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that._onDidChangeState.fire();
 
 				that.mixinMetadata({
-					runState: NotebookCellExecutionState.Idle,
+					runState: null,
 					lastRunSuccess: result?.success ?? null,
 					runEndTime: result?.endTime ?? null,
 				});

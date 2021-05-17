@@ -332,8 +332,8 @@ class DropOverlay extends Themable {
 									proposedFilePath = joinPath(defaultFilePath, name);
 								}
 
-								// Open as untitled file with the provided contents
-								const untitledEditor = this.editorService.createEditorInput({
+								// Open as untitled text file with the provided contents
+								const untitledTextEditor = this.editorService.createEditorInput({
 									resource: proposedFilePath,
 									forceUntitled: true,
 									contents: VSBuffer.wrap(new Uint8Array(event.target.result)).toString()
@@ -343,7 +343,7 @@ class DropOverlay extends Themable {
 									targetGroup = ensureTargetGroup();
 								}
 
-								await targetGroup.openEditor(untitledEditor);
+								await targetGroup.openEditor(untitledTextEditor);
 							}
 						};
 					}
@@ -355,9 +355,7 @@ class DropOverlay extends Themable {
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
 			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => {
-				if (targetGroup) {
-					targetGroup.focus();
-				}
+				targetGroup?.focus();
 			});
 		}
 	}

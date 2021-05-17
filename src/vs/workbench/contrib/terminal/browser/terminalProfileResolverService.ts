@@ -13,8 +13,8 @@ import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/t
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -108,6 +108,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// an issue
 		shellLaunchConfig.icon = this._verifyIcon(shellLaunchConfig.icon) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
 
+		// Override the name if specified
+		if (resolvedProfile.overrideName) {
+			shellLaunchConfig.name = resolvedProfile.profileName;
+		}
+
 		// Resolve useShellEnvironment based on the setting if it's not set
 		if (shellLaunchConfig.useShellEnvironment === undefined) {
 			shellLaunchConfig.useShellEnvironment = this._configurationService.getValue(TerminalSettingId.InheritEnv);
@@ -153,7 +158,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			return shellSettingProfile;
 		}
 
-		// Return the real default profile if it exists and is valid
+		// Return the real default profile if it exists and is valid, wait for profiles to be ready
+		// if the window just opened
+		await this._terminalService.profilesReady;
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
 		if (defaultProfile) {
 			return defaultProfile;
@@ -188,7 +195,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			args = shellArgsSetting;
 		}
 		if (args === undefined) {
-			if (options.os === OperatingSystem.Macintosh && args === undefined) {
+			if (options.os === OperatingSystem.Macintosh && args === undefined && path.parse(executable).name.match(/(zsh|bash)/)) {
 				// macOS should launch a login shell by default
 				args = ['--login'];
 			} else {
@@ -219,7 +226,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Finally fallback to a generated profile
 		let args: string | string[] | undefined;
-		if (options.os === OperatingSystem.Macintosh && args === undefined) {
+		if (options.os === OperatingSystem.Macintosh && path.parse(executable).name.match(/(zsh|bash)/)) {
 			// macOS should launch a login shell by default
 			args = ['--login'];
 		} else {

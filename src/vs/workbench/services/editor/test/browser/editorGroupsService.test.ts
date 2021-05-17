@@ -347,8 +347,6 @@ suite('EditorGroupsService', () => {
 
 		await part.whenReady;
 		await part.whenRestored;
-
-		assert.strictEqual(part.isRestored(), true);
 	});
 
 	test('options', async () => {

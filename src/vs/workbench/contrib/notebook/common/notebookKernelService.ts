@@ -17,6 +17,7 @@ export interface INotebookKernelBindEvent {
 
 export interface INotebookKernelMatchResult {
 	readonly selected: INotebookKernel | undefined;
+	readonly suggested: INotebookKernel | undefined;
 	readonly all: INotebookKernel[];
 }
 

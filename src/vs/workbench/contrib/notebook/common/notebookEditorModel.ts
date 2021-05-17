@@ -42,6 +42,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	readonly onDidSave = this._onDidSave.event;
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 	readonly onDidChangeOrphaned = Event.None;
+	readonly onDidChangeReadonly = Event.None;
 
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
@@ -417,10 +418,12 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	private readonly _onDidChangeDirty = new Emitter<void>();
 	private readonly _onDidSave = new Emitter<void>();
 	private readonly _onDidChangeOrphaned = new Emitter<void>();
+	private readonly _onDidChangeReadonly = new Emitter<void>();
 
 	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 	readonly onDidSave: Event<void> = this._onDidSave.event;
 	readonly onDidChangeOrphaned: Event<void> = this._onDidChangeOrphaned.event;
+	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
 
 	private _workingCopy?: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = new DisposableStore();
@@ -441,6 +444,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		this._onDidChangeDirty.dispose();
 		this._onDidSave.dispose();
 		this._onDidChangeOrphaned.dispose();
+		this._onDidChangeReadonly.dispose();
 		super.dispose();
 	}
 
@@ -461,7 +465,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	isReadonly(): boolean {
-		return this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this._workingCopy?.isReadonly() || this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	revert(options?: IRevertOptions): Promise<void> {
@@ -481,6 +485,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), this._workingCopyListeners);
 			this._workingCopy.onDidSave(() => this._onDidSave.fire(), this._workingCopyListeners);
 			this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(), this._workingCopyListeners);
+			this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(), this._workingCopyListeners);
 		}
 		assertType(this.isResolved());
 		return this;
@@ -552,7 +557,8 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 				cellKind: cell.cellKind,
 				language: cell.language,
 				source: cell.getValue(),
-				outputs: []
+				outputs: [],
+				internalMetadata: cell.internalMetadata
 			};
 
 			cellData.outputs = !this._notebookSerializer.options.transientOutputs ? cell.outputs : [];

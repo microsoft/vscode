@@ -73,14 +73,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
 		super();
-
-		this.registerListeners();
-	}
-
-	protected registerListeners(): void {
-
-		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	//#region text file read / write / create

@@ -12,7 +12,7 @@ import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RunOnceWorker, sequence } from 'vs/base/common/async';
+import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -66,6 +66,8 @@ interface IWebkitDataTransferItemEntryReader {
 }
 
 export class BrowserFileUpload {
+
+	private static readonly MAX_PARALLEL_UPLOADS = 20;
 
 	constructor(
 		@IProgressService private readonly progressService: IProgressService,
@@ -147,34 +149,39 @@ export class BrowserFileUpload {
 			totalBytesUploaded: 0
 		};
 
-		for (const entry of entries) {
-			if (token.isCancellationRequested) {
-				break;
-			}
-
-			// Confirm overwrite as needed
-			if (target && entry.name && target.getChild(entry.name)) {
-				const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
-				if (!confirmed) {
-					continue;
-				}
-
-				await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
-					undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
-					progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
-				});
-
+		// Upload all entries in parallel up to a
+		// certain maximum leveraging the `Limiter`
+		const uploadLimiter = new Limiter(BrowserFileUpload.MAX_PARALLEL_UPLOADS);
+		await Promises.settled(entries.map(entry => {
+			return uploadLimiter.queue(async () => {
 				if (token.isCancellationRequested) {
-					break;
+					return;
 				}
-			}
 
-			// Upload entry
-			const result = await this.doUploadEntry(entry, target.resource, target, progress, operation, token);
-			if (result) {
-				results.push(result);
-			}
-		}
+				// Confirm overwrite as needed
+				if (target && entry.name && target.getChild(entry.name)) {
+					const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
+					if (!confirmed) {
+						return;
+					}
+
+					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
+						undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
+						progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
+					});
+
+					if (token.isCancellationRequested) {
+						return;
+					}
+				}
+
+				// Upload entry
+				const result = await this.doUploadEntry(entry, target.resource, target, progress, operation, token);
+				if (result) {
+					results.push(result);
+				}
+			});
+		}));
 
 		operation.progressScheduler.dispose();
 
@@ -268,10 +275,27 @@ export class BrowserFileUpload {
 			// Update operation total based on new counts
 			operation.filesTotal += childEntries.length;
 
-			// Upload all entries as files to target
+			// Split up files from folders to upload
 			const folderTarget = target && target.getChild(entry.name) || undefined;
+			const fileChildEntries: IWebkitDataTransferItemEntry[] = [];
+			const folderChildEntries: IWebkitDataTransferItemEntry[] = [];
 			for (const childEntry of childEntries) {
-				await this.doUploadEntry(childEntry, resource, folderTarget, progress, operation, token);
+				if (childEntry.isFile) {
+					fileChildEntries.push(childEntry);
+				} else if (childEntry.isDirectory) {
+					folderChildEntries.push(childEntry);
+				}
+			}
+
+			// Upload files (up to `MAX_PARALLEL_UPLOADS` in parallel)
+			const fileUploadQueue = new Limiter(BrowserFileUpload.MAX_PARALLEL_UPLOADS);
+			await Promises.settled(fileChildEntries.map(fileChildEntry => {
+				return fileUploadQueue.queue(() => this.doUploadEntry(fileChildEntry, resource, folderTarget, progress, operation, token));
+			}));
+
+			// Upload folders (sequentially give we don't know their sizes)
+			for (const folderChildEntry of folderChildEntries) {
+				await this.doUploadEntry(folderChildEntry, resource, folderTarget, progress, operation, token);
 			}
 
 			return { isFile: false, resource };
@@ -467,7 +491,7 @@ export class NativeFileImport {
 				});
 			}
 
-			const resourcesFiltered = coalesce((await Promise.all(resources.map(async resource => {
+			const resourcesFiltered = coalesce((await Promises.settled(resources.map(async resource => {
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
@@ -554,8 +578,8 @@ export class FileDownload {
 		return downloadPromise;
 	}
 
-	private async doDownload(source: ExplorerItem[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
-		await sequence(source.map(explorerItem => async () => {
+	private async doDownload(sources: ExplorerItem[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+		for (const source of sources) {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
@@ -563,12 +587,14 @@ export class FileDownload {
 			// Web: use DOM APIs to download files with optional support
 			// for folders and large files
 			if (isWeb) {
-				return this.doDownloadBrowser(explorerItem.resource, progress, cts);
+				await this.doDownloadBrowser(source.resource, progress, cts);
 			}
 
 			// Native: use working copy file service to get at the contents
-			return this.doDownloadNative(explorerItem, progress, cts);
-		}));
+			else {
+				await this.doDownloadNative(source, progress, cts);
+			}
+		}
 	}
 
 	private async doDownloadBrowser(resource: URI, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {

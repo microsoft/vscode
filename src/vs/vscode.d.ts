@@ -5993,7 +5993,8 @@ declare module 'vscode' {
 		};
 
 		/**
-		 * A storage utility for secrets.
+		 * A storage utility for secrets. Secrets are persisted across reloads and are independent of the
+		 * current opened {@link workspace.workspaceFolders workspace}.
 		 */
 		readonly secrets: SecretStorage;
 
@@ -10495,7 +10496,7 @@ declare module 'vscode' {
 		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
 
 		/**
-		 * All text documents currently known to the system.
+		 * All text documents currently known to the editor.
 		 */
 		export const textDocuments: ReadonlyArray<TextDocument>;
 

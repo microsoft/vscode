@@ -168,13 +168,13 @@ suite('NotebookCommon', () => {
 
 	test('diff markdown', async () => {
 		await withTestNotebookDiffModel([
-			['This is a test notebook with only markdown cells', 'markdown', CellKind.Markdown, [], {}],
-			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markdown, [], {}],
-			['In other news', 'markdown', CellKind.Markdown, [], {}],
+			['This is a test notebook with only markdown cells', 'markdown', CellKind.Markup, [], {}],
+			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markup, [], {}],
+			['In other news', 'markdown', CellKind.Markup, [], {}],
 		], [
-			['This is a test notebook with markdown cells only', 'markdown', CellKind.Markdown, [], {}],
-			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markdown, [], {}],
-			['In the news', 'markdown', CellKind.Markdown, [], {}],
+			['This is a test notebook with markdown cells only', 'markdown', CellKind.Markup, [], {}],
+			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markup, [], {}],
+			['In the news', 'markdown', CellKind.Markup, [], {}],
 		], (model, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
@@ -270,12 +270,12 @@ suite('NotebookCommon', () => {
 
 	test('LCS', async () => {
 		await withTestNotebookDiffModel([
-			['# Description', 'markdown', CellKind.Markdown, [], { custom: { metadata: {} } }],
+			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
 			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '3' }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 1 }],
 			['x', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: false } } }]
 		], [
-			['# Description', 'markdown', CellKind.Markdown, [], { custom: { metadata: {} } }],
+			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
 			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
 			['x', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: false } } }],
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '3' }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 1 }]
@@ -303,7 +303,7 @@ suite('NotebookCommon', () => {
 
 	test('LCS 2', async () => {
 		await withTestNotebookDiffModel([
-			['# Description', 'markdown', CellKind.Markdown, [], { custom: { metadata: {} } }],
+			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
 			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '3' }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 1 }],
 			['x', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: false } } }],
@@ -311,7 +311,7 @@ suite('NotebookCommon', () => {
 			['x', 'javascript', CellKind.Code, [], {}],
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '5' }] }], {}],
 		], [
-			['# Description', 'markdown', CellKind.Markdown, [], { custom: { metadata: {} } }],
+			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
 			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
 			['x', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: false } } }],
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: 'text/plain', value: '3' }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 1 }],

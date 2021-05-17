@@ -64,6 +64,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
+
 	//#endregion
 
 	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
@@ -336,7 +339,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size,
 			etag,
 			value: buffer,
-			encoding: preferredEncoding.encoding
+			encoding: preferredEncoding.encoding,
+			readonly: false
 		}, true /* dirty (resolved from buffer) */, options);
 	}
 
@@ -382,7 +386,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, backup.value, { encoding: UTF8 })),
-			encoding
+			encoding,
+			readonly: false
 		}, true /* dirty (resolved from backup) */, options);
 
 		// Restore orphaned flag based on state
@@ -468,6 +473,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: content.ctime,
 			size: content.size,
 			etag: content.etag,
+			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false
@@ -879,6 +885,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
+		const oldReadonly = this.isReadonly();
 
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
@@ -890,6 +897,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// was called, the mtime could be out of sync.
 		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
 			this.lastResolvedFileStat = newFileStat;
+		}
+
+		// Signal that the readonly state changed
+		if (this.isReadonly() !== oldReadonly) {
+			this._onDidChangeReadonly.fire();
 		}
 	}
 
@@ -996,7 +1008,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	override dispose(): void {
