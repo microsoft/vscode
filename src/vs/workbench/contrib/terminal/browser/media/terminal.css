@@ -290,8 +290,7 @@
 	color: inherit;
 }
 
-.monaco-workbench .tabs-list .uri-icon,
-.monaco-workbench .tabs-list .uri-icon {
+.monaco-workbench .tabs-list .uri-icon, .uri-icon-dark, .uri-icon-light {
 	background-repeat: no-repeat;
 	background-position: left;
 	background-size: contain;

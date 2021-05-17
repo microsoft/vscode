@@ -33,7 +33,6 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -56,7 +55,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ITerminalService private _terminalService: ITerminalService,
 		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IDecorationsService _decorationsService: IDecorationsService
+		@IDecorationsService _decorationsService: IDecorationsService,
+		@IThemeService _themeService: IThemeService
 	) {
 		super('TerminalTabsTree', container,
 			{
@@ -86,6 +86,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
+		_themeService.onDidColorThemeChange(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
@@ -359,12 +360,17 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		} else if ((iconPath as ThemeIcon).color) {
 			return iconPath;
 		} else if (typeof iconPath === 'object' && 'path' in iconPath) {
-			console.log('here');
 			DOM.createCSSRule(`.uri-icon`, `background-image: ${DOM.asCSSUrl(URI.revive(iconPath))}`);
 			return 'uri-icon';
 		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
 			const uris = this.getIconUris(iconPath);
-			return this.getIconClass(uris);
+			if (this._themeService.getColorTheme().type === ColorScheme.LIGHT) {
+				DOM.createCSSRule(`.uri-icon-light`, `background-image: ${DOM.asCSSUrl(URI.revive(uris.light))}`);
+				return 'uri-icon-light';
+			} else {
+				DOM.createCSSRule(`.vs-dark .uri-icon-dark`, `background-image: ${DOM.asCSSUrl(URI.revive(uris.dark))}`);
+				return 'uri-icon-dark';
+			}
 		}
 		return undefined;
 	}
@@ -384,30 +390,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 	getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
 		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
-	}
-
-
-	getIconClass(uris: { dark: URI; light?: URI; } | undefined): string | undefined {
-		const iconPathToClass: Record<string, string> = {};
-		const iconClassGenerator = new IdGenerator('terminal-tab-icon-');
-		if (!uris) {
-			return undefined;
-		}
-		let iconClass: string;
-		const icon = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? uris.light : uris.dark;
-		if (!icon) {
-			return undefined;
-		}
-		const key = icon.toString();
-		if (iconPathToClass[key]) {
-			iconClass = iconPathToClass[key];
-		} else {
-			iconClass = iconClassGenerator.nextId();
-			DOM.createCSSRule(`.${iconClass}`, `background-image: ${DOM.asCSSUrl(icon)}`);
-			DOM.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${DOM.asCSSUrl(icon)}`);
-			iconPathToClass[key] = iconClass;
-		}
-		return iconClass;
 	}
 }
 
