@@ -172,7 +172,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getLastListWidth(): number {
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_LIST_WIDTH_VERTICAL_KEY : TABS_LIST_WIDTH_HORIZONTAL_KEY;
-		const storedValue = this._storageService.get(widthKey, StorageScope.WORKSPACE);
+		const storedValue = this._storageService.get(widthKey, StorageScope.GLOBAL);
 
 		if (!storedValue || !parseInt(storedValue)) {
 			// we want to use the min width by default for the vertical orientation bc
@@ -230,7 +230,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._rerenderTabs();
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_LIST_WIDTH_VERTICAL_KEY : TABS_LIST_WIDTH_HORIZONTAL_KEY;
-		this._storageService.store(widthKey, width, StorageScope.WORKSPACE, StorageTarget.USER);
+		this._storageService.store(widthKey, width, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private _setupSplitView(): void {
