@@ -15,7 +15,6 @@ import { Part } from 'vs/workbench/browser/part';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Action } from 'vs/base/common/actions';
 import { Link } from 'vs/platform/opener/browser/link';
-import { attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter } from 'vs/base/common/event';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
@@ -32,18 +31,21 @@ const bannerCloseIcon = registerCodicon('banner-close', Codicon.close);
 
 registerThemingParticipant((theme, collector) => {
 	const backgroundColor = theme.getColor(BANNER_BACKGROUND);
-	const foregroundColor = theme.getColor(BANNER_FOREGROUND);
-	const iconForegroundColor = theme.getColor(BANNER_ICON_FOREGROUND);
-
 	if (backgroundColor) {
 		collector.addRule(`.monaco-workbench .part.banner { background-color: ${backgroundColor}; }`);
 	}
 
+	const foregroundColor = theme.getColor(BANNER_FOREGROUND);
 	if (foregroundColor) {
-		collector.addRule(`.monaco-workbench .part.banner { color: ${foregroundColor}; }`);
-		collector.addRule(`.monaco-workbench .part.banner .action-container .codicon { color: ${foregroundColor}; }`);
+		collector.addRule(`
+			.monaco-workbench .part.banner,
+			.monaco-workbench .part.banner .action-container .codicon,
+			.monaco-workbench .part.banner .message-actions-container .monaco-link
+			{ color: ${foregroundColor}; }
+		`);
 	}
 
+	const iconForegroundColor = theme.getColor(BANNER_ICON_FOREGROUND);
 	if (iconForegroundColor) {
 		collector.addRule(`.monaco-workbench .part.banner .icon-container .codicon { color: ${iconForegroundColor} }`);
 	}
@@ -163,7 +165,6 @@ export class BannerPart extends Part implements IBannerService {
 
 			for (const action of item.actions) {
 				const actionLink = this._register(this.instantiationService.createInstance(Link, action, {}));
-				this._register(attachLinkStyler(actionLink, this.themeService, { textLinkForeground: BANNER_FOREGROUND }));
 				actionContainer.appendChild(actionLink.el);
 			}
 		}

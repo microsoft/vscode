@@ -946,32 +946,23 @@ declare module 'vscode' {
 	export interface StatusBarItemOptions {
 
 		/**
-		 * A unique identifier of the status bar item. The identifier
-		 * is for example used to allow a user to show or hide the
-		 * status bar item in the UI.
+		 * An identifier for the item that should be unique.
 		 */
 		id: string;
 
 		/**
-		 * A human readable name of the status bar item. The name is
-		 * for example used as a label in the UI to show or hide the
-		 * status bar item.
+		 * A human readable name of the item that explains the purpose
+		 * of the item to the user.
 		 */
 		name: string;
 
 		/**
-		 * Accessibility information used when screen reader interacts with this status bar item.
-		 */
-		accessibilityInformation?: AccessibilityInformation;
-
-		/**
-		 * The alignment of the status bar item.
+		 * The alignment of the item.
 		 */
 		alignment?: StatusBarAlignment;
 
 		/**
-		 * The priority of the status bar item. Higher value means the item should
-		 * be shown more to the left.
+		 * The priority of the item. Higher values mean the item should be shown more to the left.
 		 */
 		priority?: number;
 	}
@@ -982,8 +973,9 @@ declare module 'vscode' {
 		 * Creates a status bar {@link StatusBarItem item}.
 		 *
 		 * @param options The options of the item. If not provided, some default values
-		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
-		 * of the extension and the `StatusBarItemOptions.name` will be the extension name.
+		 * will be assumed. For example, the {@link StatusBarItemOptions.id `StatusBarItemOptions.id`}
+		 * will be the id of the extension and the {@link StatusBarItemOptions.name `StatusBarItemOptions.name`}
+		 * will be the extension name.
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;

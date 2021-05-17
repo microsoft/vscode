@@ -475,7 +475,11 @@ export interface INotebookContributionData {
 }
 
 
-export function getCellUndoRedoComparisonKey(uri: URI) {
+export function getCellUndoRedoComparisonKey(uri: URI, undoRedoPerCell: boolean) {
+	if (undoRedoPerCell) {
+		return uri.toString();
+	}
+
 	const data = CellUri.parse(uri);
 	if (!data) {
 		return uri.toString();
@@ -889,6 +893,8 @@ export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
+export const ExperimentalCompactView = 'notebook.experimental.compactView';
+export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

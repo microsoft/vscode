@@ -418,6 +418,12 @@ export interface ITerminalLaunchError {
 	code?: number;
 }
 
+export interface IProcessReadyEvent {
+	pid: number,
+	cwd: string,
+	requiresWindowsMode?: boolean
+}
+
 /**
  * An interface representing a raw terminal child process, this contains a subset of the
  * child_process.ChildProcess node.js interface.
@@ -437,7 +443,7 @@ export interface ITerminalChildProcess {
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
-	onProcessReady: Event<{ pid: number, cwd: string }>;
+	onProcessReady: Event<IProcessReadyEvent>;
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
