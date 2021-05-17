@@ -39,6 +39,7 @@ export const enum TerminalTabsListSizes {
 	TabHeight = 22,
 	NarrowViewWidth = 46,
 	WideViewMinimumWidth = 80,
+	DefaultWidth = 120,
 	MidpointViewWidth = (TerminalTabsListSizes.NarrowViewWidth + TerminalTabsListSizes.WideViewMinimumWidth) / 2,
 	ActionbarMinimumWidth = 105,
 	MaximumWidth = 500
