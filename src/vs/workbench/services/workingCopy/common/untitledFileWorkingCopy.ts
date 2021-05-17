@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -35,12 +35,17 @@ export interface IUntitledFileWorkingCopyModelContentChangedEvent extends IFileW
 	readonly isEmpty: boolean;
 }
 
-export interface IUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends IWorkingCopy {
+export interface IUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends IWorkingCopy, IDisposable {
 
 	/**
 	 * Emits an event when this untitled model is reverted.
 	 */
 	readonly onDidRevert: Event<void>;
+
+	/**
+	 * An event for when the file working copy has been disposed.
+	 */
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Provides access to the underlying model of this untitled
@@ -85,6 +90,9 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
+
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	//#endregion
 
@@ -271,6 +279,8 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 
 	override dispose(): void {
 		this.trace('[untitled file working copy] dispose()');
+
+		this._onWillDispose.fire();
 
 		super.dispose();
 	}
