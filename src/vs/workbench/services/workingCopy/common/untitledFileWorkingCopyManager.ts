@@ -158,8 +158,11 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 		const massagedOptions = this.massageOptions(options);
 
 		// Return existing instance if asked for it
-		if (massagedOptions.untitledResource && this.mapResourceToWorkingCopy.has(massagedOptions.untitledResource)) {
-			return this.mapResourceToWorkingCopy.get(massagedOptions.untitledResource)!;
+		if (massagedOptions.untitledResource) {
+			const existingWorkingCopy = this.mapResourceToWorkingCopy.get(massagedOptions.untitledResource);
+			if (existingWorkingCopy) {
+				return existingWorkingCopy;
+			}
 		}
 
 		// Create new instance otherwise
