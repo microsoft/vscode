@@ -109,7 +109,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// TODO:@meganrogge what happens with the shellLaunchConfig.attachPersistentProcess.icon?
 		// shouldn't that be checked here as well?
 		shellLaunchConfig.iconPath = shellLaunchConfig.iconPath || resolvedProfile.icon || Codicon.terminal.id;
-		shellLaunchConfig.icon = shellLaunchConfig.iconPath || resolvedProfile.icon || Codicon.terminal.id;
 
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
