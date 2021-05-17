@@ -112,6 +112,14 @@ suite('FileWorkingCopy', function () {
 		workingCopy.dispose();
 	});
 
+	test('registers with working copy service', async () => {
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 1);
+
+		workingCopy.dispose();
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+	});
+
 	test('requires good file system URI', async () => {
 		assert.throws(() => createWorkingCopy(URI.from({ scheme: 'unknown', path: 'somePath' })));
 	});
