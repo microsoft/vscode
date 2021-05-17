@@ -176,7 +176,7 @@
         },
         {
           "command": "markdown.showStaticPreview",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "when": "activeEditor != vscode.markdown.preview.editor && editorLangId == markdown && !notebookEditorFocused",
           "group": "navigation"
         },
         {

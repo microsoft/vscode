@@ -224,8 +224,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	}
 
 	public openTextEditor(): void {
-		vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-		vscode.commands.executeCommand('vscode.openWith', this._activePreview?.resource, this.textEditorViewType);
+		const preview = this._activePreview;
+		if (preview) {
+			vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+			vscode.commands.executeCommand('vscode.openWith', this._activePreview?.resource, this.textEditorViewType);
+		}
 	}
 
 	private registerDynamicPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
