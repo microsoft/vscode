@@ -84,8 +84,11 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		);
 		this._terminalService.onInstancesChanged(() => this.render());
 		this._terminalService.onInstanceTitleChanged(() => this.render());
-		this._terminalService.onInstanceIconChanged(() => this.render());
+		this._terminalService.onInstanceIconChanged(() => {
+			this.render();
+		});
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
+
 		_themeService.onDidColorThemeChange(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
@@ -252,7 +255,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-		const iconClass = typeof instance.icon === 'string' ? instance.icon : instance.icon?.id || Codicon.terminal.id;
+		const iconClass = typeof instance.icon === 'object' && 'id' in instance.icon ? instance.icon?.id
+			: typeof instance.icon === 'string' && iconRegistry.get(instance.icon) ? instance.icon
+				: Codicon.terminal.id;
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
@@ -272,7 +277,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
-
 		if (!hasActionbar) {
 			template.actionBar.clear();
 		}
@@ -290,7 +294,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const icon = this._getIcon(instance.icon);
 		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
 		const extras = [];
-		if (typeof icon === 'string') {
+		if (typeof icon === 'string' && icon.startsWith('url')) {
 			const codicon = template.element.querySelector<HTMLElement>('.codicon');
 			if (codicon) {
 				codicon.style.backgroundImage = icon;
@@ -369,9 +373,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
 			const uris = this.getIconUris(iconPath);
 			if (this._themeService.getColorTheme().type === ColorScheme.LIGHT) {
-				return `${DOM.asCSSUrl(URI.revive(uris.light))}`;
+				return DOM.asCSSUrl(URI.revive(uris.light));
 			} else {
-				return `${DOM.asCSSUrl(URI.revive(uris.dark))}`;
+				return DOM.asCSSUrl(URI.revive(uris.dark));
 			}
 		}
 		return undefined;

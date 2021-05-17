@@ -117,7 +117,7 @@ export class ExtHostTerminal {
 		shellArgs?: string[] | string,
 		cwd?: string | URI,
 		env?: ITerminalEnvironment,
-		iconPath?: string | URI | { light: string | URI; dark: string | URI } | ThemeIcon,
+		iconPath?: string | URI | { light: URI; dark: URI } | ThemeIcon,
 		initialText?: string,
 		waitOnExit?: boolean,
 		strictEnv?: boolean,

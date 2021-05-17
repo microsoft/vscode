@@ -454,15 +454,30 @@ function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon)
 	if (!instance || !instance.title) {
 		return '';
 	}
-	// TODO:@meganrogge fix
+	const iconClass = typeof instance.icon === 'object' && 'id' in instance.icon ? instance.icon?.id : Codicon.terminal.id;
 	if (typeof instance.icon === 'object' && 'id' in instance.icon) {
-		const label = `$(${icon?.id || instance.icon?.id}) ${getSingleTabTooltip(instance)}`;
+		const label = `$(${iconClass}) ${getSingleTabTooltip(instance)}`;
 		const primaryStatus = instance.statusList.primary;
 		if (!primaryStatus?.icon) {
 			return label;
 		}
 		return `${label} $(${primaryStatus.icon.id})`;
-	} return '';
+	}
+	// const icon = this._getIcon(instance.icon);
+	// const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
+	// if (typeof icon === 'string' && icon.startsWith('url')) {
+	// 	const codicon = label.element.querySelector<HTMLElement>('.codicon');
+	// 	if (codicon) {
+	// 		codicon.style.backgroundImage = icon;
+	// 		codicon.style.backgroundSize = '16px';
+	// 		codicon.style.color = 'transparent';
+	// 		codicon.style.content = '';
+	// 	}
+	// }
+	// if (color) {
+	// 	label.element.classList.add(color);
+	// }
+	return '';
 }
 
 function getSingleTabTooltip(instance: ITerminalInstance | null): string {

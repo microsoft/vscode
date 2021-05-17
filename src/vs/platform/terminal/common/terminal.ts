@@ -8,6 +8,8 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const enum TerminalSettingId {
 	ShellLinux = 'terminal.integrated.shell.linux',
@@ -391,9 +393,7 @@ export interface IShellLaunchConfig {
 	 * The codicon ID to use for this terminal. If not specified it will use the default fallback
 	 * icon.
 	 */
-	iconPath?: any;
-
-	icon?: string;
+	iconPath?: ThemeIcon | Codicon | string | URI | { light: URI, dark: URI };
 
 	/**
 	 * The color ID to use for this terminal. If not specified it will use the default fallback

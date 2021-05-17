@@ -17,6 +17,8 @@ import { getSystemShell } from 'vs/base/node/shell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { execFile } from 'child_process';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { URI } from 'vs/base/common/uri';
 
 type WorkspaceId = string;
 
@@ -303,7 +305,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	get pid(): number { return this._pid; }
 	get title(): string { return this._title || this._terminalProcess.currentTitle; }
-	get icon(): string | undefined { return this._icon; }
+	get icon(): any { return this._icon; }
 	get color(): string | undefined { return this._color; }
 
 	setTitle(title: string): void {
@@ -323,7 +325,7 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
 		private readonly _logService: ILogService,
-		private _icon?: string, // TODO:@meganrogge fix
+		private _icon?: string | URI | { light: URI; dark: URI } | ThemeIcon,
 		private _color?: string
 	) {
 		super();

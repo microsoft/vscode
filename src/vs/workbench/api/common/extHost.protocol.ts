@@ -40,7 +40,7 @@ import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPro
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
@@ -63,7 +63,6 @@ import { createExtHostContextProxyIdentifier as createExtId, createMainContextPr
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import * as search from 'vs/workbench/services/search/common/search';
 import * as statusbar from 'vs/workbench/services/statusbar/common/statusbar';
-import { ThemeIcon, Uri } from 'vscode';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -457,7 +456,7 @@ export interface TerminalLaunchConfig {
 	shellArgs?: string[] | string;
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
-	iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+	iconPath?: string | URI | { light: URI; dark: URI } | ThemeIcon;
 	initialText?: string;
 	waitOnExit?: boolean;
 	strictEnv?: boolean;

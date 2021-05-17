@@ -106,10 +106,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		// TODO:@meganrogge what happens with the shellLaunchConfig.attachPersistentProcess.icon?
-		// shouldn't that be checked here as well?
 		shellLaunchConfig.iconPath = shellLaunchConfig.iconPath || resolvedProfile.icon || Codicon.terminal.id;
-
+		console.log('profile resolver', shellLaunchConfig.iconPath);
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
 			shellLaunchConfig.name = resolvedProfile.profileName;

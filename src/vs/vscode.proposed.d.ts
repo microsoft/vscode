@@ -893,7 +893,7 @@ declare module 'vscode' {
 		/**
 		 * A path, themeIcon, Uri, or string determining the terminal icon
 		 */
-		readonly iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | { id: string, color: { id: string } };
+		readonly iconPath?: string | Uri | { light: Uri; dark: Uri } | { id: string, color: { id: string } };
 	}
 
 	//#endregion
