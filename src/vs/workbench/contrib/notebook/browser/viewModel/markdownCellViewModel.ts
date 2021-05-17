@@ -129,7 +129,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		}));
 
 		this._register(model.onDidChangeMetadata(e => {
-			if (this.metadata?.inputCollapsed) {
+			if (this.metadata.inputCollapsed) {
 				this._onDidHideInput.fire();
 			}
 		}));
@@ -153,7 +153,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
-		if (!this.metadata?.inputCollapsed) {
+		if (!this.metadata.inputCollapsed) {
 			const editorWidth = state.outerWidth !== undefined
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
 				: this._layoutInfo.editorWidth;

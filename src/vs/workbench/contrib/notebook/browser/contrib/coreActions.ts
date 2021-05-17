@@ -568,7 +568,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: executeCellCondition,
+			precondition: ContextKeyExpr.or(executeCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -584,20 +584,33 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			return;
 		}
 
-		const executionP = runCell(accessor, context);
-
-		// Try to select below, fall back on inserting
-		const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
-		if (nextCell) {
-			context.notebookEditor.focusNotebookCell(nextCell, 'container');
-		} else {
-			const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
-			if (newCell) {
-				context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		if (context.cell.cellKind === CellKind.Markup) {
+			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			if (nextCell) {
+				context.notebookEditor.focusNotebookCell(nextCell, 'container');
+			} else {
+				const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Markup, 'below');
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				}
 			}
-		}
+			return;
+		} else {
+			const executionP = runCell(accessor, context);
 
-		return executionP;
+			// Try to select below, fall back on inserting
+			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			if (nextCell) {
+				context.notebookEditor.focusNotebookCell(nextCell, 'container');
+			} else {
+				const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				}
+			}
+
+			return executionP;
+		}
 	}
 });
 
@@ -645,24 +658,40 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.executeNotebook', "Execute Notebook (Run all cells)"),
+			title: localize('notebookActions.executeNotebook', "Run All"),
 			icon: icons.executeAllIcon,
 			description: {
-				description: localize('notebookActions.executeNotebook', "Execute Notebook (Run all cells)"),
+				description: localize('notebookActions.executeNotebook', "Run All"),
 				args: [
 					{
 						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
+						description: 'The document uri'
 					}
 				]
 			},
-			menu: {
-				id: MenuId.EditorTitle,
-				order: -1,
-				group: 'navigation',
-				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated())),
-			}
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						executeNotebookCondition,
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						executeNotebookCondition,
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+					)
+				}
+			]
 		});
 	}
 
@@ -699,10 +728,10 @@ registerAction2(class CancelNotebook extends NotebookAction {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.cancelNotebook', "Stop Notebook Execution"),
+			title: localize('notebookActions.cancelNotebook', "Stop Execution"),
 			icon: icons.stopIcon,
 			description: {
-				description: localize('notebookActions.cancelNotebook', "Stop Notebook Execution"),
+				description: localize('notebookActions.cancelNotebook', "Stop Execution"),
 				args: [
 					{
 						name: 'uri',
@@ -711,12 +740,29 @@ registerAction2(class CancelNotebook extends NotebookAction {
 					}
 				]
 			},
-			menu: {
-				id: MenuId.EditorTitle,
-				order: -1,
-				group: 'navigation',
-				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
-			}
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL,
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL,
+						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+					)
+				}
+			]
 		});
 	}
 
@@ -803,7 +849,7 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 	}
 
 	if (context.ui && context.cell) {
-		if (context.cell.metadata?.runState === NotebookCellExecutionState.Executing) {
+		if (context.cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			return;
 		}
 		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
@@ -1251,16 +1297,15 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 
 		editor.viewModel.notebookDocument.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
-		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
+		if (context.cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.viewModel.notebookDocument.applyEdits([{
-				editType: CellEditType.Metadata, index, metadata: {
-					...context.cell.metadata,
-					runState: NotebookCellExecutionState.Idle,
-					runStartTime: undefined,
-					runStartTimeAdjustment: undefined,
-					runEndTime: undefined,
-					executionOrder: undefined,
-					lastRunSuccess: undefined
+				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
+					runState: null,
+					runStartTime: null,
+					runStartTimeAdjustment: null,
+					runEndTime: null,
+					executionOrder: null,
+					lastRunSuccess: null
 				}
 			}], true, undefined, () => undefined, undefined);
 		}
@@ -1442,13 +1487,24 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
-			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
-			menu: {
-				id: MenuId.EditorTitle,
-				when: NOTEBOOK_IS_ACTIVE_EDITOR,
-				group: 'navigation',
-				order: 0
-			},
+			title: localize('clearAllCellsOutputs', 'Clear Outputs'),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					),
+					group: 'navigation',
+					order: 0
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					when: ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true),
+					group: 'navigation',
+					order: 0
+				}
+			],
 			icon: icons.clearIcon
 		});
 	}
@@ -1465,16 +1521,15 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			})), true, undefined, () => undefined, undefined);
 
 		const clearExecutionMetadataEdits = editor.viewModel.notebookDocument.cells.map((cell, index) => {
-			if (cell.metadata && cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
+			if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 				return {
-					editType: CellEditType.Metadata, index, metadata: {
-						...cell.metadata,
-						runState: NotebookCellExecutionState.Idle,
-						runStartTime: undefined,
-						runStartTimeAdjustment: undefined,
-						runEndTime: undefined,
-						executionOrder: undefined,
-						lastRunSuccess: undefined
+					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
+						runState: null,
+						runStartTime: null,
+						runStartTimeAdjustment: null,
+						runEndTime: null,
+						executionOrder: null,
+						lastRunSuccess: null
 					}
 				};
 			} else {

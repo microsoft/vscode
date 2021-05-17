@@ -347,7 +347,8 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 				'notebook.activeCellStatus',
 				nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"),
 				StatusbarAlignment.RIGHT,
-				100);
+				100
+			);
 		} else {
 			this._accessor.value.update(entry);
 		}

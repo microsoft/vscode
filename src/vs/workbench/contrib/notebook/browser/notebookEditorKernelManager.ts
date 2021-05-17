@@ -47,7 +47,7 @@ export class NotebookEditorKernelManager extends Disposable {
 
 		const cellHandles: number[] = [];
 		for (const cell of cells) {
-			if (cell.cellKind !== CellKind.Code || cell.metadata?.runState === NotebookCellExecutionState.Pending || cell.metadata?.runState === NotebookCellExecutionState.Executing) {
+			if (cell.cellKind !== CellKind.Code || cell.internalMetadata.runState === NotebookCellExecutionState.Pending || cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 				continue;
 			}
 			if (!kernel.supportedLanguages.includes(cell.language)) {

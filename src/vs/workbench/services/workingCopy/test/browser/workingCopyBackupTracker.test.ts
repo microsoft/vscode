@@ -107,23 +107,23 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
 		const { accessor, cleanup, workingCopyBackupService } = await createTracker();
 
-		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
+		const untitledTextEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
 
-		const untitledModel = await untitledEditor.resolve();
+		const untitledTextModel = await untitledTextEditor.resolve();
 
 		if (!untitled?.contents) {
-			untitledModel.textEditorModel?.setValue('Super Good');
+			untitledTextModel.textEditorModel?.setValue('Super Good');
 		}
 
 		await workingCopyBackupService.joinBackupResource();
 
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledModel), true);
+		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledTextModel), true);
 
-		untitledModel.dispose();
+		untitledTextModel.dispose();
 
 		await workingCopyBackupService.joinDiscardBackup();
 
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledModel), false);
+		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledTextModel), false);
 
 		cleanup();
 	}
