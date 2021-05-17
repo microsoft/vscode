@@ -248,10 +248,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
+		console.log(instance.icon);
 		const iconClass = typeof instance.icon === 'string' ? instance.icon : undefined;
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
-		// TODO:@meganrogge fix
 		if (typeof instance.icon === 'object' && 'id' in instance.icon) {
 			if (!hasText) {
 				const primaryStatus = instance.statusList.primary;
@@ -287,8 +287,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}));
 
-
-		const color = instance.color ? `terminal-icon-${instance.color}` : undefined;
+		const color = instance.color ? `terminal-icon-${instance.color}` : typeof instance.icon === 'object' && 'color' in instance.icon ? `terminal-icon-${instance.icon?.color?.id}`.replace('.', '_') : undefined;
 		const extras = [];
 		if (iconClass) {
 			extras.push(iconClass);
@@ -296,6 +295,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		if (color) {
 			extras.push(color);
 		}
+		console.log(extras);
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,

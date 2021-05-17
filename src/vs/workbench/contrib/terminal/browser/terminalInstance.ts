@@ -346,6 +346,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return iconRegistry.get(path);
 		} else if ((path as ThemeIcon).color) {
 			return path;
+		} else if (typeof path === 'object' && 'path' in path) {
+			const c = `${dom.asCSSUrl(URI.revive(path))}`;
+			dom.createCSSRule(`.customized`, `background-image: ${c}`);
+			return 'customized';
 		} else if (typeof path === 'object' && 'light' in path && 'dark' in path) {
 			const uris = this.getIconUris(path);
 			return this.getIconClass(uris);
