@@ -290,9 +290,10 @@
 	color: inherit;
 }
 
-.monaco-workbench .tabs-list .uri-icon, .uri-icon-dark, .uri-icon-light {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .uri-icon {
 	background-repeat: no-repeat;
-	background-position: left;
+	background-position: left center;
 	background-size: contain;
-	vertical-align: text-bottom;
+	margin-right: 4px;
+	height: 100%;
 }

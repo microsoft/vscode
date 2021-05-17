@@ -252,7 +252,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-		const iconClass = typeof instance.icon === 'string' ? instance.icon : instance.icon?.id;
+		const iconClass = typeof instance.icon === 'string' ? instance.icon : instance.icon?.id || Codicon.terminal.id;
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
@@ -291,12 +291,17 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
 		const extras = [];
 		if (typeof icon === 'string') {
-			extras.push(icon);
+			const codicon = template.element.querySelector<HTMLElement>('.codicon');
+			if (codicon) {
+				codicon.style.backgroundImage = icon;
+				codicon.style.backgroundSize = '16px';
+				codicon.style.color = 'transparent';
+				codicon.style.content = '';
+			}
 		}
 		if (color) {
 			extras.push(color);
 		}
-		console.log(extras);
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
@@ -360,16 +365,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		} else if ((iconPath as ThemeIcon).color) {
 			return iconPath;
 		} else if (typeof iconPath === 'object' && 'path' in iconPath) {
-			DOM.createCSSRule(`.uri-icon`, `background-image: ${DOM.asCSSUrl(URI.revive(iconPath))}`);
-			return 'uri-icon';
+			return DOM.asCSSUrl(URI.revive(iconPath));
 		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
 			const uris = this.getIconUris(iconPath);
 			if (this._themeService.getColorTheme().type === ColorScheme.LIGHT) {
-				DOM.createCSSRule(`.uri-icon-light`, `background-image: ${DOM.asCSSUrl(URI.revive(uris.light))}`);
-				return 'uri-icon-light';
+				return `${DOM.asCSSUrl(URI.revive(uris.light))}`;
 			} else {
-				DOM.createCSSRule(`.vs-dark .uri-icon-dark`, `background-image: ${DOM.asCSSUrl(URI.revive(uris.dark))}`);
-				return 'uri-icon-dark';
+				return `${DOM.asCSSUrl(URI.revive(uris.dark))}`;
 			}
 		}
 		return undefined;
