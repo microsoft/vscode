@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/bannerpart';
+import { localize } from 'vs/nls';
 import { $, append, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
@@ -20,6 +21,8 @@ import { Emitter } from 'vs/base/common/event';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND } from 'vs/workbench/common/theme';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 
 // Icons
@@ -94,6 +97,8 @@ export class BannerPart extends Part implements IBannerService {
 
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+		this.element.tabIndex = 0;
+
 		return this.element;
 	}
 
@@ -153,6 +158,7 @@ export class BannerPart extends Part implements IBannerService {
 
 		// Icon
 		const iconContainer = append(this.element, $('div.icon-container'));
+		iconContainer.setAttribute('aria-hidden', 'true');
 		iconContainer.appendChild($(`div${item.icon.cssSelector}`));
 
 		// Message
@@ -165,6 +171,8 @@ export class BannerPart extends Part implements IBannerService {
 
 			for (const action of item.actions) {
 				const actionLink = this._register(this.instantiationService.createInstance(Link, action, {}));
+				actionLink.el.tabIndex = -1;
+				actionLink.el.setAttribute('role', 'button');
 				actionContainer.appendChild(actionLink.el);
 			}
 		}
@@ -174,6 +182,7 @@ export class BannerPart extends Part implements IBannerService {
 		const actionBar = this._register(new ActionBar(actionBarContainer));
 		const closeAction = this._register(new Action('banner.close', 'Close Banner', bannerCloseIcon.classNames, true, () => this.close(item)));
 		actionBar.push(closeAction, { icon: true, label: false });
+		actionBar.setFocusable(false);
 
 		this.setVisibility(true);
 		this.item = item;
@@ -187,3 +196,28 @@ export class BannerPart extends Part implements IBannerService {
 }
 
 registerSingleton(IBannerService, BannerPart);
+
+
+// Actions
+
+class FocusBannerAction extends Action2 {
+
+	static readonly ID = 'workbench.action.focusBanner';
+	static readonly LABEL = localize('focusBanner', "Focus Banner");
+
+	constructor() {
+		super({
+			id: FocusBannerAction.ID,
+			title: { value: FocusBannerAction.LABEL, original: 'Focus Banner' },
+			category: CATEGORIES.View,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.focusPart(Parts.BANNER_PART);
+	}
+}
+
+registerAction2(FocusBannerAction);
