@@ -472,10 +472,17 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		else {
 			didCreateWorkingCopy = true;
 
-			const newWorkingCopy = workingCopy = this.instantiationService.createInstance(FileWorkingCopy, this.workingCopyTypeId, resource, this.labelService.getUriBasenameLabel(resource), this.modelFactory) as unknown as IFileWorkingCopy<T>;
+			workingCopy = this.instantiationService.createInstance(
+				FileWorkingCopy,
+				this.workingCopyTypeId,
+				resource,
+				this.labelService.getUriBasenameLabel(resource),
+				this.modelFactory
+			) as unknown as IFileWorkingCopy<T>;
+
 			workingCopyResolve = workingCopy.resolve(options);
 
-			this.registerWorkingCopy(newWorkingCopy);
+			this.registerWorkingCopy(workingCopy);
 		}
 
 		// Store pending resolve to avoid race conditions
