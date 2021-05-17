@@ -248,29 +248,27 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-
+		const iconClass = typeof instance.icon === 'string' ? instance.icon : undefined;
 		const hasActionbar = !this.shouldHideActionBar();
-		let label: string;
-		if (!hasText) {
-			const primaryStatus = instance.statusList.primary;
-			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
-				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
+		let label: string = '';
+		// TODO:@meganrogge fix
+		if (typeof instance.icon === 'object' && 'id' in instance.icon) {
+			if (!hasText) {
+				const primaryStatus = instance.statusList.primary;
+				if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
+					label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
+				} else {
+					label = `${prefix}$(${instance.icon?.id})`;
+				}
 			} else {
+				this.fillActionBar(instance, template);
 				label = `${prefix}$(${instance.icon?.id})`;
+				// Only add the title if the icon is set, this prevents the title jumping around for
+				// example when launching with a ShellLaunchConfig.name and no icon
+				if (instance.icon) {
+					label += ` ${instance.title}`;
+				}
 			}
-		} else {
-			this.fillActionBar(instance, template);
-			label = `${prefix}$(${instance.icon?.id})`;
-			// Only add the title if the icon is set, this prevents the title jumping around for
-			// example when launching with a ShellLaunchConfig.name and no icon
-			if (instance.icon) {
-				label += ` ${instance.title}`;
-			}
-		}
-
-		const codicon = template.element.querySelector<HTMLElement>('.codicon');
-		if (codicon) {
-			codicon.style.color = instance?.icon?.color?.id || '';
 		}
 
 
@@ -289,6 +287,15 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}));
 
+
+		const color = instance.color ? `terminal-icon-${instance.color}` : undefined;
+		const extras = [];
+		if (iconClass) {
+			extras.push(iconClass);
+		}
+		if (color) {
+			extras.push(color);
+		}
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
@@ -302,7 +309,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				markdown: new MarkdownString(title),
 				markdownNotSupportedFallback: undefined
 			},
-			extraClasses: instance.color ? [`terminal-icon-${instance.color}`] : undefined
+			extraClasses: extras
 		});
 	}
 

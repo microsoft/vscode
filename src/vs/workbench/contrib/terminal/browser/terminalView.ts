@@ -454,12 +454,15 @@ function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon)
 	if (!instance || !instance.title) {
 		return '';
 	}
-	const label = `$(${icon?.id || instance.icon?.id}) ${getSingleTabTooltip(instance)}`;
-	const primaryStatus = instance.statusList.primary;
-	if (!primaryStatus?.icon) {
-		return label;
-	}
-	return `${label} $(${primaryStatus.icon.id})`;
+	// TODO:@meganrogge fix
+	if (typeof instance.icon === 'object' && 'id' in instance.icon) {
+		const label = `$(${icon?.id || instance.icon?.id}) ${getSingleTabTooltip(instance)}`;
+		const primaryStatus = instance.statusList.primary;
+		if (!primaryStatus?.icon) {
+			return label;
+		}
+		return `${label} $(${primaryStatus.icon.id})`;
+	} return '';
 }
 
 function getSingleTabTooltip(instance: ITerminalInstance | null): string {

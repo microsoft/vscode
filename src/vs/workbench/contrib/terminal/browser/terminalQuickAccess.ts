@@ -32,40 +32,43 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			const terminalGroup = terminalGroups[groupIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				const label = `$(${terminal.icon?.id}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
+				if (typeof terminal.icon === 'object' && 'id' in terminal.icon) {
+					// TODO:@meganrogge fix
+					const label = `$(${terminal.icon?.id}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
 
-				const highlights = matchesFuzzy(filter, label, true);
-				if (highlights) {
-					terminalPicks.push({
-						label,
-						highlights: { label: highlights },
-						buttons: [
-							{
-								iconClass: ThemeIcon.asClassName(renameTerminalIcon),
-								tooltip: localize('renameTerminal', "Rename Terminal")
+					const highlights = matchesFuzzy(filter, label, true);
+					if (highlights) {
+						terminalPicks.push({
+							label,
+							highlights: { label: highlights },
+							buttons: [
+								{
+									iconClass: ThemeIcon.asClassName(renameTerminalIcon),
+									tooltip: localize('renameTerminal', "Rename Terminal")
+								},
+								{
+									iconClass: ThemeIcon.asClassName(killTerminalIcon),
+									tooltip: localize('killTerminal', "Kill Terminal Instance")
+								}
+							],
+							trigger: buttonIndex => {
+								switch (buttonIndex) {
+									case 0:
+										this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
+										return TriggerAction.NO_ACTION;
+									case 1:
+										terminal.dispose(true);
+										return TriggerAction.REMOVE_ITEM;
+								}
+
+								return TriggerAction.NO_ACTION;
 							},
-							{
-								iconClass: ThemeIcon.asClassName(killTerminalIcon),
-								tooltip: localize('killTerminal', "Kill Terminal Instance")
+							accept: (keyMod, event) => {
+								this._terminalService.setActiveInstance(terminal);
+								this._terminalService.showPanel(!event.inBackground);
 							}
-						],
-						trigger: buttonIndex => {
-							switch (buttonIndex) {
-								case 0:
-									this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
-									return TriggerAction.NO_ACTION;
-								case 1:
-									terminal.dispose(true);
-									return TriggerAction.REMOVE_ITEM;
-							}
-
-							return TriggerAction.NO_ACTION;
-						},
-						accept: (keyMod, event) => {
-							this._terminalService.setActiveInstance(terminal);
-							this._terminalService.showPanel(!event.inBackground);
-						}
-					});
+						});
+					}
 				}
 			}
 		}
