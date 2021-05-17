@@ -1571,19 +1571,40 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			let active = executeResult.active;
 			if (active && active.same) {
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
-					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
+					let tasks = [
+						new InMemoryTask(
+							'restart',
+							{ kind: TaskSourceKind.InMemory, label: 'inMemory' },
+							nls.localize('restartTask', "Restart Task"),
+							'inMemory',
+							{ reevaluateOnRerun: true },
+							{}
+						),
+						new InMemoryTask(
+							'terminate',
+							{ kind: TaskSourceKind.InMemory, label: 'inMemory' },
+							nls.localize('terminateTask', "Terminate Task"),
+							'inMemory',
+							{ reevaluateOnRerun: true },
+							{}
+						)];
 					let lastInstance = this.getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
-					this.notificationService.prompt(Severity.Warning, message,
-						[{
-							label: nls.localize('terminateTask', "Terminate Task"),
-							run: () => this.terminate(lastInstance)
-						},
-						{
-							label: nls.localize('restartTask', "Restart Task"),
-							run: () => this.restart(lastInstance)
-						}],
-						{ sticky: true }
-					);
+					this.showQuickPick(tasks,
+						nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel()),
+						undefined,
+						false, false, undefined, []).then((entry) => {
+							if (entry === null || entry === undefined) {
+								return;
+							}
+							if (entry.task === tasks[0]) {
+								this.restart(lastInstance);
+								return;
+							}
+							if (entry.task === tasks[1]) {
+								this.terminate(lastInstance);
+								return;
+							}
+						});
 				} else {
 					this._taskSystem?.revealTask(executeResult.task);
 				}
@@ -1604,7 +1625,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
 			} else {
-				this.notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
+				// most likely the task has finished already and conceptually the user wants to start the task no matter what
+				this.run(task).then(undefined, reason => {
+					this.notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.configurationProperties.name));
+				});
 			}
 			return response;
 		});
