@@ -920,11 +920,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._xterm) {
 			const buffer = this._xterm.buffer;
 			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
-			try {
-				this._xterm.dispose();
-			} catch {
-				// No op, exception may get thrown from removeChild
-			}
+			this._xterm.dispose();
 		}
 
 		if (this._pressAnyKeyToCloseListener) {

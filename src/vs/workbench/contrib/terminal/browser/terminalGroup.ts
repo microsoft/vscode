@@ -348,7 +348,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		const wasActiveInstance = instance === this.activeInstance;
 		this._terminalInstances.splice(index, 1);
 
-		// TODO: Share code with onInstanceDisposed
 		// Adjust focus if the instance was active
 		if (wasActiveInstance && this._terminalInstances.length > 0) {
 			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
