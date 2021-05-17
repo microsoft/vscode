@@ -263,100 +263,95 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region macOS Shell Command
 
-	installShellCommand(windowId: number | undefined): Promise<void> {
-		return this.handleShellCommand(windowId, true);
-	}
+	async installShellCommand(windowId: number | undefined): Promise<void> {
+		const { source, target } = await this.getShellCommandLink();
 
-	uninstallShellCommand(windowId: number | undefined): Promise<void> {
-		return this.handleShellCommand(windowId, false);
-	}
-
-	private async handleShellCommand(windowId: number | undefined, create: boolean): Promise<void> {
-		const linkSource = resolve(this.environmentMainService.appRoot, 'bin', 'code');
-		const linkTarget = `/usr/local/bin/${this.productService.applicationName}`;
-
-		// Ensure source exists
-		const sourceExists = await exists(linkSource);
-		if (!sourceExists) {
-			throw new Error(localize('sourceMissing', "Unable to find shell script in '{0}'", linkSource));
-		}
-
-		// Create symlink
-		if (create) {
-
-			// Only install unless already existing
-			try {
-				const { symbolicLink } = await SymlinkSupport.stat(linkTarget);
-				if (symbolicLink && !symbolicLink.dangling) {
-					const linkTargetRealPath = await realpath(linkTarget);
-					if (linkSource === linkTargetRealPath) {
-						return;
-					}
-				}
-
-				// Different target, delete it first
-				await fs.promises.unlink(linkTarget);
-			} catch (error) {
-				if (error.code !== 'ENOENT') {
-					throw error; // throw on any error but file not found
+		// Only install unless already existing
+		try {
+			const { symbolicLink } = await SymlinkSupport.stat(source);
+			if (symbolicLink && !symbolicLink.dangling) {
+				const linkTargetRealPath = await realpath(source);
+				if (target === linkTargetRealPath) {
+					return;
 				}
 			}
 
-			try {
-				await fs.promises.symlink(linkSource, linkTarget);
-			} catch (error) {
-				if (error.code === 'EACCES' || error.code === 'ENOENT') {
+			// Different source, delete it first
+			await fs.promises.unlink(source);
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				throw error; // throw on any error but file not found
+			}
+		}
+
+		try {
+			await fs.promises.symlink(target, source);
+		} catch (error) {
+			if (error.code !== 'EACCES' && error.code !== 'ENOENT') {
+				throw error;
+			}
+
+			const { response } = await this.showMessageBox(windowId, {
+				type: 'info',
+				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
+				buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
+				cancelId: 1
+			});
+
+			if (response === 0 /* OK */) {
+				try {
+					const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
+					await promisify(exec)(command);
+				} catch (error) {
+					throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
+				}
+			}
+		}
+	}
+
+	async uninstallShellCommand(windowId: number | undefined): Promise<void> {
+		const { source } = await this.getShellCommandLink();
+
+		try {
+			await fs.promises.unlink(source);
+		} catch (error) {
+			switch (error.code) {
+				case 'EACCES':
 					const { response } = await this.showMessageBox(windowId, {
 						type: 'info',
-						message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
+						message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
 						buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
 						cancelId: 1
 					});
 
 					if (response === 0 /* OK */) {
 						try {
-							const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${linkSource}\' \'${linkTarget}\'\\" with administrator privileges"`;
+							const command = `osascript -e "do shell script \\"rm \'${source}\'\\" with administrator privileges"`;
 							await promisify(exec)(command);
 						} catch (error) {
-							throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", linkTarget));
+							throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", source));
 						}
 					}
-				} else {
+					break;
+				case 'ENOENT':
+					break; // ignore file not found
+				default:
 					throw error;
-				}
 			}
 		}
+	}
 
-		// Delete symlink
-		else {
-			try {
-				await fs.promises.unlink(linkTarget);
-			} catch (error) {
-				switch (error.code) {
-					case 'EACCES':
-						const { response } = await this.showMessageBox(windowId, {
-							type: 'info',
-							message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
-							buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
-							cancelId: 1
-						});
+	private async getShellCommandLink(): Promise<{ readonly source: string, readonly target: string }> {
+		const target = resolve(this.environmentMainService.appRoot, 'bin', 'code');
+		const source = `/usr/local/bin/${this.productService.applicationName}`;
 
-						if (response === 0 /* OK */) {
-							try {
-								const command = `osascript -e "do shell script \\"rm \'${linkTarget}\'\\" with administrator privileges"`;
-								await promisify(exec)(command);
-							} catch (error) {
-								throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", linkTarget));
-							}
-						}
-						break;
-					case 'ENOENT':
-						break; // ignore file not found
-					default:
-						throw error;
-				}
-			}
+		// Ensure source exists
+		const sourceExists = await exists(target);
+		if (!sourceExists) {
+			throw new Error(localize('sourceMissing', "Unable to find shell script in '{0}'", target));
 		}
+
+		return { source, target };
 	}
 
 	//#region Dialog
