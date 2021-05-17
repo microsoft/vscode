@@ -5,4 +5,4 @@
 
 // Scrollable Element
 
-export const SCROLLABLE_ELEMENT_PADDING_TOP = 20;
+export const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
