@@ -1038,6 +1038,41 @@ class SuggestAdapter {
 	}
 }
 
+class GhostTextAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.GhostTextProvider,
+	) { }
+
+	async provideGhostText(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.GhostText | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+
+		// The default insert/replace ranges.
+		const defaultReplaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
+
+		const result = await asPromise(() => this._provider.provideGhostTextItems(doc, pos, token));
+
+		if (!result) {
+			// undefined and null are valid results
+			return undefined;
+		}
+
+		if (token.isCancellationRequested) {
+			// cancelled -> return without further ado, esp no caching
+			// of results as they will leak
+			return undefined;
+		}
+
+		return {
+			text: result.text,
+			replaceRange: typeConvert.Range.from(result.replaceRange || defaultReplaceRange)
+		};
+	}
+}
+
 class SignatureHelpAdapter {
 
 	private readonly _cache = new Cache<vscode.SignatureHelp>('SignatureHelp');
@@ -1355,7 +1390,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
-	| LinkedEditingRangeAdapter | InlayHintsAdapter;
+	| LinkedEditingRangeAdapter | InlayHintsAdapter | GhostTextAdapter;
 
 class AdapterData {
 	constructor(
@@ -1808,6 +1843,19 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	$releaseCompletionItems(handle: number, id: number): void {
 		this._withAdapter(handle, SuggestAdapter, adapter => adapter.releaseCompletionItems(id), undefined);
 	}
+
+	// --- ghost test
+
+	registerGhostTextProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.GhostTextProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new GhostTextAdapter(this._documents, provider), extension);
+		this._proxy.$registerGhostTextSupport(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideGhostText(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.GhostText | undefined> {
+		return this._withAdapter(handle, GhostTextAdapter, adapter => adapter.provideGhostText(URI.revive(resource), position, token), undefined);
+	}
+
 
 	// --- parameter hints
 

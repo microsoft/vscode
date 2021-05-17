@@ -685,6 +685,21 @@ export interface CompletionItemProvider {
 	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 }
 
+/**
+ * @internal
+ */
+export interface GhostText {
+	text: string;
+	replaceRange?: IRange;
+}
+
+/**
+ * @internal
+ */
+export interface GhostTextProvider {
+	provideGhostText(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<GhostText>;
+}
+
 export interface CodeAction {
 	title: string;
 	command?: Command;
@@ -1769,6 +1784,11 @@ export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider
  * @internal
  */
 export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
+
+/**
+ * @internal
+ */
+export const GhostTextProviderRegistry = new LanguageFeatureRegistry<GhostTextProvider>();
 
 /**
  * @internal

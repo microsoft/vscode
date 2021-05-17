@@ -1547,6 +1547,17 @@ export class CompletionList {
 	}
 }
 
+@es5ClassCompat
+export class GhostText implements vscode.GhostText {
+
+	text: string;
+	replaceRange?: Range;
+
+	constructor(text: string) {
+		this.text = text;
+	}
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,

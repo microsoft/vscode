@@ -3281,6 +3281,27 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
+
+	export class GhostText {
+
+		text: string;
+
+		replaceRange?: Range;
+
+		constructor(text: string);
+	}
+
+	export interface GhostTextProvider {
+		provideGhostTextItems(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<GhostText>;
+	}
+
+	export namespace languages {
+		export function registerGhostTextProvider(selector: DocumentSelector, provider: GhostTextProvider): Disposable;
+	}
+
+	//#endregion
+
 	//#region FileSystemProvider stat readonly - https://github.com/microsoft/vscode/issues/73122
 
 	export enum FilePermission {
