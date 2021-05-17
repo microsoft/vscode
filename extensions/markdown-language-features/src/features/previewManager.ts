@@ -65,7 +65,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	private _activePreview: ManagedMarkdownPreview | undefined = undefined;
 
 	private readonly customEditorViewType = 'vscode.markdown.preview.editor';
-	private readonly textEditorViewType = 'default';
+	private readonly textEditorViewType = 'workbench.editors.files.textFileEditor';
 
 	public constructor(
 		private readonly _contentProvider: MarkdownContentProvider,

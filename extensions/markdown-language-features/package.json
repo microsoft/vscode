@@ -181,7 +181,7 @@
         },
         {
           "command": "markdown.showTextEditor",
-          "when": "!notebookEditorFocused",
+          "when": "activeEditor != workbench.editors.files.textFileEditor && !notebookEditorFocused",
           "group": "navigation"
         },
         {
