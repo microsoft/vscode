@@ -16,13 +16,16 @@ import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { joinPath } from 'vs/base/common/resources';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
+import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager, IBaseFileWorkingCopySaveAsOptions } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 /**
  * The only one that should be dealing with `IFileWorkingCopy` and handle all
@@ -101,7 +104,7 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	 * cancellation
 	 */
 	saveAs(source: URI, target: URI, options?: IFileWorkingCopySaveOptions): Promise<IFileWorkingCopy<T> | undefined>;
-	saveAs(source: URI, target: undefined, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<T> | undefined>;
+	saveAs(source: URI, target: undefined, options?: IBaseFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<T> | undefined>;
 
 	/**
 	 * Waits for the file working copy to be ready to be disposed. There may be
@@ -149,15 +152,6 @@ export interface IFileWorkingCopyResolveOptions {
 	};
 }
 
-export interface IFileWorkingCopySaveAsOptions extends IFileWorkingCopySaveOptions {
-
-	/**
-	 * Optional target resource to suggest to the user in case
-	 * no taget resource is provided to save to.
-	 */
-	suggestedTarget?: URI;
-}
-
 export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends BaseFileWorkingCopyManager<T, IFileWorkingCopy<T>> implements IFileWorkingCopyManager<T> {
 
 	//#region Events
@@ -189,19 +183,23 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 	private readonly workingCopyResolveQueue = this._register(new ResourceQueue());
 
 	constructor(
-		private readonly workingCopyTypeId: string,
+		workingCopyTypeId: string,
 		private readonly modelFactory: IFileWorkingCopyModelFactory<T>,
 		@IFileService fileService: IFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IDialogService dialogService: IDialogService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IPathService pathService: IPathService
 	) {
-		super(fileService, logService, workingCopyBackupService);
+		super(workingCopyTypeId, fileService, logService, workingCopyBackupService, fileDialogService, uriIdentityService, workingCopyFileService, dialogService, workingCopyService, environmentService, pathService);
 
 		this.registerListeners();
 	}
@@ -496,6 +494,10 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		}
 	}
 
+	protected doResolve(resource: URI): Promise<IFileWorkingCopy<T>> {
+		return this.resolve(resource);
+	}
+
 	private joinPendingResolve(resource: URI): Promise<void> | undefined {
 		const pendingWorkingCopyResolve = this.mapResourceToPendingWorkingCopyResolve.get(resource);
 		if (pendingWorkingCopyResolve) {
@@ -550,99 +552,6 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 			dispose(workingCopyListener);
 			this.mapResourceToWorkingCopyListeners.delete(resource);
 		}
-	}
-
-	//#endregion
-
-	//#region Save As...
-
-	async saveAs(source: URI, target?: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<T> | undefined> {
-
-		// If not provided, ask user for target
-		if (!target) {
-			target = await this.fileDialogService.pickFileToSave(options?.suggestedTarget ?? source);
-
-			if (!target) {
-				return undefined; // user canceled
-			}
-		}
-
-		// Do it
-		return this.doSaveAs(source, target, options);
-	}
-
-	private async doSaveAs(source: URI, target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<T> | undefined> {
-		let sourceContents: VSBufferReadableStream;
-
-		// If the source is an existing file working copy, we can directly
-		// use that to copy the contents to the target destination
-		const sourceWorkingCopy = this.get(source);
-		if (sourceWorkingCopy?.isResolved()) {
-			sourceContents = await sourceWorkingCopy.model.snapshot(CancellationToken.None);
-		}
-
-		// Otherwise we resolve the contents from the underlying file
-		else {
-			sourceContents = (await this.fileService.readFileStream(source)).value;
-		}
-
-		// Save the contents through working copy to benefit from save
-		// participants and handling a potential already existing target
-		return this.doSaveAsWorkingCopy(source, sourceContents, target, options);
-	}
-
-	private async doSaveAsWorkingCopy(source: URI, sourceContents: VSBufferReadableStream, target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<T>> {
-
-		// Prefer an existing working copy if it is already resolved
-		// for the given target resource
-		let targetExists = false;
-		let targetWorkingCopy = this.get(target);
-		if (targetWorkingCopy?.isResolved()) {
-			targetExists = true;
-		}
-
-		// Otherwise create the target working copy empty if
-		// it does not exist already and resolve it from there
-		else {
-			targetExists = await this.fileService.exists(target);
-
-			// Create target file adhoc if it does not exist yet
-			if (!targetExists) {
-				await this.workingCopyFileService.create([{ resource: target }], CancellationToken.None);
-			}
-
-			// At this point we need to resolve the target working copy
-			// and we have to do an explicit check if the source URI
-			// equals the target via URI identity. If they match and we
-			// have had an existing working copy with the source, we
-			// prefer that one over resolving the target. Otherwiese we
-			// would potentially introduce a
-			if (this.uriIdentityService.extUri.isEqual(source, target) && this.get(source)) {
-				targetWorkingCopy = await this.resolve(source);
-			} else {
-				targetWorkingCopy = await this.resolve(target);
-			}
-		}
-
-		// Take over content from source to target
-		await targetWorkingCopy.model?.update(sourceContents, CancellationToken.None);
-
-		// Save target
-		await targetWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
-
-		// Revert the source
-		await this.doRevert(source);
-
-		return targetWorkingCopy;
-	}
-
-	private async doRevert(resource: URI): Promise<void> {
-		const workingCopy = this.get(resource);
-		if (!workingCopy) {
-			return undefined;
-		}
-
-		return workingCopy.revert();
 	}
 
 	//#endregion

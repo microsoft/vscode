@@ -61,6 +61,14 @@ export interface IResolvedUntitledFileWorkingCopy<T extends IUntitledFileWorking
 	readonly model: T;
 }
 
+export interface IUntitledFileWorkingCopySaveDelegate<T extends IUntitledFileWorkingCopyModel> {
+
+	/**
+	 * A delegate to enable saving of untitled file working copies.
+	 */
+	(workingCopy: IUntitledFileWorkingCopy<T>, options?: ISaveOptions): Promise<boolean>;
+}
+
 export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<T>  {
 
 	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.Untitled;
@@ -91,6 +99,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 		readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: VSBufferReadableStream | undefined,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<T>,
+		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<T>,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService
@@ -235,14 +244,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 	async save(options?: ISaveOptions): Promise<boolean> {
 		this.trace('[untitled file working copy] save() - enter');
 
-		// TODO needs to extract the code for bringing up save dialog
-		// or use the associated file path as target
-		// Also, who is disposing the untitled after save and open the
-		// new editor?
-
-		await this.revert();
-
-		return true;
+		return this.saveDelegate(this, options);
 	}
 
 	//#endregion
