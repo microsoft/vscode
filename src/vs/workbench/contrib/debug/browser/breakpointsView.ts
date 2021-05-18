@@ -260,9 +260,13 @@ export class BreakpointsView extends ViewPane {
 		if (thread && thread.stoppedDetails && thread.stoppedDetails.hitBreakpointIds && thread.stoppedDetails.hitBreakpointIds.length > 0) {
 			const hitBreakpointIds = thread.stoppedDetails.hitBreakpointIds;
 			const elements = this.elements;
-			const index = elements.findIndex(e => e.getIdFromAdapter(thread.session.getId()) === hitBreakpointIds[0]);
+			const index = elements.findIndex(e => {
+				const id = e.getIdFromAdapter(thread.session.getId());
+				return typeof id === 'number' && hitBreakpointIds.indexOf(id) !== -1;
+			});
 			if (index >= 0) {
 				this.list.setFocus([index]);
+				this.list.setSelection([index]);
 			}
 		}
 	}
