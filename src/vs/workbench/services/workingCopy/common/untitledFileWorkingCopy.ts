@@ -241,7 +241,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 
 	//#region Save
 
-	async save(options?: ISaveOptions): Promise<boolean> {
+	save(options?: ISaveOptions): Promise<boolean> {
 		this.trace('[untitled file working copy] save() - enter');
 
 		return this.saveDelegate(this, options);
