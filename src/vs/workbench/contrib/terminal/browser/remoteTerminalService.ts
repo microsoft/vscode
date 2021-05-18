@@ -6,7 +6,9 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -14,11 +16,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemoteTerminalService extends Disposable implements IRemoteTerminalService {
@@ -34,6 +39,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
+	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
+	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -41,7 +48,10 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService notificationService: INotificationService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IHistoryService historyService: IHistoryService
 	) {
 		super();
 
@@ -122,6 +132,15 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 					this._onPtyHostResponsive.fire();
 				}));
 			}
+			this._register(channel.onPtyHostRequestResolveVariables(async e => {
+				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
+					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
+				});
+				const result = await Promise.all(resolveCalls);
+				channel.acceptPtyHostResolvedVariables(e.id, result);
+			}));
 		} else {
 			this._remoteTerminalChannel = null;
 		}
@@ -202,6 +221,10 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
+	}
+
+	async getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		return this._remoteTerminalChannel?.getProfiles(includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {

@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -99,8 +99,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
-	get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
@@ -239,7 +239,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				ptyProcess.pause();
 			}
 
-
 			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
@@ -251,8 +250,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		});
-		this._setupTitlePolling(ptyProcess);
 		this._sendProcessId(ptyProcess.pid);
+		this._setupTitlePolling(ptyProcess);
 	}
 
 	override dispose(): void {
@@ -266,7 +265,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _setupTitlePolling(ptyProcess: pty.IPty) {
 		// Send initial timeout async to give event listeners a chance to init
-		setTimeout(() => this._sendProcessTitle(ptyProcess), 0);
+		setTimeout(() => this._sendProcessTitle(ptyProcess));
 		// Setup polling for non-Windows, for Windows `process` doesn't change
 		if (!isWindows) {
 			this._titleInterval = setInterval(() => {
@@ -325,7 +324,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() <= 19041 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {

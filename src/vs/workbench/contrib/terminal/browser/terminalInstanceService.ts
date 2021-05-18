@@ -60,7 +60,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return WebglAddon;
 	}
 
-	async preparePathForTerminalAsync(originalPath: string, executable: string, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> {
+	async preparePathForTerminalAsync(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> {
 		return new Promise<string>(c => {
 			if (!executable) {
 				c(originalPath);

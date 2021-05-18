@@ -272,7 +272,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
 		// Terminal
-		services.set(ILocalPtyService, this._register(new PtyHostService(logService, telemetryService)));
+		services.set(ILocalPtyService, this._register(new PtyHostService(configurationService, logService, telemetryService)));
 
 		return new InstantiationService(services);
 	}

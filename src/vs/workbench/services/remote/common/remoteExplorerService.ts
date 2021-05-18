@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -21,6 +22,8 @@ import { hash } from 'vs/base/common/hash';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { flatten } from 'vs/base/common/arrays';
+import Severity from 'vs/base/common/severity';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -141,10 +144,11 @@ export enum OnPortForward {
 	Ignore = 'ignore'
 }
 
-interface Attributes {
+export interface Attributes {
 	label: string | undefined;
 	onAutoForward: OnPortForward | undefined,
 	elevateIfNeeded: boolean | undefined;
+	requireLocalPort: boolean | undefined;
 }
 
 interface PortRange { start: number, end: number }
@@ -182,7 +186,8 @@ export class PortsAttributes extends Disposable {
 		const attributes: Attributes = {
 			label: undefined,
 			onAutoForward: undefined,
-			elevateIfNeeded: undefined
+			elevateIfNeeded: undefined,
+			requireLocalPort: undefined
 		};
 		while (index >= 0) {
 			const found = this.portsAttributes[index];
@@ -190,15 +195,18 @@ export class PortsAttributes extends Disposable {
 				attributes.onAutoForward = found.onAutoForward ?? attributes.onAutoForward;
 				attributes.elevateIfNeeded = (found.elevateIfNeeded !== undefined) ? found.elevateIfNeeded : attributes.elevateIfNeeded;
 				attributes.label = found.label ?? attributes.label;
+				attributes.requireLocalPort = found.requireLocalPort;
 			} else {
 				// It's a range or regex, which means that if the attribute is already set, we keep it
 				attributes.onAutoForward = attributes.onAutoForward ?? found.onAutoForward;
 				attributes.elevateIfNeeded = (attributes.elevateIfNeeded !== undefined) ? attributes.elevateIfNeeded : found.elevateIfNeeded;
 				attributes.label = attributes.label ?? found.label;
+				attributes.requireLocalPort = (attributes.requireLocalPort !== undefined) ? attributes.requireLocalPort : undefined;
 			}
 			index = this.findNextIndex(port, commandLine, this.portsAttributes, index + 1);
 		}
-		if (attributes.onAutoForward !== undefined || attributes.elevateIfNeeded !== undefined || attributes.label !== undefined) {
+		if (attributes.onAutoForward !== undefined || attributes.elevateIfNeeded !== undefined
+			|| attributes.label !== undefined || attributes.requireLocalPort !== undefined) {
 			return attributes;
 		}
 
@@ -263,9 +271,10 @@ export class PortsAttributes extends Disposable {
 			}
 			attributes.push({
 				key: key,
-				elevateIfNeeded: setting.elevateIfPrivileged,
+				elevateIfNeeded: setting.elevateIfNeeded,
 				onAutoForward: setting.onAutoForward,
-				label: setting.label
+				label: setting.label,
+				requireLocalPort: setting.requireLocalPort
 			});
 		}
 
@@ -274,7 +283,8 @@ export class PortsAttributes extends Disposable {
 			this.defaultPortAttributes = {
 				elevateIfNeeded: defaults.elevateIfNeeded,
 				label: defaults.label,
-				onAutoForward: defaults.onAutoForward
+				onAutoForward: defaults.onAutoForward,
+				requireLocalPort: defaults.requireLocalPort
 			};
 		}
 
@@ -313,6 +323,8 @@ export class PortsAttributes extends Disposable {
 	}
 }
 
+const MISMATCH_LOCAL_PORT_COOLDOWN = 10 * 1000; // 10 seconds
+
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<string, Tunnel>;
 	readonly detected: Map<string, Tunnel>;
@@ -344,7 +356,8 @@ export class TunnelModel extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 		this.configPortsAttributes = new PortsAttributes(configurationService);
@@ -458,10 +471,29 @@ export class TunnelModel extends Disposable {
 		}
 	}
 
+	private mismatchCooldown = new Date();
+	private async showPortMismatchModalIfNeeded(tunnel: RemoteTunnel, expectedLocal: number, attributes: Attributes | undefined) {
+		if (!tunnel.tunnelLocalPort || !attributes?.requireLocalPort) {
+			return;
+		}
+		if (tunnel.tunnelLocalPort === expectedLocal) {
+			return;
+		}
+
+		const newCooldown = new Date();
+		if ((this.mismatchCooldown.getTime() + MISMATCH_LOCAL_PORT_COOLDOWN) > newCooldown.getTime()) {
+			return;
+		}
+		this.mismatchCooldown = newCooldown;
+		const mismatchString = nls.localize('remote.localPortMismatch.single', "Local port {0} could not be used for forwarding to remote port {1}.\n\nThis usually happens when there is already another process using local port {0}.\n\nPort number {2} has been used instead.",
+			expectedLocal, tunnel.tunnelRemotePort, tunnel.tunnelLocalPort);
+		return this.dialogService.show(Severity.Info, mismatchString, [nls.localize('remote.localPortMismatch.Ok', "Ok")]);
+	}
+
 	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean, isPublic?: boolean, restore: boolean = true): Promise<RemoteTunnel | void> {
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, remote.host, remote.port);
-		const port = local !== undefined ? local : remote.port;
-		const attributes = (await this.getAttributes([port]))?.get(port);
+		const attributes = (await this.getAttributes([remote.port]))?.get(remote.port);
+		const localPort = (local !== undefined) ? local : remote.port;
 
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
@@ -469,7 +501,7 @@ export class TunnelModel extends Disposable {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
 
-			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, localPort, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), remote.host, remote.port);
 				const newForward: Tunnel = {
@@ -490,6 +522,7 @@ export class TunnelModel extends Disposable {
 				this.forwarded.set(key, newForward);
 				this.remoteTunnels.set(key, tunnel);
 				await this.storeForwarded();
+				await this.showPortMismatchModalIfNeeded(tunnel, localPort, attributes);
 				this._onForwardPort.fire(newForward);
 				return tunnel;
 			}
@@ -682,7 +715,8 @@ export class TunnelModel extends Disposable {
 			mergedAttributes.set(port, {
 				elevateIfNeeded: config?.elevateIfNeeded,
 				label: config?.label,
-				onAutoForward: config?.onAutoForward ?? PortsAttributes.providedActionToAction(provider?.autoForwardAction)
+				onAutoForward: config?.onAutoForward ?? PortsAttributes.providedActionToAction(provider?.autoForwardAction),
+				requireLocalPort: config?.requireLocalPort
 			});
 		});
 
@@ -742,9 +776,11 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IDialogService dialogService: IDialogService
 	) {
-		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService, environmentService, remoteAuthorityResolverService, workspaceContextService, logService);
+		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService, environmentService,
+			remoteAuthorityResolverService, workspaceContextService, logService, dialogService);
 	}
 
 	set targetType(name: string[]) {

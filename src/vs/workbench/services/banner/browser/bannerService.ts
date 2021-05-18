@@ -16,6 +16,7 @@ export interface IBannerItem {
 	readonly message: string | MarkdownString;
 	readonly scope?: StorageScope; /* Used to remember that the banner has been closed. */
 	readonly actions?: ILinkDescriptor[];
+	readonly ariaLabel?: string;
 }
 
 export const IBannerService = createDecorator<IBannerService>('bannerService');
@@ -23,6 +24,9 @@ export const IBannerService = createDecorator<IBannerService>('bannerService');
 export interface IBannerService {
 	readonly _serviceBrand: undefined;
 
+	focus(): void;
+	focusNextAction(): void;
+	focusPreviousAction(): void;
 	hide(id: string): void;
 	show(item: IBannerItem): void;
 }

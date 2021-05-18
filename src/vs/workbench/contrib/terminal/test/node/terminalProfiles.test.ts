@@ -5,16 +5,16 @@
 
 import { deepStrictEqual, fail, ok, strictEqual } from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
-import { ITerminalConfiguration, ITerminalProfile, ITerminalProfiles, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectAvailableProfiles, IFsProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
+import { ITerminalProfile, ProfileSource, SafeConfigProvider } from 'vs/platform/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
+import { detectAvailableProfiles, IFsProvider } from 'vs/platform/terminal/node/terminalProfiles';
 
 /**
  * Assets that two profiles objects are equal, this will treat explicit undefined and unset
  * properties the same. Order of the profiles is ignored.
  */
 function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITerminalProfile[]) {
-	strictEqual(actualProfiles.length, expectedProfiles.length);
+	strictEqual(actualProfiles.length, expectedProfiles.length, `Actual: ${actualProfiles.map(e => e.profileName).join(',')}\nExpected: ${expectedProfiles.map(e => e.profileName).join(',')}`);
 	for (const expected of expectedProfiles) {
 		const actual = actualProfiles.find(e => e.profileName === expected.profileName);
 		ok(actual, `Expected profile ${expected.profileName} not found`);
@@ -71,7 +71,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const config: ITestTerminalConfig = {
 					profiles: {
 						windows: {
-							'PowerShell NoProfile': { source: ProfileSource.Pwsh, args: ['-NoProfile'], overrideName: true }
+							'PowerShell': { source: ProfileSource.Pwsh, args: ['-NoProfile'], overrideName: true }
 						},
 						linux: {},
 						osx: {},
@@ -80,7 +80,7 @@ suite('Workbench - TerminalProfiles', () => {
 				};
 				const profiles = await detectAvailableProfiles(true, buildTestSafeConfigProvider(config), fsProvider, undefined, undefined, undefined);
 				const expected = [
-					{ profileName: 'PowerShell NoProfile', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, args: ['-NoProfile'], isDefault: true }
+					{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, args: ['-NoProfile'], isDefault: true }
 				];
 				profilesEqual(profiles, expected);
 			});

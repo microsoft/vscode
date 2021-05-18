@@ -5993,7 +5993,8 @@ declare module 'vscode' {
 		};
 
 		/**
-		 * A storage utility for secrets.
+		 * A storage utility for secrets. Secrets are persisted across reloads and are independent of the
+		 * current opened {@link workspace.workspaceFolders workspace}.
 		 */
 		readonly secrets: SecretStorage;
 

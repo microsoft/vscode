@@ -6,28 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-
-const CELL_STATUSBAR_HEIGHT = 22;
-const EDITOR_TOOLBAR_HEIGHT = 0;
-const CELL_OUTPUT_PADDING = 14;
-const MARKDOWN_PREVIEW_PADDING = 8;
-const CELL_RIGHT_MARGIN = 16;
-const CELL_RUN_GUTTER = 28;
-const CODE_CELL_LEFT_MARGIN = 32;
-const BOTTOM_CELL_TOOLBAR_GAP = 18;
-const BOTTOM_CELL_TOOLBAR_HEIGHT = 22;
-
-// Margin above editor
-const CELL_TOP_MARGIN = 6;
-const CELL_BOTTOM_MARGIN = 6;
-
-const MARKDOWN_CELL_TOP_MARGIN = 8;
-const MARKDOWN_CELL_BOTTOM_MARGIN = 8;
-
-const COLLAPSED_INDICATOR_HEIGHT = 24;
-const EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR = 12;
-const EDITOR_BOTTOM_PADDING = 4;
+import { CellToolbarLocKey, CellToolbarVisibility, ExperimentalCompactView, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 let EDITOR_TOP_PADDING = 12;
 const editorTopPaddingChangeEmitter = new Emitter<void>();
@@ -50,6 +29,7 @@ export interface NotebookLayoutConfiguration {
 	cellBottomMargin: number;
 	cellOutputPadding: number;
 	codeCellLeftMargin: number;
+	markdownCellLeftMargin: number;
 	markdownCellTopMargin: number;
 	markdownCellBottomMargin: number;
 	markdownPreviewPadding: number;
@@ -64,6 +44,7 @@ export interface NotebookLayoutConfiguration {
 	cellStatusBarHeight: number;
 	cellToolbarLocation: string | { [key: string]: string };
 	cellToolbarInteraction: string;
+	compactView: boolean;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -71,7 +52,27 @@ interface NotebookOptionsChangeEvent {
 	cellToolbarLocation?: boolean;
 	cellToolbarInteraction?: boolean;
 	editorTopPadding?: boolean;
+	compactView?: boolean;
 }
+
+const defaultConfigConstants = {
+	codeCellLeftMargin: 28,
+	cellRunGutter: 32,
+	markdownCellTopMargin: 8,
+	markdownCellBottomMargin: 8,
+	markdownCellLeftMargin: 32,
+	bottomCellToolbarGap: 18,
+};
+
+const compactConfigConstants = {
+	codeCellLeftMargin: 0,
+	cellRunGutter: 32,
+	markdownCellTopMargin: 6,
+	markdownCellBottomMargin: 6,
+	markdownCellLeftMargin: 32,
+	bottomCellToolbarGap: 12,
+};
+
 export class NotebookOptions {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
 	protected readonly _onDidChangeOptions = new Emitter<NotebookOptionsChangeEvent>();
@@ -82,41 +83,40 @@ export class NotebookOptions {
 		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
 		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
+		const compactView = this.configurationService.getValue<boolean>(ExperimentalCompactView);
 
 		this._disposables = [];
 		this._layoutConfiguration = {
-			cellRightMargin: CELL_RIGHT_MARGIN,
-			cellRunGutter: CELL_RUN_GUTTER,
-			cellTopMargin: CELL_TOP_MARGIN,
-			cellBottomMargin: CELL_BOTTOM_MARGIN,
-			codeCellLeftMargin: CODE_CELL_LEFT_MARGIN,
-			markdownCellTopMargin: MARKDOWN_CELL_TOP_MARGIN,
-			markdownCellBottomMargin: MARKDOWN_CELL_BOTTOM_MARGIN,
-			bottomCellToolbarGap: BOTTOM_CELL_TOOLBAR_GAP,
-			bottomCellToolbarHeight: BOTTOM_CELL_TOOLBAR_HEIGHT,
+			...(compactView ? compactConfigConstants : defaultConfigConstants),
+			cellTopMargin: 6,
+			cellBottomMargin: 6,
+			cellRightMargin: 16,
+			cellStatusBarHeight: 22,
+			cellOutputPadding: 14,
+			markdownPreviewPadding: 8,
+			bottomCellToolbarHeight: 22,
+			editorToolbarHeight: 0,
 			editorTopPadding: EDITOR_TOP_PADDING,
-			editorBottomPadding: EDITOR_BOTTOM_PADDING,
-			editorBottomPaddingWithoutStatusBar: EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR,
-			editorToolbarHeight: EDITOR_TOOLBAR_HEIGHT,
-			cellOutputPadding: CELL_OUTPUT_PADDING,
-			collapsedIndicatorHeight: COLLAPSED_INDICATOR_HEIGHT,
-			markdownPreviewPadding: MARKDOWN_PREVIEW_PADDING,
-			cellStatusBarHeight: CELL_STATUSBAR_HEIGHT,
+			editorBottomPadding: 4,
+			editorBottomPaddingWithoutStatusBar: 12,
+			collapsedIndicatorHeight: 24,
 			showCellStatusBar,
 			cellToolbarLocation,
-			cellToolbarInteraction
+			cellToolbarInteraction,
+			compactView
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			let cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBarKey);
 			let cellToolbarLocation = e.affectsConfiguration(CellToolbarLocKey);
 			let cellToolbarInteraction = e.affectsConfiguration(CellToolbarVisibility);
+			let compactView = e.affectsConfiguration(ExperimentalCompactView);
 
-			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction) {
+			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction && !compactView) {
 				return;
 			}
 
-			const configuration = Object.assign({}, this._layoutConfiguration);
+			let configuration = Object.assign({}, this._layoutConfiguration);
 
 			if (cellStatusBarVisibility) {
 				configuration.showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
@@ -130,13 +130,22 @@ export class NotebookOptions {
 				configuration.cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
 			}
 
+			if (compactView) {
+				const compactViewValue = this.configurationService.getValue<boolean>('notebook.experimental.compactView');
+				configuration = Object.assign(configuration, {
+					...(compactViewValue ? compactConfigConstants : defaultConfigConstants),
+				});
+				configuration.compactView = compactViewValue;
+			}
+
 			this._layoutConfiguration = configuration;
 
 			// trigger event
 			this._onDidChangeOptions.fire({
 				cellStatusBarVisibility: cellStatusBarVisibility,
 				cellToolbarLocation: cellToolbarLocation,
-				cellToolbarInteraction: cellToolbarInteraction
+				cellToolbarInteraction: cellToolbarInteraction,
+				compactView: compactView
 			});
 		}));
 
@@ -153,30 +162,30 @@ export class NotebookOptions {
 	}
 
 	computeCollapsedMarkdownCellHeight(): number {
-		return this._layoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
-			+ this._layoutConfiguration.collapsedIndicatorHeight // COLLAPSED_INDICATOR_HEIGHT
-			+ this._layoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-			+ this._layoutConfiguration.markdownCellBottomMargin; // MARKDOWN_CELL_BOTTOM_MARGIN;
+		return this._layoutConfiguration.markdownCellTopMargin
+			+ this._layoutConfiguration.collapsedIndicatorHeight
+			+ this._layoutConfiguration.bottomCellToolbarGap
+			+ this._layoutConfiguration.markdownCellBottomMargin;
 	}
 
 	computeBottomToolbarOffset(totalHeight: number) {
 		return totalHeight
-			- this._layoutConfiguration.bottomCellToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+			- this._layoutConfiguration.bottomCellToolbarGap
 			- this._layoutConfiguration.bottomCellToolbarHeight / 2;
 	}
 
 	computeCodeCellEditorWidth(outerWidth: number): number {
 		return outerWidth - (
-			this._layoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
-			+ this._layoutConfiguration.cellRunGutter // CELL_RUN_GUTTER
-			+ this._layoutConfiguration.cellRightMargin // CELL_RIGHT_MARGIN
+			this._layoutConfiguration.codeCellLeftMargin
+			+ this._layoutConfiguration.cellRunGutter
+			+ this._layoutConfiguration.cellRightMargin
 		);
 	}
 
 	computeMarkdownCellEditorWidth(outerWidth: number): number {
 		return outerWidth
-			- this._layoutConfiguration.codeCellLeftMargin // CODE_CELL_LEFT_MARGIN
-			- this._layoutConfiguration.cellRightMargin; // CELL_RIGHT_MARGIN;
+			- this._layoutConfiguration.codeCellLeftMargin
+			- this._layoutConfiguration.cellRightMargin;
 	}
 
 	computeStatusBarHeight(): number {
@@ -225,27 +234,29 @@ export class NotebookOptions {
 		return {
 			top: getEditorTopPadding(),
 			bottom: this._layoutConfiguration.showCellStatusBar
-				? this._layoutConfiguration.editorBottomPadding// EDITOR_BOTTOM_PADDING
-				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar // EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR
+				? this._layoutConfiguration.editorBottomPadding
+				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar
 		};
 	}
 
 	computeWebviewOptions() {
 		return {
-			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
-			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
-			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
-			leftMargin: this._layoutConfiguration.codeCellLeftMargin, // CODE_CELL_LEFT_MARGIN,
-			rightMargin: this._layoutConfiguration.cellRightMargin, // CELL_RIGHT_MARGIN,
-			runGutter: this._layoutConfiguration.cellRunGutter, // CELL_RUN_GUTTER,
+			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
+			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding,
+			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
+			markdownLeftMargin: this._layoutConfiguration.markdownCellLeftMargin,
+			leftMargin: this._layoutConfiguration.codeCellLeftMargin,
+			rightMargin: this._layoutConfiguration.cellRightMargin,
+			runGutter: this._layoutConfiguration.cellRunGutter,
 		};
 	}
 
 	computeDiffWebviewOptions() {
 		return {
-			outputNodePadding: this._layoutConfiguration.cellOutputPadding, // CELL_OUTPUT_PADDING,
+			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
 			outputNodeLeftPadding: 32,
-			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding, // MARKDOWN_PREVIEW_PADDING,
+			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
+			markdownLeftMargin: 0,
 			leftMargin: 0,
 			rightMargin: 0,
 			runGutter: 0
