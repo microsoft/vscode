@@ -3309,4 +3309,16 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Expose parent session on DebugSessions - https://github.com/microsoft/vscode/issues/123403#issuecomment-843269200
+
+	export interface DebugSession {
+		/**
+		 * The parent session of this debug session, if it was created as a child.
+		 * @see DebugSessionOptions.parentSession
+		 */
+		readonly parentSession?: DebugSession;
+	}
+
+	//#endregion
 }
