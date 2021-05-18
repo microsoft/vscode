@@ -50,7 +50,6 @@ registerAction2(class extends Action2 {
 			}, {
 				id: MenuId.NotebookToolbar,
 				when: ContextKeyExpr.and(
-					NOTEBOOK_IS_ACTIVE_EDITOR,
 					NOTEBOOK_KERNEL_COUNT.notEqualsTo(0),
 					ContextKeyExpr.equals('config.notebook.experimental.showKernelInEditorTitle', true),
 					ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
