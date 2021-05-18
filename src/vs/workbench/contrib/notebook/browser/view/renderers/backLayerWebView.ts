@@ -333,6 +333,13 @@ export interface IInitializeMarkdownMessage {
 	cells: ReadonlyArray<IMarkdownCellInitialization>;
 }
 
+export interface INotebookStylesMessage {
+	type: 'notebookStyles';
+	styles: {
+		[key: string]: string;
+	};
+}
+
 export type FromWebviewMessage =
 	| WebviewIntialized
 	| IDimensionMessage
@@ -378,7 +385,8 @@ export type ToWebviewMessage =
 	| IHideMarkdownMessage
 	| IUnhideMarkdownMessage
 	| IUpdateSelectedMarkdownPreviews
-	| IInitializeMarkdownMessage;
+	| IInitializeMarkdownMessage
+	| INotebookStylesMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
@@ -429,6 +437,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			outputNodePadding: number,
 			outputNodeLeftPadding: number,
 			previewNodePadding: number,
+			markdownLeftMargin: number,
 			leftMargin: number,
 			rightMargin: number,
 			runGutter: number,
@@ -452,10 +461,42 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 	}
+
+	updateOptions(options: {
+		outputNodePadding: number,
+		outputNodeLeftPadding: number,
+		previewNodePadding: number,
+		markdownLeftMargin: number,
+		leftMargin: number,
+		rightMargin: number,
+		runGutter: number,
+	}) {
+		this.options = options;
+		this._updateStyles();
+	}
+
+	private _updateStyles() {
+		this._sendMessageToWebview({
+			type: 'notebookStyles',
+			styles: this._generateStyles()
+		});
+	}
+
+	private _generateStyles() {
+		return {
+			'notebook-output-left-margin': `${this.options.leftMargin + this.options.runGutter}px`,
+			'notebook-output-width': `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`,
+			'notebook-output-node-padding': `${this.options.outputNodePadding}px`,
+			'notebook-run-gutter': `${this.options.runGutter}px`,
+			'notebook-preivew-node-padding': `${this.options.previewNodePadding}px`,
+			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
+			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
+			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
+		};
+	}
+
 	private generateContent(coreDependencies: string, baseUrl: string) {
 		const renderersData = this.getRendererData();
-		const outputWidth = `calc(100% - ${this.options.leftMargin + this.options.rightMargin + this.options.runGutter}px)`;
-		const outputMarginLeft = `${this.options.leftMargin + this.options.runGutter}px`;
 		return html`
 		<html lang="en">
 			<head>
@@ -537,7 +578,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 						/* makes all markdown cells consistent */
 						div {
-							min-height: ${this.options.previewNodePadding * 2}px;
+							min-height: var(--notebook-markdown-min-height);
 						}
 
 						table {
@@ -598,10 +639,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						width: 100%;
 					}
 
+					#container .output_container .output div {
+						overflow-x: auto;
+					}
+
 					#container > div > div > div.output {
-						width: ${outputWidth};
-						margin-left: ${outputMarginLeft};
-						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
+						width: var(--notebook-output-width);
+						margin-left: var(--notebook-output-left-margin);
+						padding-top: var(--notebook-output-node-padding);
+						padding-right: var(--notebook-output-node-padding);
+						padding-bottom: var(--notebook-output-node-padding);
+						padding-left: var(--notebook-output-node-left-padding);
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
 					}
@@ -609,10 +657,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					/* markdown */
 					#container > div.preview {
 						width: 100%;
-						padding-right: ${this.options.previewNodePadding}px;
-						padding-left: ${this.options.leftMargin}px;
-						padding-top: ${this.options.previewNodePadding}px;
-						padding-bottom: ${this.options.previewNodePadding}px;
+						padding-right: var(--notebook-preivew-node-padding);
+						padding-left: var(--notebook-markdown-left-margin);
+						padding-top: var(--notebook-preivew-node-padding);
+						padding-bottom: var(--notebook-preivew-node-padding);
 
 						box-sizing: border-box;
 						white-space: nowrap;
@@ -1155,6 +1203,7 @@ var requirejs = (function() {
 		const mdCells = [...this.markdownPreviewMapping.values()];
 		this.markdownPreviewMapping.clear();
 		this.initializeMarkdown(mdCells);
+		this._updateStyles();
 	}
 
 	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
@@ -1162,7 +1211,7 @@ var requirejs = (function() {
 			return false;
 		}
 
-		if (cell.metadata?.outputCollapsed) {
+		if (cell.metadata.outputCollapsed) {
 			return false;
 		}
 

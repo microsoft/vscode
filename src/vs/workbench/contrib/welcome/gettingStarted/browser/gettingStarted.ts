@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -43,7 +43,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Emitter, Event } from 'vs/base/common/event';
 import { LinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
@@ -59,6 +59,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { Schemas } from 'vs/base/common/network';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -429,6 +430,12 @@ export class GettingStartedPage extends EditorPane {
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
+			this.stepDisposables.add(webview.onDidClickLink(link => {
+				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.https) || (matchesScheme(link, Schemas.command))) {
+					this.openerService.open(link, { allowCommands: true });
+				}
+			}));
+
 			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
 				const body = await this.renderMarkdown(media.path, media.base);
@@ -460,6 +467,7 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
 			this.buildMediaComponent(id);
+			this.gettingStartedService.progressByEvent('stepSelected:' + id);
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
@@ -474,7 +482,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
-		element.srcset = sources[themeType].toString().replace(/ /g, '%20') + ' 1.5x';
+		element.srcset = sources[themeType].toString(true).replace(/ /g, '%20') + ' 1.5x';
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
@@ -488,7 +496,8 @@ export class GettingStartedPage extends EditorPane {
 			const path = joinPath(base, src);
 			const transformed = asWebviewUri({
 				isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
-				...this.environmentService,
+				webviewResourceRoot: this.environmentService.webviewResourceRoot,
+				webviewCspSource: this.environmentService.webviewCspSource,
 				remote: { authority: undefined },
 			}, this.webviewID, path).toString();
 			return `src="${transformed}"`;
@@ -889,6 +898,10 @@ export class GettingStartedPage extends EditorPane {
 					}
 					this.openerService.open(command, { allowCommands: true });
 
+					if (!isCommand && node.href.startsWith('https://')) {
+						this.gettingStartedService.progressByEvent('onLink:' + node.href);
+					}
+
 				}, null, this.detailsPageDisposables);
 
 				if (isCommand) {
@@ -906,11 +919,10 @@ export class GettingStartedPage extends EditorPane {
 					if (typeof node === 'string') {
 						append(p, renderFormattedText(node, { inline: true, renderCodeSegements: true }));
 					} else {
-						const link = this.instantiationService.createInstance(Link, node);
+						const link = this.instantiationService.createInstance(Link, node, {});
 
 						append(p, link.el);
 						this.detailsPageDisposables.add(link);
-						this.detailsPageDisposables.add(attachLinkStyler(link, this.themeService));
 					}
 				}
 			}

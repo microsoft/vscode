@@ -465,7 +465,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	isReadonly(): boolean {
-		return this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this._workingCopy?.isReadonly() || this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	revert(options?: IRevertOptions): Promise<void> {
@@ -557,7 +557,8 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 				cellKind: cell.cellKind,
 				language: cell.language,
 				source: cell.getValue(),
-				outputs: []
+				outputs: [],
+				internalMetadata: cell.internalMetadata
 			};
 
 			cellData.outputs = !this._notebookSerializer.options.transientOutputs ? cell.outputs : [];

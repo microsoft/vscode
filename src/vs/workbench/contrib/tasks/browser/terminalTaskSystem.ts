@@ -27,7 +27,7 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ITerminalProfileResolverService, TerminalSettingId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
@@ -47,7 +47,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
@@ -1019,20 +1019,22 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const description = nls.localize('TerminalTaskSystem.terminalDescription', 'Task');
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			let defaultConfig: { shell: string, args: string[] | string | undefined };
-			if (variableResolver.taskSystemInfo) {
-				defaultConfig = await variableResolver.taskSystemInfo.getDefaultShellAndArgs();
-			} else {
-				const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({
-					allowAutomationShell: true,
-					os: Platform.OS,
-					remoteAuthority: this.environmentService.remoteAuthority
-				});
-				defaultConfig = {
-					shell: defaultProfile.path,
-					args: defaultProfile.args
-				};
+			let os: Platform.OperatingSystem;
+			switch (platform) {
+				case Platform.Platform.Windows: os = Platform.OperatingSystem.Windows; break;
+				case Platform.Platform.Mac: os = Platform.OperatingSystem.Macintosh; break;
+				case Platform.Platform.Linux:
+				default: os = Platform.OperatingSystem.Linux; break;
 			}
+			const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({
+				allowAutomationShell: true,
+				os,
+				remoteAuthority: this.environmentService.remoteAuthority
+			});
+			const defaultConfig = {
+				shell: defaultProfile.path,
+				args: defaultProfile.args
+			};
 			shellLaunchConfig = { name: terminalName, description, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
@@ -1043,9 +1045,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 				if (shellOptions.args) {
 					shellLaunchConfig.args = await this.resolveVariables(variableResolver, shellOptions.args.slice());
-				} else {
-					shellLaunchConfig.args = [];
 				}
+			}
+			if (shellLaunchConfig.args === undefined) {
+				shellLaunchConfig.args = [];
 			}
 			let shellArgs = Array.isArray(shellLaunchConfig.args!) ? <string[]>shellLaunchConfig.args!.slice(0) : [shellLaunchConfig.args!];
 			let toAdd: string[] = [];
