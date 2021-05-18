@@ -20,7 +20,7 @@ import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -73,10 +73,14 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
-		if (shellLaunchConfig.executable || shellLaunchConfig.isExtensionOwnedTerminal || shellLaunchConfig.customPtyImplementation) {
+		if (shellLaunchConfig.iconPath) {
+			shellLaunchConfig.iconPath = this._getCustomIcon(shellLaunchConfig.iconPath) || Codicon.terminal.id;
 			return;
 		}
 
+		if (shellLaunchConfig.executable) {
+			return;
+		}
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(os);
 		if (defaultProfile) {
 			shellLaunchConfig.iconPath = defaultProfile.icon;
@@ -84,13 +88,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
-		if (shellLaunchConfig.customPtyImplementation) {
-			// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
-			// an issue
-			shellLaunchConfig.iconPath = this._getCustomIcon(shellLaunchConfig.iconPath) || Codicon.terminal.id;
-			return;
-		}
-
 		// Resolve the shell and shell args
 		let resolvedProfile: ITerminalProfile;
 		if (shellLaunchConfig.executable) {
@@ -143,38 +140,39 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(iconPath?: any): URI | undefined | ThemeIcon | Codicon | { light: URI, dark: URI } {
+	private _getCustomIcon(iconPath?: unknown): URI | undefined | ThemeIcon | Codicon | { light: URI, dark: URI } {
 		if (!iconPath) {
 			return undefined;
 		}
-		if (iconRegistry.get(iconPath)) {
+		if (typeof iconPath === 'string') {
 			return iconRegistry.get(iconPath);
-		} else if ((iconPath as ThemeIcon).id) {
+		}
+		if (ThemeIcon.isThemeIcon(iconPath)) {
 			return iconPath;
-		} else if (typeof iconPath === 'object' && 'path' in iconPath) {
-			return URI.revive(iconPath);
-		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
-			const uris = this._getIconUris(iconPath);
-			return { light: URI.revive(uris.light), dark: URI.revive(uris.dark) };
+		}
+
+		if (URI.isUri(iconPath) || this._isUriComponents(iconPath)) {
+			const possibleUri = URI.revive(iconPath);
+			return possibleUri;
+		}
+
+		if (typeof iconPath === 'object' && iconPath && 'light' in iconPath && 'dark' in iconPath) {
+			const castedIcon = (iconPath as { light: unknown, dark: unknown });
+			if ((URI.isUri(castedIcon.light) || this._isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || this._isUriComponents(castedIcon.dark))) {
+				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
+			}
 		}
 		return undefined;
 	}
 
-	private _getIconUris(iconPath: string | { dark: URI, light: URI } | ThemeIcon): { dark: URI, light: URI } {
-		const dark = this._getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
-		const light = this._getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
-		return {
-			dark: typeof dark === 'string' ? URI.file(dark) : dark,
-			light: typeof light === 'string' ? URI.file(light) : light
-		};
-	}
-
-	private _getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
-		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
-	}
-
-	private _getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
-		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
+	private _isUriComponents(thing: unknown): thing is UriComponents {
+		if (!thing) {
+			return false;
+		}
+		if (typeof (<any>thing).path === 'string' && typeof (<any>thing).scheme === 'string') {
+			return true;
+		}
+		return false;
 	}
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {

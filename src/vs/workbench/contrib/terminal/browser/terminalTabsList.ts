@@ -293,16 +293,22 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		// Set color based on user set (instance.changeColor) or a themeIcon
 		const icon = instance.icon;
+
 		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
 		const extraClasses = [];
 		if (color) {
 			extraClasses.push(color);
 		}
-		const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
+		const uri = icon instanceof URI ? icon :
+			icon instanceof Object && 'light' in icon && 'dark' in icon ?
+				(this._themeService.getColorTheme().type === ColorScheme.LIGHT ?
+					icon.light
+					: icon.dark) : undefined;
 		if (uri instanceof URI) {
-			const uriIconKey = hash(icon).toString(36);
+			const uriIconKey = hash(uri.path).toString(36);
 			const className = `terminal-uri-icon-${uriIconKey}`;
 			extraClasses.push(className);
+			extraClasses.push(`terminal-uri-icon`);
 		}
 
 		template.label.setResource({

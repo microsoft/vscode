@@ -319,9 +319,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _getIcon(): Codicon | ThemeIcon | URI | { light: URI, dark: URI } | undefined | string {
 		const iconPath = this._shellLaunchConfig.iconPath || this._shellLaunchConfig.attachPersistentProcess?.icon;
 		if (!iconPath) {
+			console.log(this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined);
 			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
 		}
-
+		console.log(iconPath);
 		return iconPath;
 	}
 

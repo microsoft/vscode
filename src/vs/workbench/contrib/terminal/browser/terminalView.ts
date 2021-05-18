@@ -437,6 +437,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._color = undefined;
 			} else if (this._class) {
 				label.classList.remove(this._class);
+				label.classList.remove('terminal-uri-icon');
 				this._class = undefined;
 			}
 			const icon = instance.icon;
@@ -446,8 +447,9 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			} else {
 				const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
 				if (uri instanceof URI) {
-					this._class = `terminal-uri-icon-${hash(icon).toString(36)}`;
+					this._class = `terminal-uri-icon-${hash(uri.path).toString(36)}`;
 					label.classList.add(this._class);
+					label.classList.add('terminal-uri-icon');
 				}
 			}
 
@@ -521,15 +523,15 @@ class TerminalThemeIconStyle extends Themable {
 			if (!icon) {
 				return;
 			}
-			const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
+			const uri = icon instanceof URI ? icon :
+				icon instanceof Object && 'light' in icon && 'dark' in icon ?
+					(this._themeService.getColorTheme().type === ColorScheme.LIGHT ?
+						icon.light
+						: icon.dark) : undefined;
 			if (uri instanceof URI) {
-				let uriIconKey = hash(uri).toString(36);
+				let uriIconKey = hash(uri.path).toString(36);
 				css += `.monaco-workbench .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
-				css += `background-image: ${dom.asCSSUrl(uri)};`;
-				css += `color: transparent !important;`;
-				css += `background-size: 16px;}`;
-				// TODO:@meganrogge remove the below - doesn't do anything
-				// css += `.monaco-workbench .uri-icon .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)::before { content: '';}`;
+				css += `background-image: ${dom.asCSSUrl(uri)};}`;
 			}
 		}
 		this._styleElement.textContent = css;
