@@ -40,7 +40,8 @@ import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/brows
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/path';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { hash } from 'vs/base/common/hash';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -484,10 +485,10 @@ class TerminalThemeIconStyle extends Themable {
 	private _styleElement: HTMLElement;
 	constructor(
 		container: HTMLElement,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(themeService);
+		super(_themeService);
 		this._registerListeners();
 		this._styleElement = document.createElement('style');
 		container.appendChild(this._styleElement);
@@ -502,13 +503,19 @@ class TerminalThemeIconStyle extends Themable {
 		super.updateStyles();
 		let css = '';
 		for (const instance of this._terminalService.terminalInstances) {
-			if (instance.icon && instance.icon instanceof URI) {
-				css += `.monaco-workbench .terminal-tabs-entry .terminal-uri-icon-${basename(instance.icon.path).replace('.', '')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
-				css += `background-image: ${dom.asCSSUrl(instance.icon)};`;
+			const icon = instance.icon;
+			if (!icon) {
+				return;
+			}
+			const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
+			if (uri instanceof URI) {
+				const uriIconKey = hash(uri).toString(36);
+				css += `.monaco-workbench .terminal-tabs-entry .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
+				css += `background-image: ${dom.asCSSUrl(uri)};`;
 				css += `color: transparent !important;`;
 				css += `background-size: 16px;}`;
-				// adding this line gets rid of the background image
-				// css += `.monaco-workbench .terminal-tabs-entry .terminal-uri-icon-${basename(instance.icon.path).replace('.', '')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):before { content: '';}`;
+				// TODO:@meganrogge remove the below - doesn't do anything
+				css += `.monaco-workbench .terminal-tabs-entry .uri-icon .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)::before { content: '';}`;
 			}
 		}
 		this._styleElement.textContent = css;

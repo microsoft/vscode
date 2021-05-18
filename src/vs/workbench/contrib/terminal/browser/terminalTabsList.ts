@@ -32,7 +32,7 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/path';
+import { hash } from 'vs/base/common/hash';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -297,8 +297,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			extraClasses.push(color);
 		}
 
-		if (icon && icon instanceof URI) {
-			const className = `terminal-uri-icon-${basename(icon.path).replace('.', '')}`;
+		if (icon instanceof URI) {
+			const uriIconKey = hash(icon).toString(36);
+			const className = `terminal-uri-icon-${uriIconKey}`;
 			extraClasses.push(className);
 			extraClasses.push('uri-icon');
 		}
