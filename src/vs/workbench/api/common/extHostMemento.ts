@@ -56,6 +56,11 @@ export class ExtensionMemento implements vscode.Memento {
 		}, 0);
 	}
 
+	get keys(): readonly string[] {
+		// Filter out `undefined` values, as they can stick around in the `_value` until the `onDidChangeStorage` event runs
+		return Object.entries(this._value ?? {}).filter(([, value]) => value !== undefined).map(([key]) => key);
+	}
+
 	get whenReady(): Promise<ExtensionMemento> {
 		return this._init;
 	}
