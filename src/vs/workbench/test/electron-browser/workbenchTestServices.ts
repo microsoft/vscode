@@ -224,6 +224,8 @@ export class TestNativeHostService implements INativeHostService {
 	async moveWindowTabToNewWindow(): Promise<void> { }
 	async mergeAllWindowTabs(): Promise<void> { }
 	async toggleWindowTabsBar(): Promise<void> { }
+	async installShellCommand(): Promise<void> { }
+	async uninstallShellCommand(): Promise<void> { }
 	async notifyReady(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }

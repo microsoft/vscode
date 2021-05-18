@@ -43,7 +43,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Emitter, Event } from 'vs/base/common/event';
 import { LinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
@@ -923,7 +923,6 @@ export class GettingStartedPage extends EditorPane {
 
 						append(p, link.el);
 						this.detailsPageDisposables.add(link);
-						this.detailsPageDisposables.add(attachLinkStyler(link, this.themeService));
 					}
 				}
 			}

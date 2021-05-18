@@ -34,11 +34,16 @@ import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 
 const $ = DOM.$;
-const TAB_HEIGHT = 22;
-export const MIN_TABS_LIST_WIDTH = 46;
-export const DEFAULT_TABS_LIST_WIDTH = 80;
-export const MIDPOINT_LIST_WIDTH = (MIN_TABS_LIST_WIDTH + DEFAULT_TABS_LIST_WIDTH) / 2;
-export const THRESHOLD_ACTIONBAR_WIDTH = 105;
+
+export const enum TerminalTabsListSizes {
+	TabHeight = 22,
+	NarrowViewWidth = 46,
+	WideViewMinimumWidth = 80,
+	DefaultWidth = 120,
+	MidpointViewWidth = (TerminalTabsListSizes.NarrowViewWidth + TerminalTabsListSizes.WideViewMinimumWidth) / 2,
+	ActionbarMinimumWidth = 105,
+	MaximumWidth = 500
+}
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
@@ -58,7 +63,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	) {
 		super('TerminalTabsTree', container,
 			{
-				getHeight: () => TAB_HEIGHT,
+				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
 			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
@@ -71,7 +76,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				additionalScrollHeight: TAB_HEIGHT,
+				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
 				dnd: new TerminalTabsDragAndDrop(_terminalService, _terminalInstanceService)
 			},
 			contextKeyService,
@@ -211,11 +216,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < MIDPOINT_LIST_WIDTH : false;
+		return this._container ? this._container.clientWidth < TerminalTabsListSizes.MidpointViewWidth : false;
 	}
 
 	shouldHideActionBar(): boolean {
-		return this._container ? this._container.clientWidth <= THRESHOLD_ACTIONBAR_WIDTH : false;
+		return this._container ? this._container.clientWidth <= TerminalTabsListSizes.ActionbarMinimumWidth : false;
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {

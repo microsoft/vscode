@@ -30,7 +30,7 @@ import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -194,7 +194,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 				const link = this.instantiationService.createInstance(Link, node, {});
 				append(p, link.el);
 				this.rerenderDisposables.add(link);
-				this.rerenderDisposables.add(attachLinkStyler(link, this.themeService));
 			}
 		}
 
@@ -218,7 +217,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
 		this.rendering = false;
-		console.log(document.activeElement);
 	}
 
 	private getExtensionCountByUntrustedWorkspaceSupport(extensions: IExtensionStatus[], trustRequestType: ExtensionUntrustedWorkpaceSupportType): number {
@@ -403,7 +401,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 					const link = this.instantiationService.createInstance(Link, node, {});
 					append(text, link.el);
 					this.rerenderDisposables.add(link);
-					this.rerenderDisposables.add(attachLinkStyler(link, this.themeService));
 				}
 			}
 		}

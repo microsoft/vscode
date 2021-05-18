@@ -658,24 +658,40 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.executeNotebook', "Execute Notebook (Run all cells)"),
+			title: localize('notebookActions.executeNotebook', "Run All"),
 			icon: icons.executeAllIcon,
 			description: {
-				description: localize('notebookActions.executeNotebook', "Execute Notebook (Run all cells)"),
+				description: localize('notebookActions.executeNotebook', "Run All"),
 				args: [
 					{
 						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
+						description: 'The document uri'
 					}
 				]
 			},
-			menu: {
-				id: MenuId.EditorTitle,
-				order: -1,
-				group: 'navigation',
-				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated())),
-			}
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						executeNotebookCondition,
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						executeNotebookCondition,
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+					)
+				}
+			]
 		});
 	}
 
@@ -712,10 +728,10 @@ registerAction2(class CancelNotebook extends NotebookAction {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.cancelNotebook', "Stop Notebook Execution"),
+			title: localize('notebookActions.cancelNotebook', "Stop Execution"),
 			icon: icons.stopIcon,
 			description: {
-				description: localize('notebookActions.cancelNotebook', "Stop Notebook Execution"),
+				description: localize('notebookActions.cancelNotebook', "Stop Execution"),
 				args: [
 					{
 						name: 'uri',
@@ -724,12 +740,29 @@ registerAction2(class CancelNotebook extends NotebookAction {
 					}
 				]
 			},
-			menu: {
-				id: MenuId.EditorTitle,
-				order: -1,
-				group: 'navigation',
-				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
-			}
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL,
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL,
+						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+					)
+				}
+			]
 		});
 	}
 
@@ -1454,13 +1487,24 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
-			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
-			menu: {
-				id: MenuId.EditorTitle,
-				when: NOTEBOOK_IS_ACTIVE_EDITOR,
-				group: 'navigation',
-				order: 0
-			},
+			title: localize('clearAllCellsOutputs', 'Clear Outputs'),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					),
+					group: 'navigation',
+					order: 0
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					when: ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true),
+					group: 'navigation',
+					order: 0
+				}
+			],
 			icon: icons.clearIcon
 		});
 	}

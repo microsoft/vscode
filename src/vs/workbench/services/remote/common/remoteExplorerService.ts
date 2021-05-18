@@ -271,7 +271,7 @@ export class PortsAttributes extends Disposable {
 			}
 			attributes.push({
 				key: key,
-				elevateIfNeeded: setting.elevateIfPrivileged,
+				elevateIfNeeded: setting.elevateIfNeeded,
 				onAutoForward: setting.onAutoForward,
 				label: setting.label,
 				requireLocalPort: setting.requireLocalPort
