@@ -1154,7 +1154,9 @@ declare module 'vscode' {
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
-		 * the given {@link TextEditorDecorationType decoration type}, they will be replaced.
+		 * the given {@link TextEditorDecorationType decoration type}, they will be replaced. If
+		 * `rangesOrOptions` is empty, the existing decorations with the given {@link TextEditorDecorationType decoration type}
+		 * will be removed.
 		 *
 		 * @see {@link window.createTextEditorDecorationType createTextEditorDecorationType}.
 		 *
