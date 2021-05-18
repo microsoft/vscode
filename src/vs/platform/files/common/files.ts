@@ -315,6 +315,14 @@ export enum FileType {
 	SymbolicLink = 64
 }
 
+export enum FilePermission {
+
+	/**
+	 * File is readonly.
+	 */
+	Readonly = 1
+}
+
 export interface IStat {
 
 	/**
@@ -335,7 +343,12 @@ export interface IStat {
 	/**
 	 * The size of the file in bytes.
 	 */
-	size: number;
+	readonly size: number;
+
+	/**
+	 * The file permissions.
+	 */
+	readonly permissions?: FilePermission;
 }
 
 export interface IWatchOptions {
@@ -400,7 +413,7 @@ export interface IFileSystemProvider {
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<string>; // TODO@bpasero remove once file watchers are solid
+	readonly onDidErrorOccur?: Event<string>;
 
 	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
@@ -868,6 +881,11 @@ interface IBaseStat {
 	 * it is optional.
 	 */
 	readonly etag?: string;
+
+	/**
+	 * The file is read-only.
+	 */
+	readonly readonly?: boolean;
 }
 
 export interface IBaseStatWithMetadata extends Required<IBaseStat> { }
@@ -906,6 +924,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata 
 	readonly ctime: number;
 	readonly etag: string;
 	readonly size: number;
+	readonly readonly: boolean;
 	readonly children?: IFileStatWithMetadata[];
 }
 

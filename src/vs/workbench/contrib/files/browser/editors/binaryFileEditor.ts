@@ -8,7 +8,7 @@ import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/bina
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -49,13 +49,14 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			// Try to let the user pick an override if there is one availabe
 			const overridenInput = await this.editorOverrideService.resolveEditorOverride(input, { ...options, override: EditorOverride.PICK, }, this.group);
 
-			let newOptions = overridenInput?.options ?? options;
-			newOptions = { ...newOptions, override: EditorOverride.DISABLED };
 			// Replace the overrriden input, with the text based input
 			await this.editorService.replaceEditors([{
 				editor: input,
 				replacement: overridenInput?.editor ?? input,
-				options: newOptions,
+				options: {
+					...overridenInput?.options ?? options,
+					override: EditorOverride.DISABLED
+				}
 			}], overridenInput?.group ?? this.group);
 		}
 	}

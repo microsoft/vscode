@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator } from 'vs/base/common/actions';
+import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, toAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -42,13 +42,34 @@ import { syncing } from 'vs/platform/theme/common/iconRegistry';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { hash } from 'vs/base/common/hash';
+
+interface IStatusbarEntryPriority {
+
+	/**
+	 * The main priority of the entry that
+	 * defines the order of appearance.
+	 *
+	 * May not be unique across all entries.
+	 */
+	primary: number;
+
+	/**
+	 * The secondary priority of the entry
+	 * is used in case the main priority
+	 * matches another one's priority.
+	 *
+	 * Should be unique across all entries.
+	 */
+	secondary: number;
+}
 
 interface IPendingStatusbarEntry {
 	id: string;
 	name: string;
 	entry: IStatusbarEntry;
 	alignment: StatusbarAlignment;
-	priority: number;
+	priority: IStatusbarEntryPriority;
 	accessor?: IStatusbarEntryAccessor;
 }
 
@@ -56,7 +77,7 @@ interface IStatusbarViewModelEntry {
 	id: string;
 	name: string;
 	alignment: StatusbarAlignment;
-	priority: number;
+	priority: IStatusbarEntryPriority;
 	container: HTMLElement;
 	labelContainer: HTMLElement;
 }
@@ -294,14 +315,16 @@ class StatusbarViewModel extends Disposable {
 
 		this._entries.sort((entryA, entryB) => {
 			if (entryA.alignment === entryB.alignment) {
-				if (entryA.priority !== entryB.priority) {
-					return entryB.priority - entryA.priority; // higher priority towards the left
+				if (entryA.priority.primary !== entryB.priority.primary) {
+					return entryB.priority.primary - entryA.priority.primary; // higher priority towards the left (primary)
 				}
 
-				const indexA = mapEntryToIndex.get(entryA);
-				const indexB = mapEntryToIndex.get(entryB);
+				if (entryA.priority.secondary !== entryB.priority.secondary) {
+					return entryB.priority.secondary - entryA.priority.secondary; // higher priority towards the left (secondary)
+				}
 
-				return indexA! - indexB!; // otherwise maintain stable order (both values known to be in map)
+				// otherwise maintain stable order (both values known to be in map)
+				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!;
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -422,7 +445,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
-	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number = 0): IStatusbarEntryAccessor {
+	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, primaryPriority = 0): IStatusbarEntryAccessor {
+		const priority: IStatusbarEntryPriority = {
+			primary: primaryPriority,
+			secondary: hash(id) // derive from identifier to accomplish uniqueness
+		};
 
 		// As long as we have not been created into a container yet, record all entries
 		// that are pending so that they can get created at a later point
@@ -434,7 +461,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return this.doAddEntry(entry, id, name, alignment, priority);
 	}
 
-	private doAddPendingEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
+	private doAddPendingEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
 		const pendingEntry: IPendingStatusbarEntry = { entry, id, name, alignment, priority };
 		this.pendingEntries.push(pendingEntry);
 
@@ -459,7 +486,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return accessor;
 	}
 
-	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
+	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
 
 		// Create item
 		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
@@ -553,7 +580,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		while (this.pendingEntries.length) {
 			const pending = this.pendingEntries.shift();
 			if (pending) {
-				pending.accessor = this.addEntry(pending.entry, pending.id, pending.name, pending.alignment, pending.priority);
+				pending.accessor = this.addEntry(pending.entry, pending.id, pending.name, pending.alignment, pending.priority.primary);
 			}
 		}
 	}
@@ -571,7 +598,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		});
 	}
 
-	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: number): void {
+	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): void {
 		const entries = this.viewModel.getEntries(alignment);
 
 		if (alignment === StatusbarAlignment.RIGHT) {
@@ -584,9 +611,20 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// and then insert the item before that one
 		let appended = false;
 		for (const entry of entries) {
+
+			// pick a priority that ideally is not the same
+			// by falling back to secondary priority
+			let existingEntryPriority = entry.priority.primary;
+			let newEntryPriority = priority.primary;
+			if (existingEntryPriority === newEntryPriority) {
+				existingEntryPriority = entry.priority.secondary;
+				newEntryPriority = priority.secondary;
+			}
+
+			// insert according to priority
 			if (
-				alignment === StatusbarAlignment.LEFT && entry.priority < priority ||
-				alignment === StatusbarAlignment.RIGHT && entry.priority > priority // reversing due to flex: row-reverse
+				alignment === StatusbarAlignment.LEFT && existingEntryPriority < newEntryPriority ||
+				alignment === StatusbarAlignment.RIGHT && existingEntryPriority > newEntryPriority // reversing due to flex: row-reverse
 			) {
 				target.insertBefore(itemContainer, entry.container);
 				appended = true;
@@ -625,7 +663,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const actions: IAction[] = [];
 
 		// Provide an action to hide the status bar at last
-		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, localize('hideStatusBar', "Hide Status Bar")));
+		actions.push(toAction({ id: ToggleStatusbarVisibilityAction.ID, label: localize('hideStatusBar', "Hide Status Bar"), run: () => this.instantiationService.invokeFunction(accessor => new ToggleStatusbarVisibilityAction().run(accessor)) }));
 		actions.push(new Separator());
 
 		// Show an entry per known status entry

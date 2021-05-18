@@ -177,7 +177,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
 			const focus = this.getFocusedElements()[0];
 
-			if (focus && focus.cellKind === CellKind.Markdown && !focus.metadata?.inputCollapsed) {
+			if (focus && focus.cellKind === CellKind.Markup && !focus.metadata.inputCollapsed) {
 				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}
@@ -1279,6 +1279,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
 		super.dispose();
+
+		// un-ref
+		this._previousFocusedElements = [];
+		this._viewModel = null;
+		this._hiddenRangeIds = [];
+		this.hiddenRangesPrefixSum = null;
+		this._visibleRanges = [];
 	}
 }
 

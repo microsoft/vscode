@@ -65,7 +65,7 @@ suite('NotebookConcatDocument', function () {
 					source: ['### Heading'],
 					eol: '\n',
 					language: 'markdown',
-					cellKind: CellKind.Markdown,
+					cellKind: CellKind.Markup,
 					outputs: [],
 				}],
 				versionId: 0

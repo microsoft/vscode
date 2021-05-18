@@ -9,7 +9,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
 
 /**
@@ -236,29 +236,19 @@ function _sanitizeCwd(cwd: string): string {
 	return cwd;
 }
 
-export function escapeNonWindowsPath(path: string): string {
-	let newPath = path;
-	if (newPath.indexOf('\\') !== 0) {
-		newPath = newPath.replace(/\\/g, '\\\\');
-	}
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
-	newPath = newPath.replace(bannedChars, '');
-	return `'${newPath}'`;
-}
-
 export type TerminalShellSetting = (
-	`terminal.integrated.automationShell.windows`
-	| `terminal.integrated.automationShell.osx`
-	| `terminal.integrated.automationShell.linux`
-	| `terminal.integrated.shell.windows`
-	| `terminal.integrated.shell.osx`
-	| `terminal.integrated.shell.linux`
+	TerminalSettingId.AutomationShellWindows
+	| TerminalSettingId.AutomationShellMacOs
+	| TerminalSettingId.AutomationShellLinux
+	| TerminalSettingId.ShellWindows
+	| TerminalSettingId.ShellMacOs
+	| TerminalSettingId.ShellLinux
 );
 
 export type TerminalShellArgsSetting = (
-	`terminal.integrated.shellArgs.windows`
-	| `terminal.integrated.shellArgs.osx`
-	| `terminal.integrated.shellArgs.linux`
+	TerminalSettingId.ShellArgsWindows
+	| TerminalSettingId.ShellArgsMacOs
+	| TerminalSettingId.ShellArgsLinux
 );
 
 export type VariableResolver = (str: string) => string;
@@ -376,7 +366,7 @@ export function createTerminalEnvironment(
 	baseEnv: IProcessEnvironment
 ): IProcessEnvironment {
 	// Create a terminal environment based on settings, launch config and permissions
-	let env: IProcessEnvironment = {};
+	const env: IProcessEnvironment = {};
 	if (shellLaunchConfig.strictEnv) {
 		// strictEnv is true, only use the requested env (ignoring null entries)
 		mergeNonNullKeys(env, shellLaunchConfig.env);

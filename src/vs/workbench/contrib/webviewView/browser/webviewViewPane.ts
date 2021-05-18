@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -41,6 +40,7 @@ export class WebviewViewPane extends ViewPane {
 	private _activated = false;
 
 	private _container?: HTMLElement;
+	private _rootContainer?: HTMLElement;
 	private _resizeObserver?: any;
 
 	private readonly defaultTitle: string;
@@ -106,13 +106,12 @@ export class WebviewViewPane extends ViewPane {
 		super.renderBody(container);
 
 		this._container = container;
+		this._rootContainer = undefined;
 
 		if (!this._resizeObserver) {
 			this._resizeObserver = new ResizeObserver(() => {
 				setImmediate(() => {
-					if (this._container) {
-						this._webview.value?.layoutWebviewOverElement(this._container);
-					}
+					this.layoutWebview();
 				});
 			});
 
@@ -139,9 +138,8 @@ export class WebviewViewPane extends ViewPane {
 			return;
 		}
 
-		if (this._container) {
-			this._webview.value.layoutWebviewOverElement(this._container, new DOM.Dimension(width, height));
-		}
+
+		this.layoutWebview();
 	}
 
 	private updateTreeVisibility() {
@@ -217,5 +215,44 @@ export class WebviewViewPane extends ViewPane {
 
 	private async withProgress(task: () => Promise<void>): Promise<void> {
 		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
+	}
+
+	override onRootScroll() {
+		this.layoutWebview();
+	}
+
+	private layoutWebview() {
+		const webviewEntry = this._webview.value;
+		if (!this._container || !webviewEntry) {
+			return;
+		}
+
+		webviewEntry.layoutWebviewOverElement(this._container);
+
+		if (!this._rootContainer) {
+			this._rootContainer = this.findRootContainer(this._container);
+		}
+
+		if (this._rootContainer) {
+			const containerRect = this._container.getBoundingClientRect();
+			const rootRect = this._rootContainer.getBoundingClientRect();
+
+			const clipTop = Math.max(rootRect.top - containerRect.top, 0);
+			const clipRight = Math.max(containerRect.width - (containerRect.right - rootRect.right), 0);
+			const clipBottom = Math.max(containerRect.height - (containerRect.bottom - rootRect.bottom), 0);
+			const clipLeft = Math.max(rootRect.left - containerRect.left, 0);
+			webviewEntry.container.style.clip = `rect(${clipTop}px, ${clipRight}px, ${clipBottom}px, ${clipLeft}px)`;
+		}
+	}
+
+	private findRootContainer(container: HTMLElement): HTMLElement | undefined {
+		for (let el: Node | null = container; el; el = el.parentNode) {
+			if (el instanceof HTMLElement) {
+				if (el.classList.contains('monaco-scrollable-element')) {
+					return el;
+				}
+			}
+		}
+		return undefined;
 	}
 }

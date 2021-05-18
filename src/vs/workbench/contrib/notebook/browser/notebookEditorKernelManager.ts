@@ -6,10 +6,11 @@
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookKernel, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 
 export class NotebookEditorKernelManager extends Disposable {
 
@@ -24,32 +25,19 @@ export class NotebookEditorKernelManager extends Disposable {
 	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
 		// returns SELECTED or the ONLY available kernel
 		const info = this._notebookKernelService.getMatchingKernel(notebook);
-		if (info.selected) {
-			return info.selected;
-		}
-		if (info.all.length === 1) {
-			return info.all[0];
-		}
-		return undefined;
+		return info.selected ?? info.suggested;
 	}
 
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<ICellViewModel>): Promise<void> {
 		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
-		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({
-			modal: true,
-			message
-		});
+		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
-			return;
-		}
-
-		if (!notebook.metadata.trusted) {
 			return;
 		}
 
 		let kernel = this.getSelectedOrSuggestedKernel(notebook);
 		if (!kernel) {
-			await this._commandService.executeCommand('notebook.selectKernel');
+			await this._commandService.executeCommand(SELECT_KERNEL_ID);
 			kernel = this.getSelectedOrSuggestedKernel(notebook);
 		}
 
@@ -59,7 +47,7 @@ export class NotebookEditorKernelManager extends Disposable {
 
 		const cellHandles: number[] = [];
 		for (const cell of cells) {
-			if (cell.cellKind !== CellKind.Code) {
+			if (cell.cellKind !== CellKind.Code || cell.internalMetadata.runState === NotebookCellExecutionState.Pending || cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 				continue;
 			}
 			if (!kernel.supportedLanguages.includes(cell.language)) {

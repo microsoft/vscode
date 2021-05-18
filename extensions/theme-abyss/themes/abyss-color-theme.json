@@ -363,7 +363,7 @@
 		// "peekViewTitleDescription.foreground": "",
 
 		// Ports
-		"ports.iconRunningProcessforeground": "#80a2c2",
+		"ports.iconRunningProcessForeground": "#80a2c2",
 		// Editor: Diff
 		"diffEditor.insertedTextBackground": "#31958A55",
 		// "diffEditor.insertedTextBorder": "",

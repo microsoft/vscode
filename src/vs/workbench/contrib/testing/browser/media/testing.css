@@ -69,6 +69,7 @@
 
 .test-explorer .test-explorer-messages {
 	padding: 0 12px 8px;
+	font-variant-numeric: tabular-nums;
 }
 
 .monaco-workbench
@@ -154,14 +155,6 @@
 	right: 0;
 	display: flex;
 	align-items: center;
-}
-
-.testing-filter-action-item > .monaco-action-bar .action-item .action-label.codicon.testing-filter-button {
-	line-height: 20px;
-	height: 20px;
-	min-width: 22px;
-	margin-left: 4px;
-	justify-content: center;
 }
 
 /** -- decorations  */

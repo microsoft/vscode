@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^12.19.9",
+    "@types/node": "14.x",
     "@types/which": "^2.0.0"
   },
   "resolutions": {

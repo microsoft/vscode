@@ -15,7 +15,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class ContributedStatusBarItemController extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.statusBar';
+	static id: string = 'workbench.notebook.statusBar.contributed';
 
 	private readonly _visibleCells = new Map<number, CellStatusBarHelper>();
 
@@ -87,6 +87,7 @@ class CellStatusBarHelper extends Disposable {
 		this._register(this._cell.model.onDidChangeContent(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeLanguage(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeMetadata(() => this._updateSoon()));
+		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeOutputs(() => this._updateSoon()));
 	}
 

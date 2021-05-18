@@ -122,9 +122,6 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private _onEditorAdd(editor: INotebookEditor) {
 
 		const ipcListener = editor.onDidReceiveMessage(e => {
-			if (e.forRenderer) {
-				return;
-			}
 			if (!editor.hasModel()) {
 				return;
 			}
@@ -134,7 +131,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 			for (let [handle, candidate] of this._kernels) {
 				if (candidate[0] === selected) {
-					this._proxy.$acceptRendererMessage(handle, editor.getId(), e.message);
+					this._proxy.$acceptKernelMessageFromRenderer(handle, editor.getId(), e.message);
 					break;
 				}
 			}
@@ -164,11 +161,11 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 			if (editorId === undefined) {
 				// all editors
-				editor.postMessage(undefined, message);
+				editor.postMessage(message);
 				didSend = true;
 			} else if (editor.getId() === editorId) {
 				// selected editors
-				editor.postMessage(undefined, message);
+				editor.postMessage(message);
 				didSend = true;
 				break;
 			}
@@ -188,16 +185,16 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				await that._proxy.$cancelCells(handle, uri, handles);
 			}
 		}(data, this._modeService);
-		const registration = this._notebookKernelService.registerKernel(kernel);
 
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
 			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, false);
+				this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
 			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptSelection(handle, e.notebook, true);
+				this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
 			}
 		});
 
+		const registration = this._notebookKernelService.registerKernel(kernel);
 		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
 	}
 

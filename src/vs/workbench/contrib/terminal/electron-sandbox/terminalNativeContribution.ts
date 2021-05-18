@@ -16,7 +16,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,

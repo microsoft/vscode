@@ -5,7 +5,9 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -16,10 +18,12 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export class LocalTerminalService extends Disposable implements ILocalTerminalService {
-	public _serviceBrand: undefined;
+	declare _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, LocalPty> = new Map();
 	private _isPtyHostUnresponsive: boolean = false;
@@ -38,7 +42,9 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService notificationService: INotificationService,
-		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IHistoryService historyService: IHistoryService
 	) {
 		super();
 
@@ -96,9 +102,27 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 				this._onPtyHostResponsive.fire();
 			}));
 		}
+		if (this._localPtyService.onPtyHostRequestResolveVariables) {
+			this._register(this._localPtyService.onPtyHostRequestResolveVariables(async e => {
+				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
+					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
+				});
+				const result = await Promise.all(resolveCalls);
+				this._localPtyService.acceptPtyHostResolvedVariables?.(e.id, result);
+			}));
+		}
+	}
+	async updateTitle(id: number, title: string): Promise<void> {
+		await this._localPtyService.updateTitle(id, title);
 	}
 
-	public async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
+	async updateIcon(id: number, icon: string, color?: string): Promise<void> {
+		await this._localPtyService.updateIcon(id, icon, color);
+	}
+
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
@@ -106,7 +130,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return pty;
 	}
 
-	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
 			await this._localPtyService.attachToProcess(id);
 			const pty = this._instantiationService.createInstance(LocalPty, id, true);
@@ -118,23 +142,35 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return undefined;
 	}
 
-	public async listProcesses(): Promise<IProcessDetails[]> {
+	async listProcesses(): Promise<IProcessDetails[]> {
 		return this._localPtyService.listProcesses();
 	}
 
-	public async reduceConnectionGraceTime(): Promise<void> {
+	async reduceConnectionGraceTime(): Promise<void> {
 		this._localPtyService.reduceConnectionGraceTime();
 	}
 
-	public async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._localPtyService.getDefaultSystemShell(osOverride);
 	}
 
-	public async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._localPtyService.getShellEnvironment();
+	async getProfiles(includeDetectedProfiles?: boolean) {
+		return this._localPtyService.getProfiles?.(includeDetectedProfiles) || [];
 	}
 
-	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
+	async getEnvironment(): Promise<IProcessEnvironment> {
+		return this._localPtyService.getEnvironment();
+	}
+
+	async getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._shellEnvironmentService.getShellEnv();
+	}
+
+	async getWslPath(original: string): Promise<string> {
+		return this._localPtyService.getWslPath(original);
+	}
+
+	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
 			tabs: layoutInfo ? layoutInfo.tabs : []
@@ -142,12 +178,11 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		await this._localPtyService.setTerminalLayoutInfo(args);
 	}
 
-	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
+	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
-		let result = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
-		return result;
+		return await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
 	}
 
 	private _getWorkspaceId(): string {

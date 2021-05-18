@@ -5,34 +5,44 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { HoverProviderRegistry } from 'vs/editor/common/modes';
+import { Schemas } from 'vs/base/common/network';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.selectKernel',
+			id: SELECT_KERNEL_ID,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
+			menu: {
+				id: MenuId.EditorTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), ContextKeyExpr.equals('config.notebook.experimental.showKernelInEditorTitle', true),),
+				group: 'navigation',
+				order: -10
+			},
 			description: {
 				description: nls.localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
 				args: [
@@ -54,7 +64,6 @@ registerAction2(class extends Action2 {
 					}
 				]
 			},
-
 		});
 	}
 
@@ -144,15 +153,65 @@ registerAction2(class extends Action2 {
 	}
 });
 
+
+class ImplictKernelSelector implements IDisposable {
+
+	readonly dispose: () => void;
+
+	constructor(
+		notebook: NotebookTextModel,
+		suggested: INotebookKernel,
+		@INotebookKernelService notebookKernelService: INotebookKernelService,
+		@ILogService logService: ILogService
+	) {
+		const disposables = new DisposableStore();
+		this.dispose = disposables.dispose.bind(disposables);
+
+		const selectKernel = () => {
+			disposables.clear();
+			notebookKernelService.selectKernelForNotebook(suggested, notebook);
+		};
+
+		// IMPLICITLY select a suggested kernel when the notebook has been changed
+		// e.g change cell source, move cells, etc
+		disposables.add(notebook.onDidChangeContent(e => {
+			for (let event of e.rawEvents) {
+				switch (event.kind) {
+					case NotebookCellsChangeType.ChangeCellContent:
+					case NotebookCellsChangeType.ModelChange:
+					case NotebookCellsChangeType.Move:
+					case NotebookCellsChangeType.ChangeLanguage:
+						logService.trace('IMPLICIT kernel selection because of change event', event.kind);
+						selectKernel();
+						break;
+				}
+			}
+		}));
+
+
+		// IMPLICITLY select a suggested kernel when users start to hover. This should
+		// be a strong enough hint that the user wants to interact with the notebook. Maybe
+		// add more triggers like goto-providers or completion-providers
+		disposables.add(HoverProviderRegistry.register({ scheme: Schemas.vscodeNotebookCell, pattern: notebook.uri.path }, {
+			provideHover() {
+				logService.trace('IMPLICIT kernel selection because of hover');
+				selectKernel();
+				return undefined;
+			}
+		}));
+	}
+}
+
 export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly _editorDisposables = this._register(new DisposableStore());
-	private readonly _kernelInfoElement = this._register(new MutableDisposable());
+	private readonly _kernelInfoElement = this._register(new DisposableStore());
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._register(this._editorService.onDidActiveEditorChange(() => this._updateStatusbar()));
@@ -184,59 +243,64 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		updateStatus();
 	}
 
-	private _showKernelStatus(notebook: INotebookTextModel) {
+	private _showKernelStatus(notebook: NotebookTextModel) {
 
-		let { selected, all } = this._notebookKernelService.getMatchingKernel(notebook);
+		this._kernelInfoElement.clear();
+
+		let { selected, suggested, all } = this._notebookKernelService.getMatchingKernel(notebook);
 		let isSuggested = false;
 
 		if (all.length === 0) {
 			// no kernel -> no status
-			this._kernelInfoElement.clear();
 			return;
 
-		} else if (selected || all.length === 1) {
+		} else if (selected || suggested) {
 			// selected or single kernel
-			if (!selected) {
-				selected = all[0];
+			let kernel = selected;
+
+			if (!kernel) {
+				// proceed with suggested kernel - show UI and install handler that selects the kernel
+				// when non trivial interactions with the notebook happen.
+				kernel = suggested!;
 				isSuggested = true;
+				this._kernelInfoElement.add(new ImplictKernelSelector(notebook, kernel, this._notebookKernelService, this._logService));
 			}
-			const text = `$(notebook-kernel-select) ${selected.label}`;
-			const tooltip = selected.description ?? selected.detail ?? selected.label;
-			const registration = this._statusbarService.addEntry(
+			const tooltip = kernel.description ?? kernel.detail ?? kernel.label;
+			this._kernelInfoElement.add(this._statusbarService.addEntry(
 				{
-					text,
-					ariaLabel: selected.label,
+					text: `$(notebook-kernel-select) ${kernel.label}`,
+					ariaLabel: kernel.label,
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
-					command: 'notebook.selectKernel',
+					command: SELECT_KERNEL_ID,
 				},
 				'notebook.selectKernel',
 				nls.localize('notebook.info', "Notebook Kernel Info"),
 				StatusbarAlignment.RIGHT,
-				1000
-			);
-			const listener = selected.onDidChange(() => this._showKernelStatus(notebook));
-			this._kernelInfoElement.value = combinedDisposable(listener, registration);
+				10
+			));
+
+			this._kernelInfoElement.add(kernel.onDidChange(() => this._showKernelStatus(notebook)));
+
 
 		} else {
 			// multiple kernels -> show selection hint
-			const registration = this._statusbarService.addEntry(
+			this._kernelInfoElement.add(this._statusbarService.addEntry(
 				{
 					text: nls.localize('kernel.select.label', "Select Kernel"),
 					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
-					command: 'notebook.selectKernel',
+					command: SELECT_KERNEL_ID,
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
 				'notebook.selectKernel',
 				nls.localize('notebook.select', "Notebook Kernel Selection"),
 				StatusbarAlignment.RIGHT,
-				1000
-			);
-			this._kernelInfoElement.value = registration;
+				10
+			));
 		}
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Restored);
 
 export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
 
@@ -283,7 +347,8 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 				'notebook.activeCellStatus',
 				nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"),
 				StatusbarAlignment.RIGHT,
-				100);
+				100
+			);
 		} else {
 			this._accessor.value.update(entry);
 		}
@@ -297,10 +362,11 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 
 		const idxFocused = vm.getCellIndex(activeCell) + 1;
 		const numSelected = vm.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
+		const totalCells = vm.getCells().length;
 		return numSelected > 1 ?
 			nls.localize('notebook.multiActiveCellIndicator', "Cell {0} ({1} selected)", idxFocused, numSelected) :
-			nls.localize('notebook.singleActiveCellIndicator', "Cell {0}", idxFocused);
+			nls.localize('notebook.singleActiveCellIndicator', "Cell {0} of {1}", idxFocused, totalCells);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Restored);

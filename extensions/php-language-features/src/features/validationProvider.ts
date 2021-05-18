@@ -23,7 +23,7 @@ export class LineDecoder {
 	private stringDecoder: StringDecoder;
 	private remaining: string | null;
 
-	constructor(encoding: string = 'utf8') {
+	constructor(encoding: BufferEncoding = 'utf8') {
 		this.stringDecoder = new StringDecoder(encoding);
 		this.remaining = null;
 	}
