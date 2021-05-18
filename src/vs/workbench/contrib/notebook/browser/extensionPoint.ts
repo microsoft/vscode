@@ -6,7 +6,7 @@
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEditorPriority, NotebookRendererEntrypoint } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 namespace NotebookEditorContribution {
 	export const viewType = 'viewType';
@@ -37,7 +37,7 @@ export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.viewType]?: string;
 	readonly [NotebookRendererContribution.displayName]: string;
 	readonly [NotebookRendererContribution.mimeTypes]?: readonly string[];
-	readonly [NotebookRendererContribution.entrypoint]: string;
+	readonly [NotebookRendererContribution.entrypoint]: NotebookRendererEntrypoint;
 	readonly [NotebookRendererContribution.hardDependencies]: readonly string[];
 	readonly [NotebookRendererContribution.optionalDependencies]: readonly string[];
 }
@@ -130,8 +130,27 @@ const notebookRendererContribution: IJSONSchema = {
 				}
 			},
 			[NotebookRendererContribution.entrypoint]: {
-				type: 'string',
 				description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+				oneOf: [
+					{
+						type: 'string',
+					},
+					// todo@connor4312 + @mjbvz: uncomment this once it's ready for external adoption
+					// {
+					// 	type: 'object',
+					// 	required: ['extends', 'path'],
+					// 	properties: {
+					// 		extends: {
+					// 			type: 'string',
+					// 			description: nls.localize('contributes.notebook.renderer.entrypoint.extends', 'Existing renderer that this one extends.'),
+					// 		},
+					// 		path: {
+					// 			type: 'string',
+					// 			description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+					// 		},
+					// 	}
+					// }
+				]
 			},
 			[NotebookRendererContribution.hardDependencies]: {
 				type: 'array',

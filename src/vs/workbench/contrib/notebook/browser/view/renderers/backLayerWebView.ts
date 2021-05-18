@@ -203,7 +203,7 @@ export interface ICreationRequestMessage {
 	cellTop: number;
 	outputOffset: number;
 	left: number;
-	requiredPreloads: ReadonlyArray<IPreloadResource>;
+	requiredPreloads: ReadonlyArray<IControllerPreload>;
 	readonly initiallyHidden?: boolean;
 	rendererId?: string | undefined;
 }
@@ -263,17 +263,15 @@ export interface IAckOutputHeightMessage {
 	height: number;
 }
 
-export type PreloadSource = 'kernel' | { rendererId: string };
 
-export interface IPreloadResource {
+export interface IControllerPreload {
 	originalUri: string;
 	uri: string;
-	source: PreloadSource;
 }
 
-export interface IUpdatePreloadResourceMessage {
+export interface IUpdateControllerPreloadsMessage {
 	type: 'preload';
-	resources: IPreloadResource[];
+	resources: IControllerPreload[];
 }
 
 export interface IUpdateDecorationsMessage {
@@ -376,7 +374,7 @@ export type ToWebviewMessage =
 	| IClearOutputRequestMessage
 	| IHideOutputMessage
 	| IShowOutputMessage
-	| IUpdatePreloadResourceMessage
+	| IUpdateControllerPreloadsMessage
 	| IUpdateDecorationsMessage
 	| ICustomKernelMessage
 	| ICreateMarkdownMessage
@@ -767,7 +765,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				id: renderer.id,
 				entrypoint,
 				mimeTypes: renderer.mimeTypes,
-				dependencies: Array.from(renderer.dependencies.values())
+				extends: renderer.extends,
 			};
 		});
 	}
@@ -1194,7 +1192,6 @@ var requirejs = (function() {
 		if (this._currentKernel) {
 			this._updatePreloadsFromKernel(this._currentKernel);
 		}
-		this.updateRendererPreloads(renderers);
 
 		for (const [output, inset] of this.insetMapping.entries()) {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
@@ -1469,7 +1466,6 @@ var requirejs = (function() {
 				...messageBase,
 				outputId: output.outputId,
 				rendererId: content.renderer.id,
-				requiredPreloads: await this.updateRendererPreloads([content.renderer]),
 				content: {
 					type: RenderOutputType.Extension,
 					outputId: output.outputId,
@@ -1600,13 +1596,13 @@ var requirejs = (function() {
 	}
 
 	private _updatePreloadsFromKernel(kernel: INotebookKernel) {
-		const resources: IPreloadResource[] = [];
+		const resources: IControllerPreload[] = [];
 		for (const preload of kernel.preloadUris) {
 			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
 				? preload : this.asWebviewUri(preload, undefined);
 
 			if (!this._preloadsCache.has(uri.toString())) {
-				resources.push({ uri: uri.toString(), originalUri: preload.toString(), source: 'kernel' });
+				resources.push({ uri: uri.toString(), originalUri: preload.toString() });
 				this._preloadsCache.add(uri.toString());
 			}
 		}
@@ -1618,43 +1614,7 @@ var requirejs = (function() {
 		this._updatePreloads(resources);
 	}
 
-	async updateRendererPreloads(renderers: Iterable<INotebookRendererInfo>) {
-		if (this._disposed) {
-			return [];
-		}
-
-		const requiredPreloads: IPreloadResource[] = [];
-		const resources: IPreloadResource[] = [];
-		const extensionLocations: URI[] = [];
-		for (const rendererInfo of renderers) {
-			extensionLocations.push(rendererInfo.extensionLocation);
-			for (const preload of [rendererInfo.entrypoint, ...rendererInfo.preloads]) {
-				const uri = this.asWebviewUri(preload, rendererInfo.extensionLocation);
-				const resource: IPreloadResource = {
-					uri: uri.toString(),
-					originalUri: preload.toString(),
-					source: { rendererId: rendererInfo.id },
-				};
-
-				requiredPreloads.push(resource);
-
-				if (!this._preloadsCache.has(uri.toString())) {
-					resources.push(resource);
-					this._preloadsCache.add(uri.toString());
-				}
-			}
-		}
-
-		if (!resources.length) {
-			return requiredPreloads;
-		}
-
-		this.rendererRootsCache = extensionLocations;
-		this._updatePreloads(resources);
-		return requiredPreloads;
-	}
-
-	private _updatePreloads(resources: IPreloadResource[]) {
+	private _updatePreloads(resources: IControllerPreload[]) {
 		if (!this.webview) {
 			return;
 		}
