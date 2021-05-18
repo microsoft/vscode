@@ -73,7 +73,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
-		if (shellLaunchConfig.executable || shellLaunchConfig.isExtensionOwnedTerminal || shellLaunchConfig.extHostTerminalId) {
+		if (shellLaunchConfig.executable || shellLaunchConfig.isExtensionOwnedTerminal || shellLaunchConfig.customPtyImplementation) {
 			return;
 		}
 
@@ -84,6 +84,13 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
+		if (shellLaunchConfig.customPtyImplementation) {
+			// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
+			// an issue
+			shellLaunchConfig.iconPath = this._getCustomIcon(shellLaunchConfig.iconPath) || Codicon.terminal.id;
+			return;
+		}
+
 		// Resolve the shell and shell args
 		let resolvedProfile: ITerminalProfile;
 		if (shellLaunchConfig.executable) {
