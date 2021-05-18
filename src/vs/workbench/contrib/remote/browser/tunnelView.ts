@@ -1557,7 +1557,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '2_localaddress',
 	order: 3,
 	submenu: MenuId.TunnelProtocol,
-	title: nls.localize('tunnelContext.protocolMenu', "Change Tunnel Protocol"),
+	title: nls.localize('tunnelContext.protocolMenu', "Change Port Protocol"),
 	when: ContextKeyExpr.and(isForwardedExpr, isNotMultiSelectionExpr)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
