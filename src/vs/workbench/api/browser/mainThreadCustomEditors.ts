@@ -286,8 +286,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					const workingCopy = await model.backup(CancellationToken.None);
 					const identifier = { resource: model.editorResource, typeId: model.typeId };
 					await this.workingCopyBackupService.backup(identifier, workingCopy.content, undefined, workingCopy.meta);
-					const hasBackup = this.workingCopyBackupService.hasBackupSync(identifier);
-					console.log(hasBackup);
 				}
 			}
 		})());
