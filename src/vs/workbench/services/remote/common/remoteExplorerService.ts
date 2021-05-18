@@ -11,7 +11,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TunnelInformation, TunnelDescription, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -25,6 +25,7 @@ import { flatten } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
+import { deepClone } from 'vs/base/common/objects';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -147,12 +148,17 @@ export enum OnPortForward {
 	Ignore = 'ignore'
 }
 
+export enum TunnelProtocol {
+	Http = 'http',
+	Https = 'https'
+}
+
 export interface Attributes {
 	label: string | undefined;
 	onAutoForward: OnPortForward | undefined,
 	elevateIfNeeded: boolean | undefined;
 	requireLocalPort: boolean | undefined;
-	protocol: string | undefined;
+	protocol: TunnelProtocol | undefined;
 }
 
 interface PortRange { start: number, end: number }
@@ -331,6 +337,26 @@ export class PortsAttributes extends Disposable {
 			default: return undefined;
 		}
 	}
+
+	public async addAttributes(port: number, attributes: Partial<Attributes>) {
+		let settingValue = this.configurationService.inspect(PortsAttributes.SETTING);
+		const userValue: any = settingValue.userLocalValue;
+		let newUserValue: any;
+		if (!userValue || !isObject(userValue)) {
+			newUserValue = {};
+		} else {
+			newUserValue = deepClone(userValue);
+		}
+
+		if (!newUserValue[`${port}`]) {
+			newUserValue[`${port}`] = {};
+		}
+		for (const attribute in attributes) {
+			newUserValue[`${port}`][attribute] = (<any>attributes)[attribute];
+		}
+
+		return this.configurationService.updateValue(PortsAttributes.SETTING, newUserValue, ConfigurationTarget.USER_LOCAL);
+	}
 }
 
 const MISMATCH_LOCAL_PORT_COOLDOWN = 10 * 1000; // 10 seconds
@@ -354,7 +380,7 @@ export class TunnelModel extends Disposable {
 	private _onEnvironmentTunnelsSet: Emitter<void> = new Emitter();
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
-	private configPortsAttributes: PortsAttributes;
+	public readonly configPortsAttributes: PortsAttributes;
 	private restoreListener: IDisposable | undefined;
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
