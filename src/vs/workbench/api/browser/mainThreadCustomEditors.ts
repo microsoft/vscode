@@ -149,6 +149,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				if (webviewInput.oldResource && !webviewInput.backupId) {
 					const backup = this._editorRenameBackups.get(webviewInput.oldResource.toString());
 					backupId = backup?.backupId;
+					this._editorRenameBackups.delete(webviewInput.oldResource.toString());
 				}
 
 				let modelRef: IReference<ICustomEditorModel>;
