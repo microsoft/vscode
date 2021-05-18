@@ -437,11 +437,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			}
 			if (instance.icon instanceof URI) {
 				const uriIconKey = hash(instance.icon).toString(36);
+				console.log(`terminal-uri-icon-${uriIconKey}`);
 				label.classList.add(`terminal-uri-icon-${uriIconKey}`);
 				label.classList.add(`uri-icon`);
 			} else if (ThemeIcon.isThemeIcon(instance.icon)) {
-				this._color = `terminal-icon-${instance.icon?.color?.id}`;
+				this._color = `terminal-icon-${instance.icon?.color?.id.replace('.', '_')}`;
+				console.log(this._color);
 				label.classList.add(this._color);
+				console.log(label.classList);
 			}
 
 			if (instance?.color) {
@@ -516,12 +519,12 @@ class TerminalThemeIconStyle extends Themable {
 			const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
 			if (uri instanceof URI) {
 				const uriIconKey = hash(uri).toString(36);
-				css += `.monaco-workbench .terminal-tabs-entry .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
+				css += `.monaco-workbench .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
 				css += `background-image: ${dom.asCSSUrl(uri)};`;
 				css += `color: transparent !important;`;
 				css += `background-size: 16px;}`;
 				// TODO:@meganrogge remove the below - doesn't do anything
-				css += `.monaco-workbench .terminal-tabs-entry .uri-icon .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)::before { content: '';}`;
+				css += `.monaco-workbench .uri-icon .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)::before { content: '';}`;
 			}
 		}
 		this._styleElement.textContent = css;
