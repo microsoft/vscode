@@ -75,7 +75,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
-		if (shellLaunchConfig.executable || shellLaunchConfig.isExtensionOwnedTerminal) {
+		if (shellLaunchConfig.executable || shellLaunchConfig.isExtensionOwnedTerminal || shellLaunchConfig.extHostTerminalId) {
 			return;
 		}
 

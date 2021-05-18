@@ -105,7 +105,6 @@ export interface ITerminalService {
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
-	onInstanceStartExtensionTerminal: Event<any>;
 	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	/**
 	 * An event that fires when a terminal instance is created, disposed of, or shown (in the case of a background terminal)
