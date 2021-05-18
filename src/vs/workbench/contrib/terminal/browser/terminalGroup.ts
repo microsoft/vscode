@@ -248,6 +248,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
 	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
 	get onPanelOrientationChanged(): Event<Orientation> { return this._onPanelOrientationChanged.event; }
+
 	constructor(
 		private _container: HTMLElement | undefined,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
@@ -274,12 +275,18 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		} else {
 			instance = this._terminalService.createInstance(shellLaunchConfigOrInstance);
 		}
-		this._terminalInstances.push(instance);
+		if (this._terminalInstances.length === 0) {
+			this._terminalInstances.push(instance);
+		} else {
+			this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
+		}
 		this._initInstanceListeners(instance);
 
 		if (this._splitPaneContainer) {
 			this._splitPaneContainer!.split(instance);
 		}
+
+		instance.setVisible(this._isVisible);
 
 		this._onInstancesChanged.fire();
 	}
@@ -317,7 +324,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		};
 	}
 
-	private _initInstanceListeners(instance: ITerminalInstance): void {
+	private _initInstanceListeners(instance: ITerminalInstance) {
 		this._instanceDisposables.set(instance.instanceId, [
 			instance.onDisposed(instance => this._onInstanceDisposed(instance)),
 			instance.onFocused(instance => this._setActiveInstance(instance))
@@ -328,7 +335,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		this._removeInstance(instance);
 	}
 
-	removeInstance(instance: ITerminalInstance): void {
+	removeInstance(instance: ITerminalInstance) {
 		this._removeInstance(instance);
 
 		// Dispose instance event listeners
@@ -372,7 +379,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 	}
 
-	private _setActiveInstance(instance: ITerminalInstance): void {
+	private _setActiveInstance(instance: ITerminalInstance) {
 		this.setActiveInstanceByIndex(this._getIndexFromId(instance.instanceId));
 	}
 
@@ -456,14 +463,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._terminalService.createInstance(shellLaunchConfig);
-		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
-		this._initInstanceListeners(instance);
+		this.addInstance(instance);
 		this._setActiveInstance(instance);
-
-		if (this._splitPaneContainer) {
-			this._splitPaneContainer.split(instance, this._activeInstanceIndex);
-		}
-
 		return instance;
 	}
 
