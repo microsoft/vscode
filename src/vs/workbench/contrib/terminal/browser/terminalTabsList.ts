@@ -258,7 +258,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		let label: string;
 		if (!hasText) {
 			const primaryStatus = instance.statusList.primary;
-			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
+			// Don't show ignore severity
+			if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
 				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
 			} else {
 				label = `${prefix}$(${instance.icon?.id})`;
