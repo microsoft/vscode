@@ -96,4 +96,17 @@ export interface IBaseFileWorkingCopy<T extends IBaseFileWorkingCopyModel> exten
 	 * available.
 	 */
 	resolve(): Promise<void>;
+
+	/**
+	 * Whether we have a resolved model or not.
+	 */
+	isResolved(): this is IBaseResolvedFileWorkingCopy<T>;
+}
+
+export interface IBaseResolvedFileWorkingCopy<T extends IBaseFileWorkingCopyModel> extends IBaseFileWorkingCopy<T> {
+
+	/**
+	 * A resolved file working copy has a resolved model.
+	 */
+	readonly model: T;
 }

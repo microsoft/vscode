@@ -27,7 +27,23 @@ suite('FileWorkingCopyManager', () => {
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const factory = new TestFileWorkingCopyModelFactory();
-		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>('testWorkingCopyType', factory, accessor.fileService, accessor.lifecycleService, accessor.labelService, instantiationService, accessor.logService, accessor.fileDialogService, accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService);
+		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>(
+			'testFileWorkingCopyType',
+			factory,
+			accessor.fileService,
+			accessor.lifecycleService,
+			accessor.labelService,
+			instantiationService,
+			accessor.logService,
+			accessor.fileDialogService,
+			accessor.workingCopyFileService,
+			accessor.workingCopyBackupService,
+			accessor.uriIdentityService,
+			accessor.dialogService,
+			accessor.workingCopyService,
+			accessor.environmentService,
+			accessor.pathService
+		);
 	});
 
 	teardown(() => {
@@ -49,7 +65,7 @@ suite('FileWorkingCopyManager', () => {
 		const workingCopy1 = await resolvePromise;
 		assert.ok(workingCopy1);
 		assert.ok(workingCopy1.model);
-		assert.strictEqual(workingCopy1.typeId, 'testWorkingCopyType');
+		assert.strictEqual(workingCopy1.typeId, 'testFileWorkingCopyType');
 		assert.strictEqual(manager.get(resource), workingCopy1);
 
 		const workingCopy2 = await manager.resolve(resource);
@@ -527,7 +543,15 @@ suite('FileWorkingCopyManager', () => {
 			// the same in that case
 			assert.strictEqual(source.toString(), result?.resource.toString());
 		} else {
-			assert.strictEqual(target.toString(), result?.resource.toString());
+			if (resolveSource || resolveTarget) {
+				assert.strictEqual(target.toString(), result?.resource.toString());
+			} else {
+				if (accessor.uriIdentityService.extUri.isEqual(source, target)) {
+					assert.strictEqual(undefined, result);
+				} else {
+					assert.strictEqual(target.toString(), result?.resource.toString());
+				}
+			}
 		}
 
 		if (resolveSource) {

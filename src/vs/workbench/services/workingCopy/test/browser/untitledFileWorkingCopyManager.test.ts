@@ -25,7 +25,22 @@ suite('UntitledFileWorkingCopyManager', () => {
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const factory = new TestUntitledFileWorkingCopyModelFactory();
-		manager = new UntitledFileWorkingCopyManager<TestUntitledFileWorkingCopyModel>('testUntitledWorkingCopyType', factory, instantiationService, accessor.labelService, accessor.logService, accessor.workingCopyBackupService, accessor.fileService);
+		manager = new UntitledFileWorkingCopyManager<TestUntitledFileWorkingCopyModel>(
+			'testUntitledWorkingCopyType',
+			factory,
+			accessor.fileService,
+			accessor.labelService,
+			instantiationService,
+			accessor.logService,
+			accessor.fileDialogService,
+			accessor.workingCopyFileService,
+			accessor.workingCopyBackupService,
+			accessor.uriIdentityService,
+			accessor.dialogService,
+			accessor.workingCopyService,
+			accessor.environmentService,
+			accessor.pathService
+		);
 	});
 
 	teardown(() => {
