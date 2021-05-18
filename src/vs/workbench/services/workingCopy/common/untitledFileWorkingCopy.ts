@@ -5,9 +5,9 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel, IBaseFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -18,13 +18,23 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { emptyStream } from 'vs/base/common/stream';
 
-export interface IUntitledFileWorkingCopyModelFactory<T extends IUntitledFileWorkingCopyModel> extends IFileWorkingCopyModelFactory<T> { }
+/**
+ * Untitled file specific working copy model factory.
+ */
+export interface IUntitledFileWorkingCopyModelFactory<T extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<T> { }
 
-export interface IUntitledFileWorkingCopyModel extends IFileWorkingCopyModel {
+/**
+ * The underlying model of a untitled file working copy provides
+ * some methods for the untitled file working copy to function.
+ * The model is typically only available after the working copy
+ * has been resolved via it's `resolve()` method.
+ */
+export interface IUntitledFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
+
 	readonly onDidChangeContent: Event<IUntitledFileWorkingCopyModelContentChangedEvent>;
 }
 
-export interface IUntitledFileWorkingCopyModelContentChangedEvent extends IFileWorkingCopyModelContentChangedEvent {
+export interface IUntitledFileWorkingCopyModelContentChangedEvent {
 
 	/**
 	 * Flag that indicates that the content change
@@ -35,40 +45,18 @@ export interface IUntitledFileWorkingCopyModelContentChangedEvent extends IFileW
 	readonly isEmpty: boolean;
 }
 
-export interface IUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends IWorkingCopy, IDisposable {
-
-	/**
-	 * Emits an event when this untitled model is reverted.
-	 */
-	readonly onDidRevert: Event<void>;
-
-	/**
-	 * An event for when the file working copy has been disposed.
-	 */
-	readonly onWillDispose: Event<void>;
-
-	/**
-	 * Provides access to the underlying model of this untitled
-	 * file based working copy. As long as the untitled file working
-	 * copy has not been resolved, the model is `undefined`.
-	 */
-	readonly model: T | undefined;
+export interface IUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopy<T> {
 
 	/**
 	 * Whether this untitled file working copy model has an associated file path.
 	 */
 	readonly hasAssociatedFilePath: boolean;
-
-	/**
-	 * Resolves an untitled file working copy.
-	 */
-	resolve(): Promise<void>;
 }
 
 export interface IResolvedUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends IUntitledFileWorkingCopy<T> {
 
 	/**
-	 * A resolved untitled file working copy has a resolved model `T`.
+	 * A resolved untitled file working copy has a resolved model.
 	 */
 	readonly model: T;
 }
