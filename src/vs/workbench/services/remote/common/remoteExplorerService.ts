@@ -363,6 +363,7 @@ const MISMATCH_LOCAL_PORT_COOLDOWN = 10 * 1000; // 10 seconds
 
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<string, Tunnel>;
+	private readonly inProgress: Map<string, true> = new Map();
 	readonly detected: Map<string, Tunnel>;
 	private remoteTunnels: Map<string, RemoteTunnel>;
 	private _onForwardPort: Emitter<Tunnel | void> = new Emitter();
@@ -427,7 +428,9 @@ export class TunnelModel extends Disposable {
 		this.detected = new Map();
 		this._register(this.tunnelService.onTunnelOpened(async (tunnel) => {
 			const key = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-			if ((!this.forwarded.has(key)) && tunnel.localAddress) {
+			if (!mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
+				&& !mapHasAddressLocalhostOrAllInterfaces(this.inProgress, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
+				&& tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 				this.forwarded.set(key, {
 					remoteHost: tunnel.tunnelRemoteHost,
@@ -548,6 +551,8 @@ export class TunnelModel extends Disposable {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
 
+			const key = makeAddress(remote.host, remote.port);
+			this.inProgress.set(key, true);
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, localPort, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), remote.host, remote.port);
@@ -566,9 +571,9 @@ export class TunnelModel extends Disposable {
 					privacy: this.makeTunnelPrivacy(tunnel.public),
 					userForwarded: restore
 				};
-				const key = makeAddress(remote.host, remote.port);
 				this.forwarded.set(key, newForward);
 				this.remoteTunnels.set(key, tunnel);
+				this.inProgress.delete(key);
 				await this.storeForwarded();
 				await this.showPortMismatchModalIfNeeded(tunnel, localPort, attributes);
 				this._onForwardPort.fire(newForward);
