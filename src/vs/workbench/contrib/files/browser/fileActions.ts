@@ -681,7 +681,7 @@ function trimLongName(name: string): string {
 	return name;
 }
 
-export function getWellFormedFileName(filename: string): string {
+function getWellFormedFileName(filename: string): string {
 	if (!filename) {
 		return filename;
 	}
@@ -689,8 +689,7 @@ export function getWellFormedFileName(filename: string): string {
 	// Trim tabs
 	filename = trim(filename, '\t');
 
-	// Remove trailing dots and slashes
-	filename = rtrim(filename, '.');
+	// Remove trailing slashes
 	filename = rtrim(filename, '/');
 	filename = rtrim(filename, '\\');
 
