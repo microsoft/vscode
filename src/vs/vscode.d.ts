@@ -1315,6 +1315,15 @@ declare module 'vscode' {
 		static joinPath(base: Uri, ...pathSegments: string[]): Uri;
 
 		/**
+		 * Create an URI from its component parts
+		 *
+		 * @see {@link Uri.toString}
+		 * @param components The component parts of an Uri.
+		 * @return A new Uri instance.
+		 */
+		static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): Uri;
+
+		/**
 		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
 		 */
 		private constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
