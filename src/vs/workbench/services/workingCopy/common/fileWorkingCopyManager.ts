@@ -129,6 +129,14 @@ export interface IFileWorkingCopyResolveOptions {
 	};
 }
 
+export interface IFileWorkingCopyResolver {
+
+	/**
+	 * A delegate to resolve a file working copy.
+	 */
+	(resource: URI): Promise<IFileWorkingCopy<IFileWorkingCopyModel>>;
+}
+
 export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends BaseFileWorkingCopyManager<T, IFileWorkingCopy<T>> implements IFileWorkingCopyManager<T> {
 
 	//#region Events
@@ -176,7 +184,20 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IPathService pathService: IPathService
 	) {
-		super(workingCopyTypeId, fileService, logService, workingCopyBackupService, fileDialogService, uriIdentityService, workingCopyFileService, dialogService, workingCopyService, environmentService, pathService);
+		super(
+			workingCopyTypeId,
+			resource => this.resolve(resource),
+			fileService,
+			logService,
+			workingCopyBackupService,
+			fileDialogService,
+			uriIdentityService,
+			workingCopyFileService,
+			dialogService,
+			workingCopyService,
+			environmentService,
+			pathService
+		);
 
 		this.registerListeners();
 	}
@@ -469,10 +490,6 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 
 			throw error;
 		}
-	}
-
-	protected doResolve(resource: URI): Promise<IFileWorkingCopy<T>> {
-		return this.resolve(resource);
 	}
 
 	private joinPendingResolve(resource: URI): Promise<void> | undefined {

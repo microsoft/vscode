@@ -12,7 +12,8 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
-import { FileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { FileWorkingCopy, IFileWorkingCopy, IFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IFileWorkingCopyResolver } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { IConfirmation, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { basename, dirname, isEqual, joinPath, toLocalResource } from 'vs/base/common/resources';
@@ -59,8 +60,8 @@ export interface IBaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel
 	 * @returns the target working copy that was saved to or `undefined` in case of
 	 * cancellation
 	 */
-	saveAs(source: URI, target: URI, options?: ISaveOptions): Promise<W | undefined>;
-	saveAs(source: URI, target: undefined, options?: IBaseFileWorkingCopySaveAsOptions): Promise<W | undefined>;
+	saveAs(source: URI, target: URI, options?: ISaveOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined>;
+	saveAs(source: URI, target: undefined, options?: IBaseFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined>;
 
 	/**
 	 * Disposes all working copies of the manager and disposes the manager. This
@@ -90,6 +91,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 
 	constructor(
 		protected readonly workingCopyTypeId: string,
+		private readonly fileWorkingCopyResolver: IFileWorkingCopyResolver,
 		@IFileService protected readonly fileService: IFileService,
 		@ILogService protected readonly logService: ILogService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
@@ -126,10 +128,10 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 		return this.mapResourceToWorkingCopy.get(resource);
 	}
 
-	private getFile(resource: URI): W | undefined {
+	private getFile(resource: URI): IFileWorkingCopy<IFileWorkingCopyModel> | undefined {
 		const workingCopy = this.workingCopyService.get({ resource, typeId: this.workingCopyTypeId });
 		if (workingCopy instanceof FileWorkingCopy) {
-			return workingCopy as unknown as W;
+			return workingCopy;
 		}
 
 		return undefined;
@@ -139,45 +141,16 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 
 	//#region Save
 
-	protected async save(resource: URI, options?: ISaveOptions): Promise<W | undefined> {
-		const workingCopy = this.get(resource);
-
-		// Untitled: is always a "Save As"
-		if (workingCopy instanceof UntitledFileWorkingCopy) {
-			let targetUri: URI | undefined;
-
-			// Untitled with associated file path is taken as is
-			if (workingCopy.hasAssociatedFilePath) {
-				targetUri = await this.suggestSavePath(resource);
-			}
-
-			// Otherwise ask user for a target path to save to
-			else {
-				targetUri = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(resource), options?.availableFileSystems);
-			}
-
-			// Save as if target provided
-			if (targetUri) {
-				return this.saveAs(resource, targetUri, options);
-			}
-		}
-
-		// File: via save method of working copy
-		else if (workingCopy) {
-			const success = await workingCopy.save(options);
-			if (success) {
-				return workingCopy;
-			}
-		}
-
-		return undefined;
-	}
-
-	async saveAs(source: URI, target?: URI, options?: IBaseFileWorkingCopySaveAsOptions): Promise<W | undefined> {
+	async saveAs(source: URI, target?: URI, options?: IBaseFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined> {
 
 		// Get to target resource
 		if (!target) {
-			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(options?.suggestedTarget ?? source), options?.availableFileSystems);
+			const workingCopy = this.get(source);
+			if (workingCopy instanceof UntitledFileWorkingCopy && workingCopy.hasAssociatedFilePath) {
+				target = await this.suggestSavePath(source);
+			} else {
+				target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(options?.suggestedTarget ?? source), options?.availableFileSystems);
+			}
 		}
 
 		if (!target) {
@@ -187,7 +160,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 		// Just save if target is same as working copies own resource
 		// and we are not saving an untitled file working copy
 		if (this.fileService.canHandleResource(source) && isEqual(source, target)) {
-			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+			return this.doSave(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 
 		// If the target is different but of same identity, we
@@ -203,14 +176,29 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 			// At this point we don't know whether we have a
 			// working copy for the source or the target URI so we
 			// simply try to save with both resources.
-			return (await this.save(source, options)) ?? (await this.save(target, options));
+			return (await this.doSave(source, options)) ?? (await this.doSave(target, options));
 		}
 
 		// Perform normal "Save As"
 		return this.doSaveAs(source, target, options);
 	}
 
-	private async doSaveAs(source: URI, target: URI, options?: IBaseFileWorkingCopySaveAsOptions): Promise<W | undefined> {
+	private async doSave(resource: URI, options?: ISaveOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined> {
+
+		// Save is only possible with file working copies,
+		// any other have to go via `saveAs` flow.
+		const fileWorkingCopy = this.getFile(resource);
+		if (fileWorkingCopy) {
+			const success = await fileWorkingCopy.save(options);
+			if (success) {
+				return fileWorkingCopy;
+			}
+		}
+
+		return undefined;
+	}
+
+	private async doSaveAs(source: URI, target: URI, options?: IBaseFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined> {
 		let sourceContents: VSBufferReadableStream;
 
 		// If the source is an existing file working copy, we can directly
@@ -256,7 +244,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 		return targetFileWorkingCopy;
 	}
 
-	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetFileWorkingCopy: W }> {
+	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetFileWorkingCopy: IFileWorkingCopy<IFileWorkingCopyModel> }> {
 
 		// Prefer an existing file working copy if it is already resolved
 		// for the given target resource
@@ -283,16 +271,14 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 			// prefer that one over resolving the target. Otherwise we
 			// would potentially introduce a
 			if (this.uriIdentityService.extUri.isEqual(source, target) && this.has(source)) {
-				targetFileWorkingCopy = await this.doResolve(source);
+				targetFileWorkingCopy = await this.fileWorkingCopyResolver(source);
 			} else {
-				targetFileWorkingCopy = await this.doResolve(target);
+				targetFileWorkingCopy = await this.fileWorkingCopyResolver(target);
 			}
 		}
 
 		return { targetFileExists, targetFileWorkingCopy };
 	}
-
-	protected abstract doResolve(resource: URI): Promise<W>;
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
 		const confirm: IConfirmation = {
