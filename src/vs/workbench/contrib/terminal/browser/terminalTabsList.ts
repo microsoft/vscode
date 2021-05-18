@@ -61,7 +61,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService
 	) {
-		super('TerminalTabsTree', container,
+		super('TerminalTabsList', container,
 			{
 				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
@@ -70,6 +70,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
+				selectionNavigation: true,
 				identityProvider: {
 					getId: e => e?.instanceId
 				},
