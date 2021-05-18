@@ -79,6 +79,10 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 
 	constructor(private readonly _trusted: boolean) { }
 
+	async requestOpenUris(uris: URI[]): Promise<boolean | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
 	cancelRequest(): void {
 		throw new Error('Method not implemented.');
 	}

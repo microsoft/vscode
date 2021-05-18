@@ -60,6 +60,7 @@ export interface IWorkspaceTrustRequestService {
 
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 
+	requestOpenUris(uris: URI[]): Promise<boolean | undefined>;
 	cancelRequest(): void;
 	completeRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
