@@ -19,7 +19,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
@@ -366,10 +366,10 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 	}
 
-	async requestOpenUris(uris: URI[]): Promise<boolean | undefined> {
+	async requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
 		// If workspace is untrusted, there is no conflict
 		if (!this.trusted) {
-			return true;
+			return WorkspaceTrustUriResponse.Open;
 		}
 
 		const allTrusted = uris.map(uri => {
@@ -378,12 +378,12 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 		// If all uris are trusted, there is no conflict
 		if (allTrusted) {
-			return true;
+			return WorkspaceTrustUriResponse.Open;
 		}
 
 		// If we already asked the user, don't need to ask again
 		if (this._acceptingNonWorkspaceFiles) {
-			return true;
+			return WorkspaceTrustUriResponse.Open;
 		}
 
 		const result = await this.dialogService.show(Severity.Info, localize('openLooseFileMesssage', "Are you sure you want to open these files?"), [localize('open', "Open"), localize('newWindow', "Open in New Window"), localize('cancel', "Cancel")], {
@@ -394,11 +394,11 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		switch (result.choice) {
 			case 0:
 				this._acceptingNonWorkspaceFiles = true;
-				return true;
+				return WorkspaceTrustUriResponse.Open;
 			case 1:
-				return false;
+				return WorkspaceTrustUriResponse.OpenInNewWindow;
 			default:
-				return undefined;
+				return WorkspaceTrustUriResponse.Cancel;
 		}
 	}
 

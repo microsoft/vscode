@@ -53,6 +53,12 @@ export interface IWorkspaceTrustManagementService {
 	setTrustedFolders(folders: URI[]): Promise<void>;
 }
 
+export const enum WorkspaceTrustUriResponse {
+	Open = 1,
+	OpenInNewWindow = 2,
+	Cancel = 3
+}
+
 export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
 
 export interface IWorkspaceTrustRequestService {
@@ -60,7 +66,7 @@ export interface IWorkspaceTrustRequestService {
 
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 
-	requestOpenUris(uris: URI[]): Promise<boolean | undefined>;
+	requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse>;
 	cancelRequest(): void;
 	completeRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
