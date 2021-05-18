@@ -435,6 +435,15 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				label.classList.remove(this._color);
 				this._color = undefined;
 			}
+			if (instance.icon instanceof URI) {
+				const uriIconKey = hash(instance.icon).toString(36);
+				label.classList.add(`terminal-uri-icon-${uriIconKey}`);
+				label.classList.add(`uri-icon`);
+			} else if (ThemeIcon.isThemeIcon(instance.icon)) {
+				this._color = `terminal-icon-${instance.icon?.color?.id}`;
+				label.classList.add(this._color);
+			}
+
 			if (instance?.color) {
 				this._color = `terminal-icon-${instance.color}`;
 				label.classList.add(this._color);
@@ -458,17 +467,14 @@ function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon)
 	if (!instance || !instance.title) {
 		return '';
 	}
-	const iconClass = typeof instance.icon === 'object' && 'id' in instance.icon ? instance.icon?.id : Codicon.terminal.id;
-	if (typeof instance.icon === 'object' && 'id' in instance.icon) {
-		const label = `$(${iconClass}) ${getSingleTabTooltip(instance)}`;
-		const primaryStatus = instance.statusList.primary;
-		if (!primaryStatus?.icon) {
-			return label;
-		}
-		return `${label} $(${primaryStatus.icon.id})`;
-	}
+	let iconClass = typeof instance.icon === 'object' && 'id' in instance.icon ? instance.icon?.id : Codicon.terminal.id;
+	const label = `$(${iconClass}) ${getSingleTabTooltip(instance)}`;
 
-	return '';
+	const primaryStatus = instance.statusList.primary;
+	if (!primaryStatus?.icon) {
+		return label;
+	}
+	return `${label} $(${primaryStatus.icon.id})`;
 }
 
 function getSingleTabTooltip(instance: ITerminalInstance | null): string {
