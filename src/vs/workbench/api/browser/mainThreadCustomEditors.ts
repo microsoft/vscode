@@ -145,17 +145,17 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 				// If there's an old resource this was a move and we must resolve the backup at the same time as the webview
 				// This is because the backup must be ready upon model creation, and the input resolve method comes after
-				let backupID = webviewInput.backupId;
+				let backupId = webviewInput.backupId;
 				if (webviewInput.oldResource && !webviewInput.backupId) {
 					const backupIdentifier = { resource: webviewInput.oldResource, typeId: NO_TYPE_ID };
 					const backup = await this.workingCopyBackupService.resolve<CustomDocumentBackupData>(backupIdentifier);
-					backupID = backup?.meta?.backupId;
+					backupId = backup?.meta?.backupId;
 					this.workingCopyBackupService.discardBackup(backupIdentifier);
 				}
 
 				let modelRef: IReference<ICustomEditorModel>;
 				try {
-					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId: backupID }, cancellation);
+					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
@@ -282,7 +282,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 			}
 			for (const model of models) {
-				if (model instanceof MainThreadCustomEditorModel) {
+				if (model instanceof MainThreadCustomEditorModel && model.isDirty()) {
 					const workingCopy = await model.backup(CancellationToken.None);
 					const identifier = { resource: model.editorResource, typeId: model.typeId };
 					await this.workingCopyBackupService.backup(identifier, workingCopy.content, undefined, workingCopy.meta);
