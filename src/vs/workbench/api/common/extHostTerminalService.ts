@@ -347,6 +347,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
+		console.log(options.iconPath);
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
 		terminal.createExtensionTerminal().then(id => {

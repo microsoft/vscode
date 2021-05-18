@@ -437,14 +437,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			}
 			if (instance.icon instanceof URI) {
 				const uriIconKey = hash(instance.icon).toString(36);
-				console.log(`terminal-uri-icon-${uriIconKey}`);
 				label.classList.add(`terminal-uri-icon-${uriIconKey}`);
 				label.classList.add(`uri-icon`);
 			} else if (ThemeIcon.isThemeIcon(instance.icon)) {
 				this._color = `terminal-icon-${instance.icon?.color?.id.replace('.', '_')}`;
-				console.log(this._color);
 				label.classList.add(this._color);
-				console.log(label.classList);
 			}
 
 			if (instance?.color) {

@@ -891,7 +891,14 @@ declare module 'vscode' {
 
 	export interface TerminalOptions {
 		/**
-		 * A themeIcon, Uri, or light and dark Uris to use as the terminal icon
+		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
+		 */
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color: { id: string } };
+	}
+
+	export interface ExtensionTerminalOptions {
+		/**
+		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
 		 */
 		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color: { id: string } };
 	}

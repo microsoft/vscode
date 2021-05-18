@@ -301,7 +301,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			const uriIconKey = hash(icon).toString(36);
 			const className = `terminal-uri-icon-${uriIconKey}`;
 			extraClasses.push(className);
-			console.log(className);
 			extraClasses.push('uri-icon');
 		}
 
