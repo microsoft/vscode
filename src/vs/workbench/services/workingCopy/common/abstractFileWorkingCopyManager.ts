@@ -139,7 +139,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 
 	//#region Save
 
-	async save(resource: URI, options?: ISaveOptions): Promise<W | undefined> {
+	protected async save(resource: URI, options?: ISaveOptions): Promise<W | undefined> {
 		const workingCopy = this.get(resource);
 
 		// Untitled: is always a "Save As"
