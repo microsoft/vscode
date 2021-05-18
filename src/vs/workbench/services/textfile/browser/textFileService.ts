@@ -457,7 +457,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Otherwise try to suggest a path that can be saved
 		let suggestedFilename: string | undefined = undefined;
 		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitledTextEditorService.get(resource);
+			const model = this.untitled.get(resource);
 			if (model) {
 
 				// Untitled with associated file path
