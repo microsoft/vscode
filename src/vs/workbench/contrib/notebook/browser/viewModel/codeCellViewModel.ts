@@ -411,6 +411,5 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._outputCollection = [];
 		this._outputsTop = null;
-		this._outputViewModels = [];
 	}
 }
