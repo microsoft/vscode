@@ -1147,7 +1147,9 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
 					},
 					{
-						when: quitEditCondition,
+						when: ContextKeyExpr.and(
+							quitEditCondition,
+							NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 						win: {
 							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
