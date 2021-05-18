@@ -5,7 +5,7 @@
 
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { FileWorkingCopy, FileWorkingCopyState, IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, IFileWorkingCopySaveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { FileWorkingCopy, FileWorkingCopyState, IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
@@ -22,7 +22,7 @@ import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/serv
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager, IBaseFileWorkingCopySaveAsOptions } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
+import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -82,29 +82,6 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	 * @param options
 	 */
 	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>>;
-
-	/**
-	 * Implements "Save As" for file based working copies. The API is `URI` based
-	 * because it works even without resolved file working copies. If a file working
-	 * copy exists for any given `URI`, the implementation will deal with them properly
-	 * (e.g. dirty contents of the source will be written to the target and the source
-	 * will be reverted).
-	 *
-	 * Note: it is possible that the returned file working copy has a different `URI`
-	 * than the `target` that was passed in. Based on URI identity, the file working
-	 * copy may chose to return an existing file working copy with different casing
-	 * to respect file systems that are case insensitive.
-	 *
-	 * Note: Callers must `dispose` the working copy when no longer needed.
-	 *
-	 * @param source the source resource to save as
-	 * @param target the optional target resource to save to. if not defined, the user
-	 * will be asked for input
-	 * @returns the target working copy that was saved to or `undefined` in case of
-	 * cancellation
-	 */
-	saveAs(source: URI, target: URI, options?: IFileWorkingCopySaveOptions): Promise<IFileWorkingCopy<T> | undefined>;
-	saveAs(source: URI, target: undefined, options?: IBaseFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<T> | undefined>;
 
 	/**
 	 * Waits for the file working copy to be ready to be disposed. There may be

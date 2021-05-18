@@ -40,6 +40,29 @@ export interface IBaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel
 	get(resource: URI): W | undefined;
 
 	/**
+	 * Implements "Save As" for file based working copies. The API is `URI` based
+	 * because it works even without resolved file working copies. If a file working
+	 * copy exists for any given `URI`, the implementation will deal with them properly
+	 * (e.g. dirty contents of the source will be written to the target and the source
+	 * will be reverted).
+	 *
+	 * Note: it is possible that the returned file working copy has a different `URI`
+	 * than the `target` that was passed in. Based on URI identity, the file working
+	 * copy may chose to return an existing file working copy with different casing
+	 * to respect file systems that are case insensitive.
+	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 *
+	 * @param source the source resource to save as
+	 * @param target the optional target resource to save to. if not defined, the user
+	 * will be asked for input
+	 * @returns the target working copy that was saved to or `undefined` in case of
+	 * cancellation
+	 */
+	saveAs(source: URI, target: URI, options?: ISaveOptions): Promise<W | undefined>;
+	saveAs(source: URI, target: undefined, options?: IBaseFileWorkingCopySaveAsOptions): Promise<W | undefined>;
+
+	/**
 	 * Disposes all working copies of the manager and disposes the manager. This
 	 * method is different from `dispose` in that it will unregister any working
 	 * copy from the `IWorkingCopyService`. Since this impact things like backups,
@@ -119,7 +142,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 	async save(resource: URI, options?: ISaveOptions): Promise<W | undefined> {
 		const workingCopy = this.get(resource);
 
-		// Untitled
+		// Untitled: is always a "Save As"
 		if (workingCopy instanceof UntitledFileWorkingCopy) {
 			let targetUri: URI | undefined;
 
@@ -139,7 +162,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 			}
 		}
 
-		// File
+		// File: via save method of working copy
 		else if (workingCopy) {
 			const success = await workingCopy.save(options);
 			if (success) {
@@ -162,7 +185,8 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 		}
 
 		// Just save if target is same as working copies own resource
-		if (isEqual(source, target)) {
+		// and we are not saving an untitled file working copy
+		if (this.fileService.canHandleResource(source) && isEqual(source, target)) {
 			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 
@@ -172,20 +196,17 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 		// However, this will only work if the source exists
 		// and is not orphaned, so we need to check that too.
 		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
+
+			// Move via working copy file service to enable participants
 			await this.workingCopyFileService.move([{ file: { source, target } }], CancellationToken.None);
 
 			// At this point we don't know whether we have a
 			// working copy for the source or the target URI so we
 			// simply try to save with both resources.
-			let targetWorkingCopy = await this.save(source, options);
-			if (!targetWorkingCopy) {
-				targetWorkingCopy = await this.save(target, options);
-			}
-
-			return targetWorkingCopy;
+			return (await this.save(source, options)) ?? (await this.save(target, options));
 		}
 
-		// Do it
+		// Perform normal "Save As"
 		return this.doSaveAs(source, target, options);
 	}
 
@@ -204,43 +225,8 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 			sourceContents = (await this.fileService.readFileStream(source)).value;
 		}
 
-		// Save the contents through working copy to benefit from save
-		// participants and handling a potential already existing target
-		return this.doSaveAsWorkingCopy(source, sourceWorkingCopy, sourceContents, target, options);
-	}
-
-	private async doSaveAsWorkingCopy(source: URI, sourceWorkingCopy: W | undefined, sourceContents: VSBufferReadableStream, target: URI, options?: IBaseFileWorkingCopySaveAsOptions): Promise<W | undefined> {
-
-		// Prefer an existing file working copy if it is already resolved
-		// for the given target resource
-		let targetFileExists = false;
-		let targetFileWorkingCopy = this.getFile(target);
-		if (targetFileWorkingCopy?.isResolved()) {
-			targetFileExists = true;
-		}
-
-		// Otherwise create the target working copy empty if
-		// it does not exist already and resolve it from there
-		else {
-			targetFileExists = await this.fileService.exists(target);
-
-			// Create target file adhoc if it does not exist yet
-			if (!targetFileExists) {
-				await this.workingCopyFileService.create([{ resource: target }], CancellationToken.None);
-			}
-
-			// At this point we need to resolve the target working copy
-			// and we have to do an explicit check if the source URI
-			// equals the target via URI identity. If they match and we
-			// have had an existing working copy with the source, we
-			// prefer that one over resolving the target. Otherwiese we
-			// would potentially introduce a
-			if (this.uriIdentityService.extUri.isEqual(source, target) && this.get(source)) {
-				targetFileWorkingCopy = await this.doResolve(source);
-			} else {
-				targetFileWorkingCopy = await this.doResolve(target);
-			}
-		}
+		// Resolve target
+		const { targetFileExists, targetFileWorkingCopy } = await this.doResolveSaveTarget(source, target);
 
 		// Confirm to overwrite if we have an untitled file working copy with associated path where
 		// the file actually exists on disk and we are instructed to save to that file path.
@@ -270,6 +256,42 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 		return targetFileWorkingCopy;
 	}
 
+	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetFileWorkingCopy: W }> {
+
+		// Prefer an existing file working copy if it is already resolved
+		// for the given target resource
+		let targetFileExists = false;
+		let targetFileWorkingCopy = this.getFile(target);
+		if (targetFileWorkingCopy?.isResolved()) {
+			targetFileExists = true;
+		}
+
+		// Otherwise create the target working copy empty if
+		// it does not exist already and resolve it from there
+		else {
+			targetFileExists = await this.fileService.exists(target);
+
+			// Create target file adhoc if it does not exist yet
+			if (!targetFileExists) {
+				await this.workingCopyFileService.create([{ resource: target }], CancellationToken.None);
+			}
+
+			// At this point we need to resolve the target working copy
+			// and we have to do an explicit check if the source URI
+			// equals the target via URI identity. If they match and we
+			// have had an existing working copy with the source, we
+			// prefer that one over resolving the target. Otherwise we
+			// would potentially introduce a
+			if (this.uriIdentityService.extUri.isEqual(source, target) && this.has(source)) {
+				targetFileWorkingCopy = await this.doResolve(source);
+			} else {
+				targetFileWorkingCopy = await this.doResolve(target);
+			}
+		}
+
+		return { targetFileExists, targetFileWorkingCopy };
+	}
+
 	protected abstract doResolve(resource: URI): Promise<W>;
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
@@ -286,41 +308,24 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 
 	private async suggestSavePath(resource: URI): Promise<URI> {
 
-		// Just take the resource as is if the file service can handle it
+		// 1.) Just take the resource as is if the file service can handle it
 		if (this.fileService.canHandleResource(resource)) {
 			return resource;
 		}
 
-		const remoteAuthority = this.environmentService.remoteAuthority;
+		// 2.) Pick the associated file path for untitled working copies if any
 		const workingCopy = this.get(resource);
-
-		// Otherwise try to suggest a path that can be saved
-		let suggestedFilename: string | undefined = undefined;
-		if (workingCopy instanceof UntitledFileWorkingCopy) {
-
-			// Untitled with associated file path
-			if (workingCopy.hasAssociatedFilePath) {
-				return toLocalResource(resource, remoteAuthority, this.pathService.defaultUriScheme);
-			}
-
-			// Untitled without associated file path: use name
-			// of untitled working copy if it is a valid path name
-			let untitledName = workingCopy.name;
-			if (!isValidBasename(untitledName)) {
-				untitledName = basename(resource);
-			}
-
-			suggestedFilename = untitledName;
+		if (workingCopy instanceof UntitledFileWorkingCopy && workingCopy.hasAssociatedFilePath) {
+			return toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 		}
 
-		// Fallback to basename of resource
-		if (!suggestedFilename) {
-			suggestedFilename = basename(resource);
+		// 3.) Pick the working copy name if valid joined with default path
+		if (workingCopy && isValidBasename(workingCopy.name)) {
+			return joinPath(await this.fileDialogService.defaultFilePath(), workingCopy.name);
 		}
 
-		// Try to place where last active file was if any
-		// Otherwise fallback to user home
-		return joinPath(await this.fileDialogService.defaultFilePath(), suggestedFilename);
+		// 4.) Finally fallback to the name of the resource joined with default path
+		return joinPath(await this.fileDialogService.defaultFilePath(), basename(resource));
 	}
 
 	//#endregion

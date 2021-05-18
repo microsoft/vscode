@@ -51,6 +51,11 @@ export interface IUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyMode
 	 * Whether this untitled file working copy model has an associated file path.
 	 */
 	readonly hasAssociatedFilePath: boolean;
+
+	/**
+	 * Whether we have a resolved model or not.
+	 */
+	isResolved(): this is IResolvedUntitledFileWorkingCopy<T>;
 }
 
 export interface IResolvedUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends IUntitledFileWorkingCopy<T> {
@@ -242,7 +247,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 	//#region Save
 
 	save(options?: ISaveOptions): Promise<boolean> {
-		this.trace('[untitled file working copy] save() - enter');
+		this.trace('[untitled file working copy] save()');
 
 		return this.saveDelegate(this, options);
 	}
