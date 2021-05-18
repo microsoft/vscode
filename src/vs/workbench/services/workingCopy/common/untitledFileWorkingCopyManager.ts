@@ -21,6 +21,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IFileWorkingCopyResolver } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 
 /**
  * The only one that should be dealing with `IUntitledFileWorkingCopy` and
@@ -104,6 +105,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 	constructor(
 		workingCopyTypeId: string,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<T>,
+		fileWorkingCopyResolver: IFileWorkingCopyResolver,
 		@IFileService fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -117,7 +119,20 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IPathService pathService: IPathService
 	) {
-		super(workingCopyTypeId, fileService, logService, workingCopyBackupService, fileDialogService, uriIdentityService, workingCopyFileService, dialogService, workingCopyService, environmentService, pathService);
+		super(
+			workingCopyTypeId,
+			resource => fileWorkingCopyResolver(resource),
+			fileService,
+			logService,
+			workingCopyBackupService,
+			fileDialogService,
+			uriIdentityService,
+			workingCopyFileService,
+			dialogService,
+			workingCopyService,
+			environmentService,
+			pathService
+		);
 	}
 
 	//#region Resolve
@@ -130,10 +145,6 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 		await workingCopy.resolve();
 
 		return workingCopy;
-	}
-
-	protected doResolve(resource: URI): Promise<IUntitledFileWorkingCopy<T>> {
-		return this.resolve({ untitledResource: resource });
 	}
 
 	private doCreateOrGet(options: IInternalUntitledFileWorkingCopyOptions = Object.create(null)): IUntitledFileWorkingCopy<T> {
@@ -198,7 +209,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 			options.initialValue,
 			this.modelFactory,
 			(workingCopy, options) => (async () => {
-				const result = await this.save(workingCopy.resource, options);
+				const result = await this.saveAs(workingCopy.resource, undefined, options);
 
 				return result ? true : false;
 			})()

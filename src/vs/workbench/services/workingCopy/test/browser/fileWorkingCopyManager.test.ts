@@ -26,10 +26,9 @@ suite('FileWorkingCopyManager', () => {
 		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		const factory = new TestFileWorkingCopyModelFactory();
 		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>(
 			'testFileWorkingCopyType',
-			factory,
+			new TestFileWorkingCopyModelFactory(),
 			accessor.fileService,
 			accessor.lifecycleService,
 			accessor.labelService,
