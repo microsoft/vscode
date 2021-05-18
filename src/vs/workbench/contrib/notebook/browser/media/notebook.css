@@ -34,11 +34,6 @@
 	padding: 0px 8px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left {
-	width: fit-content;
-	display: flex;
-}
-
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-right {
 	display: flex;
 	padding: 0px 0px 0px 8px;

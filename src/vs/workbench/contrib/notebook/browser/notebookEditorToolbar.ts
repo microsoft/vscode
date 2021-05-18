@@ -8,7 +8,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,6 +40,8 @@ export class NotebookEditorToolbar extends Disposable {
 	get useGlobalToolbar(): boolean {
 		return this._useGlobalToolbar;
 	}
+
+	private _pendingLayout: IDisposable | undefined;
 
 	constructor(
 		readonly notebookEditor: INotebookEditor,
@@ -75,7 +77,7 @@ export class NotebookEditorToolbar extends Disposable {
 		this._notebookTopLeftToolbarContainer.classList.add('notebook-toolbar-left');
 		this._leftToolbarScrollable = new DomScrollableElement(this._notebookTopLeftToolbarContainer, {
 			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Visible,
+			horizontal: ScrollbarVisibility.Auto,
 			horizontalScrollbarSize: 3,
 			useShadows: false,
 			scrollYToX: true
@@ -103,7 +105,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 		const context = {
 			ui: true,
-			notebookEditor: this
+			notebookEditor: this.notebookEditor
 		};
 
 		const actionProvider = (action: IAction) => {
@@ -185,12 +187,30 @@ export class NotebookEditorToolbar extends Disposable {
 
 			this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
 			this._notebookRightToolbar.setActions(primaryRightActions, []);
+			this._updateScrollbar();
 		}
 
 		this._onDidChangeState.fire();
+	}
 
-		// if (this._dimension && this._isVisible) {
-		// 	this.layout(this._dimension);
-		// }
+	layout() {
+		this._updateScrollbar();
+	}
+
+	private _updateScrollbar() {
+		this._pendingLayout?.dispose();
+
+		this._pendingLayout = DOM.measure(() => {
+			DOM.measure(() => { // double RAF
+				this._leftToolbarScrollable.setRevealOnScroll(false);
+				this._leftToolbarScrollable.scanDomNode();
+				this._leftToolbarScrollable.setRevealOnScroll(true);
+			});
+		});
+	}
+
+	override dispose() {
+		this._pendingLayout?.dispose();
+		super.dispose();
 	}
 }
