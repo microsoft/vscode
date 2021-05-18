@@ -20,7 +20,6 @@ import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { URI } from 'vs/base/common/uri';
 
 export interface IProfileContextProvider {
@@ -46,8 +45,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _logService: ILogService,
 		private readonly _terminalService: ITerminalService,
 		private readonly _workspaceContextService: IWorkspaceContextService,
-		private readonly _remoteAgentService: IRemoteAgentService,
-		@IThemeService private readonly _themeService: IThemeService
+		private readonly _remoteAgentService: IRemoteAgentService
 	) {
 		if (this._remoteAgentService.getConnection()) {
 			this._remoteAgentService.getEnvironment().then(env => this._primaryBackendOs = env?.os || OS);
@@ -138,7 +136,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(iconPath?: any): URI | undefined | ThemeIcon | Codicon {
+	private _getCustomIcon(iconPath?: any): URI | undefined | ThemeIcon | Codicon | { light: URI, dark: URI } {
 		if (!iconPath) {
 			return undefined;
 		}
@@ -150,11 +148,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			return URI.revive(iconPath);
 		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
 			const uris = this._getIconUris(iconPath);
-			if (this._themeService.getColorTheme().type === ColorScheme.LIGHT) {
-				return URI.revive(uris.light);
-			} else {
-				return URI.revive(uris.dark);
-			}
+			return { light: URI.revive(uris.light), dark: URI.revive(uris.dark) };
 		}
 		return undefined;
 	}
@@ -448,8 +442,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 			logService,
 			terminalService,
 			workspaceContextService,
-			remoteAgentService,
-			themeService
+			remoteAgentService
 		);
 	}
 }

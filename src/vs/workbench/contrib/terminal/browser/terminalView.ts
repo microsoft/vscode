@@ -351,6 +351,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 
 class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _color: string | undefined;
+	private _class: string | undefined;
 	private readonly _elementDisposables: IDisposable[] = [];
 	constructor(
 		action: IAction,
@@ -434,14 +435,20 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			if (this._color) {
 				label.classList.remove(this._color);
 				this._color = undefined;
+			} else if (this._class) {
+				label.classList.remove(this._class);
+				this._class = undefined;
 			}
-			if (instance.icon instanceof URI) {
-				const uriIconKey = hash(instance.icon).toString(36);
-				label.classList.add(`terminal-uri-icon-${uriIconKey}`);
-				label.classList.add(`uri-icon`);
-			} else if (ThemeIcon.isThemeIcon(instance.icon)) {
-				this._color = `terminal-icon-${instance.icon?.color?.id.replace('.', '_')}`;
+			const icon = instance.icon;
+			if (ThemeIcon.isThemeIcon(icon)) {
+				this._color = `terminal-icon-${icon?.color?.id.replace('.', '_')}`;
 				label.classList.add(this._color);
+			} else {
+				const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
+				if (uri instanceof URI) {
+					this._class = `terminal-uri-icon-${hash(icon).toString(36)}`;
+					label.classList.add(this._class);
+				}
 			}
 
 			if (instance?.color) {
@@ -505,6 +512,7 @@ class TerminalThemeIconStyle extends Themable {
 	private _registerListeners(): void {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
 	}
+
 	override updateStyles(): void {
 		super.updateStyles();
 		let css = '';
@@ -515,13 +523,13 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
 			if (uri instanceof URI) {
-				const uriIconKey = hash(uri).toString(36);
+				let uriIconKey = hash(uri).toString(36);
 				css += `.monaco-workbench .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
 				css += `background-image: ${dom.asCSSUrl(uri)};`;
 				css += `color: transparent !important;`;
 				css += `background-size: 16px;}`;
 				// TODO:@meganrogge remove the below - doesn't do anything
-				css += `.monaco-workbench .uri-icon .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)::before { content: '';}`;
+				// css += `.monaco-workbench .uri-icon .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)::before { content: '';}`;
 			}
 		}
 		this._styleElement.textContent = css;

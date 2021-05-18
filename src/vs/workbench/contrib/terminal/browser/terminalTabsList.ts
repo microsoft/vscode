@@ -33,6 +33,7 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -176,7 +177,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IListService private readonly _listService: IListService
+		@IListService private readonly _listService: IListService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 	}
 
@@ -296,12 +298,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		if (color) {
 			extraClasses.push(color);
 		}
-
-		if (icon instanceof URI) {
+		const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
+		if (uri instanceof URI) {
 			const uriIconKey = hash(icon).toString(36);
 			const className = `terminal-uri-icon-${uriIconKey}`;
 			extraClasses.push(className);
-			extraClasses.push('uri-icon');
 		}
 
 		template.label.setResource({

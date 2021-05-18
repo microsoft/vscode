@@ -48,8 +48,7 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 			logService,
 			terminalService,
 			workspaceContextService,
-			remoteAgentService,
-			themeService
+			remoteAgentService
 		);
 	}
 }
