@@ -217,7 +217,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
 		this.rendering = false;
-		console.log(document.activeElement);
 	}
 
 	private getExtensionCountByUntrustedWorkspaceSupport(extensions: IExtensionStatus[], trustRequestType: ExtensionUntrustedWorkpaceSupportType): number {
