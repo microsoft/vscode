@@ -267,7 +267,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// which would result in the wrong profile being selected and the wrong icon being
 		// permanently attached to the terminal. If this is an extension owned terminal,
 		// we don't want to override the iconPath it has set.
-		if (!this.shellLaunchConfig.executable && !workbenchEnvironmentService.remoteAuthority && !this.shellLaunchConfig.isExtensionOwnedTerminal) {
+		if (!this.shellLaunchConfig.executable && !workbenchEnvironmentService.remoteAuthority) {
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
 
@@ -1109,6 +1109,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._onProcessExit(error);
 			}
 		});
+		//TODO:find better place for this
+		this._onIconChanged.fire(this);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

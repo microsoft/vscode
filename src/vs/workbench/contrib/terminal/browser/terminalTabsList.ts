@@ -292,15 +292,16 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		// Set color based on user set (instance.changeColor) or a themeIcon
 		const icon = instance.icon;
 		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
-		const extras = [];
+		const extraClasses = [];
 		if (color) {
-			extras.push(color);
+			extraClasses.push(color);
 		}
 
-		// if (icon && typeof icon === 'string' && icon.startsWith('url')) {
-		// 	const className = `terminal-uri-icon-${basename(icon).substring(0, basename(icon).length - 2).replace('.', '')}`;
-		// 	extras.push(className);
-		// }
+		if (icon && icon instanceof URI) {
+			const className = `terminal-uri-icon-${basename(icon.path).replace('.', '')}`;
+			extraClasses.push(className);
+			extraClasses.push('uri-icon');
+		}
 
 		template.label.setResource({
 			resource: instance.resource,
@@ -315,7 +316,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				markdown: new MarkdownString(title),
 				markdownNotSupportedFallback: undefined
 			},
-			extraClasses: extras
+			extraClasses
 		});
 	}
 

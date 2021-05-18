@@ -22,7 +22,6 @@ import { debounce } from 'vs/base/common/decorators';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { URI } from 'vs/base/common/uri';
-import * as DOM from 'vs/base/browser/dom';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -76,7 +75,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
-		if (shellLaunchConfig.executable) {
+		if (shellLaunchConfig.executable || shellLaunchConfig.isExtensionOwnedTerminal) {
 			return;
 		}
 
@@ -139,22 +138,22 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(iconPath?: any): string | undefined | ThemeIcon | Codicon {
+	private _getCustomIcon(iconPath?: any): URI | undefined | ThemeIcon | Codicon {
 		if (!iconPath) {
 			return undefined;
 		}
 		if (iconRegistry.get(iconPath)) {
 			return iconRegistry.get(iconPath);
-		} else if ((iconPath as ThemeIcon).color) {
+		} else if ((iconPath as ThemeIcon).id) {
 			return iconPath;
 		} else if (typeof iconPath === 'object' && 'path' in iconPath) {
-			return DOM.asCSSUrl(URI.revive(iconPath));
+			return URI.revive(iconPath);
 		} else if (typeof iconPath === 'object' && 'light' in iconPath && 'dark' in iconPath) {
 			const uris = this._getIconUris(iconPath);
 			if (this._themeService.getColorTheme().type === ColorScheme.LIGHT) {
-				return DOM.asCSSUrl(URI.revive(uris.light));
+				return URI.revive(uris.light);
 			} else {
-				return DOM.asCSSUrl(URI.revive(uris.dark));
+				return URI.revive(uris.dark);
 			}
 		}
 		return undefined;

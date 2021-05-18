@@ -95,7 +95,6 @@ export class TerminalViewPane extends ViewPane {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		});
-		this._instantiationService.createInstance(TerminalThemeIconStyle);
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
 		this._register(this._terminalService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
@@ -107,6 +106,7 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
+		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
@@ -481,30 +481,36 @@ function getSingleTabTooltip(instance: ITerminalInstance | null): string {
 }
 
 class TerminalThemeIconStyle extends Themable {
+	private _styleElement: HTMLElement;
 	constructor(
+		container: HTMLElement,
 		@IThemeService themeService: IThemeService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(themeService);
 		this._registerListeners();
+		this._styleElement = document.createElement('style');
+		container.appendChild(this._styleElement);
+		this._register(toDisposable(() => container.removeChild(this._styleElement)));
 		this.updateStyles();
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onInstanceStartExtensionTerminal(iconPath => this.updateStyles(iconPath)));
+		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
 	}
-	override updateStyles(iconPath?: any): void {
+	override updateStyles(): void {
 		super.updateStyles();
-		console.log('updating styles');
-		if (iconPath && typeof iconPath === 'object' && 'path' in iconPath) {
-			const element = dom.$(`.monaco-workbench .terminal-tabs-entry .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)`);
-			element.classList.add(`terminal-uri-icon-${basename(iconPath.path).replace('.', '')}`);
-			element.style.backgroundImage = dom.asCSSUrl(URI.revive(iconPath));
-			element.style.backgroundSize = '16px';
-			element.style.color = 'transparent !important';
-			element.style.content = '';
-			console.log(element.classList);
-			this._terminalService.refreshActiveGroup();
+		let css = '';
+		for (const instance of this._terminalService.terminalInstances) {
+			if (instance.icon && instance.icon instanceof URI) {
+				css += `.monaco-workbench .terminal-tabs-entry .terminal-uri-icon-${basename(instance.icon.path).replace('.', '')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
+				css += `background-image: ${dom.asCSSUrl(instance.icon)};`;
+				css += `color: transparent !important;`;
+				css += `background-size: 16px;}`;
+				// adding this line gets rid of the background image
+				// css += `.monaco-workbench .terminal-tabs-entry .terminal-uri-icon-${basename(instance.icon.path).replace('.', '')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):before { content: '';}`;
+			}
 		}
+		this._styleElement.textContent = css;
 	}
 }
