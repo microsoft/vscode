@@ -140,6 +140,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getCustomIcon(iconPath?: any): string | undefined | ThemeIcon | Codicon {
+		if (!iconPath) {
+			return undefined;
+		}
 		if (iconRegistry.get(iconPath)) {
 			return iconRegistry.get(iconPath);
 		} else if ((iconPath as ThemeIcon).color) {

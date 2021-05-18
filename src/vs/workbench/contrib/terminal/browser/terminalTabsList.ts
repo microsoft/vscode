@@ -32,6 +32,7 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
+import { basename } from 'vs/base/common/path';
 
 const $ = DOM.$;
 const TAB_HEIGHT = 22;
@@ -296,18 +297,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			extras.push(color);
 		}
 
-		// If this is a custom, URI based icon, set the
-		// default codicon to transparent
-		// and add it as a background image
-		if (icon && typeof icon === 'string' && icon.startsWith('url')) {
-			const codicon = template.element.querySelector<HTMLElement>('.codicon');
-			if (codicon) {
-				codicon.style.backgroundImage = icon;
-				codicon.style.backgroundSize = '16px';
-				codicon.style.color = 'transparent';
-				codicon.style.content = '';
-			}
-		}
+		// if (icon && typeof icon === 'string' && icon.startsWith('url')) {
+		// 	const className = `terminal-uri-icon-${basename(icon).substring(0, basename(icon).length - 2).replace('.', '')}`;
+		// 	extras.push(className);
+		// }
 
 		template.label.setResource({
 			resource: instance.resource,

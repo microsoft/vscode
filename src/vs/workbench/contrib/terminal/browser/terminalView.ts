@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
@@ -39,6 +39,8 @@ import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/p
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { basename } from 'vs/base/common/path';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -93,6 +95,7 @@ export class TerminalViewPane extends ViewPane {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		});
+		this._instantiationService.createInstance(TerminalThemeIconStyle);
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
 		this._register(this._terminalService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
@@ -475,4 +478,33 @@ function getSingleTabTooltip(instance: ITerminalInstance | null): string {
 		return instance.title;
 	}
 	return `${instance.title} ${instance.shellLaunchConfig.description}`;
+}
+
+class TerminalThemeIconStyle extends Themable {
+	constructor(
+		@IThemeService themeService: IThemeService,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(themeService);
+		this._registerListeners();
+		this.updateStyles();
+	}
+
+	private _registerListeners(): void {
+		this._register(this._terminalService.onInstanceStartExtensionTerminal(iconPath => this.updateStyles(iconPath)));
+	}
+	override updateStyles(iconPath?: any): void {
+		super.updateStyles();
+		console.log('updating styles');
+		if (iconPath && typeof iconPath === 'object' && 'path' in iconPath) {
+			const element = dom.$(`.monaco-workbench .terminal-tabs-entry .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)`);
+			element.classList.add(`terminal-uri-icon-${basename(iconPath.path).replace('.', '')}`);
+			element.style.backgroundImage = dom.asCSSUrl(URI.revive(iconPath));
+			element.style.backgroundSize = '16px';
+			element.style.color = 'transparent !important';
+			element.style.content = '';
+			console.log(element.classList);
+			this._terminalService.refreshActiveGroup();
+		}
+	}
 }

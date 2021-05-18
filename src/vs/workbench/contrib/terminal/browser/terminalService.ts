@@ -97,6 +97,8 @@ export class TerminalService implements ITerminalService {
 	get onInstanceLinksReady(): Event<ITerminalInstance> { return this._onInstanceLinksReady.event; }
 	private readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
 	get onInstanceRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onInstanceRequestStartExtensionTerminal.event; }
+	private readonly _onInstanceStartExtensionTerminal = new Emitter<any>();
+	get onInstanceStartExtensionTerminal(): Event<any> { return this._onInstanceStartExtensionTerminal.event; }
 	private readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
 	get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
 	private readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
@@ -947,7 +949,9 @@ export class TerminalService implements ITerminalService {
 		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
 		this._terminalGroups.push(terminalGroup);
 		terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-
+		if (shellLaunchConfig.isExtensionOwnedTerminal) {
+			this._onInstanceStartExtensionTerminal.fire(shellLaunchConfig.iconPath);
+		}
 		const instance = terminalGroup.terminalInstances[0];
 
 		terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
@@ -959,6 +963,7 @@ export class TerminalService implements ITerminalService {
 			// after onInstancesChanged so consumers can react to the instance being added first
 			this.setActiveInstanceByIndex(0);
 		}
+
 		return instance;
 	}
 
