@@ -134,13 +134,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
 
-		this.onDidChangeSelection(e => {
-			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-		});
-
-		this.onDidChangeFocus(e => {
-			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-		});
+		this.onDidChangeSelection(e => this._updateContextKey());
+		this.onDidChangeFocus(() => this._updateContextKey());
 
 		this.onDidOpen(async e => {
 			const instance = e.element;
@@ -161,6 +156,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 	render(): void {
 		this.splice(0, this.length, this._terminalService.terminalInstances);
+	}
+
+	private _updateContextKey() {
+		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 	}
 }
 
