@@ -39,7 +39,6 @@ import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/serv
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -52,6 +51,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 	private readonly _editorProviders = new Map<string, IDisposable>();
 
+	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
+
 	constructor(
 		context: extHostProtocol.IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
@@ -63,7 +64,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 	) {
 		super();
 
@@ -147,10 +147,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				// This is because the backup must be ready upon model creation, and the input resolve method comes after
 				let backupId = webviewInput.backupId;
 				if (webviewInput.oldResource && !webviewInput.backupId) {
-					const backupIdentifier = { resource: webviewInput.oldResource, typeId: NO_TYPE_ID };
-					const backup = await this.workingCopyBackupService.resolve<CustomDocumentBackupData>(backupIdentifier);
-					backupId = backup?.meta?.backupId;
-					this.workingCopyBackupService.discardBackup(backupIdentifier);
+					const backup = this._editorRenameBackups.get(webviewInput.oldResource.toString());
+					backupId = backup?.backupId;
 				}
 
 				let modelRef: IReference<ICustomEditorModel>;
@@ -284,8 +282,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			for (const model of models) {
 				if (model instanceof MainThreadCustomEditorModel && model.isDirty()) {
 					const workingCopy = await model.backup(CancellationToken.None);
-					const identifier = { resource: model.editorResource, typeId: model.typeId };
-					await this.workingCopyBackupService.backup(identifier, workingCopy.content, undefined, workingCopy.meta);
+					if (workingCopy.meta) {
+						// This cast is safe because we do an instanceof check above and a custom document backup data is always returned
+						this._editorRenameBackups.set(model.editorResource.toString(), workingCopy.meta as CustomDocumentBackupData);
+					}
 				}
 			}
 		})());
