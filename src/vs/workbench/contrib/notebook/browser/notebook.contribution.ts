@@ -591,7 +591,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
 			type: 'string',
 			enum: ['hover', 'click'],
-			default: 'hover'
+			default: 'click'
 		},
 	}
 });
