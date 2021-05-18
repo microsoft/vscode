@@ -195,6 +195,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (shellLaunchConfig.customPtyImplementation) {
 			this._processType = ProcessType.PsuedoTerminal;
 			newProcess = shellLaunchConfig.customPtyImplementation(this._instanceId, cols, rows);
+			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+				remoteAuthority: this.remoteAuthority,
+				os: OS
+			});
 		} else {
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
