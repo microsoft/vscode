@@ -4,18 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Promises } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService } from 'vs/platform/files/common/files';
+import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
+
+/**
+ * The only one that should be dealing with `IUntitledFileWorkingCopy` and
+ * handle all operations that are working copy related, such as save/revert,
+ * backup and resolving.
+ */
+export interface IUntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<T, IUntitledFileWorkingCopy<T>> {
+
+	/**
+	 * An event for when a untitled file working copy changed it's dirty state.
+	 */
+	readonly onDidChangeDirty: Event<IUntitledFileWorkingCopy<T>>;
+
+	/**
+	 * An event for when a untitled file working copy is about to be disposed.
+	 */
+	readonly onWillDispose: Event<IUntitledFileWorkingCopy<T>>;
+
+	/**
+	 * Resolves an untitled file working copy from the provided options.
+	 */
+	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
+	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<T>>;
+
+	/**
+	 * Resolves an untitled file working copy from the provided options
+	 * unless an existing working copy already exists with that resource.
+	 */
+	resolve(options?: IExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
+}
 
 export interface INewUntitledFileWorkingCopyOptions {
 
@@ -52,62 +81,9 @@ export interface IExistingUntitledFileWorkingCopyOptions extends INewUntitledFil
 	untitledResource: URI;
 }
 
-/**
- * The only one that should be dealing with `IUntitledFileWorkingCopy` and
- * handle all operations that are working copy related, such as save/revert,
- * backup and resolving.
- */
-export interface IUntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyModel> extends IDisposable {
-
-	/**
-	 * An event for when a untitled file working copy changed it's dirty state.
-	 */
-	readonly onDidChangeDirty: Event<IUntitledFileWorkingCopy<T>>;
-
-	/**
-	 * An event for when a untitled file working copy is about to be disposed.
-	 */
-	readonly onWillDispose: Event<IUntitledFileWorkingCopy<T>>;
-
-	/**
-	 * Access to all known untitled file working copies within the manager.
-	 */
-	readonly workingCopies: readonly IUntitledFileWorkingCopy<T>[];
-
-	/**
-	 * Returns an existing untitled file working copy if already created before
-	 * or `undefined` otherwise.
-	 */
-	get(resource: URI): IUntitledFileWorkingCopy<T> | undefined;
-
-	/**
-	 * Resolves an untitled file working copy from the provided options.
-	 */
-	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
-	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<T>>;
-
-	/**
-	 * Resolves an untitled file working copy from the provided options
-	 * unless an existing working copy already exists with that resource.
-	 */
-	resolve(options?: IExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
-
-	/**
-	 * Disposes all working copies of the manager and disposes the manager. This
-	 * method is different from `dispose` in that it will unregister any working
-	 * copy from the `IWorkingCopyService`. Since this impact things like backups,
-	 * the method is `async` because it needs to trigger `save` for any dirty
-	 * working copy to preserve the data.
-	 *
-	 * Callers should make sure to e.g. close any editors associated with the
-	 * working copy.
-	 */
-	destroy(): Promise<void>;
-}
-
 type IInternalUntitledFileWorkingCopyOptions = IExistingUntitledFileWorkingCopyOptions & INewUntitledFileWorkingCopyWithAssociatedResourceOptions;
 
-export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopyManager<T> {
+export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyModel> extends BaseFileWorkingCopyManager<T, IUntitledFileWorkingCopy<T>> implements IUntitledFileWorkingCopyManager<T> {
 
 	//#region Events
 
@@ -119,31 +95,17 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 
 	//#endregion
 
-	private readonly mapResourceToWorkingCopy = new ResourceMap<IUntitledFileWorkingCopy<T>>();
-
 	constructor(
 		private readonly workingCopyTypeId: string,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<T>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILogService private readonly logService: ILogService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@IFileService private readonly fileService: IFileService
+		@ILogService logService: ILogService,
+		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
+		@IFileService fileService: IFileService
 	) {
-		super();
+		super(fileService, logService, workingCopyBackupService);
 	}
-
-	//#region Get / Get all
-
-	get workingCopies(): IUntitledFileWorkingCopy<T>[] {
-		return [...this.mapResourceToWorkingCopy.values()];
-	}
-
-	get(resource: URI): IUntitledFileWorkingCopy<T> | undefined {
-		return this.mapResourceToWorkingCopy.get(resource);
-	}
-
-	//#endregion
 
 	//#region Resolve
 
@@ -159,7 +121,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 
 		// Return existing instance if asked for it
 		if (massagedOptions.untitledResource) {
-			const existingWorkingCopy = this.mapResourceToWorkingCopy.get(massagedOptions.untitledResource);
+			const existingWorkingCopy = this.get(massagedOptions.untitledResource);
 			if (existingWorkingCopy) {
 				return existingWorkingCopy;
 			}
@@ -203,7 +165,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 			do {
 				untitledResource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
 				counter++;
-			} while (this.mapResourceToWorkingCopy.has(untitledResource));
+			} while (this.has(untitledResource));
 		}
 
 		// Create new working copy with provided options
@@ -233,14 +195,14 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 		Event.once(workingCopy.onWillDispose)(() => {
 
 			// Registry
-			this.mapResourceToWorkingCopy.delete(workingCopy.resource);
+			this.remove(workingCopy.resource);
 
 			// Listeners
 			listeners.dispose();
 		});
 
 		// Add to cache
-		this.mapResourceToWorkingCopy.set(workingCopy.resource, workingCopy);
+		this.add(workingCopy.resource, workingCopy);
 
 		// If the working copy is dirty right from the beginning,
 		// make sure to emit this as an event
@@ -250,62 +212,4 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 	}
 
 	//#endregion
-
-	//#region Lifecycle
-
-	override dispose(): void {
-		super.dispose();
-
-		// Clear working copy caches
-		//
-		// Note: we are not explicitly disposing the working copies
-		// known to the manager because this can have unwanted side
-		// effects such as backups getting discarded once the working
-		// copy unregisters. We have an explicit `destroy`
-		// for that purpose (https://github.com/microsoft/vscode/pull/123555)
-		//
-		this.mapResourceToWorkingCopy.clear();
-	}
-
-	async destroy(): Promise<void> {
-		const workingCopies = Array.from(this.mapResourceToWorkingCopy.values());
-
-		// Make sure all dirty working copies are saved to disk
-		try {
-			await Promises.settled(workingCopies.map(async workingCopy => {
-				if (workingCopy.isDirty()) {
-					await this.saveWithFallback(workingCopy);
-				}
-			}));
-		} catch (error) {
-			this.logService.error(error);
-		}
-
-		// Dispose all working copies
-		dispose(workingCopies);
-
-		// Finally dispose manager
-		this.dispose();
-	}
-
-	private async saveWithFallback(workingCopy: IUntitledFileWorkingCopy<T>): Promise<void> {
-
-		// First try regular save
-		let saveFailed = false;
-		try {
-			await workingCopy.save();
-		} catch (error) {
-			saveFailed = true;
-		}
-
-		// Then fallback to backup if that exists
-		if (saveFailed || workingCopy.isDirty()) {
-			const backup = await this.workingCopyBackupService.resolve(workingCopy);
-			if (backup) {
-				await this.fileService.writeFile(workingCopy.resource, backup.value, { unlock: true });
-			}
-		}
-
-		//#endregion
-	}
 }
