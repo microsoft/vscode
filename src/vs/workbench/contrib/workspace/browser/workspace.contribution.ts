@@ -202,6 +202,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		return {
 			id: BANNER_RESTRICTED_MODE,
 			icon: shieldIcon,
+			ariaLabel: localize('restrictedModeBannerAriaLabel', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use left, right navigation keys to access banner actions."),
 			message: localize('restrictedModeBannerMessage', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features."),
 			actions: [
 				{
