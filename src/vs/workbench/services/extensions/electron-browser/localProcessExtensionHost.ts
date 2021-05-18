@@ -627,6 +627,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			// (graceful termination)
 			protocol.send(createMessageOfType(MessageType.Terminate));
 
+			protocol.getSocket().dispose();
+
 			protocol.dispose();
 
 			// Give the extension host 10s, after which we will
