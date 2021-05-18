@@ -54,17 +54,17 @@ const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We 
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
 
-export const debugInlineForeground = registerColor('debugInline.decorationForeground', {
+export const debugInlineForeground = registerColor('editor.inlineValuesForeground', {
 	dark: '#ffffff80',
 	light: '#00000080',
 	hc: '#ffffff80'
-}, nls.localize('debugInline.decorationForeground', "Color for the debug inline value text."));
+}, nls.localize('editor.inlineValuesForeground', "Color for the debug inline value text."));
 
-export const debugInlineBackground = registerColor('debugInline.decorationBackground', {
+export const debugInlineBackground = registerColor('editor.inlineValuesBackground', {
 	dark: '#ffc80033',
 	light: '#ffc80033',
 	hc: '#ffc80033'
-}, nls.localize('debugInline.decorationBackground', "Color for the debug inline value background."));
+}, nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
 
 class InlineSegment {
 	constructor(public column: number, public text: string) {
