@@ -471,18 +471,26 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			return;
 		}
 		let focused = false;
-		if (!targetInstance) {
-			// TODO: Support dropping on empty
-			return;
-		}
+
+		let sourceInstances: ITerminalInstance[] = [];
 		for (const e of draggedElement) {
 			if ('instanceId' in e) {
-				const instance = e as ITerminalInstance;
-				this._terminalService.moveGroup(instance, targetInstance);
-				if (!focused) {
-					this._terminalService.setActiveInstance(instance);
-					focused = true;
-				}
+				sourceInstances.push(e as ITerminalInstance);
+			}
+		}
+
+		if (!targetInstance) {
+			for (const instance of sourceInstances) {
+				this._terminalService.unsplitInstance(instance);
+			}
+			return;
+		}
+
+		for (const instance of sourceInstances) {
+			this._terminalService.moveGroup(instance, targetInstance);
+			if (!focused) {
+				this._terminalService.setActiveInstance(instance);
+				focused = true;
 			}
 		}
 	}
