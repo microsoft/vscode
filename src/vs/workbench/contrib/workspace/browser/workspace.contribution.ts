@@ -16,7 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -47,7 +47,13 @@ import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts
 import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
+const BANNER_VIRTUAL_WORKSPACE = 'workbench.banner.virtualWorkspace';
+const BANNER_VIRTUAL_AND_RESTRICTED = 'workbench.banner.virtualAndRestricted';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
+const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.dismissed';
+const BANNER_VIRTUAL_WORKSPACE_DISMISSED_KEY = 'workbench.banner.virtualWorkspace.dismissed';
+
+const infoIcon = registerCodicon('workspace-banner-warning-icon', Codicon.info);
 
 /*
  * Trust Request UX Handler
@@ -149,6 +155,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private showModalOnStart(): void {
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+			this.updateWorkbenchIndicators(true);
 			return;
 		}
 
@@ -198,13 +205,52 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
 
-	private getBannerItem(): IBannerItem {
-		return {
-			id: BANNER_RESTRICTED_MODE,
-			icon: shieldIcon,
-			ariaLabel: localize('restrictedModeBannerAriaLabel', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions."),
-			message: localize('restrictedModeBannerMessage', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features."),
-			actions: [
+	private getBannerItem(isVirtualWorkspace: boolean, restrictedMode: boolean): IBannerItem | undefined {
+
+		const dismissedVirtual = this.storageService.getBoolean(BANNER_VIRTUAL_WORKSPACE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
+		const dismissedRestricted = this.storageService.getBoolean(BANNER_RESTRICTED_MODE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
+
+		// all important info has been dismissed
+		if (dismissedVirtual && dismissedRestricted) {
+			return undefined;
+		}
+
+		// don't show restricted mode only banner
+		if (dismissedRestricted && !isVirtualWorkspace) {
+			return undefined;
+		}
+
+		// don't show virtual workspace only banner
+		if (dismissedVirtual && !restrictedMode) {
+			return undefined;
+		}
+
+		const choose = (virtual: any, restricted: any, virtualAndRestricted: any) => {
+			return (isVirtualWorkspace && !dismissedVirtual) && (restrictedMode && !dismissedRestricted) ? virtualAndRestricted : ((isVirtualWorkspace && !dismissedVirtual) ? virtual : restricted);
+		};
+
+		const id = choose(BANNER_VIRTUAL_WORKSPACE, BANNER_RESTRICTED_MODE, BANNER_VIRTUAL_AND_RESTRICTED);
+		const icon = choose(infoIcon, shieldIcon, infoIcon);
+		const ariaLabel = choose(
+			localize('virtualBannerAriaLabel', "Some features are not available because the current workspace is backed by a virtual file system. Use navigation keys to access banner actions."),
+			localize('restrictedModeBannerAriaLabel', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions."),
+			localize('virtualAndRestrictedModeBannerAriaLabel', "Some features are not available because the current workspace is backed by a virtual file system and is not trusted. You can trust this workspace to enable some of these features. Use navigation keys to access banner actions."),
+		);
+
+		const message = choose(
+			localize('virtualBannerMessage', "Some features are not available because the current workspace is backed by a virtual file system."),
+			localize('restrictedModeBannerMessage', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features."),
+			localize('virtualAndRestrictedModeBannerMessage', "Some features are not available because the current workspace is backed by a virtual file system and is not trusted. You can trust this workspace to enabled some of these features."),
+		);
+
+		const actions = choose(
+			[
+				{
+					label: localize('virtualBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-virtual-workspaces'
+				}
+			],
+			[
 				{
 					label: localize('restrictedModeBannerManage', "Manage"),
 					href: 'command:workbench.trust.manage'
@@ -214,7 +260,33 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					href: 'https://aka.ms/vscode-workspace-trust'
 				}
 			],
-			scope: StorageScope.WORKSPACE,
+			[
+				{
+					label: localize('virtualAndRestrictedModeBannerManage', "Manage Trust"),
+					href: 'command:workbench.trust.manage'
+				},
+				{
+					label: localize('virtualBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-virtual-workspaces'
+				}
+			]
+		);
+
+		return {
+			id,
+			icon,
+			ariaLabel,
+			message,
+			actions,
+			onClose: () => {
+				if (isVirtualWorkspace) {
+					this.storageService.store(BANNER_VIRTUAL_WORKSPACE_DISMISSED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				}
+
+				if (restrictedMode) {
+					this.storageService.store(BANNER_RESTRICTED_MODE_DISMISSED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				}
+			}
 		};
 	}
 
@@ -245,10 +317,20 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private updateWorkbenchIndicators(trusted: boolean): void {
 		this.updateStatusbarEntry(trusted);
-		if (!trusted) {
-			this.bannerService.show(this.getBannerItem());
-		} else {
-			this.bannerService.hide(BANNER_RESTRICTED_MODE);
+
+		const isVirtualWorkspace = getVirtualWorkspaceScheme(this.workspaceContextService.getWorkspace()) !== undefined;
+		const bannerItem = this.getBannerItem(isVirtualWorkspace, !trusted);
+
+		if (bannerItem) {
+			if (!isVirtualWorkspace) {
+				if (!trusted) {
+					this.bannerService.show(bannerItem);
+				} else {
+					this.bannerService.hide(BANNER_RESTRICTED_MODE);
+				}
+			} else {
+				this.bannerService.show(bannerItem);
+			}
 		}
 	}
 
