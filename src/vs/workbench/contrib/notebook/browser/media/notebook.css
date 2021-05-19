@@ -347,46 +347,6 @@
 	display: none;
 }
 
-/* top and bottom borders on cells */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row .cell-inner-container:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row .cell-inner-container:after {
-	content: "";
-	position: absolute;
-	width: 100%;
-	height: 1px;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
-	content: "";
-	position: absolute;
-	width: 1px;
-	height: 100%;
-	z-index: 10;
-}
-
-/* top border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {
-	border-top: 1px solid transparent;
-}
-
-/* left border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before {
-	border-left: 1px solid transparent;
-}
-
-/* bottom border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before {
-	border-bottom: 1px solid transparent;
-}
-
-/* right border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
-	border-right: 1px solid transparent;
-}
-
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {
 	top: 0;
 }
