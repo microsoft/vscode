@@ -1033,9 +1033,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: notebook
 		const notebook: typeof vscode.notebook = {
-			openNotebookDocument: (uriComponents) => {
+			async openNotebookDocument(uriOrOptions?: URI | string, content?: vscode.NotebookData) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.openNotebookDocument(uriComponents);
+				let uri: URI;
+				if (URI.isUri(uriOrOptions)) {
+					uri = uriOrOptions;
+					await extHostNotebook.openNotebookDocument(uriOrOptions);
+				} else if (typeof uriOrOptions === 'string') {
+					uri = URI.revive(await extHostNotebook.createNotebookDocument({ viewType: uriOrOptions, content }));
+				} else {
+					throw new Error('Invalid arguments');
+				}
+				return extHostNotebook.getNotebookDocument(uri).apiNotebook;
 			},
 			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
 				checkProposedApiEnabled(extension);

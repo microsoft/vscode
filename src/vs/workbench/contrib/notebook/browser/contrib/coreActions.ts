@@ -1039,7 +1039,11 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	order: -5,
 	group: 'navigation/add',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'hidden')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
@@ -1105,7 +1109,11 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	order: -5,
 	group: 'navigation/add',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'hidden')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
