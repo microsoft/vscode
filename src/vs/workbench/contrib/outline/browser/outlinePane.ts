@@ -285,7 +285,7 @@ export class OutlinePane extends ViewPane {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, { ...e.editorOptions, ...{ override: EditorOverride.DISABLED } }, e.sideBySide)));
+		this._editorDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, { ...e.editorOptions, override: EditorOverride.DISABLED }, e.sideBySide)));
 
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
