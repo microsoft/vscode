@@ -21,9 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
@@ -42,16 +40,6 @@ export function isWorkspaceTrustEnabled(configurationService: IConfigurationServ
 	}
 
 	return (configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).defaultValue) ?? false;
-}
-
-export function acceptsNonWorkspaceFiles(editorService: IEditorService, workspaceContextService: IWorkspaceContextService): boolean {
-	for (const editor of editorService.editors) {
-		const canonicalUri = EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file });
-		if (canonicalUri && !workspaceContextService.isInsideWorkspace(canonicalUri)) {
-			return true;
-		}
-	}
-	return false;
 }
 
 export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
@@ -304,10 +292,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 	}
 
-	async setWorkspaceTrust(trusted: boolean, acceptsNonWorkspaceFiles?: boolean): Promise<void> {
-		// Set the flag for accepting files outside the workspace
-		this._trustState.acceptsNonWorkspaceFiles = trusted ? acceptsNonWorkspaceFiles ?? false : false;
-
+	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this._trustState.isTrusted = trusted;
@@ -403,14 +388,14 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 	}
 
-	async completeRequest(trusted?: boolean, acceptsNonWorkspaceFiles?: boolean): Promise<void> {
+	async completeRequest(trusted?: boolean): Promise<void> {
 		if (trusted === undefined || trusted === this.trusted) {
 			this.resolveRequest(trusted);
 			return;
 		}
 
 		// Update storage, transition workspace, and resolve the promise
-		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted, acceptsNonWorkspaceFiles);
+		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
 		this.resolveRequest(trusted);
 	}
 

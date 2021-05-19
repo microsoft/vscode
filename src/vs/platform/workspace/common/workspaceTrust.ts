@@ -48,7 +48,7 @@ export interface IWorkspaceTrustManagementService {
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): void;
 	canSetWorkspaceTrust(): boolean;
-	setWorkspaceTrust(trusted: boolean, acceptsNonWorkspaceFiles?: boolean): Promise<void>;
+	setWorkspaceTrust(trusted: boolean): Promise<void>;
 	getUriTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
 	setUrisTrust(folders: URI[], trusted: boolean): Promise<void>;
 	getTrustedFolders(): URI[];
@@ -70,7 +70,7 @@ export interface IWorkspaceTrustRequestService {
 
 	requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse>;
 	cancelRequest(): void;
-	completeRequest(trusted?: boolean, acceptsNonWorkspaceFiles?: boolean): Promise<void>;
+	completeRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 }
 

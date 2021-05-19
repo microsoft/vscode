@@ -51,8 +51,6 @@ import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } f
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { acceptsNonWorkspaceFiles } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
@@ -538,7 +536,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
@@ -814,7 +811,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private addTrustButtonToElement(parent: HTMLElement): void {
 		const trustUris = async (uris?: URI[]) => {
 			if (!uris) {
-				await this.workspaceTrustManagementService.setWorkspaceTrust(true, acceptsNonWorkspaceFiles(this.editorService, this.workspaceService));
+				await this.workspaceTrustManagementService.setWorkspaceTrust(true);
 			} else {
 				await this.workspaceTrustManagementService.setUrisTrust(uris, true);
 			}
