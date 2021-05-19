@@ -607,7 +607,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container?.removeChild(this._wrapperElement);
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
-		console.log('container', container);
 		setTimeout(() => this._initDragAndDrop(container));
 	}
 
