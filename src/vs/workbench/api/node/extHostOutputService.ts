@@ -32,7 +32,6 @@ class OutputAppender {
 
 	append(content: string): void {
 		this.appender.critical(content);
-		this.flush();
 	}
 
 	flush(): void {
