@@ -198,6 +198,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 
 				if (!this._configuration.isEqualTo(oldConfiguration)) {
+					if (oldConfiguration.tsServerLogLevel !== this._configuration.tsServerLogLevel) {
+						context.globalState.update('typescript.tsserver.logLevelChanged', new Date());
+					}
 					this.restartTsServer();
 				}
 			}
@@ -221,6 +224,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._register(this.pluginManager.onDidChangePlugins(() => {
 			this.restartTsServer();
 		}));
+
+		this.notifyExtendedLogging(context);
 	}
 
 	public get capabilities() {
@@ -952,6 +957,47 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
 		}
 	}
+
+	private notifyExtendedLogging(context: vscode.ExtensionContext) {
+		const getLastChange = (): Date | undefined => {
+			const lastChange = context.globalState.get<string | undefined>('typescript.tsserver.logLevelChanged');
+
+			if (lastChange) {
+				const date = new Date(lastChange);
+				if (date instanceof Date && !isNaN(date.valueOf())) {
+					return date;
+				}
+			}
+			return undefined;
+		};
+
+		const logLevel = this._configuration.tsServerLogLevel;
+		const lastLogLevelChange = getLastChange();
+
+		if (logLevel !== TsServerLogLevel.Off && lastLogLevelChange) {
+			const lastChangePlusOneWeek = new Date(lastLogLevelChange.valueOf() + /* 7 days in milliseconds */ 86400000 * 7);
+
+			if (lastChangePlusOneWeek < new Date()) {
+				vscode.window.showInformationMessage<vscode.MessageItem>(
+					localize(
+						'typescript.openTsServerLog.loggingEnabledForExtendedPeriod',
+						'TS Server logging has been enabled for an extended period. Please set `typescript.tsserver.log` to `off` and restart the TS server to disable logging'),
+					{
+						title: localize(
+							'typescript.openTsServerLog.disableAndReloadOption',
+							'Disable logging and restart TS server'),
+					})
+					.then(selection => {
+						if (selection) {
+							return vscode.workspace.getConfiguration().update('typescript.tsserver.log', 'off', true).then(() => {
+								this.restartTsServer();
+							});
+						}
+						return undefined;
+					});
+			}
+		}
+	}
 }
 
 function getReportIssueArgsForError(
@@ -1055,4 +1101,3 @@ class ServerInitializingIndicator extends Disposable {
 		}
 	}
 }
-
