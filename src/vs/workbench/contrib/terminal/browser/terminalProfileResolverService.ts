@@ -141,21 +141,21 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(iconPath?: unknown): URI | undefined | ThemeIcon | { light: URI, dark: URI } {
-		if (!iconPath) {
+	private _getCustomIcon(icon?: unknown): URI | undefined | ThemeIcon | { light: URI, dark: URI } {
+		if (!icon) {
 			return undefined;
 		}
-		if (typeof iconPath === 'string') {
-			return iconRegistry.get(iconPath);
+		if (typeof icon === 'string') {
+			return iconRegistry.get(icon);
 		}
-		if (ThemeIcon.isThemeIcon(iconPath)) {
-			return iconPath;
+		if (ThemeIcon.isThemeIcon(icon)) {
+			return icon;
 		}
-		if (URI.isUri(iconPath) || this._isUriComponents(iconPath)) {
-			return URI.revive(iconPath);
+		if (URI.isUri(icon) || this._isUriComponents(icon)) {
+			return URI.revive(icon);
 		}
-		if (typeof iconPath === 'object' && iconPath && 'light' in iconPath && 'dark' in iconPath) {
-			const castedIcon = (iconPath as { light: unknown, dark: unknown });
+		if (typeof icon === 'object' && icon && 'light' in icon && 'dark' in icon) {
+			const castedIcon = (icon as { light: unknown, dark: unknown });
 			if ((URI.isUri(castedIcon.light) || this._isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || this._isUriComponents(castedIcon.dark))) {
 				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
 			}
