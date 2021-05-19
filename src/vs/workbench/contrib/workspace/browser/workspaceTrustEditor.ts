@@ -41,7 +41,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorOptions, EditorResourceAccessor, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
