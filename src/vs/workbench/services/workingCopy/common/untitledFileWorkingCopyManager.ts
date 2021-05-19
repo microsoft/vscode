@@ -6,7 +6,7 @@
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
+import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, IUntitledFileWorkingCopySaveDelegate, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,13 +15,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService } from 'vs/platform/files/common/files';
 import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IFileWorkingCopyResolver } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { ResourceMap } from 'vs/base/common/map';
 
 /**
@@ -106,36 +99,16 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 	private readonly mapResourceToWorkingCopyListeners = new ResourceMap<IDisposable>();
 
 	constructor(
-		workingCopyTypeId: string,
+		private readonly workingCopyTypeId: string,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<T>,
-		fileWorkingCopyResolver: IFileWorkingCopyResolver,
+		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate,
 		@IFileService fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
-		@IFileDialogService fileDialogService: IFileDialogService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IDialogService dialogService: IDialogService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IPathService pathService: IPathService
+		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService
 	) {
-		super(
-			workingCopyTypeId,
-			resource => fileWorkingCopyResolver(resource),
-			fileService,
-			logService,
-			workingCopyBackupService,
-			fileDialogService,
-			uriIdentityService,
-			workingCopyFileService,
-			dialogService,
-			workingCopyService,
-			environmentService,
-			pathService
-		);
+		super(fileService, logService, workingCopyBackupService);
 	}
 
 	//#region Resolve
@@ -211,11 +184,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 			!!options.associatedResource,
 			options.initialValue,
 			this.modelFactory,
-			(workingCopy, options) => (async () => {
-				const result = await this.saveAs(workingCopy.resource, undefined, options);
-
-				return result ? true : false;
-			})()
+			this.saveDelegate
 		) as unknown as IUntitledFileWorkingCopy<T>;
 
 		this.registerWorkingCopy(workingCopy);

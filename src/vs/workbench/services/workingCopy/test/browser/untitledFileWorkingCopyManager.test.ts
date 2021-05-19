@@ -8,8 +8,7 @@ import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
+import { FileWorkingCopyManager2, IFileWorkingCopyManager2 } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager2';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { TestFileWorkingCopyModel, TestFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/fileWorkingCopy.test';
 import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
@@ -20,8 +19,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	let manager: IUntitledFileWorkingCopyManager<TestUntitledFileWorkingCopyModel>;
-	let fileManager: IFileWorkingCopyManager<TestFileWorkingCopyModel>;
+	let manager: IFileWorkingCopyManager2<TestFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
@@ -30,38 +28,16 @@ suite('UntitledFileWorkingCopyManager', () => {
 		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
 		accessor.fileService.registerProvider(Schemas.vscodeRemote, new TestInMemoryFileSystemProvider());
 
-		fileManager = new FileWorkingCopyManager<TestFileWorkingCopyModel>(
-			'testFileWorkingCopyType',
+		manager = new FileWorkingCopyManager2(
+			'testFileWorkingCopyTypeUntitled',
 			new TestFileWorkingCopyModelFactory(),
-			accessor.fileService,
-			accessor.lifecycleService,
-			accessor.labelService,
-			instantiationService,
-			accessor.logService,
-			accessor.fileDialogService,
-			accessor.workingCopyFileService,
-			accessor.workingCopyBackupService,
-			accessor.uriIdentityService,
-			accessor.dialogService,
-			accessor.workingCopyService,
-			accessor.environmentService,
-			accessor.pathService
-		);
-
-		manager = new UntitledFileWorkingCopyManager<TestUntitledFileWorkingCopyModel>(
-			'testUntitledWorkingCopyType',
 			new TestUntitledFileWorkingCopyModelFactory(),
-			resource => fileManager.resolve(resource),
 			accessor.fileService,
-			accessor.labelService,
 			instantiationService,
-			accessor.logService,
 			accessor.fileDialogService,
 			accessor.workingCopyFileService,
-			accessor.workingCopyBackupService,
 			accessor.uriIdentityService,
 			accessor.dialogService,
-			accessor.workingCopyService,
 			accessor.environmentService,
 			accessor.pathService
 		);
@@ -73,29 +49,29 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 	test('basics', async () => {
 		let disposeCounter = 0;
-		manager.onWillDispose(e => {
+		manager.untitled.onWillDispose(e => {
 			disposeCounter++;
 		});
 
 		let dirtyCounter = 0;
-		manager.onDidChangeDirty(e => {
+		manager.untitled.onDidChangeDirty(e => {
 			dirtyCounter++;
 		});
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
-		assert.strictEqual(manager.workingCopies.length, 0);
+		assert.strictEqual(manager.untitled.workingCopies.length, 0);
 
-		assert.strictEqual(manager.get(URI.file('/some/invalidPath')), undefined);
-		assert.strictEqual(manager.get(URI.file('/some/invalidPath').with({ scheme: Schemas.untitled })), undefined);
+		assert.strictEqual(manager.untitled.get(URI.file('/some/invalidPath')), undefined);
+		assert.strictEqual(manager.untitled.get(URI.file('/some/invalidPath').with({ scheme: Schemas.untitled })), undefined);
 
-		const workingCopy1 = await manager.resolve();
-		const workingCopy2 = await manager.resolve();
+		const workingCopy1 = await manager.untitled.resolve();
+		const workingCopy2 = await manager.untitled.resolve();
 
-		assert.strictEqual(manager.get(workingCopy1.resource), workingCopy1);
-		assert.strictEqual(manager.get(workingCopy2.resource), workingCopy2);
+		assert.strictEqual(manager.untitled.get(workingCopy1.resource), workingCopy1);
+		assert.strictEqual(manager.untitled.get(workingCopy2.resource), workingCopy2);
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 2);
-		assert.strictEqual(manager.workingCopies.length, 2);
+		assert.strictEqual(manager.untitled.workingCopies.length, 2);
 
 		assert.notStrictEqual(workingCopy1.resource.toString(), workingCopy2.resource.toString());
 
@@ -120,24 +96,24 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 		workingCopy1.dispose();
 
-		assert.strictEqual(manager.workingCopies.length, 1);
-		assert.strictEqual(manager.get(workingCopy1.resource), undefined);
+		assert.strictEqual(manager.untitled.workingCopies.length, 1);
+		assert.strictEqual(manager.untitled.get(workingCopy1.resource), undefined);
 
 		workingCopy2.dispose();
 
-		assert.strictEqual(manager.workingCopies.length, 0);
-		assert.strictEqual(manager.get(workingCopy2.resource), undefined);
+		assert.strictEqual(manager.untitled.workingCopies.length, 0);
+		assert.strictEqual(manager.untitled.get(workingCopy2.resource), undefined);
 
 		assert.strictEqual(disposeCounter, 2);
 	});
 
 	test('resolve - with initial value', async () => {
 		let dirtyCounter = 0;
-		manager.onDidChangeDirty(e => {
+		manager.untitled.onDidChangeDirty(e => {
 			dirtyCounter++;
 		});
 
-		const workingCopy = await manager.resolve({ initialValue: bufferToStream(VSBuffer.fromString('Hello World')) });
+		const workingCopy = await manager.untitled.resolve({ initialValue: bufferToStream(VSBuffer.fromString('Hello World')) });
 
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(dirtyCounter, 1);
@@ -147,12 +123,12 @@ suite('UntitledFileWorkingCopyManager', () => {
 	});
 
 	test('resolve - existing', async () => {
-		const workingCopy1 = await manager.resolve();
+		const workingCopy1 = await manager.untitled.resolve();
 
-		const workingCopy2 = await manager.resolve({ untitledResource: workingCopy1.resource });
+		const workingCopy2 = await manager.untitled.resolve({ untitledResource: workingCopy1.resource });
 		assert.strictEqual(workingCopy1, workingCopy2);
 
-		const workingCopy3 = await manager.resolve({ untitledResource: URI.file('/invalid/untitled') });
+		const workingCopy3 = await manager.untitled.resolve({ untitledResource: URI.file('/invalid/untitled') });
 		assert.strictEqual(workingCopy3.resource.scheme, Schemas.untitled);
 
 		workingCopy1.dispose();
@@ -161,7 +137,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 	});
 
 	test('resolve - with associated resource', async () => {
-		const workingCopy = await manager.resolve({ associatedResource: { path: '/some/associated.txt' } });
+		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
 
 		assert.strictEqual(workingCopy.hasAssociatedFilePath, true);
 		assert.strictEqual(workingCopy.resource.path, '/some/associated.txt');
@@ -170,7 +146,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 	});
 
 	test('save - without associated resource', async () => {
-		const workingCopy = await manager.resolve();
+		const workingCopy = await manager.untitled.resolve();
 		workingCopy.model?.updateContents('Simple Save');
 
 		accessor.fileDialogService.setPickFileToSave(URI.file('simple/file.txt'));
@@ -178,13 +154,13 @@ suite('UntitledFileWorkingCopyManager', () => {
 		const result = await workingCopy.save();
 		assert.ok(result);
 
-		assert.strictEqual(manager.get(workingCopy.resource), undefined);
+		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
 
 		workingCopy.dispose();
 	});
 
 	test('save - with associated resource', async () => {
-		const workingCopy = await manager.resolve({ associatedResource: { path: '/some/associated.txt' } });
+		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
 		workingCopy.model?.updateContents('Simple Save with associated resource');
 
 		accessor.fileService.notExistsSet.set(URI.from({ scheme: Schemas.vscodeRemote, path: '/some/associated.txt' }), true);
@@ -192,79 +168,26 @@ suite('UntitledFileWorkingCopyManager', () => {
 		const result = await workingCopy.save();
 		assert.ok(result);
 
-		assert.strictEqual(manager.get(workingCopy.resource), undefined);
+		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
 
 		workingCopy.dispose();
 	});
 
 	test('save - with associated resource (asks to overwrite)', async () => {
-		const workingCopy = await manager.resolve({ associatedResource: { path: '/some/associated.txt' } });
+		const workingCopy = await manager.untitled.resolve({ associatedResource: { path: '/some/associated.txt' } });
 		workingCopy.model?.updateContents('Simple Save with associated resource');
 
 		let result = await workingCopy.save();
 		assert.ok(!result); // not confirmed
 
-		assert.strictEqual(manager.get(workingCopy.resource), workingCopy);
+		assert.strictEqual(manager.untitled.get(workingCopy.resource), workingCopy);
 
 		accessor.dialogService.setConfirmResult({ confirmed: true });
 
 		result = await workingCopy.save();
 		assert.ok(result); // confirmed
 
-		assert.strictEqual(manager.get(workingCopy.resource), undefined);
-
-		workingCopy.dispose();
-	});
-
-	test('saveAs - without associated resource', async () => {
-		const workingCopy = await manager.resolve();
-		workingCopy.model?.updateContents('Simple Save As');
-
-		const target = URI.file('simple/file.txt');
-		accessor.fileDialogService.setPickFileToSave(target);
-
-		const result = await manager.saveAs(workingCopy.resource, undefined);
-		assert.strictEqual(result?.resource.toString(), target.toString());
-
-		assert.strictEqual((result?.model as TestFileWorkingCopyModel).contents, 'Simple Save As');
-
-		assert.strictEqual(manager.get(workingCopy.resource), undefined);
-
-		workingCopy.dispose();
-	});
-
-	test('saveAs - with associated resource', async () => {
-		const workingCopy = await manager.resolve({ associatedResource: { path: '/some/associated.txt' } });
-		workingCopy.model?.updateContents('Simple Save As with associated resource');
-
-		const target = URI.from({ scheme: Schemas.vscodeRemote, path: '/some/associated.txt' });
-
-		accessor.fileService.notExistsSet.set(target, true);
-
-		const result = await manager.saveAs(workingCopy.resource, undefined);
-		assert.strictEqual(result?.resource.toString(), target.toString());
-
-		assert.strictEqual((result?.model as TestFileWorkingCopyModel).contents, 'Simple Save As with associated resource');
-
-		assert.strictEqual(manager.get(workingCopy.resource), undefined);
-
-		workingCopy.dispose();
-	});
-
-	test('saveAs - target exists and is resolved', async () => {
-		const workingCopy = await manager.resolve();
-		workingCopy.model?.updateContents('Simple Save As');
-
-		const target = URI.file('simple/file.txt');
-		const targetFileWorkingCopy = await fileManager.resolve(target);
-		accessor.fileDialogService.setPickFileToSave(target);
-
-		const result = await manager.saveAs(workingCopy.resource, undefined);
-		assert.strictEqual(result, targetFileWorkingCopy);
-
-		assert.strictEqual((result?.model as TestFileWorkingCopyModel).contents, 'Simple Save As');
-
-		assert.strictEqual(manager.get(workingCopy.resource), undefined);
+		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
 
 		workingCopy.dispose();
 	});
@@ -272,16 +195,16 @@ suite('UntitledFileWorkingCopyManager', () => {
 	test('destroy', async () => {
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 
-		await manager.resolve();
-		await manager.resolve();
-		await manager.resolve();
+		await manager.untitled.resolve();
+		await manager.untitled.resolve();
+		await manager.untitled.resolve();
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
-		assert.strictEqual(manager.workingCopies.length, 3);
+		assert.strictEqual(manager.untitled.workingCopies.length, 3);
 
-		await manager.destroy();
+		await manager.untitled.destroy();
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
-		assert.strictEqual(manager.workingCopies.length, 0);
+		assert.strictEqual(manager.untitled.workingCopies.length, 0);
 	});
 });
