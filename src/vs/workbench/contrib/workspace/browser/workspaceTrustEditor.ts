@@ -119,8 +119,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 					label: '',
 					tooltip: '',
 					weight: 0,
-					minimumWidth: 80,
-					maximumWidth: 80,
+					minimumWidth: 55,
+					maximumWidth: 55,
 					templateId: TrustedUriActionsColumnRenderer.TEMPLATE_ID,
 					project(row: ITrustedUriItem): ITrustedUriItem { return row; }
 				},
