@@ -26,7 +26,7 @@ import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -61,6 +61,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -78,6 +79,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			this.registerListeners();
 			this.createStatusbarEntry();
 
+			// Set empty workspace trust state
+			this.setEmptyWorkspaceTrustState();
+
+			// Show modal dialog
 			if (this.hostService.hasFocus) {
 				this.showModalOnStart();
 			} else {
@@ -238,6 +243,25 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			backgroundColor,
 			color
 		};
+	}
+
+	private setEmptyWorkspaceTrustState(): void {
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			return;
+		}
+
+		// Open files
+		const openFiles = this.editorService.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })).filter(uri => !!uri);
+
+		if (openFiles.length) {
+			// If all open files are trusted, transition to a trusted workspace
+			if (openFiles.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri!).trusted).every(trusted => trusted)) {
+				this.workspaceTrustManagementService.setWorkspaceTrust(true);
+			}
+		} else {
+			// No open files, use the setting to set workspace trust state
+			this.workspaceTrustManagementService.setWorkspaceTrust(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
+		}
 	}
 
 	private updateStatusbarEntry(trusted: boolean): void {
