@@ -16,6 +16,16 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		counter: number
 	}>();
 
+	public async getAllModels(resource: URI): Promise<ICustomEditorModel[]> {
+		const keyStart = `${resource.toString()}@@@`;
+		const models = [];
+		for (const [key, entry] of this._references) {
+			if (key.startsWith(keyStart) && entry.model) {
+				models.push(await entry.model);
+			}
+		}
+		return models;
+	}
 	public async get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined> {
 		const key = this.key(resource, viewType);
 		const entry = this._references.get(key);

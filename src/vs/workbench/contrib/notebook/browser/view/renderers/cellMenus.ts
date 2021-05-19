@@ -16,6 +16,10 @@ export class CellMenus {
 		return this.getMenu(MenuId.NotebookToolbar, contextKeyService);
 	}
 
+	getNotebookRightToolbar(contextKeyService: IContextKeyService): IMenu {
+		return this.getMenu(MenuId.NotebookRightToolbar, contextKeyService);
+	}
+
 	getCellTitleMenu(contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.NotebookCellTitle, contextKeyService);
 	}

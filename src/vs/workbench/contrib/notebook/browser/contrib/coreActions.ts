@@ -34,6 +34,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Iterable } from 'vs/base/common/iterator';
 import { flatten } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = 'notebook.selectKernel';
@@ -658,24 +659,40 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.executeNotebook', "Execute Notebook (Run all cells)"),
+			title: localize('notebookActions.executeNotebook', "Run All"),
 			icon: icons.executeAllIcon,
 			description: {
-				description: localize('notebookActions.executeNotebook', "Execute Notebook (Run all cells)"),
+				description: localize('notebookActions.executeNotebook', "Run All"),
 				args: [
 					{
 						name: 'uri',
-						description: 'The document uri',
-						constraint: URI
+						description: 'The document uri'
 					}
 				]
 			},
-			menu: {
-				id: MenuId.EditorTitle,
-				order: -1,
-				group: 'navigation',
-				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated())),
-			}
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						executeNotebookCondition,
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					order: -1,
+					group: 'navigation/execute',
+					when: ContextKeyExpr.and(
+						executeNotebookCondition,
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+					)
+				}
+			]
 		});
 	}
 
@@ -712,10 +729,10 @@ registerAction2(class CancelNotebook extends NotebookAction {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.cancelNotebook', "Stop Notebook Execution"),
+			title: localize('notebookActions.cancelNotebook', "Stop Execution"),
 			icon: icons.stopIcon,
 			description: {
-				description: localize('notebookActions.cancelNotebook', "Stop Notebook Execution"),
+				description: localize('notebookActions.cancelNotebook', "Stop Execution"),
 				args: [
 					{
 						name: 'uri',
@@ -724,12 +741,29 @@ registerAction2(class CancelNotebook extends NotebookAction {
 					}
 				]
 			},
-			menu: {
-				id: MenuId.EditorTitle,
-				order: -1,
-				group: 'navigation',
-				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
-			}
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					order: -1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL,
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					order: -1,
+					group: 'navigation/execute',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL,
+						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+					)
+				}
+			]
 		});
 	}
 
@@ -883,7 +917,13 @@ abstract class InsertCellCommand extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
+		if (context.cell) {
+			context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
+		} else {
+			const focusRange = context.notebookEditor.getFocus();
+			const next = focusRange.end - 1;
+			context.notebookEditor.insertNotebookCell(context.notebookEditor.viewModel.viewCells[next], this.kind, this.direction, undefined, true);
+		}
 	}
 }
 
@@ -990,6 +1030,18 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+		icon: Codicon.add,
+		title: localize('notebookActions.menu.insertCode.ontoolbar', "Code"),
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+	},
+	order: -5,
+	group: 'navigation/add',
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+});
+
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	command: {
 		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
@@ -1041,6 +1093,18 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	},
 	order: 1,
 	group: 'inline',
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+		icon: Codicon.add,
+		title: localize('notebookActions.menu.insertMarkdown.ontoolbar', "Markdown"),
+		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
+	},
+	order: -5,
+	group: 'navigation/add',
 	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
@@ -1114,7 +1178,9 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
 					},
 					{
-						when: quitEditCondition,
+						when: ContextKeyExpr.and(
+							quitEditCondition,
+							NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 						win: {
 							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
@@ -1454,13 +1520,24 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
-			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
-			menu: {
-				id: MenuId.EditorTitle,
-				when: NOTEBOOK_IS_ACTIVE_EDITOR,
-				group: 'navigation',
-				order: 0
-			},
+			title: localize('clearAllCellsOutputs', 'Clear Outputs'),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+					),
+					group: 'navigation',
+					order: 0
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					when: ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true),
+					group: 'navigation/execute',
+					order: 0
+				}
+			],
 			icon: icons.clearIcon
 		});
 	}

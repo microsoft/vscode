@@ -496,7 +496,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			minimumContrastRatio: config.minimumContrastRatio,
-			bellStyle: config.enableBell ? 'sound' : 'none',
+			bellStyle: 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
@@ -900,7 +900,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	override dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
-
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);

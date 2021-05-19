@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 
 
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
@@ -78,6 +78,10 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 	readonly onDidCompleteWorkspaceTrustRequest = this._onDidCompleteWorkspaceTrustRequest.event;
 
 	constructor(private readonly _trusted: boolean) { }
+
+	async requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
+		throw new Error('Method not implemented.');
+	}
 
 	cancelRequest(): void {
 		throw new Error('Method not implemented.');

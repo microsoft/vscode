@@ -34,11 +34,16 @@ import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 
 const $ = DOM.$;
-const TAB_HEIGHT = 22;
-export const MIN_TABS_LIST_WIDTH = 46;
-export const DEFAULT_TABS_LIST_WIDTH = 80;
-export const MIDPOINT_LIST_WIDTH = (MIN_TABS_LIST_WIDTH + DEFAULT_TABS_LIST_WIDTH) / 2;
-export const THRESHOLD_ACTIONBAR_WIDTH = 105;
+
+export const enum TerminalTabsListSizes {
+	TabHeight = 22,
+	NarrowViewWidth = 46,
+	WideViewMinimumWidth = 80,
+	DefaultWidth = 120,
+	MidpointViewWidth = (TerminalTabsListSizes.NarrowViewWidth + TerminalTabsListSizes.WideViewMinimumWidth) / 2,
+	ActionbarMinimumWidth = 105,
+	MaximumWidth = 500
+}
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
@@ -56,22 +61,23 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService
 	) {
-		super('TerminalTabsTree', container,
+		super('TerminalTabsList', container,
 			{
-				getHeight: () => TAB_HEIGHT,
+				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
 			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
+				selectionNavigation: true,
 				identityProvider: {
 					getId: e => e?.instanceId
 				},
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				additionalScrollHeight: TAB_HEIGHT,
+				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
 				dnd: new TerminalTabsDragAndDrop(_terminalService, _terminalInstanceService)
 			},
 			contextKeyService,
@@ -128,13 +134,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
 
-		this.onDidChangeSelection(e => {
-			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-		});
-
-		this.onDidChangeFocus(e => {
-			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-		});
+		this.onDidChangeSelection(e => this._updateContextKey());
+		this.onDidChangeFocus(() => this._updateContextKey());
 
 		this.onDidOpen(async e => {
 			const instance = e.element;
@@ -155,6 +156,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 	render(): void {
 		this.splice(0, this.length, this._terminalService.terminalInstances);
+	}
+
+	private _updateContextKey() {
+		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 	}
 }
 
@@ -211,11 +216,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < MIDPOINT_LIST_WIDTH : false;
+		return this._container ? this._container.clientWidth < TerminalTabsListSizes.MidpointViewWidth : false;
 	}
 
 	shouldHideActionBar(): boolean {
-		return this._container ? this._container.clientWidth <= THRESHOLD_ACTIONBAR_WIDTH : false;
+		return this._container ? this._container.clientWidth <= TerminalTabsListSizes.ActionbarMinimumWidth : false;
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
@@ -243,7 +248,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const statuses = instance.statusList.statuses;
 		template.context.hoverActions = [];
 		for (const status of statuses) {
-			title += `\n\n---\n\n${status.tooltip || status.id}`;
+			title += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
 			if (status.hoverActions) {
 				template.context.hoverActions.push(...status.hoverActions);
 			}
@@ -253,7 +258,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		let label: string;
 		if (!hasText) {
 			const primaryStatus = instance.statusList.primary;
-			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
+			// Don't show ignore severity
+			if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
 				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
 			} else {
 				label = `${prefix}$(${instance.icon?.id})`;
@@ -299,7 +305,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(title),
+				markdown: new MarkdownString(title, { supportThemeIcons: true }),
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses: instance.color ? [`terminal-icon-${instance.color}`] : undefined

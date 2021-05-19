@@ -22,6 +22,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
 
 // Actions
 (function registerActions(): void {
@@ -35,6 +36,12 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
+
+	// Actions: Install Shell Script (macOS only)
+	if (isMacintosh) {
+		registerAction2(InstallShellScriptAction);
+		registerAction2(UninstallShellScriptAction);
+	}
 
 	// Quit
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
