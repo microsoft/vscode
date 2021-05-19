@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { DEFAULT_TABS_LIST_WIDTH, MIDPOINT_LIST_WIDTH, MIN_TABS_LIST_WIDTH, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
+import { TerminalTabsListSizes, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
@@ -31,7 +31,6 @@ const $ = dom.$;
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_LIST_WIDTH_HORIZONTAL_KEY = 'tabs-list-width-horizontal';
 const TABS_LIST_WIDTH_VERTICAL_KEY = 'tabs-list-width-vertical';
-const MAX_TABS_LIST_WIDTH = 500;
 const STATUS_ICON_WIDTH = 30;
 const SPLIT_ANNOTATION_WIDTH = 30;
 
@@ -173,19 +172,19 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getLastListWidth(): number {
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_LIST_WIDTH_VERTICAL_KEY : TABS_LIST_WIDTH_HORIZONTAL_KEY;
-		const storedValue = this._storageService.get(widthKey, StorageScope.WORKSPACE);
+		const storedValue = this._storageService.get(widthKey, StorageScope.GLOBAL);
 
 		if (!storedValue || !parseInt(storedValue)) {
 			// we want to use the min width by default for the vertical orientation bc
 			// there is such a limited width for the terminal panel to begin w there.
-			return this._panelOrientation === Orientation.VERTICAL ? MIN_TABS_LIST_WIDTH : DEFAULT_TABS_LIST_WIDTH;
+			return this._panelOrientation === Orientation.VERTICAL ? TerminalTabsListSizes.NarrowViewWidth : TerminalTabsListSizes.DefaultWidth;
 		}
 		return parseInt(storedValue);
 	}
 
 	private _handleOnDidSashReset(): void {
 		// Calculate ideal size of list to display all text based on its contents
-		let idealWidth = DEFAULT_TABS_LIST_WIDTH;
+		let idealWidth = TerminalTabsListSizes.WideViewMinimumWidth;
 		const offscreenCanvas = new OffscreenCanvas(1, 1);
 		const ctx = offscreenCanvas.getContext('2d');
 		if (ctx) {
@@ -194,12 +193,12 @@ export class TerminalTabbedView extends Disposable {
 			const maxInstanceWidth = this._terminalService.terminalInstances.reduce((p, c) => {
 				return Math.max(p, ctx.measureText(c.title + (c.shellLaunchConfig.description || '')).width + this._getAdditionalWidth(c));
 			}, 0);
-			idealWidth = Math.ceil(Math.max(maxInstanceWidth, DEFAULT_TABS_LIST_WIDTH));
+			idealWidth = Math.ceil(Math.max(maxInstanceWidth, TerminalTabsListSizes.WideViewMinimumWidth));
 		}
 		// If the size is already ideal, toggle to collapsed
 		const currentWidth = Math.ceil(this._splitView.getViewSize(this._tabTreeIndex));
 		if (currentWidth === idealWidth) {
-			idealWidth = MIN_TABS_LIST_WIDTH;
+			idealWidth = TerminalTabsListSizes.NarrowViewWidth;
 		}
 		this._splitView.resizeView(this._tabTreeIndex, idealWidth);
 		this._updateListWidth(idealWidth);
@@ -222,16 +221,16 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _updateListWidth(width: number): void {
-		if (width < MIDPOINT_LIST_WIDTH && width >= MIN_TABS_LIST_WIDTH) {
-			width = MIN_TABS_LIST_WIDTH;
+		if (width < TerminalTabsListSizes.MidpointViewWidth && width >= TerminalTabsListSizes.NarrowViewWidth) {
+			width = TerminalTabsListSizes.NarrowViewWidth;
 			this._splitView.resizeView(this._tabTreeIndex, width);
-		} else if (width >= MIDPOINT_LIST_WIDTH && width < DEFAULT_TABS_LIST_WIDTH) {
-			width = DEFAULT_TABS_LIST_WIDTH;
+		} else if (width >= TerminalTabsListSizes.MidpointViewWidth && width < TerminalTabsListSizes.WideViewMinimumWidth) {
+			width = TerminalTabsListSizes.WideViewMinimumWidth;
 			this._splitView.resizeView(this._tabTreeIndex, width);
 		}
 		this._rerenderTabs();
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TABS_LIST_WIDTH_VERTICAL_KEY : TABS_LIST_WIDTH_HORIZONTAL_KEY;
-		this._storageService.store(widthKey, width, StorageScope.WORKSPACE, StorageTarget.USER);
+		this._storageService.store(widthKey, width, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private _setupSplitView(): void {
@@ -259,8 +258,8 @@ export class TerminalTabbedView extends Disposable {
 		this._splitView.addView({
 			element: this._tabContainer,
 			layout: width => this._tabList.layout(this._height || 0, width),
-			minimumSize: MIN_TABS_LIST_WIDTH,
-			maximumSize: MAX_TABS_LIST_WIDTH,
+			minimumSize: TerminalTabsListSizes.NarrowViewWidth,
+			maximumSize: TerminalTabsListSizes.MaximumWidth,
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
@@ -268,7 +267,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _rerenderTabs() {
-		const hasText = this._tabListElement.clientWidth > MIDPOINT_LIST_WIDTH;
+		const hasText = this._tabListElement.clientWidth > TerminalTabsListSizes.MidpointViewWidth;
 		this._tabContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
 		this._tabList.render();

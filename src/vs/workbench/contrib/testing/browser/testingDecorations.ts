@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -393,7 +394,7 @@ class TestMessageDecoration implements ITestDecoration {
 		const colorTheme = themeService.getColorTheme();
 		editorService.registerDecorationType(this.decorationId, {
 			after: {
-				contentText: message.toString(),
+				contentText: renderStringAsPlaintext(message),
 				color: `${colorTheme.getColor(testMessageSeverityColors[severity].decorationForeground)}`,
 				fontSize: `${editor.getOption(EditorOption.fontSize)}px`,
 				fontFamily: `var(${FONT_FAMILY_VAR})`,

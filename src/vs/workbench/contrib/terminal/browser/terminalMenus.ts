@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -230,6 +230,15 @@ export function setupTerminalMenus(): void {
 		[
 			{
 				id: MenuId.TerminalInlineTabContext, item: {
+					group: ContextMenuGroup.Create,
+					command: {
+						id: TerminalCommandId.Split,
+						title: localize('workbench.action.terminal.split', "Split Terminal")
+					}
+				}
+			},
+			{
+				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
 						id: TerminalCommandId.ChangeIcon,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
@@ -259,15 +268,6 @@ export function setupTerminalMenus(): void {
 			},
 			{
 				id: MenuId.TerminalInlineTabContext, item: {
-					group: ContextMenuGroup.Create,
-					command: {
-						id: TerminalCommandId.Split,
-						title: localize('workbench.action.terminal.split', "Split Terminal")
-					}
-				}
-			},
-			{
-				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
 						id: TerminalCommandId.Kill,
 						title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
@@ -280,6 +280,15 @@ export function setupTerminalMenus(): void {
 
 	MenuRegistry.appendMenuItems(
 		[
+			{
+				id: MenuId.TerminalTabContext, item: {
+					command: {
+						id: TerminalCommandId.SplitInstance,
+						title: localize('workbench.action.terminal.splitInstance', "Split Terminal"),
+					},
+					group: ContextMenuGroup.Create
+				}
+			},
 			{
 				id: MenuId.TerminalTabContext, item: {
 					command: {
@@ -309,11 +318,12 @@ export function setupTerminalMenus(): void {
 			},
 			{
 				id: MenuId.TerminalTabContext, item: {
+					group: ContextMenuGroup.Config,
 					command: {
-						id: TerminalCommandId.SplitInstance,
-						title: localize('workbench.action.terminal.splitInstance', "Split Terminal"),
+						id: TerminalCommandId.JoinInstance,
+						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
 					},
-					group: ContextMenuGroup.Create
+					when: KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.toNegated()
 				}
 			},
 			{

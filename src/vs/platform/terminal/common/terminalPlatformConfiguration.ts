@@ -187,6 +187,13 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell.'),
 								enum: ['PowerShell', 'Git Bash']
 							},
+							args: {
+								description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
+								type: 'array',
+								items: {
+									type: 'string'
+								}
+							},
 							overrideName: {
 								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
 								type: 'boolean'
