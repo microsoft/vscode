@@ -23,7 +23,6 @@ export class TopmostLineMonitor extends Disposable {
 		super();
 
 		if (vscode.window.activeTextEditor) {
-
 			const line = getVisibleLine(vscode.window.activeTextEditor);
 			this.setPreviousEditorLine({ uri: vscode.window.activeTextEditor.document.uri, line: line ?? 0 });
 		}
@@ -37,7 +36,6 @@ export class TopmostLineMonitor extends Disposable {
 				}
 			}
 		}));
-
 	}
 
 	private readonly _onChanged = this._register(new vscode.EventEmitter<{ readonly resource: vscode.Uri, readonly line: number }>());
