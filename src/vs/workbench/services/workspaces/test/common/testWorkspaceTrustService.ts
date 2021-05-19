@@ -88,7 +88,7 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 	constructor(private readonly _trusted: boolean) { }
 
 	async requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve(WorkspaceTrustUriResponse.Open);
 	}
 
 	cancelRequest(): void {
