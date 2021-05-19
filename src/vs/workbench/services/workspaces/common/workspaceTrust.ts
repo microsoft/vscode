@@ -251,11 +251,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	canSetWorkspaceTrust(): boolean {
-		// Resolver set workspace trust
-		if (!this._trustState.canSetWorkspaceTrust) {
-			return false;
-		}
-
 		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return true;
@@ -502,7 +497,6 @@ class WorkspaceTrustState {
 	private readonly _mementoObject: MementoObject;
 
 	private readonly _acceptsNonWorkspaceFilesKey = 'acceptsNonWorkspaceFiles';
-	private readonly _canSetWorkspaceTrust = 'canSetWorkspaceTrust';
 	private readonly _isTrustedKey = 'isTrusted';
 
 	constructor(storageService: IStorageService) {
@@ -516,15 +510,6 @@ class WorkspaceTrustState {
 
 	set acceptsNonWorkspaceFiles(value: boolean) {
 		this._mementoObject[this._acceptsNonWorkspaceFilesKey] = value;
-		this._memento.saveMemento();
-	}
-
-	get canSetWorkspaceTrust(): boolean {
-		return this._mementoObject[this._canSetWorkspaceTrust] ?? true;
-	}
-
-	set canSetWorkspaceTrust(value: boolean) {
-		this._mementoObject[this._canSetWorkspaceTrust] = value;
 		this._memento.saveMemento();
 	}
 
