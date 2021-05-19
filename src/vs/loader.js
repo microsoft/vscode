@@ -698,7 +698,7 @@ var AMDLoader;
                 }).then(function (text) {
                     text = text + "\n//# sourceURL=" + scriptSrc;
                     var func = (trustedTypesPolicy
-                        ? self.eval(trustedTypesPolicy.createScript('', text))
+                        ? self.eval(trustedTypesPolicy.createScript('', text).toString())
                         : new Function(text));
                     func.call(self);
                     callback();

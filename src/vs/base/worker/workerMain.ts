@@ -44,7 +44,7 @@
 					text = `${text}\n//# sourceURL=${loaderSrc}`;
 					const func = (
 						trustedTypesPolicy
-							? self.eval(trustedTypesPolicy.createScript('', text) as unknown as string)
+							? self.eval(trustedTypesPolicy.createScript('', text).toString())
 							: new Function(text)
 					);
 					func.call(self);

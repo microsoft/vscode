@@ -37,7 +37,7 @@ namespace TrustedFunction {
 		if (!ttpTrustedFunction) {
 			return new Function(...args);
 		}
-		return self.eval(ttpTrustedFunction.createScript('', ...args) as unknown as string);
+		return self.eval(ttpTrustedFunction.createScript('', ...args).toString());
 	}
 }
 
