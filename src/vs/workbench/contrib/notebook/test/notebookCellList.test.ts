@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookCellList', () => {
 	const instantiationService = setupInstantiationService();
+	const notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
+	const topInsertToolbarHeight = notebookDefaultOptions.computeTopInserToolbarHeight();
 
 	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {
 		await withTestNotebook(
@@ -32,7 +35,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+				cellList.layout(210 + topInsertToolbarHeight, 100);
 				// scroll a bit, scrollTop to bottom: 5, 215
 				cellList.scrollTop = 5;
 
@@ -77,7 +80,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+				cellList.layout(210 + topInsertToolbarHeight, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -116,12 +119,12 @@ suite('NotebookCellList', () => {
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
-				// without additionalscrollheight, the last 20 px will always be hidden due to `SCROLLABLE_ELEMENT_PADDING_TOP`
+				// without additionalscrollheight, the last 20 px will always be hidden due to `topInsertToolbarHeight`
 				cellList.updateOptions({ additionalScrollHeight: 100 });
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+				cellList.layout(210 + topInsertToolbarHeight, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -154,7 +157,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+				cellList.layout(210 + topInsertToolbarHeight, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -196,7 +199,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+				cellList.layout(210 + topInsertToolbarHeight, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -249,7 +252,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+				cellList.layout(210 + topInsertToolbarHeight, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -283,7 +286,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + SCROLLABLE_ELEMENT_PADDING_TOP, 100);
+				cellList.layout(210 + topInsertToolbarHeight, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);

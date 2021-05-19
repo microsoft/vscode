@@ -147,7 +147,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}));
 
 		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility) {
+			if (e.cellStatusBarVisibility || e.insertToolbarPosition) {
 				this.layoutChange({});
 			}
 		}));

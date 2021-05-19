@@ -898,6 +898,7 @@ export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 export const ExperimentalCompactView = 'notebook.experimental.compactView';
 export const ExperimentalFocusIndicator = 'notebook.experimental.cellFocusIndicator';
+export const ExperimentalInsertToolbarPosition = 'notebook.experimental.insertToolbarPosition';
 export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
 
 export const enum CellStatusbarAlignment {

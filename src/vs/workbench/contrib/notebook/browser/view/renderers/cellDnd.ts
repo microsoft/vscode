@@ -157,7 +157,7 @@ export class CellDragAndDropController extends Disposable {
 
 	private updateInsertIndicator(dropDirection: string, insertionIndicatorAbsolutePos: number) {
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + layoutInfo.bottomCellToolbarGap / 2;
+		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + layoutInfo.bottomToolbarGap / 2;
 		if (insertionIndicatorTop >= 0) {
 			this.listInsertionIndicator.style.top = `${insertionIndicatorTop}px`;
 			this.setInsertIndicatorVisibility(true);
@@ -200,7 +200,7 @@ export class CellDragAndDropController extends Disposable {
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + layoutInfo.bottomCellToolbarGap / 2;
+		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + layoutInfo.bottomToolbarGap / 2;
 		const editorHeight = this.notebookEditor.getDomNode().getBoundingClientRect().height;
 		if (insertionIndicatorTop < 0 || insertionIndicatorTop > editorHeight) {
 			// Ignore drop, insertion point is off-screen
