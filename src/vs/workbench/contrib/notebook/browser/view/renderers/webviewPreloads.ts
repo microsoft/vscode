@@ -164,16 +164,17 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 		if (isModule) {
 			return __import(url);
 		} else {
-			return createBackCompatModule(rendererId, text);
+			return createBackCompatModule(rendererId, url, text);
 		}
 	};
 
-	const createBackCompatModule = (rendererId: string, scriptText: string): ScriptModule => ({
+	const createBackCompatModule = (rendererId: string, scriptUrl: string, scriptText: string): ScriptModule => ({
 		activate: (): RendererApi => {
 			const onDidCreateOutput = createEmitter<ICreateCellInfo>();
 			const onWillDestroyOutput = createEmitter<undefined | IDestroyCellInfo>();
 
 			const globals = {
+				scriptUrl,
 				acquireNotebookRendererApi: <T>(): GlobalNotebookRendererApi<T> => ({
 					onDidCreateOutput: onDidCreateOutput.event,
 					onWillDestroyOutput: onWillDestroyOutput.event,
