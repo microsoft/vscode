@@ -286,8 +286,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		});
 	}
 
-
-
 	private async updatePreview(forceUpdate?: boolean): Promise<void> {
 		clearTimeout(this.throttleTimer);
 		this.throttleTimer = undefined;
