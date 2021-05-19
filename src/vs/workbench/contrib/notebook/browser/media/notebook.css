@@ -69,6 +69,15 @@
 	background-size: 16px;
 	padding: 0px 5px 0px 2px;
 	border-radius: 5px;
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled) {
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
+	background-color: unset;
 }
 
 .monaco-workbench .cell.markdown {
