@@ -17,10 +17,10 @@ import { URI } from 'vs/base/common/uri';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { coalesce, distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
+import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -490,36 +490,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region editor overrides
 
-	private readonly openEditorOverrides: IOpenEditorOverrideHandler[] = [];
-
-	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {
-		const remove = insert(this.openEditorOverrides, handler);
-
-		return toDisposable(() => remove());
-	}
-
-	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] {
-		const overrides: [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] = [];
-
-		// Collect contributed editor open overrides
-		for (const openEditorOverride of this.openEditorOverrides) {
-			if (typeof openEditorOverride.getEditorOverrides === 'function') {
-				try {
-					overrides.push(...openEditorOverride.getEditorOverrides(resource, options, group).map(val => [openEditorOverride, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]));
-				} catch (error) {
-					this.logService.error(`Unexpected error getting editor overrides: ${error}`);
-				}
-			}
-		}
-
-		// Ensure the default one is always present
-		if (!overrides.some(([, entry]) => entry.id === DEFAULT_EDITOR_ASSOCIATION.id)) {
-			overrides.unshift(this.getDefaultEditorOverride(resource));
-		}
-
-		return overrides;
-	}
-
 	private registerDefaultOverride(): void {
 		this._register(this.editorOverrideService.registerContributionPoint(
 			'*',
@@ -536,57 +506,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		));
 	}
 
-	private getDefaultEditorOverride(resource: URI): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry] {
-		return [
-			{
-				open: (editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
-					const resource = EditorResourceAccessor.getOriginalUri(editor);
-					if (!resource) {
-						return;
-					}
-
-					const fileEditorInput = this.createEditorInput({ resource, forceFile: true });
-					const textOptions: IEditorOptions | ITextEditorOptions = { ...options, override: EditorOverride.DISABLED };
-					return {
-						override: (async () => {
-
-							// Try to replace existing editors for resource
-							const existingEditor = firstOrDefault(this.findEditors(resource, group));
-							if (existingEditor && !fileEditorInput.matches(existingEditor)) {
-								await this.replaceEditors([{
-									editor: existingEditor,
-									replacement: fileEditorInput,
-									forceReplaceDirty: existingEditor.resource?.scheme === Schemas.untitled,
-									options: options ? EditorOptions.create(options) : undefined,
-								}], group);
-							}
-
-							return this.openEditor(fileEditorInput, textOptions, group);
-						})()
-					};
-				}
-			},
-			{
-				id: DEFAULT_EDITOR_ASSOCIATION.id,
-				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
-				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				active: this.fileEditorInputFactory.isFileEditorInput(this.activeEditor) && isEqual(this.activeEditor.resource, resource),
-			}
-		];
-	}
-
-	private doOverrideOpenEditor(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorPane | undefined> | undefined {
-		for (const openEditorOverride of this.openEditorOverrides) {
-			const result = openEditorOverride.open(editor, options, group);
-			const override = result?.override;
-			if (override) {
-				return override;
-			}
-		}
-
-		return;
-	}
-
 	//#endregion
 
 	//#region openEditor()
@@ -599,30 +518,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (result) {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
-			// Override handling: pick editor or open specific
-			if (resolvedOptions?.override === EditorOverride.PICK || typeof resolvedOptions?.override === 'string') {
-				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
-				if (!resolvedInputWithOptionsAndGroup) {
-					return undefined; // no editor was picked or registered for the identifier
-				}
-
-				return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(
-					resolvedInputWithOptionsAndGroup.editor,
-					this.toOptions(resolvedInputWithOptionsAndGroup.options) ?? resolvedOptions
-				);
-			}
-
-			// Override handling: ask providers to override
+			// Override handling: request override from override service
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				// TODO@lramos15 this will get cleaned up soon, but since the override
-				// service no longer uses the override flow we must check that
 				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
 				// If we didn't override try the legacy overrides
 				if (!resolvedInputWithOptionsAndGroup || resolvedEditor.matches(resolvedInputWithOptionsAndGroup.editor)) {
-					const override = this.doOverrideOpenEditor(resolvedEditor, resolvedOptions, resolvedGroup);
-					if (override) {
-						return override;
-					}
+					return;
 				} else {
 					return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(
 						resolvedInputWithOptionsAndGroup.editor,
@@ -1403,9 +1304,6 @@ export class DelegatingEditorService implements IEditorService {
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
 	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
 	findEditors(arg1: URI | IResourceEditorInputIdentifier, arg2?: IEditorGroup | GroupIdentifier): readonly IEditorIdentifier[] | readonly IEditorInput[] | IEditorInput | undefined { return this.editorService.findEditors(arg1, arg2); }
-
-	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable { return this.editorService.overrideOpenEditor(handler); }
-	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) { return this.editorService.getEditorOverrides(resource, options, group); }
 
 	createEditorInput(input: IResourceEditorInputType): IEditorInput { return this.editorService.createEditorInput(input); }
 

@@ -9,7 +9,6 @@ import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IU
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
@@ -232,18 +231,6 @@ export interface IEditorService {
 	findEditors(resource: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
 	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
-
-	/**
-	 * Get all available editor overrides for the editor input.
-	 */
-	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
-
-	/**
-	 * Allows to override the opening of editors by installing a handler that will
-	 * be called each time an editor is about to open allowing to override the
-	 * operation to open a different editor.
-	 */
-	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.

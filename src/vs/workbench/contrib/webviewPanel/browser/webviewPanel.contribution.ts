@@ -32,11 +32,9 @@ class WebviewPanelContribution implements IWorkbenchContribution {
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
-		this.editorService.overrideOpenEditor({
-			open: (editor, options, group) => this.onEditorOpening(editor, options, group)
-		});
 	}
 
+	//@ts-ignore
 	private onEditorOpening(
 		editor: IEditorInput,
 		options: ITextEditorOptions | undefined,
