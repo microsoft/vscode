@@ -194,7 +194,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private createStatusbarEntry(): void {
 		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
-		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
 
@@ -202,6 +202,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		return {
 			id: BANNER_RESTRICTED_MODE,
 			icon: shieldIcon,
+			ariaLabel: localize('restrictedModeBannerAriaLabel', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions."),
 			message: localize('restrictedModeBannerMessage', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features."),
 			actions: [
 				{
@@ -223,6 +224,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
 
 		return {
+			name: localize('status.WorkspaceTrust', "Workspace Trust"),
 			text: trusted ? `$(shield)` : `$(shield) ${text}`,
 			ariaLabel: trusted ? localize('status.ariaTrusted', "This workspace is trusted.") : localize('status.ariaUntrusted', "Restricted Mode: Some features are disabled because this workspace is not trusted."),
 			tooltip: trusted ? localize('status.tooltipTrusted', "This workspace is trusted.") : localize('status.tooltipUntrusted', "Some features are disabled because this workspace is not trusted."),

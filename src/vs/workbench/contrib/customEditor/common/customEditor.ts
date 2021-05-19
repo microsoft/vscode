@@ -41,6 +41,8 @@ export interface ICustomEditorService {
 }
 
 export interface ICustomEditorModelManager {
+	getAllModels(resource: URI): Promise<ICustomEditorModel[]>
+
 	get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined>;
 
 	tryRetain(resource: URI, viewType: string): Promise<IReference<ICustomEditorModel>> | undefined;

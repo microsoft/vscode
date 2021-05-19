@@ -37,12 +37,26 @@ registerAction2(class extends Action2 {
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
-			menu: {
+			menu: [{
 				id: MenuId.EditorTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), ContextKeyExpr.equals('config.notebook.experimental.showKernelInEditorTitle', true),),
+				when: ContextKeyExpr.and(
+					NOTEBOOK_IS_ACTIVE_EDITOR,
+					NOTEBOOK_KERNEL_COUNT.notEqualsTo(0),
+					ContextKeyExpr.equals('config.notebook.experimental.showKernelInEditorTitle', true),
+					ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+				),
 				group: 'navigation',
 				order: -10
-			},
+			}, {
+				id: MenuId.NotebookToolbar,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_KERNEL_COUNT.notEqualsTo(0),
+					ContextKeyExpr.equals('config.notebook.experimental.showKernelInEditorTitle', true),
+					ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+				),
+				group: 'status',
+				order: -10
+			}],
 			description: {
 				description: nls.localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
 				args: [
@@ -268,13 +282,13 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			const tooltip = kernel.description ?? kernel.detail ?? kernel.label;
 			this._kernelInfoElement.add(this._statusbarService.addEntry(
 				{
+					name: nls.localize('notebook.info', "Notebook Kernel Info"),
 					text: `$(notebook-kernel-select) ${kernel.label}`,
 					ariaLabel: kernel.label,
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 					command: SELECT_KERNEL_ID,
 				},
 				'notebook.selectKernel',
-				nls.localize('notebook.info', "Notebook Kernel Info"),
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -286,13 +300,13 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			// multiple kernels -> show selection hint
 			this._kernelInfoElement.add(this._statusbarService.addEntry(
 				{
+					name: nls.localize('notebook.select', "Notebook Kernel Selection"),
 					text: nls.localize('kernel.select.label', "Select Kernel"),
 					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
 					command: SELECT_KERNEL_ID,
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
 				'notebook.selectKernel',
-				nls.localize('notebook.select', "Notebook Kernel Selection"),
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -340,12 +354,11 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-		const entry = { text: newText, ariaLabel: newText };
+		const entry = { name: nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"), text: newText, ariaLabel: newText };
 		if (!this._accessor.value) {
 			this._accessor.value = this._statusbarService.addEntry(
 				entry,
 				'notebook.activeCellStatus',
-				nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"),
 				StatusbarAlignment.RIGHT,
 				100
 			);

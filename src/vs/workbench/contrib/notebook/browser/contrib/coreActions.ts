@@ -34,6 +34,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Iterable } from 'vs/base/common/iterator';
 import { flatten } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = 'notebook.selectKernel';
@@ -684,7 +685,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 				{
 					id: MenuId.NotebookToolbar,
 					order: -1,
-					group: 'navigation',
+					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
@@ -755,7 +756,7 @@ registerAction2(class CancelNotebook extends NotebookAction {
 				{
 					id: MenuId.NotebookToolbar,
 					order: -1,
-					group: 'navigation',
+					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_RUNNING_CELL,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
@@ -916,7 +917,13 @@ abstract class InsertCellCommand extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
+		if (context.cell) {
+			context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
+		} else {
+			const focusRange = context.notebookEditor.getFocus();
+			const next = focusRange.end - 1;
+			context.notebookEditor.insertNotebookCell(context.notebookEditor.viewModel.viewCells[next], this.kind, this.direction, undefined, true);
+		}
 	}
 }
 
@@ -1023,6 +1030,18 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+		icon: Codicon.add,
+		title: localize('notebookActions.menu.insertCode.ontoolbar', "Code"),
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+	},
+	order: -5,
+	group: 'navigation/add',
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+});
+
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	command: {
 		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
@@ -1074,6 +1093,18 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	},
 	order: 1,
 	group: 'inline',
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+		icon: Codicon.add,
+		title: localize('notebookActions.menu.insertMarkdown.ontoolbar', "Markdown"),
+		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
+	},
+	order: -5,
+	group: 'navigation/add',
 	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
@@ -1147,7 +1178,9 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
 					},
 					{
-						when: quitEditCondition,
+						when: ContextKeyExpr.and(
+							quitEditCondition,
+							NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 						win: {
 							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
@@ -1501,7 +1534,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 				{
 					id: MenuId.NotebookToolbar,
 					when: ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true),
-					group: 'navigation',
+					group: 'navigation/execute',
 					order: 0
 				}
 			],

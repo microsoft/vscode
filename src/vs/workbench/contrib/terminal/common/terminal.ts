@@ -398,6 +398,7 @@ export const enum TerminalCommandId {
 	SplitInstance = 'workbench.action.terminal.splitInstance',
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
 	Unsplit = 'workbench.action.terminal.unsplit',
+	JoinInstance = 'workbench.action.terminal.joinInstance',
 	Relaunch = 'workbench.action.terminal.relaunch',
 	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
 	ShowTabs = 'workbench.action.terminal.showTabs',
