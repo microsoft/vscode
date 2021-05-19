@@ -32,7 +32,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		group: GroupIdentifier | undefined,
-		options?: { readonly customClasses?: string },
+		options?: { readonly customClasses?: string, readonly oldResource?: URI },
 	): IEditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			if (viewType === defaultCustomEditor.id) {
@@ -43,7 +43,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 			const id = generateUuid();
 			const webview = accessor.get(IWebviewService).createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
-			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData });
+			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
 				input.updateGroup(group);
 			}
@@ -54,6 +54,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public static override readonly typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
+	public readonly oldResource?: URI;
 	private _defaultDirtyState: boolean | undefined;
 
 	private readonly _backupId: string | undefined;
@@ -69,7 +70,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		id: string,
 		webview: WebviewOverlay,
-		options: { startsDirty?: boolean, backupId?: string, untitledDocumentData?: VSBuffer },
+		options: { startsDirty?: boolean, backupId?: string, untitledDocumentData?: VSBuffer, readonly oldResource?: URI },
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -80,6 +81,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	) {
 		super(id, viewType, '', webview, webviewWorkbenchService);
 		this._editorResource = resource;
+		this.oldResource = options.oldResource;
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;
 		this._untitledDocumentData = options.untitledDocumentData;
@@ -241,7 +243,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private doMove(group: GroupIdentifier, newResource: URI): IEditorInput {
 		if (!this._moveHandler) {
-			return CustomEditorInput.create(this.instantiationService, newResource, this.viewType, group);
+			return CustomEditorInput.create(this.instantiationService, newResource, this.viewType, group, { oldResource: this.resource });
 		}
 
 		this._moveHandler(newResource);
