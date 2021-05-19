@@ -250,7 +250,7 @@ class InlineSuggestionsSession extends Disposable {
 		this.editor.executeEdits(
 			'inlineSuggestions.accept',
 			[
-				EditOperation.replace(suggestion.suggestion.replaceRange, suggestion.suggestion.text)
+				EditOperation.replaceMove(suggestion.suggestion.replaceRange, suggestion.suggestion.text)
 			]
 		);
 	}
