@@ -255,7 +255,7 @@ class CellContentProvider implements ITextModelContentProvider {
 		}
 
 		if (result) {
-			const once = result.onWillDispose(() => {
+			const once = Event.any(result.onWillDispose, ref.object.notebook.onWillDispose)(() => {
 				once.dispose();
 				ref.dispose();
 			});

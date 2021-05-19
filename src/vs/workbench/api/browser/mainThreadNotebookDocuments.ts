@@ -132,7 +132,17 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		}
 
 		const ref = await this._notebookEditorModelResolverService.resolve(uri, options.viewType);
-		this._modelReferenceCollection.add(ref.object.resource, ref);
+
+		// untitled notebooks are disposed when they get saved. we should not hold a reference
+		// to such a disposed notebook and therefore dispose the reference as well
+		ref.object.notebook.onWillDispose(() => {
+			ref.dispose();
+		});
+
+		// untitled notebooks are dirty by default
+		this._proxy.$acceptDirtyStateChanged(uri, true);
+
+		// apply content changes... slightly HACKY -> this triggers a change event
 		if (options.content) {
 			ref.object.notebook.reset(
 				options.content.cells,

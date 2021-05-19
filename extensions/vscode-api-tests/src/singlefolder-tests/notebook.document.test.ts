@@ -47,10 +47,6 @@ suite('Notebook Document', function () {
 		await utils.closeAllEditors();
 		utils.disposeAll(disposables);
 		disposables.length = 0;
-
-		for (let doc of vscode.notebook.notebookDocuments) {
-			assert.strictEqual(doc.isDirty, false, doc.uri.toString());
-		}
 	});
 
 	suiteSetup(function () {
