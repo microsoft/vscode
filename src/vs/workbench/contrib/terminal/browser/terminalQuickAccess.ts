@@ -41,15 +41,16 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				const iconId = this._getIconId(icon);
 				const label = `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
 				const iconClasses: string[] = [];
-				const color = terminal.color ? `terminal-icon-${terminal.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
+				const color = terminal.color ? `terminal-icon-${terminal.color}` : ThemeIcon.isThemeIcon(icon) ? `terminal-icon-${icon.color?.id}`.replace('.', '_') : undefined;
 				if (color) {
 					iconClasses.push(color);
 				}
-				const uri = icon instanceof URI ? icon :
-					icon instanceof Object && 'light' in icon && 'dark' in icon ?
-						(this._themeService.getColorTheme().type === ColorScheme.LIGHT ?
-							icon.light
-							: icon.dark) : undefined;
+				let uri = undefined;
+				if (icon instanceof URI) {
+					uri = icon;
+				} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+					uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
+				}
 				if (uri instanceof URI) {
 					const uriIconKey = hash(uri.path).toString(36);
 					const className = `terminal-uri-icon-${uriIconKey}`;
@@ -114,7 +115,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 	}
 	private _getIconId(icon: any): string {
-		if (typeof icon === 'object' && 'id' in icon) {
+		if (ThemeIcon.isThemeIcon(icon.id)) {
 			return icon.id;
 		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {
 			return icon;

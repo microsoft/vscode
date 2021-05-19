@@ -85,11 +85,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		);
 		this._terminalService.onInstancesChanged(() => this.render());
 		this._terminalService.onInstanceTitleChanged(() => this.render());
-		this._terminalService.onInstanceIconChanged(() => {
-			this.render();
-		});
+		this._terminalService.onInstanceIconChanged(() => this.render());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
-
 		_themeService.onDidColorThemeChange(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
@@ -293,16 +290,19 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		const icon = instance.icon;
 
-		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
+		const color = instance.color ? `terminal-icon-${instance.color}` : ThemeIcon.isThemeIcon(icon) ? `terminal-icon-${icon.color?.id}`.replace('.', '_') : undefined;
 		const extraClasses = [];
 		if (color) {
 			extraClasses.push(color);
 		}
-		const uri = icon instanceof URI ? icon :
-			icon instanceof Object && 'light' in icon && 'dark' in icon ?
-				(this._themeService.getColorTheme().type === ColorScheme.LIGHT ?
-					icon.light
-					: icon.dark) : undefined;
+
+		let uri = undefined;
+		if (icon instanceof URI) {
+			uri = icon;
+		} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+			uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
+		}
+
 		if (uri instanceof URI) {
 			const uriIconKey = hash(uri.path).toString(36);
 			const className = `terminal-uri-icon-${uriIconKey}`;
@@ -368,7 +368,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	private _getIconId(icon: any): string {
-		if (typeof icon === 'object' && 'id' in icon) {
+		if (ThemeIcon.isThemeIcon(icon.id)) {
 			return icon.id;
 		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {
 			return icon;

@@ -431,7 +431,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
 			if (this._color) {
 				label.classList.remove(this._color);
 				this._color = undefined;
@@ -445,10 +445,12 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._color = `terminal-icon-${icon?.color?.id.replace('.', '_')}`;
 				label.classList.add(this._color);
 			} else {
-				const uri = icon instanceof URI ? icon :
-					icon instanceof Object && 'light' in icon && 'dark' in icon ?
-						(this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark)
-						: undefined;
+				let uri = undefined;
+				if (icon instanceof URI) {
+					uri = icon;
+				} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+					uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
+				}
 				if (uri instanceof URI) {
 					this._class = `terminal-uri-icon-${hash(uri.path).toString(36)}`;
 					label.classList.add(this._class);
@@ -473,13 +475,13 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon) {
+function getSingleTabLabel(instance: ITerminalInstance | null) {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
 		return '';
 	}
-	let iconClass = typeof instance.icon === 'object' && 'id' in instance.icon ? instance.icon?.id : Codicon.terminal.id;
+	let iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
 	const label = `$(${iconClass}) ${getSingleTabTooltip(instance)}`;
 
 	const primaryStatus = instance.statusList.primary;
