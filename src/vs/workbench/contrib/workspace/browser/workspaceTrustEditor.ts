@@ -22,6 +22,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/common/extensions';
@@ -31,6 +32,7 @@ import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
 import product from 'vs/platform/product/common/product';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -47,7 +49,7 @@ import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/deb
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
@@ -659,7 +661,33 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rootElement.setAttribute('aria-label', `${localize('root element label', "Manage Workspace Trust")}:  ${this.headerContainer.innerText}`);
 
 		// Settings
-		const settingsRequiringTrustedWorkspaceCount = filterSettingsRequireWorkspaceTrust(this.configurationService.restrictedSettings.default).length;
+		const restrictedSettings = this.configurationService.restrictedSettings;
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const settingsRequiringTrustedWorkspaceCount = restrictedSettings.default.filter(key => {
+			const property = configurationRegistry.getConfigurationProperties()[key];
+
+			// cannot be configured in workspace
+			if (property.scope === ConfigurationScope.APPLICATION || property.scope === ConfigurationScope.MACHINE) {
+				return false;
+			}
+
+			// If deprecated include only those configured in the workspace
+			if (property.deprecationMessage || property.markdownDeprecationMessage) {
+				if (restrictedSettings.workspace?.includes(key)) {
+					return true;
+				}
+				if (restrictedSettings.workspaceFolder) {
+					for (const workspaceFolderSettings of restrictedSettings.workspaceFolder.values()) {
+						if (workspaceFolderSettings.includes(key)) {
+							return true;
+						}
+					}
+				}
+				return false;
+			}
+
+			return true;
+		}).length;
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
