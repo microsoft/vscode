@@ -108,7 +108,7 @@ export class GhostTextWidget extends Disposable {
 		this._codeEditorService.registerDecorationType(this._codeEditorDecorationTypeKey, {
 			after: {
 				contentText: ghostLines[0],
-				opacity: '0.2',
+				opacity: '0.467',
 			}
 		});
 		this.hasDecoration = true;
@@ -149,7 +149,7 @@ export class GhostTextWidget extends Disposable {
 		const lineHeight = opts.get(EditorOption.lineHeight);
 
 		const sb = createStringBuilder(10000);
-		sb.appendASCIIString('<div style="opacity: 0.2">');
+		sb.appendASCIIString('<div style="opacity: 0.467">');
 
 		for (let i = 0, len = lines.length; i < len; i++) {
 			const line = lines[i];
