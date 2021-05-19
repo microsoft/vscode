@@ -351,6 +351,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 
 class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _color: string | undefined;
+	private _altCommand: string | undefined;
 	private _class: string | undefined;
 	private readonly _elementDisposables: IDisposable[] = [];
 	constructor(
@@ -431,11 +432,17 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance)));
+			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+
+			if (this._altCommand) {
+				label.classList.remove(this._altCommand);
+				this._altCommand = undefined;
+			}
 			if (this._color) {
 				label.classList.remove(this._color);
 				this._color = undefined;
-			} else if (this._class) {
+			}
+			if (this._class) {
 				label.classList.remove(this._class);
 				label.classList.remove('terminal-uri-icon');
 				this._class = undefined;
@@ -462,6 +469,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._color = `terminal-icon-${instance.color}`;
 				label.classList.add(this._color);
 			}
+			if (this._commandAction.item.icon) {
+				this._altCommand = `alt-command`;
+				label.classList.add(this._altCommand);
+			}
 			this.updateTooltip();
 		}
 	}
@@ -475,14 +486,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(instance: ITerminalInstance | null) {
+function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon) {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
 		return '';
 	}
 	let iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
-	const label = `$(${iconClass}) ${getSingleTabTooltip(instance)}`;
+	const label = `$(${icon?.id || iconClass}) ${getSingleTabTooltip(instance)}`;
 
 	const primaryStatus = instance.statusList.primary;
 	if (!primaryStatus?.icon) {

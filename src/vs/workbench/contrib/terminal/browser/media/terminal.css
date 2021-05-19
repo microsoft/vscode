@@ -302,7 +302,7 @@
 	background-size: 16px;
 }
 .monaco-workbench .terminal-uri-icon .monaco-highlighted-label .codicon::before,
-.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label .codicon::before {
+.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon::before {
 	content: '';
 	display: inline-block;
 	width: 16px;
