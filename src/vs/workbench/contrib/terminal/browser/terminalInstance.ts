@@ -58,7 +58,7 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -106,7 +106,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _shellType: TerminalShellType;
 	private _title: string = '';
 	private _container: HTMLElement | undefined;
-	private _dropOverlay: HTMLElement | undefined;
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
 	private _xtermCore: XTermCore | undefined;
@@ -753,95 +752,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
-		this._register(this._register(new DragAndDropObserver(this._container.parentElement!, {
-			onDragEnter: e => {
-				if (!this._dropOverlay) {
-					this._dropOverlay = document.createElement('div');
-					this._dropOverlay.classList.add('terminal-drop-overlay');
-				}
-
-				const types = e.dataTransfer?.types || [];
-
-				// Dragging terminals
-				if (types.includes('terminals')) {
-					const side = this._getDropSide(e);
-					this._dropOverlay.classList.toggle('drop-left', side === 'left');
-					this._dropOverlay.classList.toggle('drop-right', side === 'right');
-				}
-
-				if (!this._dropOverlay.parentElement) {
-					this._container?.parentElement?.appendChild(this._dropOverlay);
-				}
-			},
-			onDragLeave: e => {
-				if (this._dropOverlay && this._dropOverlay.parentElement) {
-					this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-				}
-				this._dropOverlay = undefined;
-			},
-			onDragEnd: e => {
-				if (this._dropOverlay && this._dropOverlay.parentElement) {
-					this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-				}
-				this._dropOverlay = undefined;
-			},
-			onDragOver: e => {
-				if (!e.dataTransfer || !this._dropOverlay) {
-					return;
-				}
-
-				const types = e.dataTransfer?.types || [];
-
-				// Dragging terminals
-				if (types.includes('terminals')) {
-					console.log('side', this._getDropSide(e));
-					const side = this._getDropSide(e);
-					this._dropOverlay.classList.toggle('drop-left', side === 'left');
-					this._dropOverlay.classList.toggle('drop-right', side === 'right');
-				}
-
-				this._dropOverlay.style.opacity = '1';
-			},
-
-			onDrop: async e => {
-				if (this._dropOverlay && this._dropOverlay.parentElement) {
-					this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-				}
-				this._dropOverlay = undefined;
-
-				if (!e.dataTransfer) {
-					return;
-				}
-
-				// Check if files were dragged from the tree explorer
-				let path: string | undefined;
-				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-				if (resources) {
-					const uri = URI.parse(JSON.parse(resources)[0]);
-					if (uri.scheme === Schemas.vscodeTerminal) {
-						this._onRequestAddInstanceToGroup.fire({
-							uri,
-							side: this._getDropSide(e)
-						});
-						return;
-					} else {
-						path = uri.fsPath;
-					}
-				} else if (e.dataTransfer.files?.[0].path /* Electron only */) {
-					// Check if the file was dragged from the filesystem
-					path = URI.file(e.dataTransfer.files[0].path).fsPath;
-				}
-
-				if (!path) {
-					return;
-				}
-
-				const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
-
-				this.sendText(preparedPath, false);
-				this.focus();
-			}
-		})));
+		const dndController = new TerminalInstanceDropAndDropController(this._container.parentElement!);
+		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
+		dndController.onDropFile(async path => {
+			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
+			this.sendText(preparedPath, false);
+			this.focus();
+		});
+		this._register(new DragAndDropObserver(this._container.parentElement!, dndController));
 
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
@@ -861,15 +779,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (xterm.getOption('disableStdin')) {
 			this._attachPressAnyKeyToCloseListener(xterm);
 		}
-	}
-
-	private _getDropSide(e: DragEvent): 'left' | 'right' {
-		const target = this._container?.parentElement;
-		if (!target) {
-			return 'right';
-		}
-		const rect = target.getBoundingClientRect();
-		return e.clientX - rect.left < rect.width / 2 ? 'left' : 'right';
 	}
 
 	private async _measureRenderTime(): Promise<void> {
@@ -1912,6 +1821,117 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.shellLaunchConfig.color = result.id;
 			this._onIconChanged.fire(this);
 		}
+	}
+}
+
+class TerminalInstanceDropAndDropController implements IDragAndDropObserverCallbacks {
+	private _dropOverlay?: HTMLElement;
+
+
+	private readonly _onDropFile = new Emitter<string>();
+	get onDropFile(): Event<string> { return this._onDropFile.event; }
+	private readonly _onDropTerminal = new Emitter<IRequestAddInstanceToGroupEvent>();
+	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
+
+	constructor(
+		private readonly _container: HTMLElement
+	) {
+	}
+
+	onDragEnter(e: DragEvent) {
+		if (!this._dropOverlay) {
+			this._dropOverlay = document.createElement('div');
+			this._dropOverlay.classList.add('terminal-drop-overlay');
+		}
+
+		const types = e.dataTransfer?.types || [];
+
+		// Dragging terminals
+		if (types.includes('terminals')) {
+			const side = this._getDropSide(e);
+			this._dropOverlay.classList.toggle('drop-left', side === 'left');
+			this._dropOverlay.classList.toggle('drop-right', side === 'right');
+		}
+
+		if (!this._dropOverlay.parentElement) {
+			this._container.appendChild(this._dropOverlay);
+		}
+	}
+	onDragLeave(e: DragEvent) {
+		if (this._dropOverlay && this._dropOverlay.parentElement) {
+			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
+		}
+		this._dropOverlay = undefined;
+	}
+
+	onDragEnd(e: DragEvent) {
+		if (this._dropOverlay && this._dropOverlay.parentElement) {
+			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
+		}
+		this._dropOverlay = undefined;
+	}
+
+	onDragOver(e: DragEvent) {
+		if (!e.dataTransfer || !this._dropOverlay) {
+			return;
+		}
+
+		const types = e.dataTransfer?.types || [];
+
+		// Dragging terminals
+		if (types.includes('terminals')) {
+			console.log('side', this._getDropSide(e));
+			const side = this._getDropSide(e);
+			this._dropOverlay.classList.toggle('drop-left', side === 'left');
+			this._dropOverlay.classList.toggle('drop-right', side === 'right');
+		}
+
+		this._dropOverlay.style.opacity = '1';
+	}
+
+	async onDrop(e: DragEvent) {
+		if (this._dropOverlay && this._dropOverlay.parentElement) {
+			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
+		}
+		this._dropOverlay = undefined;
+
+		if (!e.dataTransfer) {
+			return;
+		}
+
+		// Check if files were dragged from the tree explorer
+		let path: string | undefined;
+		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+		if (resources) {
+			const uri = URI.parse(JSON.parse(resources)[0]);
+			if (uri.scheme === Schemas.vscodeTerminal) {
+				this._onDropTerminal.fire({
+					uri,
+					side: this._getDropSide(e)
+				});
+				return;
+			} else {
+				path = uri.fsPath;
+			}
+		} else if (e.dataTransfer.files?.[0].path /* Electron only */) {
+			// Check if the file was dragged from the filesystem
+			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+		}
+
+		if (!path) {
+			return;
+		}
+
+		this._onDropFile.fire(path);
+	}
+
+	private _getDropSide(e: DragEvent): 'left' | 'right' {
+		const target = this._container;
+		if (!target) {
+			return 'right';
+		}
+		const rect = target.getBoundingClientRect();
+		return e.clientX - rect.left < rect.width / 2 ? 'left' : 'right';
 	}
 }
 
