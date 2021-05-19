@@ -12,6 +12,7 @@ import { TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { DynamicMarkdownPreview, ManagedMarkdownPreview, StartingScrollFragment, StaticMarkdownPreview, scrollEditorToLine } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
+import { isMarkdownFile } from '../util/file';
 
 export interface DynamicPreviewSettings {
 	readonly resourceColumn: vscode.ViewColumn;
@@ -76,8 +77,15 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
 		this._register(vscode.window.registerCustomEditorProvider(this.customEditorViewType, this));
 
-		this._register(this._topmostLineMonitor.onEditorNeedsScrolling(event => {
-			scrollEditorToLine(event.line, event.editor);
+		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
+
+			// When at a markdown file, apply existing scroll settings
+			if (textEditor && textEditor.document && isMarkdownFile(textEditor.document)) {
+				const line = this._topmostLineMonitor.getPreviousEditorLineByUri(textEditor.document.uri);
+				if (line) {
+					scrollEditorToLine(line, textEditor);
+				}
+			}
 		}));
 	}
 
@@ -164,7 +172,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
-		const lineNumber = this._topmostLineMonitor.getPreviousMDTextEditorLineByUri(document.uri);
+		const lineNumber = this._topmostLineMonitor.getPreviousEditorLineByUri(document.uri);
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,

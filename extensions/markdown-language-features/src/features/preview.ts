@@ -533,7 +533,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 		}));
 
 		this._register(this.preview.onScroll((scrollInfo) => {
-			topmostLineMonitor.setPreviousStaticEditorLine(scrollInfo);
+			topmostLineMonitor.setPreviousEditorLine(scrollInfo);
 		}));
 
 		this._register(topmostLineMonitor.onDidChanged(event => {
@@ -541,9 +541,6 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 				this.preview.scrollTo(event.line);
 			}
 		}));
-
-		const currentLine = this.preview.state.line ? this.preview.state.line : 0;
-		topmostLineMonitor.setPreviousStaticEditorLine({ line: currentLine, uri: this.preview.resource });
 	}
 
 	private readonly _onDispose = this._register(new vscode.EventEmitter<void>());
