@@ -42,6 +42,7 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { hash } from 'vs/base/common/hash';
+import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -447,27 +448,15 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				label.classList.remove('terminal-uri-icon');
 				this._class = undefined;
 			}
-			const icon = instance.icon;
-			if (ThemeIcon.isThemeIcon(icon) && icon.color) {
-				this._color = `terminal-icon-${icon.color.id.replace('.', '_')}`;
-				label.classList.add(this._color);
-			} else {
-				let uri = undefined;
-				if (icon instanceof URI) {
-					uri = icon;
-				} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-					uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
-				}
-				if (uri instanceof URI) {
-					this._class = `terminal-uri-icon-${hash(uri.path).toString(36)}`;
-					label.classList.add(this._class);
-					label.classList.add('terminal-uri-icon');
-				}
+			const colorClass = getColorClass(instance);
+			if (colorClass) {
+				this._color = colorClass;
+				label.classList.add(colorClass);
 			}
-
-			if (instance?.color) {
-				this._color = `terminal-icon-${instance.color}`;
-				label.classList.add(this._color);
+			const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+			if (uriClasses) {
+				this._class = uriClasses?.[0];
+				label.classList.add(...uriClasses);
 			}
 			if (this._commandAction.item.icon) {
 				this._altCommand = `alt-command`;

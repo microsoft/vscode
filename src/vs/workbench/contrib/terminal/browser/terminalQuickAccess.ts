@@ -12,10 +12,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { iconRegistry, Codicon } from 'vs/base/common/codicons';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { hash } from 'vs/base/common/hash';
-import { URI } from 'vs/base/common/uri';
+import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -37,30 +34,16 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			const terminalGroup = terminalGroups[groupIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				const icon = terminal.icon;
-				const iconId = this._getIconId(icon);
+				const iconId = getIconId(terminal);
 				const label = `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
 				const iconClasses: string[] = [];
-				let color = undefined;
-				if (terminal.color) {
-					color = terminal.color;
-				} else if (ThemeIcon.isThemeIcon(icon) && icon.color) {
-					color = icon.color.id.replace('.', '_');
+				const colorClass = getColorClass(terminal);
+				if (colorClass) {
+					iconClasses.push(colorClass);
 				}
-				if (color) {
-					iconClasses.push(`terminal-icon-${color}`);
-				}
-				let uri = undefined;
-				if (icon instanceof URI) {
-					uri = icon;
-				} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-					uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
-				}
-				if (uri instanceof URI) {
-					const uriIconKey = hash(uri.path).toString(36);
-					const className = `terminal-uri-icon-${uriIconKey}`;
-					iconClasses.push(className);
-					iconClasses.push(`terminal-uri-icon`);
+				const uriClasses = getUriClasses(terminal, this._themeService.getColorTheme().type);
+				if (uriClasses) {
+					iconClasses.push(...uriClasses);
 				}
 				const highlights = matchesFuzzy(filter, label, true);
 				if (highlights) {
@@ -118,16 +101,5 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 		return terminalPicks;
 
-	}
-	private _getIconId(icon: any): string {
-		if (!icon) {
-			return Codicon.terminal.id;
-		}
-		if (ThemeIcon.isThemeIcon(icon.id)) {
-			return icon.id;
-		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {
-			return icon;
-		}
-		return Codicon.terminal.id;
 	}
 }

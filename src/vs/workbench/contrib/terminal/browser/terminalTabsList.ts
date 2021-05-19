@@ -32,8 +32,7 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
-import { hash } from 'vs/base/common/hash';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 const $ = DOM.$;
 
@@ -259,7 +258,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-		const iconId = this._getIconId(instance?.icon);
+		const iconId = getIconId(instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
@@ -295,31 +294,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}));
 
-		const icon = instance.icon;
-		let color = undefined;
-		if (instance.color) {
-			color = instance.color;
-		} else if (ThemeIcon.isThemeIcon(icon) && icon.color) {
-			color = icon.color.id.replace('.', '_');
+		const extraClasses: string[] = [];
+		const colorClass = getColorClass(instance);
+		if (colorClass) {
+			extraClasses.push(colorClass);
 		}
-
-		const extraClasses = [];
-		if (color) {
-			extraClasses.push(`terminal-icon-${color}`);
-		}
-
-		let uri = undefined;
-		if (icon instanceof URI) {
-			uri = icon;
-		} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-			uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
-		}
-
-		if (uri instanceof URI) {
-			const uriIconKey = hash(uri.path).toString(36);
-			const className = `terminal-uri-icon-${uriIconKey}`;
-			extraClasses.push(className);
-			extraClasses.push(`terminal-uri-icon`);
+		const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+		if (uriClasses) {
+			extraClasses.push(...uriClasses);
 		}
 
 		template.label.setResource({
@@ -377,13 +359,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 		this._terminalService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
-	}
-
-	private _getIconId(icon: any): string {
-		if (!icon || (icon instanceof Object && !('id' in icon))) {
-			return Codicon.terminal.id;
-		}
-		return icon.id;
 	}
 }
 
