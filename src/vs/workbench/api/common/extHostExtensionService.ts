@@ -292,19 +292,19 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		try {
 			if (typeof extension.module.deactivate === 'function') {
 				result = Promise.resolve(extension.module.deactivate()).then(undefined, (err) => {
-					// TODO: Do something with err if this is not the shutdown case
+					this._logService.error(err);
 					return Promise.resolve(undefined);
 				});
 			}
 		} catch (err) {
-			// TODO: Do something with err if this is not the shutdown case
+			this._logService.error(err);
 		}
 
 		// clean up subscriptions
 		try {
 			dispose(extension.subscriptions);
 		} catch (err) {
-			// TODO: Do something with err if this is not the shutdown case
+			this._logService.error(err);
 		}
 
 		return result;

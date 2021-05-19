@@ -129,6 +129,7 @@ export class MenuId {
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
+	static readonly TunnelProtocol = new MenuId('TunnelProtocol');
 	static readonly TunnelPortInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
 	static readonly TunnelLocalAddressInline = new MenuId('TunnelLocalAddressInline');
@@ -143,6 +144,7 @@ export class MenuId {
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
+	static readonly NotebookRightToolbar = new MenuId('NotebookRightToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');

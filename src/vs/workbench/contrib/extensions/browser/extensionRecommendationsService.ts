@@ -21,11 +21,14 @@ import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/k
 import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { timeout } from 'vs/base/common/async';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 };
+
+const WORKSPACE_RECOMMENDATION_DELAY = 5000;
 
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
@@ -238,10 +241,8 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
 		if (allowedRecommendations.length) {
+			await timeout(WORKSPACE_RECOMMENDATION_DELAY); // remote extensions might still being installed #124119
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
 		}
 	}
-
-
-
 }

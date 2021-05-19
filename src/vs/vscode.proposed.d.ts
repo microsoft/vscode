@@ -1043,7 +1043,6 @@ declare module 'vscode' {
 	 *
 	 * NotebookCell instances are immutable and are kept in sync for as long as they are part of their notebook.
 	 */
-	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
 
 		/**
@@ -1308,7 +1307,6 @@ declare module 'vscode' {
 	/**
 	 * NotebookCellData is the raw representation of notebook cells. Its is part of {@link NotebookData `NotebookData`}.
 	 */
-	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
 
 		/**
@@ -3306,6 +3304,30 @@ declare module 'vscode' {
 		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
 		 */
 		permissions?: FilePermission;
+	}
+
+	//#endregion
+
+	//#region Expose parent session on DebugSessions - https://github.com/microsoft/vscode/issues/123403#issuecomment-843269200
+
+	export interface DebugSession {
+		/**
+		 * The parent session of this debug session, if it was created as a child.
+		 * @see DebugSessionOptions.parentSession
+		 */
+		readonly parentSession?: DebugSession;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/87110 @eamodio
+
+	export interface Memento {
+
+		/**
+		 * The stored keys.
+		 */
+		readonly keys: readonly string[];
 	}
 
 	//#endregion

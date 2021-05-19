@@ -61,7 +61,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService
 	) {
-		super('TerminalTabsTree', container,
+		super('TerminalTabsList', container,
 			{
 				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
@@ -70,6 +70,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
+				selectionNavigation: true,
 				identityProvider: {
 					getId: e => e?.instanceId
 				},
@@ -133,13 +134,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
 
-		this.onDidChangeSelection(e => {
-			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-		});
-
-		this.onDidChangeFocus(e => {
-			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-		});
+		this.onDidChangeSelection(e => this._updateContextKey());
+		this.onDidChangeFocus(() => this._updateContextKey());
 
 		this.onDidOpen(async e => {
 			const instance = e.element;
@@ -160,6 +156,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 	render(): void {
 		this.splice(0, this.length, this._terminalService.terminalInstances);
+	}
+
+	private _updateContextKey() {
+		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 	}
 }
 
@@ -248,7 +248,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const statuses = instance.statusList.statuses;
 		template.context.hoverActions = [];
 		for (const status of statuses) {
-			title += `\n\n---\n\n${status.tooltip || status.id}`;
+			title += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
 			if (status.hoverActions) {
 				template.context.hoverActions.push(...status.hoverActions);
 			}
@@ -258,7 +258,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		let label: string;
 		if (!hasText) {
 			const primaryStatus = instance.statusList.primary;
-			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
+			// Don't show ignore severity
+			if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
 				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
 			} else {
 				label = `${prefix}$(${instance.icon?.id})`;
@@ -304,7 +305,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(title),
+				markdown: new MarkdownString(title, { supportThemeIcons: true }),
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses: instance.color ? [`terminal-icon-${instance.color}`] : undefined

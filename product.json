@@ -48,7 +48,7 @@
 		},
 		{
 			"name": "ms-vscode.node-debug2",
-			"version": "1.42.6",
+			"version": "1.42.7",
 			"repo": "https://github.com/microsoft/vscode-node-debug2",
 			"metadata": {
 				"id": "36d19e17-7569-4841-a001-947eb18602b2",

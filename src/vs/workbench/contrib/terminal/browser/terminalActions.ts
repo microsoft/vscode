@@ -1392,7 +1392,6 @@ export function registerTerminalActions() {
 					});
 				}
 			}
-			return undefined;
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1408,6 +1407,23 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			await terminalService.doWithActiveInstance(async t => terminalService.unsplitInstance(t));
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.JoinInstance,
+				title: { value: localize('workbench.action.terminal.joinInstance', "Join Terminals"), original: 'Join Terminals' },
+				category,
+				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.toNegated())
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const instances = getSelectedInstances(accessor);
+			if (instances) {
+				terminalService.joinInstances(instances);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {

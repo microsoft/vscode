@@ -1780,6 +1780,7 @@ export interface IDebugSessionFullDto {
 	id: DebugSessionUUID;
 	type: string;
 	name: string;
+	parent: DebugSessionUUID | undefined;
 	folderUri: UriComponents | undefined;
 	configuration: IConfig;
 }
