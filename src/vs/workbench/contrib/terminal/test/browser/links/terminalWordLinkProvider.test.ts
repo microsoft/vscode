@@ -30,7 +30,6 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 
 		// Ensure all links are provided
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
-		assert.strictEqual(links.length, expected.length);
 		const actual = links.map(e => ({
 			text: e.text,
 			range: e.range
@@ -43,6 +42,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 			}
 		}));
 		assert.deepStrictEqual(actual, expectedVerbose);
+		assert.strictEqual(links.length, expected.length);
 	}
 
 	test('should link words as defined by wordSeparators', async () => {
@@ -88,4 +88,10 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		]);
 	});
 
+	test('should support wrapping', async () => {
+		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		await assertLink('fsdjfsdkfjslkdfjskdfjsldkfjsdlkfjslkdjfskldjflskdfjskldjflskdfjsdklfjsdklfjsldkfjsdlkfjsdlkfjsdlkfjsldkfjslkdfjsdlkfjsldkfjsdlkfjskdfjsldkfjsdlkfjslkdfjsdlkfjsldkfjsldkfjsldkfjslkdfjsdlkfjslkdfjsdklfsd', [
+			{ range: [[1, 1], [41, 3]], text: 'fsdjfsdkfjslkdfjskdfjsldkfjsdlkfjslkdjfskldjflskdfjskldjflskdfjsdklfjsdklfjsldkfjsdlkfjsdlkfjsdlkfjsldkfjslkdfjsdlkfjsldkfjsdlkfjskdfjsldkfjsdlkfjslkdfjsdlkfjsldkfjsldkfjsldkfjslkdfjsdlkfjslkdfjsdklfsd' },
+		]);
+	});
 });
