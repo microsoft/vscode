@@ -66,12 +66,12 @@ export interface IResolvedUntitledFileWorkingCopy<T extends IUntitledFileWorking
 	readonly model: T;
 }
 
-export interface IUntitledFileWorkingCopySaveDelegate<T extends IUntitledFileWorkingCopyModel> {
+export interface IUntitledFileWorkingCopySaveDelegate {
 
 	/**
 	 * A delegate to enable saving of untitled file working copies.
 	 */
-	(workingCopy: IUntitledFileWorkingCopy<T>, options?: ISaveOptions): Promise<boolean>;
+	(workingCopy: IUntitledFileWorkingCopy<IUntitledFileWorkingCopyModel>, options?: ISaveOptions): Promise<boolean>;
 }
 
 export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<T>  {
@@ -104,7 +104,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 		readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: VSBufferReadableStream | undefined,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<T>,
-		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<T>,
+		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService

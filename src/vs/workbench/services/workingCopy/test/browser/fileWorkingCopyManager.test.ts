@@ -34,14 +34,10 @@ suite('FileWorkingCopyManager', () => {
 			accessor.labelService,
 			instantiationService,
 			accessor.logService,
-			accessor.fileDialogService,
 			accessor.workingCopyFileService,
 			accessor.workingCopyBackupService,
 			accessor.uriIdentityService,
-			accessor.dialogService,
-			accessor.workingCopyService,
-			accessor.environmentService,
-			accessor.pathService
+			accessor.fileDialogService
 		);
 	});
 
@@ -542,15 +538,7 @@ suite('FileWorkingCopyManager', () => {
 			// the same in that case
 			assert.strictEqual(source.toString(), result?.resource.toString());
 		} else {
-			if (resolveSource || resolveTarget) {
-				assert.strictEqual(target.toString(), result?.resource.toString());
-			} else {
-				if (accessor.uriIdentityService.extUri.isEqual(source, target)) {
-					assert.strictEqual(undefined, result);
-				} else {
-					assert.strictEqual(target.toString(), result?.resource.toString());
-				}
-			}
+			assert.strictEqual(target.toString(), result?.resource.toString());
 		}
 
 		if (resolveSource) {
