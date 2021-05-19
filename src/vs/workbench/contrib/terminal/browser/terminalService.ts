@@ -707,20 +707,16 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		// Rearrange within the same group
-		if (sourceGroup === targetGroup) {
-			// Rearrange
-			const index = targetGroup.terminalInstances.indexOf(target) + (side === 'right' ? 1 : 0);
-			targetGroup.moveInstance(source, index);
-			return;
+		// Move from the source group to the target group
+		if (sourceGroup !== targetGroup) {
+			// Move groups
+			sourceGroup.removeInstance(source);
+			targetGroup.addInstance(source);
 		}
 
-		// Move groups
-		sourceGroup.removeInstance(source);
-
-
-		// TODO: Implement properly
-		this.joinInstances([source, target]);
+		// Rearrange within the target group
+		const index = targetGroup.terminalInstances.indexOf(target) + (side === 'right' ? 1 : 0);
+		targetGroup.moveInstance(source, index);
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
