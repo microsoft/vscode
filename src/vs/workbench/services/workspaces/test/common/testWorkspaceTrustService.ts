@@ -68,7 +68,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return this.trusted;
 	}
 
-	async setWorkspaceTrust(trusted: boolean): Promise<void> {
+	async setWorkspaceTrust(trusted: boolean, acceptsNonWorkspaceFiles?: boolean): Promise<void> {
 		if (this.trusted !== trusted) {
 			this.trusted = trusted;
 			this._onDidChangeTrust.fire(this.trusted);

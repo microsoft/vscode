@@ -41,7 +41,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorResourceAccessor, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -51,6 +51,8 @@ import { filterSettingsRequireWorkspaceTrust, IWorkbenchConfigurationService } f
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { acceptsNonWorkspaceFiles } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
@@ -536,6 +538,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
@@ -811,7 +814,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private addTrustButtonToElement(parent: HTMLElement): void {
 		const trustUris = async (uris?: URI[]) => {
 			if (!uris) {
-				await this.workspaceTrustManagementService.setWorkspaceTrust(true);
+				await this.workspaceTrustManagementService.setWorkspaceTrust(true, acceptsNonWorkspaceFiles(this.editorService, this.workspaceService));
 			} else {
 				await this.workspaceTrustManagementService.setUrisTrust(uris, true);
 			}
