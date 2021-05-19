@@ -899,6 +899,7 @@ export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdow
 export const ExperimentalCompactView = 'notebook.experimental.compactView';
 export const ExperimentalFocusIndicator = 'notebook.experimental.cellFocusIndicator';
 export const ExperimentalInsertToolbarPosition = 'notebook.experimental.insertToolbarPosition';
+export const ExperimentalGlobalToolbar = 'notebook.experimental.globalToolbar';
 export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
 
 export const enum CellStatusbarAlignment {

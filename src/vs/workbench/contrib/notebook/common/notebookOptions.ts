@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, ExperimentalCompactView, ExperimentalFocusIndicator, ExperimentalInsertToolbarPosition, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocKey, CellToolbarVisibility, ExperimentalCompactView, ExperimentalFocusIndicator, ExperimentalGlobalToolbar, ExperimentalInsertToolbarPosition, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -49,6 +49,7 @@ export interface NotebookLayoutConfiguration {
 	compactView: boolean;
 	focusIndicator: 'border' | 'gutter';
 	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
+	globalToolbar: boolean;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -59,6 +60,7 @@ interface NotebookOptionsChangeEvent {
 	compactView?: boolean;
 	focusIndicator?: boolean;
 	insertToolbarPosition?: boolean;
+	globalToolbar?: boolean;
 }
 
 const defaultConfigConstants = {
@@ -85,6 +87,7 @@ export class NotebookOptions {
 
 	constructor(readonly configurationService: IConfigurationService) {
 		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
+		const globalToolbar = this.configurationService.getValue<boolean | undefined>(ExperimentalGlobalToolbar) ?? false;
 		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
 		const compactView = this.configurationService.getValue<boolean>(ExperimentalCompactView);
@@ -109,6 +112,7 @@ export class NotebookOptions {
 			editorBottomPaddingWithoutStatusBar: 12,
 			collapsedIndicatorHeight: 24,
 			showCellStatusBar,
+			globalToolbar,
 			cellToolbarLocation,
 			cellToolbarInteraction,
 			compactView,
@@ -123,8 +127,9 @@ export class NotebookOptions {
 			let compactView = e.affectsConfiguration(ExperimentalCompactView);
 			let focusIndicator = e.affectsConfiguration(ExperimentalFocusIndicator);
 			let insertToolbarPosition = e.affectsConfiguration(ExperimentalInsertToolbarPosition);
+			let globalToolbar = e.affectsConfiguration(ExperimentalGlobalToolbar);
 
-			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction && !compactView && !focusIndicator && !insertToolbarPosition) {
+			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction && !compactView && !focusIndicator && !insertToolbarPosition && !globalToolbar) {
 				return;
 			}
 
@@ -161,6 +166,10 @@ export class NotebookOptions {
 				configuration.bottomToolbarGap = bottomToolbarGap;
 			}
 
+			if (globalToolbar) {
+				configuration.globalToolbar = this.configurationService.getValue<boolean | undefined>(ExperimentalGlobalToolbar) ?? false;
+			}
+
 			this._layoutConfiguration = configuration;
 
 			// trigger event
@@ -170,7 +179,8 @@ export class NotebookOptions {
 				cellToolbarInteraction: cellToolbarInteraction,
 				compactView: compactView,
 				focusIndicator: focusIndicator,
-				insertToolbarPosition: insertToolbarPosition
+				insertToolbarPosition: insertToolbarPosition,
+				globalToolbar: globalToolbar
 			});
 		}));
 
