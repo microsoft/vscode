@@ -131,7 +131,7 @@ export class ExtHostTerminal {
 		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, iconPath, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal });
 	}
 
-	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | { id: string, color: { id: string } }): Promise<number> {
+	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
