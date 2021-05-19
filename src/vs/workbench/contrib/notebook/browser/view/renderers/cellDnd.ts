@@ -195,7 +195,7 @@ export class CellDragAndDropController extends Disposable {
 		}
 	}
 
-	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }, draggedOverCell: ICellViewModel) {
+	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean, altKey: boolean }, draggedOverCell: ICellViewModel) {
 		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
@@ -323,18 +323,18 @@ export class CellDragAndDropController extends Disposable {
 		}));
 	}
 
-	public startExplicitDrag(cell: ICellViewModel, position: { clientY: number }) {
+	public startExplicitDrag(cell: ICellViewModel, _dragOffsetY: number) {
 		this.currentDraggedCell = cell;
 		this.setInsertIndicatorVisibility(true);
 	}
 
-	public explicitDrag(cell: ICellViewModel, position: { clientY: number }) {
-		const target = this.list.elementAt(position.clientY);
+	public explicitDrag(cell: ICellViewModel, dragOffsetY: number) {
+		const target = this.list.elementAt(dragOffsetY);
 		if (target && target !== cell) {
 			const cellTop = this.list.getAbsoluteTopOfElement(target);
 			const cellHeight = this.list.elementHeight(target);
 
-			const dropDirection = this.getExplicitDragDropDirection(position.clientY, cellTop, cellHeight);
+			const dropDirection = this.getExplicitDragDropDirection(dragOffsetY, cellTop, cellHeight);
 			const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
 			this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
 		}
@@ -345,7 +345,7 @@ export class CellDragAndDropController extends Disposable {
 		}
 
 		const notebookViewRect = this.notebookEditor.getDomNode().getBoundingClientRect();
-		const eventPositionInView = position.clientY - this.list.scrollTop;
+		const eventPositionInView = dragOffsetY - this.list.scrollTop;
 
 		// Percentage from the top/bottom of the screen where we start scrolling while dragging
 		const notebookViewScrollMargins = 0.2;
@@ -364,24 +364,23 @@ export class CellDragAndDropController extends Disposable {
 		this.setInsertIndicatorVisibility(false);
 	}
 
-	public explicitDrop(cell: ICellViewModel, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }) {
+	public explicitDrop(cell: ICellViewModel, ctx: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }) {
 		this.currentDraggedCell = undefined;
 		this.setInsertIndicatorVisibility(false);
 
-		const target = this.list.elementAt(ctx.clientY);
+		const target = this.list.elementAt(ctx.dragOffsetY);
 		if (!target || target === cell) {
 			return;
 		}
 
 		const cellTop = this.list.getAbsoluteTopOfElement(target);
 		const cellHeight = this.list.elementHeight(target);
-		const dropDirection = this.getExplicitDragDropDirection(ctx.clientY, cellTop, cellHeight);
+		const dropDirection = this.getExplicitDragDropDirection(ctx.dragOffsetY, cellTop, cellHeight);
 		this._dropImpl(cell, dropDirection, ctx, target);
 	}
 
 	private getExplicitDragDropDirection(clientY: number, cellTop: number, cellHeight: number) {
-		const dragOffset = this.list.scrollTop + clientY;
-		const dragPosInElement = dragOffset - cellTop;
+		const dragPosInElement = clientY - cellTop;
 		const dragPosRatio = dragPosInElement / cellHeight;
 
 		return this.getDropInsertDirection(dragPosRatio);

@@ -2348,24 +2348,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	markdownCellDragStart(cellId: string, ctx: { clientY: number }): void {
+	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void {
 		const cell = this.getCellById(cellId);
 		if (cell instanceof MarkdownCellViewModel) {
-			this._dndController?.startExplicitDrag(cell, ctx);
+			this._dndController?.startExplicitDrag(cell, event.dragOffsetY);
 		}
 	}
 
-	markdownCellDrag(cellId: string, ctx: { clientY: number }): void {
+	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void {
 		const cell = this.getCellById(cellId);
 		if (cell instanceof MarkdownCellViewModel) {
-			this._dndController?.explicitDrag(cell, ctx);
+			this._dndController?.explicitDrag(cell, event.dragOffsetY);
 		}
 	}
 
-	markdownCellDrop(cellId: string, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }): void {
+	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void {
 		const cell = this.getCellById(cellId);
 		if (cell instanceof MarkdownCellViewModel) {
-			this._dndController?.explicitDrop(cell, ctx);
+			this._dndController?.explicitDrop(cell, event);
 		}
 	}
 

@@ -177,9 +177,9 @@ export interface ICommonNotebookEditor {
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
-	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
-	markdownCellDrag(cellId: string, position: { clientY: number }): void;
-	markdownCellDrop(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void;
+	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void;
+	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
 	markdownCellDragEnd(cellId: string): void;
 }
 

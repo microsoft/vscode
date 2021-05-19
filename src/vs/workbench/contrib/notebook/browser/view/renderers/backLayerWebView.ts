@@ -131,17 +131,13 @@ export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
 export interface ICellDragStartMessage extends BaseToWebviewMessage {
 	type: 'cell-drag-start';
 	readonly cellId: string;
-	readonly position: {
-		readonly clientY: number;
-	};
+	readonly dragOffsetY: number;
 }
 
 export interface ICellDragMessage extends BaseToWebviewMessage {
 	type: 'cell-drag';
 	readonly cellId: string;
-	readonly position: {
-		readonly clientY: number;
-	};
+	readonly dragOffsetY: number;
 }
 
 export interface ICellDropMessage extends BaseToWebviewMessage {
@@ -149,9 +145,7 @@ export interface ICellDropMessage extends BaseToWebviewMessage {
 	readonly cellId: string;
 	readonly ctrlKey: boolean
 	readonly altKey: boolean;
-	readonly position: {
-		readonly clientY: number;
-	};
+	readonly dragOffsetY: number;
 }
 
 export interface ICellDragEndMessage extends BaseToWebviewMessage {
@@ -1086,18 +1080,18 @@ var requirejs = (function() {
 					}
 				case 'cell-drag-start':
 					{
-						this.notebookEditor.markdownCellDragStart(data.cellId, data.position);
+						this.notebookEditor.markdownCellDragStart(data.cellId, data);
 						break;
 					}
 				case 'cell-drag':
 					{
-						this.notebookEditor.markdownCellDrag(data.cellId, data.position);
+						this.notebookEditor.markdownCellDrag(data.cellId, data);
 						break;
 					}
 				case 'cell-drop':
 					{
 						this.notebookEditor.markdownCellDrop(data.cellId, {
-							clientY: data.position.clientY,
+							dragOffsetY: data.dragOffsetY,
 							ctrlKey: data.ctrlKey,
 							altKey: data.altKey,
 						});
