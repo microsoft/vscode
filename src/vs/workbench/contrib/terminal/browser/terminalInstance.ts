@@ -29,7 +29,7 @@ import { ansiColorIdentifiers, ansiColorMap, TERMINAL_BACKGROUND_COLOR, TERMINAL
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -216,6 +216,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get onMaximumDimensionsChanged(): Event<void> { return this._onMaximumDimensionsChanged.event; }
 	private readonly _onFocus = new Emitter<ITerminalInstance>();
 	get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
+	private readonly _onRequestAddInstanceToGroup = new Emitter<IRequestAddInstanceToGroupEvent>();
+	get onRequestAddInstanceToGroup(): Event<IRequestAddInstanceToGroupEvent> { return this._onRequestAddInstanceToGroup.event; }
 
 	constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -749,7 +751,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
+		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DRAG_OVER, (dragEvent: DragEvent) => {
+			dragEvent.preventDefault();
+			if (!dragEvent.dataTransfer) {
+				return;
+			}
+			if ((dragEvent.dataTransfer?.types || []).includes('terminals')) {
+				this._container?.parentElement?.classList.add('drop-target');
+			}
+		}));
+		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DRAG_LEAVE, (dragEvent: DragEvent) => {
+			this._container?.parentElement?.classList.remove('drop-target');
+		}));
 		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DROP, async (dragEvent: DragEvent) => {
+			this._container?.parentElement?.classList.remove('drop-target');
 			if (!dragEvent.dataTransfer) {
 				return;
 			}
@@ -758,7 +773,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			let path: string | undefined;
 			const resources = dragEvent.dataTransfer.getData(DataTransfers.RESOURCES);
 			if (resources) {
-				path = URI.parse(JSON.parse(resources)[0]).fsPath;
+				const uri = URI.parse(JSON.parse(resources)[0]);
+				if (uri.scheme === Schemas.vscodeTerminal) {
+					console.log('drop event', dragEvent);
+					this._onRequestAddInstanceToGroup.fire({
+						uri,
+						// TODO: Get side
+						side: 'right'
+					});
+					return;
+				} else {
+					path = uri.fsPath;
+				}
 			} else if (dragEvent.dataTransfer.files?.[0].path /* Electron only */) {
 				// Check if the file was dragged from the filesystem
 				path = URI.file(dragEvent.dataTransfer.files[0].path).fsPath;

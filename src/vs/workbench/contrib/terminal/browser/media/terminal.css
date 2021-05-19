@@ -289,3 +289,12 @@
 	margin-left: 4px;
 	color: inherit;
 }
+
+.monaco-workbench .pane-body.integrated-terminal .drop-target::after {
+	background: rgba(128, 128, 255, .5);
+	content: '';
+	display: block;
+	position: absolute;
+	width: 100%;
+	height: 100%;
+}

@@ -687,6 +687,24 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	moveGroup(instance: ITerminalInstance, target: ITerminalInstance): void {
+		const sourceGroup = this.getGroupForInstance(instance);
+		const targetGroup = this.getGroupForInstance(target);
+		if (!sourceGroup || !targetGroup) {
+			return;
+		}
+		const sourceGroupIndex = this._terminalGroups.indexOf(sourceGroup);
+		const targetGroupIndex = this._terminalGroups.indexOf(targetGroup);
+		this._terminalGroups.splice(sourceGroupIndex, 1);
+		this._terminalGroups.splice(targetGroupIndex, 0, sourceGroup);
+		this._onInstancesChanged.fire();
+	}
+
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void {
+		// TODO: Implement properly
+		this.joinInstances([source, target]);
+	}
+
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
@@ -703,6 +721,14 @@ export class TerminalService implements ITerminalService {
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
+		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
+			const sourceInstance = this.getInstanceFromId(parseInt(e.uri.path));
+			console.log('source', sourceInstance, 'join', instance);
+			if (sourceInstance) {
+				// TODO: Pass in side
+				this.moveInstance(sourceInstance, instance, e.side);
+			}
+		}));
 	}
 
 	registerProcessSupport(isSupported: boolean): void {

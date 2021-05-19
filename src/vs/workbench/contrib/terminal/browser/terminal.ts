@@ -150,6 +150,11 @@ export interface ITerminalService {
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
 	unsplitInstance(instance: ITerminalInstance): void;
 	joinInstances(instances: ITerminalInstance[]): void;
+	/**
+	 * Moves a terminal instance's group to the target instance group's position.
+	 */
+	moveGroup(instance: ITerminalInstance, target: ITerminalInstance): void;
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -316,6 +321,11 @@ export interface ITerminalInstance {
 	onMaximumDimensionsChanged: Event<void>;
 
 	onFocus: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when a terminal is dropped on this instance via drag and drop.
+	 */
+	onRequestAddInstanceToGroup: Event<IRequestAddInstanceToGroupEvent>;
 
 	/**
 	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
@@ -593,6 +603,11 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
 	changeColor(): Promise<void>;
+}
+
+export interface IRequestAddInstanceToGroupEvent {
+	uri: URI;
+	side: 'left' | 'right'
 }
 
 export const enum LinuxDistro {

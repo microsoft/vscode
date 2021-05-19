@@ -27,11 +27,12 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IListDragAndDrop, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 const $ = DOM.$;
 
@@ -78,7 +79,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
-				dnd: new TerminalTabsDragAndDrop(_terminalService, _terminalInstanceService)
+				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop)
 			},
 			contextKeyService,
 			listService,
@@ -403,15 +404,33 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 
 	constructor(
-		private _terminalService: ITerminalService,
-		private _terminalInstanceService: ITerminalInstanceService
+		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalInstanceService private _terminalInstanceService: ITerminalInstanceService
 	) { }
 
 	getDragURI(instance: ITerminalInstance): string | null {
-		return null;
+		return URI.from({
+			scheme: Schemas.vscodeTerminal,
+			path: instance.instanceId.toString()
+		}).toString();
 	}
 
-	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean {
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		if (!originalEvent.dataTransfer) {
+			return;
+		}
+		const dndData: unknown = data.getData();
+		if (!Array.isArray(dndData)) {
+			return;
+		}
+		// Attach terminals type to event
+		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
+		if (terminals.length > 0) {
+			originalEvent.dataTransfer.setData('terminals', JSON.stringify(terminals.map(e => e.instanceId)));
+		}
+	}
+
+	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		let result = true;
 
 		const didChangeAutoFocusInstance = this._autoFocusInstance !== targetInstance;
@@ -424,24 +443,47 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			return result;
 		}
 
-		const isExternalDragOver = !(data instanceof ElementsDragAndDropData);
-		if (didChangeAutoFocusInstance && isExternalDragOver) {
+		if (didChangeAutoFocusInstance) {
 			this._autoFocusDisposable = disposableTimeout(() => {
 				this._terminalService.setActiveInstance(targetInstance);
 				this._autoFocusInstance = undefined;
 			}, 500);
 		}
 
-		return result;
+		return {
+			feedback: targetIndex ? [targetIndex] : undefined,
+			accept: true,
+			effect: ListDragOverEffect.Move
+		};
 	}
 
 	drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
 		this._autoFocusDisposable.dispose();
 		this._autoFocusInstance = undefined;
 
-		const isExternalDrop = !(data instanceof ElementsDragAndDropData);
-		if (isExternalDrop) {
+		if (!(data instanceof ElementsDragAndDropData)) {
 			this._handleExternalDrop(targetInstance, originalEvent);
+			return;
+		}
+
+		const draggedElement = data.getData();
+		if (!draggedElement || !Array.isArray(draggedElement)) {
+			return;
+		}
+		let focused = false;
+		if (!targetInstance) {
+			// TODO: Support dropping on empty
+			return;
+		}
+		for (const e of draggedElement) {
+			if ('instanceId' in e) {
+				const instance = e as ITerminalInstance;
+				this._terminalService.moveGroup(instance, targetInstance);
+				if (!focused) {
+					this._terminalService.setActiveInstance(instance);
+					focused = true;
+				}
+			}
 		}
 	}
 
