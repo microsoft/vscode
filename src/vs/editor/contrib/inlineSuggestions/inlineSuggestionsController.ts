@@ -418,11 +418,6 @@ class InlineSuggestionsModel extends Disposable {
 				this._update(this.editor.getPosition());
 			}
 		}));
-		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (this.isActive) {
-				this._update(this.editor.getPosition());
-			}
-		}));
 	}
 
 	activate() {
