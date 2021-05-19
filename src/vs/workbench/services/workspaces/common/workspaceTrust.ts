@@ -182,6 +182,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._onDidChangeTrust.fire(trusted);
 	}
 
+	get acceptsNonWorkspaceFiles(): boolean {
+		return this._trustState.acceptsNonWorkspaceFiles;
+	}
+
+	set acceptsNonWorkspaceFiles(value: boolean) {
+		this._trustState.acceptsNonWorkspaceFiles = value;
+	}
+
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
 		return this._trustTransitionManager.addWorkspaceTrustTransitionParticipant(participant);
 	}
@@ -331,7 +339,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	_serviceBrand: undefined;
 
 	private _trusted!: boolean;
-	private _acceptingNonWorkspaceFiles!: boolean;
 	private _modalTrustRequestPromise?: Promise<boolean | undefined>;
 	private _modalTrustRequestResolver?: (trusted: boolean | undefined) => void;
 	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
@@ -352,8 +359,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
 
 		this.trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
-
-		this._acceptingNonWorkspaceFiles = false;
 	}
 
 	private get trusted(): boolean {
@@ -361,10 +366,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	}
 
 	private set trusted(trusted: boolean) {
-		if (!trusted) {
-			this._acceptingNonWorkspaceFiles = false;
-		}
-
 		this._trusted = trusted;
 		this._ctxWorkspaceTrustState.set(trusted);
 	}
@@ -375,42 +376,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 			this._modalTrustRequestResolver = undefined;
 			this._modalTrustRequestPromise = undefined;
-		}
-	}
-
-	async requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
-		// If workspace is untrusted, there is no conflict
-		if (!this.trusted) {
-			return WorkspaceTrustUriResponse.Open;
-		}
-
-		const allTrusted = uris.map(uri => {
-			return this.workspaceTrustManagementService.getUriTrustInfo(uri).trusted;
-		}).every(trusted => trusted);
-
-		// If all uris are trusted, there is no conflict
-		if (allTrusted) {
-			return WorkspaceTrustUriResponse.Open;
-		}
-
-		// If we already asked the user, don't need to ask again
-		if (this._acceptingNonWorkspaceFiles) {
-			return WorkspaceTrustUriResponse.Open;
-		}
-
-		const result = await this.dialogService.show(Severity.Info, localize('openLooseFileMesssage', "Are you sure you want to open these files?"), [localize('open', "Open"), localize('newWindow', "Open in New Window"), localize('cancel', "Cancel")], {
-			detail: localize('openLooseFileDetails', "You are trying to open untrusted files into the current window which is trusted. How would you like to continue?"),
-			cancelId: 2,
-		});
-
-		switch (result.choice) {
-			case 0:
-				this._acceptingNonWorkspaceFiles = true;
-				return WorkspaceTrustUriResponse.Open;
-			case 1:
-				return WorkspaceTrustUriResponse.OpenInNewWindow;
-			default:
-				return WorkspaceTrustUriResponse.Cancel;
 		}
 	}
 
@@ -432,6 +397,42 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		// Update storage, transition workspace, and resolve the promise
 		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
 		this.resolveRequest(trusted);
+	}
+
+	async requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
+		// If workspace is untrusted, there is no conflict
+		if (!this.trusted) {
+			return WorkspaceTrustUriResponse.Open;
+		}
+
+		const allTrusted = uris.map(uri => {
+			return this.workspaceTrustManagementService.getUriTrustInfo(uri).trusted;
+		}).every(trusted => trusted);
+
+		// If all uris are trusted, there is no conflict
+		if (allTrusted) {
+			return WorkspaceTrustUriResponse.Open;
+		}
+
+		// If we already asked the user, don't need to ask again
+		if (this.workspaceTrustManagementService.acceptsNonWorkspaceFiles) {
+			return WorkspaceTrustUriResponse.Open;
+		}
+
+		const result = await this.dialogService.show(Severity.Info, localize('openLooseFileMesssage', "Are you sure you want to open these files?"), [localize('open', "Open"), localize('newWindow', "Open in New Window"), localize('cancel', "Cancel")], {
+			detail: localize('openLooseFileDetails', "You are trying to open untrusted files into the current window which is trusted. How would you like to continue?"),
+			cancelId: 2,
+		});
+
+		switch (result.choice) {
+			case 0:
+				this.workspaceTrustManagementService.acceptsNonWorkspaceFiles = true;
+				return WorkspaceTrustUriResponse.Open;
+			case 1:
+				return WorkspaceTrustUriResponse.OpenInNewWindow;
+			default:
+				return WorkspaceTrustUriResponse.Cancel;
+		}
 	}
 
 	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
@@ -480,17 +481,33 @@ class WorkspaceTrustState {
 	private readonly _memento: Memento;
 	private readonly _mementoObject: MementoObject;
 
+	private readonly _acceptsNonWorkspaceFilesKey = 'acceptsNonWorkspaceFiles';
+	private readonly _isTrustedKey = 'isTrusted';
+
 	constructor(storageService: IStorageService) {
 		this._memento = new Memento('workspaceTrust', storageService);
 		this._mementoObject = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
+	get acceptsNonWorkspaceFiles(): boolean {
+		return this._mementoObject[this._acceptsNonWorkspaceFilesKey] ?? false;
+	}
+
+	set acceptsNonWorkspaceFiles(value: boolean) {
+		this._mementoObject[this._acceptsNonWorkspaceFilesKey] = value;
+		this._memento.saveMemento();
+	}
+
 	get isTrusted(): boolean | undefined {
-		return this._mementoObject['isTrusted'];
+		return this._mementoObject[this._isTrustedKey];
 	}
 
 	set isTrusted(value: boolean | undefined) {
-		this._mementoObject['isTrusted'] = value;
+		this._mementoObject[this._isTrustedKey] = value;
+		if (!value) {
+			this._mementoObject[this._acceptsNonWorkspaceFilesKey] = value;
+		}
+
 		this._memento.saveMemento();
 	}
 }

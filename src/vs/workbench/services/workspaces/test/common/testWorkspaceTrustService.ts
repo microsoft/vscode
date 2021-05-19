@@ -24,6 +24,14 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		this.trusted = trusted;
 	}
 
+	get acceptsNonWorkspaceFiles(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	set acceptsNonWorkspaceFiles(value: boolean) {
+		throw new Error('Method not implemented.');
+	}
+
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
 		throw new Error('Method not implemented.');
 	}
