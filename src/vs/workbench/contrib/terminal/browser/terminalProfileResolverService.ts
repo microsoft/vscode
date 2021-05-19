@@ -167,10 +167,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		if (!thing) {
 			return false;
 		}
-		if (typeof (<any>thing).path === 'string' && typeof (<any>thing).scheme === 'string') {
-			return true;
-		}
-		return false;
+		return typeof (<any>thing).path === 'string' &&
+			typeof (<any>thing).scheme === 'string';
 	}
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
