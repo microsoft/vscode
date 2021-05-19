@@ -217,8 +217,7 @@
 }
 
 .workspace-trust-editor .workspace-trust-settings {
-	padding-top: 20px;
-	padding-bottom: 20px;
+	padding: 20px 14px;
 }
 
 .workspace-trust-editor .workspace-trust-settings .workspace-trusted-folders-title {
