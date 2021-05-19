@@ -235,7 +235,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	async edit(item: ITrustedUriItem) {
 		if (item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote) {
 			const uri = await this.fileDialogService.showOpenDialog({
-				canSelectFiles: true,
+				canSelectFiles: false,
 				canSelectFolders: true,
 				canSelectMany: false,
 				defaultUri: item.uri,
@@ -480,8 +480,8 @@ class TrustedUriHostColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 			templateData.buttonBarContainer.style.display = '';
 
 			const buttonBar = templateData.renderDisposables.add(new ButtonBar(templateData.buttonBarContainer));
-			const addButton = templateData.renderDisposables.add(buttonBar.addButton({ title: localize('addButton', "Add Path") }));
-			addButton.label = localize('addButton', "Add Path");
+			const addButton = templateData.renderDisposables.add(buttonBar.addButton({ title: localize('addButton', "Add Folder") }));
+			addButton.label = localize('addButton', "Add Folder");
 
 			templateData.renderDisposables.add(attachButtonStyler(addButton, this.themeService));
 
