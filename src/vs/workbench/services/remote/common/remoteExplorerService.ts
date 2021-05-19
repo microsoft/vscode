@@ -585,7 +585,7 @@ export class TunnelModel extends Disposable {
 				existingTunnel.name = attributes?.label ?? name;
 				this._onForwardPort.fire();
 			}
-			if (attributes?.protocol !== existingTunnel.localUri.scheme) {
+			if (attributes?.protocol && attributes.protocol !== existingTunnel.localUri.scheme) {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
 				await this.forward({ host: existingTunnel.remoteHost, port: existingTunnel.remotePort }, local, name, source, elevateIfNeeded, isPublic, restore, attributes);
 			}

@@ -282,13 +282,13 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			const tooltip = kernel.description ?? kernel.detail ?? kernel.label;
 			this._kernelInfoElement.add(this._statusbarService.addEntry(
 				{
+					name: nls.localize('notebook.info', "Notebook Kernel Info"),
 					text: `$(notebook-kernel-select) ${kernel.label}`,
 					ariaLabel: kernel.label,
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 					command: SELECT_KERNEL_ID,
 				},
 				'notebook.selectKernel',
-				nls.localize('notebook.info', "Notebook Kernel Info"),
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -300,13 +300,13 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			// multiple kernels -> show selection hint
 			this._kernelInfoElement.add(this._statusbarService.addEntry(
 				{
+					name: nls.localize('notebook.select', "Notebook Kernel Selection"),
 					text: nls.localize('kernel.select.label', "Select Kernel"),
 					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
 					command: SELECT_KERNEL_ID,
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
 				'notebook.selectKernel',
-				nls.localize('notebook.select', "Notebook Kernel Selection"),
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -354,12 +354,11 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-		const entry = { text: newText, ariaLabel: newText };
+		const entry = { name: nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"), text: newText, ariaLabel: newText };
 		if (!this._accessor.value) {
 			this._accessor.value = this._statusbarService.addEntry(
 				entry,
 				'notebook.activeCellStatus',
-				nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"),
 				StatusbarAlignment.RIGHT,
 				100
 			);

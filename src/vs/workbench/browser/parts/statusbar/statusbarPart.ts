@@ -66,7 +66,6 @@ interface IStatusbarEntryPriority {
 
 interface IPendingStatusbarEntry {
 	id: string;
-	name: string;
 	entry: IStatusbarEntry;
 	alignment: StatusbarAlignment;
 	priority: IStatusbarEntryPriority;
@@ -445,7 +444,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
-	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, primaryPriority = 0): IStatusbarEntryAccessor {
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, primaryPriority = 0): IStatusbarEntryAccessor {
 		const priority: IStatusbarEntryPriority = {
 			primary: primaryPriority,
 			secondary: hash(id) // derive from identifier to accomplish uniqueness
@@ -454,15 +453,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// As long as we have not been created into a container yet, record all entries
 		// that are pending so that they can get created at a later point
 		if (!this.element) {
-			return this.doAddPendingEntry(entry, id, name, alignment, priority);
+			return this.doAddPendingEntry(entry, id, alignment, priority);
 		}
 
 		// Otherwise add to view
-		return this.doAddEntry(entry, id, name, alignment, priority);
+		return this.doAddEntry(entry, id, alignment, priority);
 	}
 
-	private doAddPendingEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
-		const pendingEntry: IPendingStatusbarEntry = { entry, id, name, alignment, priority };
+	private doAddPendingEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
+		const pendingEntry: IPendingStatusbarEntry = { entry, id, alignment, priority };
 		this.pendingEntries.push(pendingEntry);
 
 		const accessor: IStatusbarEntryAccessor = {
@@ -486,7 +485,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return accessor;
 	}
 
-	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
+	private doAddEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
 
 		// Create item
 		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
@@ -496,7 +495,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.appendOneStatusbarEntry(itemContainer, alignment, priority);
 
 		// Add to view model
-		const viewModelEntry: IStatusbarViewModelEntry = { id, name, alignment, priority, container: itemContainer, labelContainer: item.labelContainer };
+		const viewModelEntry: IStatusbarViewModelEntry = new class implements IStatusbarViewModelEntry {
+			readonly id = id;
+			readonly alignment = alignment;
+			readonly priority = priority;
+			readonly container = itemContainer;
+			readonly labelContainer = item.labelContainer;
+
+			get name() { return item.name; }
+		};
 		const viewModelEntryDispose = this.viewModel.add(viewModelEntry);
 
 		return {
@@ -580,7 +587,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		while (this.pendingEntries.length) {
 			const pending = this.pendingEntries.shift();
 			if (pending) {
-				pending.accessor = this.addEntry(pending.entry, pending.id, pending.name, pending.alignment, pending.priority.primary);
+				pending.accessor = this.addEntry(pending.entry, pending.id, pending.alignment, pending.priority.primary);
 			}
 		}
 	}
@@ -815,6 +822,7 @@ class StatusbarEntryItem extends Disposable {
 	private readonly label: StatusBarCodiconLabel;
 
 	private entry: IStatusbarEntry | undefined = undefined;
+	get name(): string { return assertIsDefined(this.entry).name; }
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());

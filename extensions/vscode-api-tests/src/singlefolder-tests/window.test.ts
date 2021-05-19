@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem, TextEditor } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem, TextEditor, StatusBarAlignment } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile, assertNoRpc } from '../utils';
 
@@ -637,5 +637,23 @@ suite('vscode API - window', () => {
 			});
 
 		});
+	});
+
+	test('createStatusBar', async function () {
+		const statusBarEntryWithoutId = window.createStatusBarItem(StatusBarAlignment.Left, 100);
+		assert.strictEqual(statusBarEntryWithoutId.id, 'vscode.vscode-api-tests');
+		assert.strictEqual(statusBarEntryWithoutId.alignment, StatusBarAlignment.Left);
+		assert.strictEqual(statusBarEntryWithoutId.priority, 100);
+		assert.strictEqual(statusBarEntryWithoutId.name, undefined);
+		statusBarEntryWithoutId.name = 'Test Name';
+		assert.strictEqual(statusBarEntryWithoutId.name, 'Test Name');
+
+		const statusBarEntryWithId = window.createStatusBarItem('testId', StatusBarAlignment.Right, 200);
+		assert.strictEqual(statusBarEntryWithId.alignment, StatusBarAlignment.Right);
+		assert.strictEqual(statusBarEntryWithId.priority, 200);
+		assert.strictEqual(statusBarEntryWithId.id, 'testId');
+		assert.strictEqual(statusBarEntryWithId.name, undefined);
+		statusBarEntryWithId.name = 'Test Name';
+		assert.strictEqual(statusBarEntryWithId.name, 'Test Name');
 	});
 });
