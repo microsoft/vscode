@@ -5604,7 +5604,9 @@ declare module 'vscode' {
 		readonly priority?: number;
 
 		/**
-		 * The (short) name of the entry, like 'Language Indicator', 'Git Status' etc.
+		 * The name of the entry, like 'Python Language Indicator', 'Git Status' etc.
+		 * Try to keep the length of the name short, yet descriptive enough that
+		 * users can understand what the status bar item is about.
 		 */
 		name: string | undefined;
 
