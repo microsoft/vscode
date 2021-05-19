@@ -445,7 +445,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._color = `terminal-icon-${icon?.color?.id.replace('.', '_')}`;
 				label.classList.add(this._color);
 			} else {
-				const uri = icon instanceof URI ? icon : icon instanceof Object && 'light' in icon && 'dark' in icon ? this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark : undefined;
+				const uri = icon instanceof URI ? icon :
+					icon instanceof Object && 'light' in icon && 'dark' in icon ?
+						(this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark)
+						: undefined;
 				if (uri instanceof URI) {
 					this._class = `terminal-uri-icon-${hash(uri.path).toString(36)}`;
 					label.classList.add(this._class);

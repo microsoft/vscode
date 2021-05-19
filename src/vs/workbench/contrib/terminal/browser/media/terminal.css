@@ -307,3 +307,13 @@
 	width: 16px;
 	height: 16px;
 }
+
+.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label .codicon {
+	background-size: 16px;
+}
+.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label .codicon::before {
+	content: '';
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+}
