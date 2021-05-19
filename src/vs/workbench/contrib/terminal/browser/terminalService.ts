@@ -687,8 +687,8 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	moveGroup(instance: ITerminalInstance, target: ITerminalInstance): void {
-		const sourceGroup = this.getGroupForInstance(instance);
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void {
+		const sourceGroup = this.getGroupForInstance(source);
 		const targetGroup = this.getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
 			return;
@@ -701,6 +701,24 @@ export class TerminalService implements ITerminalService {
 	}
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void {
+		const sourceGroup = this.getGroupForInstance(source);
+		const targetGroup = this.getGroupForInstance(target);
+		if (!sourceGroup || !targetGroup) {
+			return;
+		}
+
+		// Rearrange within the same group
+		if (sourceGroup === targetGroup) {
+			// Rearrange
+			const index = targetGroup.terminalInstances.indexOf(target) + (side === 'right' ? 1 : 0);
+			targetGroup.moveInstance(source, index);
+			return;
+		}
+
+		// Move groups
+		sourceGroup.removeInstance(source);
+
+
 		// TODO: Implement properly
 		this.joinInstances([source, target]);
 	}
@@ -723,9 +741,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
 			const sourceInstance = this.getInstanceFromId(parseInt(e.uri.path));
-			console.log('source', sourceInstance, 'join', instance);
 			if (sourceInstance) {
-				// TODO: Pass in side
 				this.moveInstance(sourceInstance, instance, e.side);
 			}
 		}));

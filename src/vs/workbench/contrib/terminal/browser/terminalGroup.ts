@@ -379,6 +379,16 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 	}
 
+	moveInstance(instance: ITerminalInstance, index: number): void {
+		const sourceIndex = this.terminalInstances.indexOf(instance);
+		if (sourceIndex === -1) {
+			return;
+		}
+		this._terminalInstances.splice(sourceIndex, 1);
+		this._terminalInstances.splice(index, 0, instance);
+		this._onInstancesChanged.fire();
+	}
+
 	private _setActiveInstance(instance: ITerminalInstance) {
 		this.setActiveInstanceByIndex(this._getIndexFromId(instance.instanceId));
 	}
