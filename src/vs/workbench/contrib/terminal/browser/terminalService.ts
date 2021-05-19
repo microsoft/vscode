@@ -525,10 +525,6 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		if (this._activeGroupIndex === index) {
-			return;
-		}
-
 		this._activeGroupIndex = index;
 
 		this._terminalGroups.forEach((g, i) => g.setVisible(i === this._activeGroupIndex));
@@ -623,6 +619,72 @@ export class TerminalService implements ITerminalService {
 
 		this._terminalGroups.forEach((g, i) => g.setVisible(i === this._activeGroupIndex));
 		return instance;
+	}
+
+	unsplitInstance(instance: ITerminalInstance): void {
+		const oldGroup = this.getGroupForInstance(instance);
+		if (!oldGroup || oldGroup.terminalInstances.length < 2) {
+			return;
+		}
+
+		oldGroup.removeInstance(instance);
+
+		const newGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
+		newGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+		this._terminalGroups.push(newGroup);
+
+		newGroup.addDisposable(newGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+		newGroup.addDisposable(newGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		this._onInstancesChanged.fire();
+	}
+
+	joinInstances(instances: ITerminalInstance[]): void {
+		// Find the group of the first instance that is the only instance in the group, if one exists
+		let candidateInstance: ITerminalInstance | undefined = undefined;
+		let candidateGroup: ITerminalGroup | undefined = undefined;
+		for (const instance of instances) {
+			const group = this.getGroupForInstance(instance);
+			if (group?.terminalInstances.length === 1) {
+				candidateInstance = instance;
+				candidateGroup = group;
+				break;
+			}
+		}
+
+		// Create a new group if needed
+		if (!candidateGroup) {
+			candidateGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
+			candidateGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+			this._terminalGroups.push(candidateGroup);
+			candidateGroup.addDisposable(candidateGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+			candidateGroup.addDisposable(candidateGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		}
+
+		const wasActiveGroup = this.getActiveGroup() === candidateGroup;
+
+		// Unsplit all other instances and add them to the new group
+		for (const instance of instances) {
+			if (instance === candidateInstance) {
+				continue;
+			}
+
+			const oldGroup = this.getGroupForInstance(instance);
+			if (!oldGroup) {
+				// Something went wrong, don't join this one
+				continue;
+			}
+			oldGroup.removeInstance(instance);
+			candidateGroup.addInstance(instance);
+		}
+
+		// Set the active terminal
+		this.setActiveInstance(instances[0]);
+
+		// Fire events
+		this._onInstancesChanged.fire();
+		if (!wasActiveGroup) {
+			this._onActiveGroupChanged.fire();
+		}
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
@@ -940,11 +1002,14 @@ export class TerminalService implements ITerminalService {
 
 		// Add welcome message and title annotation for local terminals launched within remote or
 		// virtual workspaces
-		const isRemoteWorkspace = !!VirtualWorkspaceContext.getValue(this._contextKeyService) ||
-			this._remoteAgentService.getConnection() && (typeof shellLaunchConfig.cwd === 'string' || shellLaunchConfig.cwd?.scheme === Schemas.file);
-		if (isRemoteWorkspace) {
-			shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminal', "Warning: This shell is running on your local machine"), true);
-			shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+		if (typeof shellLaunchConfig.cwd === 'string' || shellLaunchConfig.cwd?.scheme === Schemas.file) {
+			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
+				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a \x1b[3mlocal\x1b[23m folder, NOT to the virtual folder"), true);
+				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+			} else if (this._remoteAgentService.getConnection()) {
+				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalRemote', "⚠ : This shell is running on your \x1b[3mlocal\x1b[23m machine, NOT on the connected remote machine"), true);
+				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+			}
 		}
 
 		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
@@ -970,6 +1035,7 @@ export class TerminalService implements ITerminalService {
 		instance.shellLaunchConfig.hideFromUser = false;
 		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
 		this._terminalGroups.push(terminalGroup);
+		terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
 		terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
 		terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		if (this.terminalInstances.length === 1) {

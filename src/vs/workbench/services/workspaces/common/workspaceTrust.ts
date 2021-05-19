@@ -9,15 +9,17 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
+import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
@@ -35,7 +37,7 @@ export function isWorkspaceTrustEnabled(configurationService: IConfigurationServ
 		return false;
 	}
 
-	return configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
+	return (configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).defaultValue) ?? false;
 }
 
 export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
@@ -317,6 +319,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	_serviceBrand: undefined;
 
 	private _trusted!: boolean;
+	private _acceptingNonWorkspaceFiles!: boolean;
 	private _modalTrustRequestPromise?: Promise<boolean | undefined>;
 	private _modalTrustRequestResolver?: (trusted: boolean | undefined) => void;
 	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
@@ -327,6 +330,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
@@ -336,6 +340,8 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
 
 		this.trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+
+		this._acceptingNonWorkspaceFiles = false;
 	}
 
 	private get trusted(): boolean {
@@ -343,6 +349,10 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	}
 
 	private set trusted(trusted: boolean) {
+		if (!trusted) {
+			this._acceptingNonWorkspaceFiles = false;
+		}
+
 		this._trusted = trusted;
 		this._ctxWorkspaceTrustState.set(trusted);
 	}
@@ -353,6 +363,42 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 			this._modalTrustRequestResolver = undefined;
 			this._modalTrustRequestPromise = undefined;
+		}
+	}
+
+	async requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
+		// If workspace is untrusted, there is no conflict
+		if (!this.trusted) {
+			return WorkspaceTrustUriResponse.Open;
+		}
+
+		const allTrusted = uris.map(uri => {
+			return this.workspaceTrustManagementService.getUriTrustInfo(uri).trusted;
+		}).every(trusted => trusted);
+
+		// If all uris are trusted, there is no conflict
+		if (allTrusted) {
+			return WorkspaceTrustUriResponse.Open;
+		}
+
+		// If we already asked the user, don't need to ask again
+		if (this._acceptingNonWorkspaceFiles) {
+			return WorkspaceTrustUriResponse.Open;
+		}
+
+		const result = await this.dialogService.show(Severity.Info, localize('openLooseFileMesssage', "Are you sure you want to open these files?"), [localize('open', "Open"), localize('newWindow', "Open in New Window"), localize('cancel', "Cancel")], {
+			detail: localize('openLooseFileDetails', "You are trying to open untrusted files into the current window which is trusted. How would you like to continue?"),
+			cancelId: 2,
+		});
+
+		switch (result.choice) {
+			case 0:
+				this._acceptingNonWorkspaceFiles = true;
+				return WorkspaceTrustUriResponse.Open;
+			case 1:
+				return WorkspaceTrustUriResponse.OpenInNewWindow;
+			default:
+				return WorkspaceTrustUriResponse.Cancel;
 		}
 	}
 

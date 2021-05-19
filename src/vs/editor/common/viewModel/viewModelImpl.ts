@@ -1041,4 +1041,12 @@ export class ViewModel extends Disposable implements IViewModel {
 	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position {
 		return this._lines.normalizePosition(position, affinity);
 	}
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number {
+		return this._lines.getLineIndentColumn(lineNumber);
+	}
 }

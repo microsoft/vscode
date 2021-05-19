@@ -28,7 +28,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileWorkingCopyManager, IFileWorkingCopySaveAsOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { filter } from 'vs/base/common/objects';
 
 //#region --- complex content provider
@@ -491,8 +491,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this;
 	}
 
-	async saveAs(target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IEditorInput | undefined> {
-		const newWorkingCopy = await this._workingCopyManager.saveAs(this.resource, target, options);
+	async saveAs(target: URI): Promise<IEditorInput | undefined> {
+		const newWorkingCopy = await this._workingCopyManager.saveAs(this.resource, target);
 		if (!newWorkingCopy) {
 			return undefined;
 		}
@@ -557,7 +557,8 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 				cellKind: cell.cellKind,
 				language: cell.language,
 				source: cell.getValue(),
-				outputs: []
+				outputs: [],
+				internalMetadata: cell.internalMetadata
 			};
 
 			cellData.outputs = !this._notebookSerializer.options.transientOutputs ? cell.outputs : [];

@@ -1022,7 +1022,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Untitled file support
 		const untitledInput = input as IUntitledTextResourceEditorInput;
-		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
+		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource.scheme === Schemas.untitled)) {
 			const untitledOptions = {
 				mode: untitledInput.mode,
 				initialValue: untitledInput.contents,

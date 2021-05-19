@@ -11,23 +11,77 @@
 	position: relative;
 }
 
-.monaco-workbench .notebookOverlay .notebook-top-toolbar {
+.monaco-workbench .notebookOverlay .notebook-toolbar-container {
 	width: 100%;
-	display: inline-flex;
-	padding-left: 8px;
-	margin-top: 4px;
+	display: flex;
+	margin-top: 2px;
+	margin-bottom: 2px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item {
-	width: 24px;
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item {
 	height: 22px;
 	display: flex;
 	align-items: center;
+	border-radius: 5px;
+	margin-right: 8px;
 }
 
-.monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item .action-label {
+.monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element {
+	flex: 1;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element .notebook-toolbar-left {
+	padding: 0px 8px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-right {
+	display: flex;
+	padding: 0px 0px 0px 8px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item  .kernel-label {
 	background-size: 16px;
-	margin: 4px 4px 0 4px;
+	padding: 0px 5px 0px 3px;
+	border-radius: 5px;
+	font-size: 13px;
+	height: 22px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar .action-item .action-label.separator {
+	margin: 5px 0px !important;
+	padding: 0px !important;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:hover {
+	background-color: var(--code-toolbarHoverBackground);
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .action-label {
+	background-size: 16px;
+	padding-left: 2px;
+}
+
+.monaco-workbench .notebook-action-view-item .action-label {
+	display: inline-flex;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .notebook-label {
+	background-size: 16px;
+	padding: 0px 5px 0px 2px;
+	border-radius: 5px;
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled) {
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+	background-color: unset;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
+	background-color: unset;
 }
 
 .monaco-workbench .cell.markdown {
@@ -368,18 +422,6 @@
 	z-index: 50;
 }
 
-.monaco-workbench .notebookOverlay.cell-title-toolbar-right > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-	right: 44px;
-}
-
-.monaco-workbench .notebookOverlay.cell-title-toolbar-left > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-	left: 76px;
-}
-
-.monaco-workbench .notebookOverlay.cell-title-toolbar-hidden > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
-	display: none;
-}
-
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item.menu-entry {
 	width: 24px;
 	height: 24px;
@@ -480,7 +522,6 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar .codicon {
-	margin: 0 4px 0 0;
 	padding: 6px;
 }
 
@@ -503,8 +544,6 @@
 	opacity: .6;
 
 	/* Sizing hacks */
-	left: 26px;
-	width: 35px;
 	bottom: 0px;
 	text-align: center;
 }
@@ -861,7 +900,7 @@
 
 	position: absolute;
 	top: 10px;
-	left: 8px;
+	left: 6px;
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -875,7 +914,7 @@
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
 	height: 16px;
-	padding: 4px 4px 4px 6px;
+	padding: 4px 4px 4px 4px;
 }
 
 /** Theming */
@@ -964,3 +1003,4 @@
 .hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-bottom:before { border-bottom-style: dotted; }
 .hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before { border-left-style: dotted; }
 .hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before  { border-right-style: dotted; }
+

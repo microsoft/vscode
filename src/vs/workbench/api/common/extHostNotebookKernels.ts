@@ -16,9 +16,8 @@ import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { CellEditType, IImmediateCellEditOperation, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IImmediateCellEditOperation, NotebookCellExecutionState, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { NotebookCellExecutionState } from 'vs/workbench/api/common/extHostTypes';
 import { asArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -373,8 +372,8 @@ class NotebookCellExecutionTask extends Disposable {
 		}
 	}
 
-	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellMetadata) {
-		const edit: IImmediateCellEditOperation = { editType: CellEditType.PartialMetadata, handle: this._cell.handle, metadata: mixinMetadata };
+	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellInternalMetadata) {
+		const edit: IImmediateCellEditOperation = { editType: CellEditType.PartialInternalMetadata, handle: this._cell.handle, internalMetadata: mixinMetadata };
 		this.applyEdits([edit]);
 	}
 
@@ -426,7 +425,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that._onDidChangeState.fire();
 
 				that.mixinMetadata({
-					runState: NotebookCellExecutionState.Idle,
+					runState: null,
 					lastRunSuccess: result?.success ?? null,
 					runEndTime: result?.endTime ?? null,
 				});

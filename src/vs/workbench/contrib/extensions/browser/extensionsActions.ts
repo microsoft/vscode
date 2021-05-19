@@ -61,6 +61,7 @@ import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustI
 import { isWeb } from 'vs/base/common/platform';
 import { isWorkspaceTrustEnabled } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -2085,6 +2086,8 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -2104,6 +2107,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	update(): void {
 		this.class = `${SystemDisabledWarningAction.CLASS} hide`;
 		this.tooltip = '';
+		this.enabled = false;
 		if (
 			!this.extension ||
 			!this.extension.local ||
@@ -2159,14 +2163,26 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
-		if (isWorkspaceTrustEnabled(this.configurationService) && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+
+		const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
+		if (isWorkspaceTrustEnabled(this.configurationService) && untrustedSupportType !== true && !this.workspaceTrustService.isWorkpaceTrusted()) {
+			const untrustedWorkspaceSupport = this.extension.local.manifest.capabilities?.untrustedWorkspaces;
+			const untrustedDetails = untrustedWorkspaceSupport?.supported !== true ? untrustedWorkspaceSupport?.description : undefined;
+			this.enabled = true;
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
-			this.tooltip = localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted");
+			this.tooltip = untrustedDetails || (untrustedSupportType === 'limited' ?
+				localize('extension limited because of trust requirement', "This extension has limited features because the current workspace is not trusted.") :
+				localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted."));
 			return;
 		}
 	}
 
 	override run(): Promise<any> {
+		// Only enabled by the workspace trust version of this action
+		// If other actions enable, add a new member to control this
+		if (this.enabled) {
+			this.commandService.executeCommand('workbench.trust.manage');
+		}
 		return Promise.resolve(null);
 	}
 }

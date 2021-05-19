@@ -132,10 +132,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			// Wait one second to give the user ample time to see the current editor then ask them to configure a default
 			this.doHandleConflictingDefaults(selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
 		}
-		// Dispose of the passed in editor as we will return a new one
-		if (!input?.editor.matches(editor)) {
-			editor.dispose();
-		}
+
 		// Add the group as we might've changed it with the quickpick
 		if (input) {
 			this.sendOverrideTelemetry(input.editor);
@@ -164,8 +161,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return toDisposable(() => remove());
 	}
 
-	hasContributionPoint(schemeOrGlob: string): boolean {
-		return this._contributionPoints.has(schemeOrGlob);
+	hasContributionPoint(glob: string): boolean {
+		return this._contributionPoints.has(glob);
 	}
 
 	getAssociationsForResource(resource: URI): EditorAssociations {
@@ -226,12 +223,15 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 
 	private findMatchingContributions(resource: URI): ContributionPoint[] {
+		// The user setting should be respected even if the editor doesn't specify that resource in package.json
+		const userSettings = this.getAssociationsForResource(resource);
 		let contributions: ContributionPoint[] = [];
 		// Then all glob patterns
 		for (const key of this._contributionPoints.keys()) {
 			const contributionPoints = this._contributionPoints.get(key)!;
 			for (const contributionPoint of contributionPoints) {
-				if (globMatchesResource(key, resource)) {
+				const foundInSettings = userSettings.find(setting => setting.viewType === contributionPoint.editorInfo.id);
+				if (foundInSettings || globMatchesResource(key, resource)) {
 					contributions.push(contributionPoint);
 				}
 			}

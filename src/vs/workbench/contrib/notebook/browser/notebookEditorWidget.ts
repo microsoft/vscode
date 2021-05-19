@@ -25,12 +25,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
-import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -64,11 +64,6 @@ import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isWeb } from 'vs/base/common/platform';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
@@ -77,6 +72,7 @@ import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 
 const $ = DOM.$;
 
@@ -204,6 +200,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 	private _overlayContainer!: HTMLElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
+	private _notebookTopToolbar!: NotebookEditorToolbar;
 	private _body!: HTMLElement;
 	private _styleElement!: HTMLStyleElement;
 	private _overflowContainer!: HTMLElement;
@@ -322,7 +319,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -330,9 +326,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IMenuService private readonly menuService: IMenuService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IModeService private readonly modeService: IModeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@optional(ITASExperimentService) private readonly experimentService: ITASExperimentService
+		@IModeService private readonly modeService: IModeService
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
@@ -371,6 +365,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(this._notebookOptions.onDidChangeOptions(e => {
 			if (e.cellStatusBarVisibility || e.cellToolbarLocation || e.cellToolbarInteraction) {
 				this._updateForNotebookConfiguration();
+			}
+
+			if (e.compactView) {
+				this._styleElement?.remove();
+				this._createLayoutStyles();
+				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
 			}
 		}));
 
@@ -528,7 +528,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _createBody(parent: HTMLElement): void {
 		this._notebookTopToolbarContainer = document.createElement('div');
-		this._notebookTopToolbarContainer.classList.add('notebook-top-toolbar');
+		this._notebookTopToolbarContainer.classList.add('notebook-toolbar-container');
 		this._notebookTopToolbarContainer.style.display = 'none';
 		DOM.append(parent, this._notebookTopToolbarContainer);
 		this._body = document.createElement('div');
@@ -554,11 +554,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			markdownCellTopMargin,
 			bottomCellToolbarGap,
 			bottomCellToolbarHeight,
-			collapsedIndicatorHeight
+			collapsedIndicatorHeight,
+			compactView
 		} = this._notebookOptions.getLayoutConfiguration();
 
 		const styleSheets: string[] = [];
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row div.cell.code { margin-left: ${codeCellLeftMargin}px; }`);
+
+		if (compactView) {
+			styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
+		} else {
+			styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row div.cell.code { margin-left: ${codeCellLeftMargin}px; }`);
+		}
+
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .cell-inner-container { padding-top: ${cellTopMargin}px; }`);
@@ -572,7 +579,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		styleSheets.push(`.notebookOverlay .output-show-more-container { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
 
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell.markdown { padding-left: ${cellRunGutter}px; }`);
-		styleSheets.push(`.notebookOverlay .cell .run-button-container { width: 20px; left: ${codeCellLeftMargin + Math.floor(cellRunGutter - 20) / 2}px }`);
+		styleSheets.push(`.notebookOverlay .cell .run-button-container { width: ${cellRunGutter}px; left: ${codeCellLeftMargin}px }`);
+		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label { left: ${codeCellLeftMargin}px; width: ${cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row :not(.webview-backed-markdown-cell) .cell-focus-indicator-top { height: ${cellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${bottomCellToolbarGap}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-focus-indicator-left,
@@ -587,6 +595,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { height: ${bottomCellToolbarHeight}px }`);
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { height: ${bottomCellToolbarHeight}px }`);
+
+		// cell toolbar
+		styleSheets.push(`.monaco-workbench .notebookOverlay.cell-title-toolbar-right > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
+			right: ${cellRightMargin + 26}px;
+		}
+		.monaco-workbench .notebookOverlay.cell-title-toolbar-left > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
+			left: ${codeCellLeftMargin + cellRunGutter + 16}px;
+		}
+		.monaco-workbench .notebookOverlay.cell-title-toolbar-hidden > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
+			display: none;
+		}`);
 
 		// left and right border margins
 		styleSheets.push(`
@@ -744,19 +763,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
 
 		this._reigsterNotebookActionsToolbar();
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
-				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditor;
-				if (notebookEditor === this) {
-					// this is the active editor
-					this._showNotebookActionsinEditorToolbar();
-					return;
-				}
-			}
 
-			this._editorToolbarDisposable.clear();
-			this._toolbarActionDisposable.clear();
-		}));
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
@@ -772,126 +779,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		});
 	}
 
-	private _notebookGlobalActionsMenu!: IMenu;
-	private _toolbarActionDisposable = this._register(new DisposableStore());
-	private _topToolbar!: ToolBar;
-	private _useGlobalToolbar: boolean = false;
-	private _editorToolbarDisposable = this._register(new DisposableStore());
 	private _reigsterNotebookActionsToolbar() {
-		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.scopedContextKeyService));
-		this._register(this._notebookGlobalActionsMenu);
-
-		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>('notebook.experimental.globalToolbar') ?? false;
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.experimental.globalToolbar')) {
-				this._useGlobalToolbar = this.configurationService.getValue<boolean>('notebook.experimental.globalToolbar');
-				this._showNotebookActionsinEditorToolbar();
+		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookTopToolbarContainer));
+		this._register(this._notebookTopToolbar.onDidChangeState(() => {
+			if (this._dimension && this._isVisible) {
+				this.layout(this._dimension);
 			}
 		}));
-
-		this._topToolbar = new ToolBar(this._notebookTopToolbarContainer, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: action => {
-				return createActionViewItem(this.instantiationService, action);
-			},
-			renderDropdownAsChildElement: true
-		});
-		this._register(this._topToolbar);
-		this._topToolbar.context = {
-			ui: true,
-			notebookEditor: this
-		};
-
-		this._showNotebookActionsinEditorToolbar();
-		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
-			this._showNotebookActionsinEditorToolbar();
-		}));
-
-		if (this.experimentService) {
-			this.experimentService.getTreatment<boolean>('nbtoolbarineditor').then(treatment => {
-				if (treatment === undefined) {
-					return;
-				}
-				if (this._useGlobalToolbar !== treatment) {
-					this._useGlobalToolbar = treatment;
-					this._showNotebookActionsinEditorToolbar();
-				}
-			});
-		}
-	}
-
-	private _showNotebookActionsinEditorToolbar() {
-		// when there is no view model, just ignore.
-		if (!this.viewModel) {
-			return;
-		}
-
-		if (!this._useGlobalToolbar) {
-			// schedule actions registration in next frame, otherwise we are seeing duplicated notbebook actions temporarily
-			this._editorToolbarDisposable.clear();
-			this._editorToolbarDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
-				const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
-				this._toolbarActionDisposable.clear();
-				this._topToolbar.setActions([], []);
-				if (!this.viewModel) {
-					return;
-				}
-
-				if (!this._isVisible) {
-					return;
-				}
-
-				if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
-					const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditor;
-					if (notebookEditor !== this) {
-						// clear actions but not recreate because it is not active editor
-						return;
-					}
-				}
-
-				groups.forEach(group => {
-					const groupName = group[0];
-					const actions = group[1];
-
-					let order = groupName === 'navigation' ? -10 : 0;
-					for (let i = 0; i < actions.length; i++) {
-						const menuItemAction = actions[i] as MenuItemAction;
-						this._toolbarActionDisposable.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-							command: {
-								id: menuItemAction.item.id,
-								title: menuItemAction.item.title,
-								category: menuItemAction.item.category,
-								tooltip: menuItemAction.item.tooltip,
-								icon: menuItemAction.item.icon,
-								precondition: menuItemAction.item.precondition,
-								toggled: menuItemAction.item.toggled,
-							},
-							title: menuItemAction.item.title + ' ' + this.viewModel?.uri.scheme,
-							group: groupName,
-							order: order
-						}));
-						order++;
-					}
-				});
-			}));
-
-			this._notebookTopToolbarContainer.style.display = 'none';
-		} else {
-			this._toolbarActionDisposable.clear();
-			this._topToolbar.setActions([], []);
-			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
-			this._notebookTopToolbarContainer.style.display = 'flex';
-			const primaryGroup = groups.find(group => group[0] === 'navigation');
-			const primaryActions = primaryGroup ? primaryGroup[1] : [];
-			const secondaryActions = groups.filter(group => group[0] !== 'navigation').reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
-
-			this._topToolbar.setActions(primaryActions, secondaryActions);
-		}
-
-		if (this._dimension && this._isVisible) {
-			this.layout(this._dimension);
-		}
 	}
 
 	private _updateForCursorNavigationMode(applyFocusChange: () => void): void {
@@ -1460,7 +1354,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
-		DOM.size(this._body, dimension.width, dimension.height - (this._useGlobalToolbar ? /** Toolbar height */ 26 : 0));
+		DOM.size(this._body, dimension.width, dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0));
 		if (this._list.getRenderHeight() < dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP) {
 			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
 			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP - 50)) : SCROLLABLE_ELEMENT_PADDING_TOP });
@@ -1485,6 +1379,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
 			this._webviewTransparentCover.style.width = `${dimension.width}px`;
 		}
+
+		this._notebookTopToolbar.layout();
 
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
@@ -1529,11 +1425,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
 		this._editorFocus.set(focused);
 		this.viewModel?.setFocus(focused);
-
-		if (!focused) {
-			this._editorToolbarDisposable.clear();
-			this._toolbarActionDisposable.clear();
-		}
 	}
 
 	hasFocus() {

@@ -91,16 +91,27 @@ suite('Notebook Document', function () {
 	test('notebook open/close, notebook ready when cell-document open event is fired', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let didHappen = false;
-		const p = utils.asPromise(vscode.workspace.onDidOpenTextDocument).then(doc => {
-			if (doc.uri.scheme !== 'vscode-notebook-cell') {
-				return;
-			}
-			const notebook = vscode.notebook.notebookDocuments.find(notebook => {
-				const cell = notebook.getCells().find(cell => cell.document === doc);
-				return Boolean(cell);
+
+		const p = new Promise<void>((resolve, reject) => {
+			const sub = vscode.workspace.onDidOpenTextDocument(doc => {
+				if (doc.uri.scheme !== 'vscode-notebook-cell') {
+					// ignore other open events
+					return;
+				}
+				const notebook = vscode.notebook.notebookDocuments.find(notebook => {
+					const cell = notebook.getCells().find(cell => cell.document === doc);
+					return Boolean(cell);
+				});
+				assert.ok(notebook, `notebook for cell ${doc.uri} NOT found`);
+				didHappen = true;
+				sub.dispose();
+				resolve();
 			});
-			assert.ok(notebook, `notebook for cell ${doc.uri} NOT found`);
-			didHappen = true;
+
+			setTimeout(() => {
+				sub.dispose();
+				reject(new Error('TIMEOUT'));
+			}, 15000);
 		});
 
 		await vscode.notebook.openNotebookDocument(uri);

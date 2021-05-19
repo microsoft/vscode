@@ -915,24 +915,18 @@ declare module 'vscode' {
 
 	//#region Custom Tree View Drag and Drop https://github.com/microsoft/vscode/issues/32592
 	export interface TreeViewOptions<T> {
-		/**
-		 * * Whether the tree supports drag and drop.
-		 */
-		canDragAndDrop?: boolean;
+		dragAndDropController?: DragAndDropController<T>;
 	}
 
-	export interface TreeDataProvider<T> {
+	export interface DragAndDropController<T> extends Disposable {
 		/**
-		 * Optional method to reparent an `element`.
+		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
 		 *
-		 * **NOTE:**  This method should be implemented if the tree supports drag and drop.
-		 *
-		 * @param elements The selected elements that will be reparented.
-		 * @param targetElement The new parent of the elements.
+		 * @param source
+		 * @param target
 		 */
-		setParent?(elements: T[], targetElement: T): Thenable<void>;
+		onDrop(source: T[], target: T): Thenable<void>;
 	}
-
 	//#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
@@ -942,59 +936,6 @@ declare module 'vscode' {
 		 */
 		group?: string;
 	}
-	//#endregion
-
-	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
-
-	/**
-	 * Options to configure the status bar item.
-	 */
-	export interface StatusBarItemOptions {
-
-		/**
-		 * A unique identifier of the status bar item. The identifier
-		 * is for example used to allow a user to show or hide the
-		 * status bar item in the UI.
-		 */
-		id: string;
-
-		/**
-		 * A human readable name of the status bar item. The name is
-		 * for example used as a label in the UI to show or hide the
-		 * status bar item.
-		 */
-		name: string;
-
-		/**
-		 * Accessibility information used when screen reader interacts with this status bar item.
-		 */
-		accessibilityInformation?: AccessibilityInformation;
-
-		/**
-		 * The alignment of the status bar item.
-		 */
-		alignment?: StatusBarAlignment;
-
-		/**
-		 * The priority of the status bar item. Higher value means the item should
-		 * be shown more to the left.
-		 */
-		priority?: number;
-	}
-
-	export namespace window {
-
-		/**
-		 * Creates a status bar {@link StatusBarItem item}.
-		 *
-		 * @param options The options of the item. If not provided, some default values
-		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
-		 * of the extension and the `StatusBarItemOptions.name` will be the extension name.
-		 * @return A new status bar item.
-		 */
-		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
-	}
-
 	//#endregion
 
 	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
@@ -1057,7 +998,6 @@ declare module 'vscode' {
 	 *
 	 * NotebookCell instances are immutable and are kept in sync for as long as they are part of their notebook.
 	 */
-	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
 
 		/**
@@ -1322,7 +1262,6 @@ declare module 'vscode' {
 	/**
 	 * NotebookCellData is the raw representation of notebook cells. Its is part of {@link NotebookData `NotebookData`}.
 	 */
-	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
 
 		/**
@@ -3320,6 +3259,30 @@ declare module 'vscode' {
 		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
 		 */
 		permissions?: FilePermission;
+	}
+
+	//#endregion
+
+	//#region Expose parent session on DebugSessions - https://github.com/microsoft/vscode/issues/123403#issuecomment-843269200
+
+	export interface DebugSession {
+		/**
+		 * The parent session of this debug session, if it was created as a child.
+		 * @see DebugSessionOptions.parentSession
+		 */
+		readonly parentSession?: DebugSession;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/87110 @eamodio
+
+	export interface Memento {
+
+		/**
+		 * The stored keys.
+		 */
+		readonly keys: readonly string[];
 	}
 
 	//#endregion

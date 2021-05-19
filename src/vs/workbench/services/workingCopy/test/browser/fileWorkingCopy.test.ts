@@ -98,7 +98,7 @@ suite('FileWorkingCopy', function () {
 	let workingCopy: FileWorkingCopy<TestFileWorkingCopyModel>;
 
 	function createWorkingCopy(uri: URI = resource) {
-		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
+		return new FileWorkingCopy<TestFileWorkingCopyModel>('testFileWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
 	}
 
 	setup(() => {
@@ -112,6 +112,14 @@ suite('FileWorkingCopy', function () {
 		workingCopy.dispose();
 	});
 
+	test('registers with working copy service', async () => {
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 1);
+
+		workingCopy.dispose();
+
+		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+	});
+
 	test('requires good file system URI', async () => {
 		assert.throws(() => createWorkingCopy(URI.from({ scheme: 'unknown', path: 'somePath' })));
 	});
@@ -120,7 +128,7 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.ORPHAN), false);
 
 		let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.add(resource);
+		accessor.fileService.notExistsSet.set(resource, true);
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 		await onDidChangeOrphanedPromise;
@@ -283,7 +291,7 @@ suite('FileWorkingCopy', function () {
 
 		const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
 
-		accessor.fileService.notExistsSet.add(resource);
+		accessor.fileService.notExistsSet.set(resource, true);
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 		await orphanedPromise;
@@ -310,7 +318,7 @@ suite('FileWorkingCopy', function () {
 
 		const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
 
-		accessor.fileService.notExistsSet.add(resource);
+		accessor.fileService.notExistsSet.set(resource, true);
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 		await orphanedPromise;
@@ -456,7 +464,7 @@ suite('FileWorkingCopy', function () {
 		// save clears orphaned
 		const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
 
-		accessor.fileService.notExistsSet.add(resource);
+		accessor.fileService.notExistsSet.set(resource, true);
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 		await orphanedPromise;
@@ -487,8 +495,6 @@ suite('FileWorkingCopy', function () {
 			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
 
 			await workingCopy.save({ force: true });
-		} catch (error) {
-			// error is expected
 		} finally {
 			accessor.fileService.writeShouldThrowError = undefined;
 		}
@@ -549,6 +555,23 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.PENDING_SAVE), false);
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.CONFLICT), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
+	});
+
+	test('save (errors, bubbles up with `ignoreErrorHandler`)', async () => {
+		await workingCopy.resolve();
+
+		let error: Error | undefined = undefined;
+		try {
+			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
+
+			await workingCopy.save({ force: true, ignoreErrorHandler: true });
+		} catch (e) {
+			error = e;
+		} finally {
+			accessor.fileService.writeShouldThrowError = undefined;
+		}
+
+		assert.ok(error);
 	});
 
 	test('revert', async () => {

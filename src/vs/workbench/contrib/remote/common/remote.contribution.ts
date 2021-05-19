@@ -178,6 +178,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 								type: 'string',
 								description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
 								default: localize('remote.portsAttributes.labelDefault', "Application")
+							},
+							'requireLocalPort': {
+								type: 'boolean',
+								markdownDescription: localize('remote.portsAttributes.requireLocalPort', "When true, a modal dialog will show if the chosen local port isn't used for forwarding."),
+								default: false
+							},
+							'protocol': {
+								type: 'string',
+								enum: ['http', 'https'],
+								description: localize('remote.portsAttributes.protocol', "The protocol to use when forwarding this port.")
 							}
 						},
 						default: {
@@ -216,6 +226,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						type: 'string',
 						description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
 						default: localize('remote.portsAttributes.labelDefault', "Application")
+					},
+					'requireLocalPort': {
+						type: 'boolean',
+						markdownDescription: localize('remote.portsAttributes.requireLocalPort', "When true, a modal dialog will show if the chosen local port isn't used for forwarding."),
+						default: false
+					},
+					'protocol': {
+						type: 'string',
+						enum: ['http', 'https'],
+						description: localize('remote.portsAttributes.protocol', "The protocol to use when forwarding this port.")
 					}
 				},
 				defaultSnippets: [{ body: { onAutoForward: 'ignore' } }],

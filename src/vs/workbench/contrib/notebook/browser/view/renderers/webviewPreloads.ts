@@ -786,6 +786,23 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Webv
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
+			case 'notebookStyles':
+				const documentStyle = document.documentElement.style;
+
+				for (let i = documentStyle.length - 1; i >= 0; i--) {
+					const property = documentStyle[i];
+
+					// Don't remove properties that the webview might have added separately
+					if (property && property.startsWith('--notebook-')) {
+						documentStyle.removeProperty(property);
+					}
+				}
+
+				// Re-add new properties
+				for (const variable of Object.keys(event.data.styles)) {
+					documentStyle.setProperty(`--${variable}`, event.data.styles[variable]);
+				}
+				break;
 		}
 	});
 

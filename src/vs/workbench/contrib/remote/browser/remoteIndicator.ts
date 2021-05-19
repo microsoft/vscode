@@ -29,6 +29,10 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHos
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IExtensionsViewPaneContainer, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
@@ -37,6 +41,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 	private static readonly CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
 	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
+	private static readonly INSTALL_REMOTE_EXTENSIONS_ID = 'workbench.action.remote.extensions';
 
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
@@ -66,7 +71,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) {
 		super();
 
@@ -123,6 +129,30 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				order: 3.5
 			});
 		}
+
+		if (this.extensionGalleryService.isEnabled()) {
+			registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
+						category,
+						title: { value: nls.localize('remote.install', "Install Remote Development Extensions"), original: 'Install Remote Development Extensions' },
+						f1: true
+					});
+				}
+				run = (accessor: ServicesAccessor, input: string) => {
+					const viewletService = accessor.get(IViewletService);
+					return viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+						if (viewlet) {
+							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`tag:"remote-menu"`);
+							viewlet.focus();
+						}
+					});
+				};
+			});
+		}
+
+
 	}
 
 	private registerListeners(): void {
@@ -287,6 +317,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		const ariaLabel = getCodiconAriaLabel(text);
 		const properties: IStatusbarEntry = {
+			name,
 			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
 			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
 			ariaLabel,
@@ -299,7 +330,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		if (this.remoteStatusEntry) {
 			this.remoteStatusEntry.update(properties);
 		} else {
-			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', name, StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
+			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
 		}
 	}
 
@@ -358,6 +389,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						label: nls.localize('reloadWindow', 'Reload Window')
 					});
 				}
+			}
+			if (!this.remoteAuthority && this.extensionGalleryService.isEnabled()) {
+				items.push({
+					type: 'separator'
+				});
+				items.push({
+					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
+					label: nls.localize('installRemotes', "Install Additional Remote Development Extensions..."),
+					alwaysShow: true
+				});
 			}
 			return items;
 		};

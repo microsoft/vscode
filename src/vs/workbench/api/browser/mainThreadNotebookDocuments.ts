@@ -114,7 +114,8 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 			language: cell.language,
 			cellKind: cell.cellKind,
 			outputs: cell.outputs,
-			metadata: cell.metadata
+			metadata: cell.metadata,
+			internalMetadata: cell.internalMetadata,
 		};
 	}
 

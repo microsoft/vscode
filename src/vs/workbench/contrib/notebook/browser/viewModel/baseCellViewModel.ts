@@ -39,6 +39,9 @@ export abstract class BaseCellViewModel extends Disposable {
 	get metadata() {
 		return this.model.metadata;
 	}
+	get internalMetadata() {
+		return this.model.internalMetadata;
+	}
 	get language() {
 		return this.model.language;
 	}
@@ -135,8 +138,12 @@ export abstract class BaseCellViewModel extends Disposable {
 	) {
 		super();
 
-		this._register(model.onDidChangeMetadata(e => {
-			this._onDidChangeState.fire({ metadataChanged: true, runStateChanged: e.runStateChanged });
+		this._register(model.onDidChangeMetadata(() => {
+			this._onDidChangeState.fire({ metadataChanged: true });
+		}));
+
+		this._register(model.onDidChangeInternalMetadata(e => {
+			this._onDidChangeState.fire({ internalMetadataChanged: true, runStateChanged: e.runStateChanged });
 		}));
 
 		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {

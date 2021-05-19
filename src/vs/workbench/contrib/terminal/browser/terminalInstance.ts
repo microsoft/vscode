@@ -496,7 +496,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			minimumContrastRatio: config.minimumContrastRatio,
-			bellStyle: config.enableBell ? 'sound' : 'none',
+			bellStyle: 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
@@ -546,9 +546,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
-		this._processManager.onProcessReady(() => {
+		this._processManager.onProcessReady((processTraits) => {
 			if (this._processManager.os === OperatingSystem.Windows) {
-				xterm.setOption('windowsMode', true);
+				xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
 				// Force line data to be sent when the cursor is moved, the main purpose for
 				// this is because ConPTY will often not do a line feed but instead move the
 				// cursor, in which case we still want to send the current line's data to tasks.
@@ -768,9 +768,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return;
 			}
 
-			if (!this.shellLaunchConfig.executable) {
-				return;
-			}
 			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
 
 			this.sendText(preparedPath, false);
@@ -903,7 +900,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	override dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
-
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);
@@ -1306,8 +1302,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized(), reset);
 
 		// Set title again as when creating the first process
-		if (this._shellLaunchConfig.name || this._shellLaunchConfig.executable) {
-			this.setTitle(this._shellLaunchConfig.name || this._shellLaunchConfig.executable, TitleEventSource.Api);
+		if (this._shellLaunchConfig.name) {
+			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
 		this._xtermTypeAhead?.reset();
