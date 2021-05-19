@@ -122,7 +122,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private _onEditorAdd(editor: INotebookEditor) {
 
 		const ipcListener = editor.onDidReceiveMessage(e => {
-			if (!editor.hasModel()) {
+			if (e.source !== 'kernel' || !editor.hasModel()) {
 				return;
 			}
 			const { selected } = this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument);

@@ -87,6 +87,7 @@ import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { RemoteTrustOption } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+import { ExtHostNotebookRenderers } from 'vs/workbench/api/common/extHostNotebookRenderers';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -146,6 +147,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
 	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostLogService, extensionStoragePaths));
 	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostLogService));
+	const extHostNotebookRenderers = rpcProtocol.set(ExtHostContext.ExtHostNotebookRenderers, new ExtHostNotebookRenderers(rpcProtocol, extHostNotebook));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
 	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, { ...initData.environment, remote: initData.remote }));
@@ -1080,6 +1082,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.createNotebookEditorDecorationType(options);
+			},
+			createRendererMessaging(rendererId) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebookRenderers.createRendererMessaging(rendererId);
 			},
 			onDidChangeNotebookDocumentMetadata(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);

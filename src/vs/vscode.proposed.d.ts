@@ -2150,6 +2150,44 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region @connor4312 - notebook messaging: https://github.com/microsoft/vscode/issues/123601
+
+	/**
+	 * Renderer messaging is used to communicate with a single renderer. It's
+	 * returned from {@link notebook.createRendererMessaging}.
+	 */
+	export interface NotebookRendererMessaging<TSend = any, TReceive = TSend> {
+		/**
+		 * Events that fires when a message is received from a renderer.
+		 */
+		messageHandler?: (editor: NotebookEditor, message: TReceive) => void;
+
+		/**
+		 * Sends a message to the renderer.
+		 * @param message Message to send
+		 */
+		postMessage(message: TSend): void;
+
+		/**
+		 * Disposes of the messaging instance and unsubscribes from messages.
+		 */
+		dispose(): void;
+	}
+
+	export namespace notebook {
+		/**
+		 * Creates a new messaging instance used to communicate with a specific
+		 * renderer. The renderer only has access to messaging if `requiresMessaging`
+		 * is set in its contribution.
+		 *
+		 * @see https://github.com/microsoft/vscode/issues/123601
+		 * @param rendererId The renderer ID to communicate with
+		 */
+		export function createRendererMessaging<TSend = any, TReceive = TSend>(rendererId: string): NotebookRendererMessaging<TSend, TReceive>;
+	}
+
+	//#endregion
+
 	//#region @eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
 
 	export class TimelineItem {

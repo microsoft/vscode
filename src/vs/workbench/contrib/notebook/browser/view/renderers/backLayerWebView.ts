@@ -404,6 +404,7 @@ function html(strings: TemplateStringsArray, ...values: any[]): string {
 }
 
 export interface INotebookWebviewMessage {
+	source: 'kernel' | { rendererId: string };
 	message: unknown;
 }
 
@@ -998,7 +999,7 @@ var requirejs = (function() {
 					}
 				case 'customKernelMessage':
 					{
-						this._onMessage.fire({ message: data.message });
+						this._onMessage.fire({ source: 'kernel', message: data.message });
 						break;
 					}
 				case 'clickMarkdownPreview':
