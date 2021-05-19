@@ -28,8 +28,6 @@ type IgnoreRecommendationClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 };
 
-const WORKSPACE_RECOMMENDATION_DELAY = 5000;
-
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -235,13 +233,19 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return !this.extensionRecommendationsManagementService.ignoredRecommendations.includes(extensionId.toLowerCase());
 	}
 
+	// for testing
+	protected get workbenchRecommendationDelay() {
+		// remote extensions might still being installed #124119
+		return 5000;
+	}
+
 	private async promptWorkspaceRecommendations(): Promise<void> {
 		const allowedRecommendations = [...this.workspaceRecommendations.recommendations, ...this.configBasedRecommendations.importantRecommendations]
 			.map(({ extensionId }) => extensionId)
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
 		if (allowedRecommendations.length) {
-			await timeout(WORKSPACE_RECOMMENDATION_DELAY); // remote extensions might still being installed #124119
+			await timeout(this.workbenchRecommendationDelay);
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
 		}
 	}
