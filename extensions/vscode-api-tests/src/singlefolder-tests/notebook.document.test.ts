@@ -140,6 +140,30 @@ suite('Notebook Document', function () {
 		await p;
 	});
 
+	test('open untitled notebook', async function () {
+		const nb = await vscode.notebook.openNotebookDocument('notebook.nbdserializer');
+		assert.strictEqual(nb.isUntitled, true);
+		assert.strictEqual(nb.isClosed, false);
+		assert.strictEqual(nb.uri.scheme, 'untitled');
+		// assert.strictEqual(nb.cellCount, 0); // NotebookSerializer ALWAYS returns something here
+	});
+
+	test('open untitled with data', async function () {
+		const nb = await vscode.notebook.openNotebookDocument(
+			'notebook.nbdserializer',
+			new vscode.NotebookData([
+				new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'console.log()', 'javascript'),
+				new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, 'Hey', 'markdown'),
+			])
+		);
+		assert.strictEqual(nb.isUntitled, true);
+		assert.strictEqual(nb.isClosed, false);
+		assert.strictEqual(nb.uri.scheme, 'untitled');
+		assert.strictEqual(nb.cellCount, 2);
+		assert.strictEqual(nb.cellAt(0).kind, vscode.NotebookCellKind.Code);
+		assert.strictEqual(nb.cellAt(1).kind, vscode.NotebookCellKind.Markup);
+	});
+
 
 	test('workspace edit API (replaceCells)', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');

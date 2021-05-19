@@ -1723,6 +1723,17 @@ declare module 'vscode' {
 		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
 
 		/**
+		 * Open an untitled notebook. The editor will prompt the user for a file
+		 * path when the document is to be saved.
+		 *
+		 * @see {@link openNotebookDocument}
+		 * @param viewType The notebook view type that should be used.
+		 * @param content The initial contents of the notebook.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
+		 */
+		export function openNotebookDocument(viewType: string, content?: NotebookData): Thenable<NotebookDocument>;
+
+		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
 		 */
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;

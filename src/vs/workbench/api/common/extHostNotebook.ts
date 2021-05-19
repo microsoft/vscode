@@ -254,12 +254,20 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return new NotebookEditorDecorationType(this._notebookEditorsProxy, options).value;
 	}
 
+	async createNotebookDocument(options: { viewType?: string, content?: vscode.NotebookData } = {}): Promise<URI> {
+		const canonicalUri = await this._notebookDocumentsProxy.$tryCreateNotebook({
+			viewType: options.viewType,
+			content: options.content && typeConverters.NotebookData.from(options.content)
+		});
+		return URI.revive(canonicalUri);
+	}
+
 	async openNotebookDocument(uri: URI): Promise<vscode.NotebookDocument> {
 		const cached = this._documents.get(uri);
 		if (cached) {
 			return cached.apiNotebook;
 		}
-		const canonicalUri = await this._notebookDocumentsProxy.$tryOpenDocument(uri);
+		const canonicalUri = await this._notebookDocumentsProxy.$tryOpenNotebook(uri);
 		const document = this._documents.get(URI.revive(canonicalUri));
 		return assertIsDefined(document?.apiNotebook);
 	}
@@ -358,19 +366,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-
 		const data = await serializer.deserializeNotebook(bytes.buffer, token);
-		const res: NotebookDataDto = {
-			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
-			cells: [],
-		};
-
-		for (let cell of data.cells) {
-			extHostTypes.NotebookCellData.validate(cell);
-			res.cells.push(typeConverters.NotebookCellData.from(cell));
-		}
-
-		return res;
+		return typeConverters.NotebookData.from(data);
 	}
 
 	async $notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer> {
@@ -378,10 +375,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const bytes = await serializer.serializeNotebook({
-			metadata: typeConverters.NotebookDocumentMetadata.to(data.metadata),
-			cells: data.cells.map(typeConverters.NotebookCellData.to)
-		}, token);
+		const bytes = await serializer.serializeNotebook(typeConverters.NotebookData.to(data), token);
 		return VSBuffer.wrap(bytes);
 	}
 
