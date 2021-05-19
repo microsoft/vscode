@@ -1038,22 +1038,25 @@ class SuggestAdapter {
 	}
 }
 
-class GhostTextAdapter {
+class InlineSuggestionsAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.GhostTextProvider,
+		private readonly _provider: vscode.InlineSuggestionsProvider,
 	) { }
 
-	async provideGhostText(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.GhostText | undefined> {
+	async provideInlineSuggestions(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.InlineSuggestions | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		// The default insert/replace ranges.
-		const defaultReplaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
+		// TODO
+		//const wordRange = doc.getWordRangeAtPosition(pos);
+		//const start = wordRange ? typeConvert.Position.from(wordRange.start) : position;
+		//const end = typeConvert.Position.from(doc.lineAt(pos).range.end);
+		//const defaultReplaceRange = new Range(start, end);
 
-		const result = await asPromise(() => this._provider.provideGhostTextItems(doc, pos, token));
+		const result = await asPromise(() => this._provider.provideInlineSuggestions(doc, pos, token));
 
 		if (!result) {
 			// undefined and null are valid results
@@ -1067,8 +1070,10 @@ class GhostTextAdapter {
 		}
 
 		return {
-			text: result.text,
-			replaceRange: typeConvert.Range.from(result.replaceRange || defaultReplaceRange)
+			items: result.items.map(item => ({
+				text: item.text,
+				replaceRange: item.replaceRange ? typeConvert.Range.from(item.replaceRange) : undefined,
+			})),
 		};
 	}
 }
@@ -1390,7 +1395,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
-	| LinkedEditingRangeAdapter | InlayHintsAdapter | GhostTextAdapter;
+	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineSuggestionsAdapter;
 
 class AdapterData {
 	constructor(
@@ -1846,14 +1851,14 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- ghost test
 
-	registerGhostTextProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.GhostTextProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new GhostTextAdapter(this._documents, provider), extension);
-		this._proxy.$registerGhostTextSupport(handle, this._transformDocumentSelector(selector));
+	registerInlineSuggestionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineSuggestionsProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new InlineSuggestionsAdapter(this._documents, provider), extension);
+		this._proxy.$registerInlineSuggestionSupport(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideGhostText(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.GhostText | undefined> {
-		return this._withAdapter(handle, GhostTextAdapter, adapter => adapter.provideGhostText(URI.revive(resource), position, token), undefined);
+	$provideInlineSuggestions(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.InlineSuggestions | undefined> {
+		return this._withAdapter(handle, InlineSuggestionsAdapter, adapter => adapter.provideInlineSuggestions(URI.revive(resource), position, token), undefined);
 	}
 
 

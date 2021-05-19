@@ -1548,13 +1548,22 @@ export class CompletionList {
 }
 
 @es5ClassCompat
-export class GhostText implements vscode.GhostText {
+export class InlineSuggestion implements vscode.InlineSuggestion {
 
 	text: string;
 	replaceRange?: Range;
 
 	constructor(text: string) {
 		this.text = text;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestions implements vscode.InlineSuggestions {
+	items: vscode.InlineSuggestion[];
+
+	constructor(items: vscode.InlineSuggestion[]) {
+		this.items = items;
 	}
 }
 

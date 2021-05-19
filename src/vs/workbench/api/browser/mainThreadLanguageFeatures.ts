@@ -499,13 +499,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
 	}
 
-	$registerGhostTextSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider: modes.GhostTextProvider = {
-			provideGhostText: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.GhostText | undefined> => {
-				return this._proxy.$provideGhostText(handle, model.uri, position, token);
+	$registerInlineSuggestionSupport(handle: number, selector: IDocumentFilterDto[]): void {
+		const provider: modes.InlineSuggestionsProvider = {
+			provideInlineSuggestions: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.InlineSuggestions | undefined> => {
+				return this._proxy.$provideInlineSuggestions(handle, model.uri, position, token);
 			}
 		};
-		this._registrations.set(handle, modes.GhostTextProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, modes.InlineSuggestionsProviderRegistry.register(selector, provider));
 	}
 
 	// --- parameter hints

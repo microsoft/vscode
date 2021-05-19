@@ -688,7 +688,7 @@ export interface CompletionItemProvider {
 /**
  * @internal
  */
-export interface GhostText {
+export interface InlineSuggestion {
 	text: string;
 	replaceRange?: IRange;
 }
@@ -696,8 +696,15 @@ export interface GhostText {
 /**
  * @internal
  */
-export interface GhostTextProvider {
-	provideGhostText(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<GhostText>;
+export interface InlineSuggestions<TItem extends InlineSuggestion = InlineSuggestion> {
+	items: TItem[];
+}
+
+/**
+ * @internal
+ */
+export interface InlineSuggestionsProvider {
+	provideInlineSuggestions(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<InlineSuggestions>;
 }
 
 export interface CodeAction {
@@ -1788,7 +1795,7 @@ export const CompletionProviderRegistry = new LanguageFeatureRegistry<Completion
 /**
  * @internal
  */
-export const GhostTextProviderRegistry = new LanguageFeatureRegistry<GhostTextProvider>();
+export const InlineSuggestionsProviderRegistry = new LanguageFeatureRegistry<InlineSuggestionsProvider>();
 
 /**
  * @internal

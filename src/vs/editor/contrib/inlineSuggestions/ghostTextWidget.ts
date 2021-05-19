@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { GhostText } from 'vs/editor/common/modes';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as strings from 'vs/base/common/strings';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -14,38 +13,39 @@ import { EditorFontLigatures, EditorOption } from 'vs/editor/common/config/edito
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-
-export interface ValidGhostText extends GhostText {
-	replaceRange: IRange;
-}
+import { Position } from 'vs/editor/common/core/position';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
-export class GhostTextWidget extends Disposable {
+export interface GhostText {
+	text: string;
+	position: Position;
+}
 
+export class GhostTextWidget extends Disposable {
 	private static instanceCount = 0;
 
-	private readonly _editor: ICodeEditor;
 	private readonly _codeEditorDecorationTypeKey: string;
 
-	private _currentGhostText: ValidGhostText | null;
-	private _hasDecoration: boolean;
-	private _decorationIds: string[];
-	private _viewZoneId: string | null;
+	private currentGhostText: GhostText | null;
+	private hasDecoration: boolean;
+	private decorationIds: string[];
+	private viewZoneId: string | null;
 
 	constructor(
-		editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
 	) {
 		super();
-		this._editor = editor;
-		this._codeEditorDecorationTypeKey = `0ghost-text-${++GhostTextWidget.instanceCount}`;
-		this._currentGhostText = null;
-		this._hasDecoration = false;
-		this._decorationIds = [];
-		this._viewZoneId = null;
 
-		this._register(this._editor.onDidChangeConfiguration((e) => {
+		// We add 0 to bring it before any other decoration.
+		this._codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.instanceCount}`;
+		this.currentGhostText = null;
+		this.hasDecoration = false;
+		this.decorationIds = [];
+		this.viewZoneId = null;
+
+		this._register(this.editor.onDidChangeConfiguration((e) => {
 			if (
 				e.hasChanged(EditorOption.disableMonospaceOptimizations)
 				|| e.hasChanged(EditorOption.stopRenderingLineAfter)
@@ -62,66 +62,73 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private _removeInlineText(): void {
-		if (this._hasDecoration) {
-			this._hasDecoration = false;
+		if (this.hasDecoration) {
+			this.hasDecoration = false;
 			this._codeEditorService.removeDecorationType(this._codeEditorDecorationTypeKey);
 		}
 	}
 
 	public hide(): void {
 		this._removeInlineText();
-		this._editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = null;
+		this.editor.changeViewZones((changeAccessor) => {
+			if (this.viewZoneId) {
+				changeAccessor.removeZone(this.viewZoneId);
+				this.viewZoneId = null;
 			}
 		});
-		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
-		this._currentGhostText = null;
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
+		this.currentGhostText = null;
 	}
 
-	public show(ghostText: ValidGhostText): void {
-		if (!this._editor.hasModel()) {
+	public show(ghostText: GhostText): void {
+		if (!this.editor.hasModel()) {
 			return;
 		}
-		this._currentGhostText = ghostText;
+		const model = this.editor.getModel();
+		const maxColumn = model.getLineMaxColumn(ghostText.position.lineNumber);
+		if (ghostText.position.column !== maxColumn) {
+			console.warn('Can only show multiline ghost text at the end of a line');
+			return;
+		}
+		this.currentGhostText = ghostText;
 		this._render();
 	}
 
 	private _render(): void {
-		if (!this._editor.hasModel() || !this._currentGhostText) {
+		if (!this.editor.hasModel() || !this.currentGhostText) {
 			return;
 		}
 
-		const model = this._editor.getModel();
+		const model = this.editor.getModel();
 		const { tabSize } = model.getOptions();
-		const ghostLines = strings.splitLines(this._currentGhostText.text);
+		const ghostLines = strings.splitLines(this.currentGhostText.text);
 
 		this._removeInlineText();
 
 		this._codeEditorService.registerDecorationType(this._codeEditorDecorationTypeKey, {
 			after: {
-				contentText: ghostLines[0]
+				contentText: ghostLines[0],
+				opacity: '0.2',
 			}
 		});
-		this._hasDecoration = true;
-		const insertPosition = Range.lift(this._currentGhostText.replaceRange).getEndPosition();
-		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, [{
+		this.hasDecoration = true;
+		const insertPosition = this.currentGhostText.position;
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [{
 			range: Range.fromPositions(insertPosition, insertPosition),
 			options: this._codeEditorService.resolveDecorationOptions(this._codeEditorDecorationTypeKey, true)
 		}]);
 
-		this._editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = null;
+		this.editor.changeViewZones((changeAccessor) => {
+			if (this.viewZoneId) {
+				changeAccessor.removeZone(this.viewZoneId);
+				this.viewZoneId = null;
 			}
 			const remainingLines = ghostLines.slice(1);
 			if (remainingLines.length > 0) {
 				const domNode = document.createElement('div');
 				this._renderLines(domNode, tabSize, remainingLines);
 
-				this._viewZoneId = changeAccessor.addZone({
+				this.viewZoneId = changeAccessor.addZone({
 					afterLineNumber: insertPosition.lineNumber,
 					afterColumn: insertPosition.column,
 					heightInLines: ghostLines.length - 1,
@@ -132,7 +139,7 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private _renderLines(domNode: HTMLElement, tabSize: number, lines: string[]): void {
-		const opts = this._editor.getOptions();
+		const opts = this.editor.getOptions();
 		const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 		const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
 		const renderWhitespace = opts.get(EditorOption.renderWhitespace);
@@ -142,6 +149,7 @@ export class GhostTextWidget extends Disposable {
 		const lineHeight = opts.get(EditorOption.lineHeight);
 
 		const sb = createStringBuilder(10000);
+		sb.appendASCIIString('<div style="opacity: 0.2">');
 
 		for (let i = 0, len = lines.length; i < len; i++) {
 			const line = lines[i];
@@ -178,6 +186,7 @@ export class GhostTextWidget extends Disposable {
 
 			sb.appendASCIIString('</div>');
 		}
+		sb.appendASCIIString('</div>');
 
 		Configuration.applyFontInfoSlow(domNode, fontInfo);
 		const html = sb.build();

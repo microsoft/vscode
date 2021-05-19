@@ -480,9 +480,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerCompletionItemProvider(extension, checkSelector(selector), provider, triggerCharacters);
 			},
-			registerGhostTextProvider(selector: vscode.DocumentSelector, provider: vscode.GhostTextProvider): vscode.Disposable {
+			registerInlineSuggestionsProvider(selector: vscode.DocumentSelector, provider: vscode.InlineSuggestionsProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerGhostTextProvider(extension, checkSelector(selector), provider);
+				return extHostLanguageFeatures.registerInlineSuggestionsProvider(extension, checkSelector(selector), provider);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);
@@ -1181,7 +1181,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind,
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
-			GhostText: extHostTypes.GhostText,
+			InlineSuggestion: extHostTypes.InlineSuggestion,
+			InlineSuggestions: extHostTypes.InlineSuggestions,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
 			Location: extHostTypes.Location,
