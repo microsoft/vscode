@@ -359,9 +359,7 @@ export class IssueReporter extends Disposable {
 
 		this.previewButton.onDidClick(async () => {
 			this.delayedSubmit.trigger(async () => {
-				if ((await this.createIssue())) {
-					ipcRenderer.send('vscode:closeIssueReporter');
-				}
+				this.createIssue();
 			});
 		});
 
@@ -391,7 +389,7 @@ export class IssueReporter extends Disposable {
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
 				this.delayedSubmit.trigger(async () => {
-					if ((await this.createIssue())) {
+					if (await this.createIssue()) {
 						ipcRenderer.send('vscode:closeIssueReporter');
 					}
 				});
