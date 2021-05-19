@@ -162,7 +162,6 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 	//#endregion
 
 	private readonly mapResourceToWorkingCopyListeners = new ResourceMap<IDisposable>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
 	private readonly mapResourceToPendingWorkingCopyResolve = new ResourceMap<Promise<void>>();
 
 	private readonly workingCopyResolveQueue = this._register(new ResourceQueue());
@@ -515,32 +514,10 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		this.mapResourceToWorkingCopyListeners.set(workingCopy.resource, workingCopyListeners);
 	}
 
-	protected override add(resource: URI, workingCopy: IFileWorkingCopy<T>): void {
-		const knownWorkingCopy = this.get(resource);
-		if (knownWorkingCopy === workingCopy) {
-			return; // already cached
-		}
-
-		// Dispose any previously stored dispose listener for this resource
-		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			disposeListener.dispose();
-		}
-
-		// Store in cache but remove when working copy gets disposed
-		super.add(resource, workingCopy);
-		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
-	}
-
 	protected override remove(resource: URI): void {
 		super.remove(resource);
 
-		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			dispose(disposeListener);
-			this.mapResourceToDisposeListener.delete(resource);
-		}
-
+		// Dispose any exsting working copy listeners
 		const workingCopyListener = this.mapResourceToWorkingCopyListeners.get(resource);
 		if (workingCopyListener) {
 			dispose(workingCopyListener);
@@ -591,11 +568,8 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 	override dispose(): void {
 		super.dispose();
 
+		// Clear pending working copy resolves
 		this.mapResourceToPendingWorkingCopyResolve.clear();
-
-		// Dispose the dispose listeners
-		dispose(this.mapResourceToDisposeListener.values());
-		this.mapResourceToDisposeListener.clear();
 
 		// Dispose the working copy change listeners
 		dispose(this.mapResourceToWorkingCopyListeners.values());
