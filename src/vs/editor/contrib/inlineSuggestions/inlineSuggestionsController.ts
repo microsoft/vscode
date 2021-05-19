@@ -125,7 +125,7 @@ export class InlineSuggestionsModelController extends Disposable {
 	private updateSession(): void {
 		const pos = this.editor.getPosition();
 
-		if (this.completionSession.value && this.completionSession.value.activeRange.containsPosition(pos)) {
+		if (this.completionSession.value && this.completionSession.value.isValid()) {
 			return;
 		}
 
@@ -195,11 +195,12 @@ class InlineSuggestionsSession extends Disposable {
 		return first;
 	}
 
-	get activeRange(): Range {
+	isValid(): boolean {
+		const pos = this.editor.getPosition();
 		if (this.currentSuggestion) {
-			return this.currentSuggestion.suggestion.replaceRange;
+			return this.currentSuggestion.suggestion.replaceRange.containsPosition(pos);
 		}
-		return getDefaultRange(this.triggerPosition, this.textModel);
+		return this.triggerPosition.lineNumber === pos.lineNumber; // the cursor is still on this line
 	}
 
 	private update() {
