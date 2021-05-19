@@ -495,8 +495,6 @@ suite('FileWorkingCopy', function () {
 			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
 
 			await workingCopy.save({ force: true });
-		} catch (error) {
-			// error is expected
 		} finally {
 			accessor.fileService.writeShouldThrowError = undefined;
 		}
@@ -557,6 +555,23 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.PENDING_SAVE), false);
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.CONFLICT), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
+	});
+
+	test('save (errors, bubbles up with `ignoreErrorHandler`)', async () => {
+		await workingCopy.resolve();
+
+		let error: Error | undefined = undefined;
+		try {
+			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
+
+			await workingCopy.save({ force: true, ignoreErrorHandler: true });
+		} catch (e) {
+			error = e;
+		} finally {
+			accessor.fileService.writeShouldThrowError = undefined;
+		}
+
+		assert.ok(error);
 	});
 
 	test('revert', async () => {

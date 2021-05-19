@@ -10,7 +10,7 @@ import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEve
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IFileWorkingCopy, IFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { timeout } from 'vs/base/common/async';
 import { TestFileWorkingCopyModel, TestFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/fileWorkingCopy.test';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -189,6 +189,7 @@ suite('FileWorkingCopyManager', () => {
 		let gotNonDirtyCounter = 0;
 		let revertedCounter = 0;
 		let savedCounter = 0;
+		let saveErrorCounter = 0;
 
 		manager.onDidCreate(workingCopy => {
 			createdCounter++;
@@ -222,6 +223,12 @@ suite('FileWorkingCopyManager', () => {
 			}
 		});
 
+		manager.onDidSaveError(workingCopy => {
+			if (workingCopy.resource.toString() === resource1.toString()) {
+				saveErrorCounter++;
+			}
+		});
+
 		const workingCopy1 = await manager.resolve(resource1);
 		assert.strictEqual(resolvedCounter, 1);
 		assert.strictEqual(createdCounter, 1);
@@ -239,14 +246,24 @@ suite('FileWorkingCopyManager', () => {
 		workingCopy1.model?.updateContents('changed again');
 
 		await workingCopy1.save();
+
+		try {
+			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
+
+			await workingCopy1.save({ force: true });
+		} finally {
+			accessor.fileService.writeShouldThrowError = undefined;
+		}
+
 		workingCopy1.dispose();
 		workingCopy2.dispose();
 
 		await workingCopy1.revert();
-		assert.strictEqual(gotDirtyCounter, 2);
+		assert.strictEqual(gotDirtyCounter, 3);
 		assert.strictEqual(gotNonDirtyCounter, 2);
 		assert.strictEqual(revertedCounter, 1);
 		assert.strictEqual(savedCounter, 1);
+		assert.strictEqual(saveErrorCounter, 1);
 		assert.strictEqual(createdCounter, 2);
 
 		workingCopy1.dispose();

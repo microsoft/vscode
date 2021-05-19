@@ -78,8 +78,6 @@ suite('FileWorkingCopyManager2', () => {
 		assert.strictEqual(manager.untitled.workingCopies.length, 0);
 	});
 
-	// saveAs: unresolved source, unresolved target
-
 	test('saveAs - file (same target, unresolved source, unresolved target)', () => {
 		const source = URI.file('/path/source.txt');
 
@@ -99,8 +97,6 @@ suite('FileWorkingCopyManager2', () => {
 
 		return testSaveAsFile(source, target, false, false);
 	});
-
-	// saveAs: resolved source, unresolved target
 
 	test('saveAs - file (same target, resolved source, unresolved target)', () => {
 		const source = URI.file('/path/source.txt');
@@ -122,8 +118,6 @@ suite('FileWorkingCopyManager2', () => {
 		return testSaveAsFile(source, target, true, false);
 	});
 
-	// saveAs: unresolved source, resolved target
-
 	test('saveAs - file (same target, unresolved source, resolved target)', () => {
 		const source = URI.file('/path/source.txt');
 
@@ -143,8 +137,6 @@ suite('FileWorkingCopyManager2', () => {
 
 		return testSaveAsFile(source, target, false, true);
 	});
-
-	// saveAs: resolved source, resolved target
 
 	test('saveAs - file (same target, resolved source, resolved target)', () => {
 		const source = URI.file('/path/source.txt');
