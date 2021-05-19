@@ -93,6 +93,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
+		this._terminalService.onDidChangeConnectionState(() => this.render());
 		_themeService.onDidColorThemeChange(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
@@ -258,7 +259,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-		const iconId = this._getIconId(instance.icon);
+		const iconId = this._getIconId(instance?.icon);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
@@ -374,6 +375,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	private _getIconId(icon: any): string {
+		if (!icon) {
+			return Codicon.terminal.id;
+		}
 		if (ThemeIcon.isThemeIcon(icon.id)) {
 			return icon.id;
 		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {

@@ -115,6 +115,9 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 	}
 	private _getIconId(icon: any): string {
+		if (!icon) {
+			return Codicon.terminal.id;
+		}
 		if (ThemeIcon.isThemeIcon(icon.id)) {
 			return icon.id;
 		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {
