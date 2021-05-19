@@ -179,7 +179,8 @@ export class GitHubServer {
 
 	private updateStatusBarItem(isStart?: boolean) {
 		if (isStart && !this._statusBarItem) {
-			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+			this._statusBarItem = vscode.window.createStatusBarItem('status.git.signIn', vscode.StatusBarAlignment.Left);
+			this._statusBarItem.name = localize('status.git.signIn.name', "GitHub Sign-in");
 			this._statusBarItem.text = this.type === AuthProviderType.github
 				? localize('signingIn', "$(mark-github) Signing in to github.com...")
 				: localize('signingInEnterprise', "$(mark-github) Signing in to {0}...", this.getServerUri().authority);

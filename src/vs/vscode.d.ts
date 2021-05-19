@@ -5585,6 +5585,14 @@ declare module 'vscode' {
 	export interface StatusBarItem {
 
 		/**
+		 * The identifier of this item.
+		 *
+		 * *Note*: if no identifier was provided by the {@link window.createStatusBarItem `window.createStatusBarItem`}
+		 * method, the identifier will match the {@link Extension.id extension identifier}.
+		 */
+		readonly id: string;
+
+		/**
 		 * The alignment of this item.
 		 */
 		readonly alignment: StatusBarAlignment;
@@ -5594,6 +5602,11 @@ declare module 'vscode' {
 		 * be shown more to the left.
 		 */
 		readonly priority?: number;
+
+		/**
+		 * The (short) name of the entry, like 'Language Indicator', 'Git Status' etc.
+		 */
+		name: string | undefined;
 
 		/**
 		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
@@ -8803,6 +8816,16 @@ declare module 'vscode' {
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+
+		/**
+		 * Creates a status bar {@link StatusBarItem item}.
+		 *
+		 * @param id The unique identifier of the item.
+		 * @param alignment The alignment of the item.
+		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(id: string, alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
 		 * Creates a {@link Terminal} with a backing shell process. The cwd of the terminal will be the workspace
