@@ -455,7 +455,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const uri = URI.parse(details.url);
 			if (uri.path.endsWith('.svg')) {
 				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
-				if (!isSafeResourceUrl) {
+				if (!isSafeResourceUrl && details.resourceType !== 'xhr') {
 					const isSafeContext = isSafeFrame(details.frame);
 					return callback({ cancel: !isSafeContext });
 				}
@@ -483,7 +483,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
 				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
-					const isSafeContext = isSafeFrame(details.frame);
+					const isSafeContext = details.resourceType === 'xhr' || isSafeFrame(details.frame);
 					return callback({ cancel: !isSafeContext });
 				}
 			}
