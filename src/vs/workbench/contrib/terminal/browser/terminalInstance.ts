@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -133,6 +133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _webglAddon: WebglAddon | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
+	private _dndObserver: IDisposable | undefined;
 
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 
@@ -276,6 +277,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcessManager();
 
+
+		this._register(toDisposable(() => this._dndObserver?.dispose()));
+
 		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(async () => {
@@ -309,13 +313,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			initialDataEventsTimeout = undefined;
 			this._initialDataEvents = undefined;
 		}, 10000);
-		this._register({
-			dispose: () => {
-				if (initialDataEventsTimeout) {
-					window.clearTimeout(initialDataEventsTimeout);
-				}
+		this._register(toDisposable(() => {
+			if (initialDataEventsTimeout) {
+				window.clearTimeout(initialDataEventsTimeout);
 			}
-		});
+		}));
 	}
 
 	private _getIcon(): Codicon | undefined {
@@ -605,6 +607,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container?.removeChild(this._wrapperElement);
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
+		console.log('container', container);
+		setTimeout(() => this._initDragAndDrop(container));
 	}
 
 	private async _attachToElement(container: HTMLElement): Promise<void> {
@@ -752,14 +756,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
-		const dndController = new TerminalInstanceDropAndDropController(this._container.parentElement!);
-		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
-		dndController.onDropFile(async path => {
-			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
-			this.sendText(preparedPath, false);
-			this.focus();
-		});
-		this._register(new DragAndDropObserver(this._container.parentElement!, dndController));
+		this._initDragAndDrop(container);
 
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
@@ -779,6 +776,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (xterm.getOption('disableStdin')) {
 			this._attachPressAnyKeyToCloseListener(xterm);
 		}
+	}
+
+	private _initDragAndDrop(container: HTMLElement) {
+		this._dndObserver?.dispose();
+		const dndController = new TerminalInstanceDropAndDropController(container);
+		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
+		dndController.onDropFile(async path => {
+			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
+			this.sendText(preparedPath, false);
+			this.focus();
+		});
+		this._dndObserver = new DragAndDropObserver(container.parentElement!, dndController);
 	}
 
 	private async _measureRenderTime(): Promise<void> {
@@ -1824,7 +1833,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 }
 
-class TerminalInstanceDropAndDropController implements IDragAndDropObserverCallbacks {
+class TerminalInstanceDropAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
 
 
@@ -1836,6 +1845,15 @@ class TerminalInstanceDropAndDropController implements IDragAndDropObserverCallb
 	constructor(
 		private readonly _container: HTMLElement
 	) {
+		super();
+		this._register(toDisposable(() => this._clearDropOverlay()));
+	}
+
+	private _clearDropOverlay() {
+		if (this._dropOverlay && this._dropOverlay.parentElement) {
+			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
+		}
+		this._dropOverlay = undefined;
 	}
 
 	onDragEnter(e: DragEvent) {
@@ -1858,17 +1876,11 @@ class TerminalInstanceDropAndDropController implements IDragAndDropObserverCallb
 		}
 	}
 	onDragLeave(e: DragEvent) {
-		if (this._dropOverlay && this._dropOverlay.parentElement) {
-			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-		}
-		this._dropOverlay = undefined;
+		this._clearDropOverlay();
 	}
 
 	onDragEnd(e: DragEvent) {
-		if (this._dropOverlay && this._dropOverlay.parentElement) {
-			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-		}
-		this._dropOverlay = undefined;
+		this._clearDropOverlay();
 	}
 
 	onDragOver(e: DragEvent) {
@@ -1880,7 +1892,6 @@ class TerminalInstanceDropAndDropController implements IDragAndDropObserverCallb
 
 		// Dragging terminals
 		if (types.includes('terminals')) {
-			console.log('side', this._getDropSide(e));
 			const side = this._getDropSide(e);
 			this._dropOverlay.classList.toggle('drop-left', side === 'left');
 			this._dropOverlay.classList.toggle('drop-right', side === 'right');
@@ -1890,10 +1901,7 @@ class TerminalInstanceDropAndDropController implements IDragAndDropObserverCallb
 	}
 
 	async onDrop(e: DragEvent) {
-		if (this._dropOverlay && this._dropOverlay.parentElement) {
-			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-		}
-		this._dropOverlay = undefined;
+		this._clearDropOverlay();
 
 		if (!e.dataTransfer) {
 			return;
