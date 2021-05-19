@@ -9,7 +9,7 @@ import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/life
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineSuggestion, InlineSuggestions, InlineSuggestionsProviderRegistry } from 'vs/editor/common/modes';
+import { CompletionItemInsertTextRule, InlineSuggestion, InlineSuggestions, InlineSuggestionsProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -21,6 +21,10 @@ import { Emitter } from 'vs/base/common/event';
 import { splitLines } from 'vs/base/common/strings';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 /*
 TODO
@@ -89,8 +93,9 @@ class InlineSuggestionsContextKeys {
  * The model controller for a text editor with a specific text model.
 */
 export class InlineSuggestionsModelController extends Disposable {
-	private readonly model = this.editor.getModel();
-	private readonly source = this._register(new InlineSuggestionsModel(this.model));
+	private readonly textModel = this.editor.getModel();
+	private suggestWidgetModel = this._register(new MutableDisposable<SuggestWidgetInlineSuggestionsModel>());
+	private readonly model = this._register(new InlineSuggestionsModel(this.textModel));
 	private readonly completionSession = this._register(new MutableDisposable<InlineSuggestionsSession>());
 
 	constructor(
@@ -100,14 +105,14 @@ export class InlineSuggestionsModelController extends Disposable {
 	) {
 		super();
 
-		this._register(this.model.onDidChangeContent((e) => {
-			if (!InlineSuggestionsProviderRegistry.has(this.model)) {
+		this._register(this.textModel.onDidChangeContent((e) => {
+			if (!InlineSuggestionsProviderRegistry.has(this.textModel)) {
 				return;
 			}
 			this.updateSession();
 		}));
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (!InlineSuggestionsProviderRegistry.has(this.model)) {
+			if (!InlineSuggestionsProviderRegistry.has(this.textModel)) {
 				return;
 			}
 			this.updateSession();
@@ -116,17 +121,30 @@ export class InlineSuggestionsModelController extends Disposable {
 		this._register(toDisposable(() => {
 			this.hide();
 		}));
+
+		const suggestController = SuggestController.get(this.editor);
+		if (suggestController) {
+			// TODO: This is forcing the instantiation of the SuggestWidget
+			this._register(suggestController.widget.value.onDidShow(() => {
+				this.suggestWidgetModel.value = new SuggestWidgetInlineSuggestionsModel(suggestController);
+				this.updateSession();
+			}));
+			this._register(suggestController.widget.value.onDidHide(() => {
+				this.suggestWidgetModel.clear();
+				this.updateSession();
+			}));
+		}
 	}
 
 	private updateSession(): void {
 		const pos = this.editor.getPosition();
 
-		if (this.completionSession.value && this.completionSession.value.activeRange.containsPosition(pos)) {
+		if (this.completionSession.value && this.completionSession.value.hasModel(this.suggestWidgetModel.value || this.model) && this.completionSession.value.activeRange.containsPosition(pos)) {
 			return;
 		}
 
 		// only trigger when cursor is at the end of a line
-		if (pos.column === this.model.getLineMaxColumn(pos.lineNumber)) {
+		if (pos.column === this.textModel.getLineMaxColumn(pos.lineNumber)) {
 			this.triggerAt(pos);
 		} else {
 			this.hide();
@@ -134,7 +152,7 @@ export class InlineSuggestionsModelController extends Disposable {
 	}
 
 	private triggerAt(position: Position): void {
-		this.completionSession.value = new InlineSuggestionsSession(this.editor, this.widget, this.source, this.contextKeys, position);
+		this.completionSession.value = new InlineSuggestionsSession(this.editor, this.widget, this.suggestWidgetModel.value || this.model, this.contextKeys, position);
 	}
 
 	public hide(): void {
@@ -157,16 +175,10 @@ export class InlineSuggestionsModelController extends Disposable {
 class InlineSuggestionsSession extends Disposable {
 	private readonly textModel = this.editor.getModel();
 
-	/*
-	private get position(): Position {
-		return this.editor.getPosition();
-		//return new Position(this.lineNumber, this.model.getLineMaxColumn(this.lineNumber));
-	}*/
-
 	constructor(
 		private readonly editor: IActiveCodeEditor,
 		private readonly widget: GhostTextWidget,
-		private readonly model: InlineSuggestionsModel,
+		private readonly model: InlineSuggestionsModel | SuggestWidgetInlineSuggestionsModel,
 		private readonly contextKeys: InlineSuggestionsContextKeys,
 		private readonly triggerPosition: Position,
 	) {
@@ -181,12 +193,16 @@ class InlineSuggestionsSession extends Disposable {
 			this.update();
 		}));
 
-		this.model.onDidChange(() => {
+		this._register(this.model.onDidChange(() => {
 			this.update();
-		});
+		}));
 
 		this.model.update(this.editor.getPosition());
 		this.update();
+	}
+
+	hasModel(model: SuggestWidgetInlineSuggestionsModel | InlineSuggestionsModel) {
+		return this.model === model;
 	}
 
 	get currentSuggestion(): ValidatedInlineSuggestion | undefined {
@@ -209,7 +225,7 @@ class InlineSuggestionsSession extends Disposable {
 
 	private update() {
 		const suggestion = this.currentSuggestion;
-		const cursorPos = this.editor.getPosition();
+		// const cursorPos = this.editor.getPosition();
 
 		this.contextKeys.inlineSuggestionVisible.set(!!suggestion);
 
@@ -231,11 +247,12 @@ class InlineSuggestionsSession extends Disposable {
 	}
 
 	public commit(suggestion: ValidatedInlineSuggestion): void {
-		this.textModel.applyEdits([{
-			range: suggestion.suggestion.replaceRange,
-			text: suggestion.suggestion.text,
-			forceMoveMarkers: true,
-		}]);
+		this.editor.executeEdits(
+			'inlineSuggestions.accept',
+			[
+				EditOperation.replace(suggestion.suggestion.replaceRange, suggestion.suggestion.text)
+			]
+		);
 	}
 }
 
@@ -246,6 +263,76 @@ interface ValidatedInlineSuggestion {
 	 * Indicates the length of the prefix of the suggestion that agrees with the text buffer.
 	*/
 	committedSuggestionLength: number;
+}
+
+class SuggestWidgetInlineSuggestion {
+	constructor(
+		public overwriteBefore: number,
+		public overwriteAfter: number,
+		public text: string
+	) { }
+}
+
+class SuggestWidgetInlineSuggestionsModel extends Disposable {
+
+	private readonly onDidChangeEventEmitter = this._register(new Emitter<void>());
+	public readonly onDidChange = this.onDidChangeEventEmitter.event;
+
+	private _currentSuggestion: SuggestWidgetInlineSuggestion | null = null;
+
+	constructor(
+		private suggestController: SuggestController
+	) {
+		super();
+
+		this._register(this.suggestController.widget.value.onDidFocus(() => {
+			this._updateFromSuggestion();
+		}));
+		this._updateFromSuggestion();
+	}
+
+	update(): void {
+	}
+
+	private getSuggestText(suggestion: ISelectedSuggestion | undefined): SuggestWidgetInlineSuggestion | null {
+		if (!suggestion) {
+			return null;
+		}
+
+		const item = suggestion.item;
+
+		if (Array.isArray(item.completion.additionalTextEdits)) {
+			// cannot represent additional text edits
+			return null;
+		}
+
+		let { insertText } = item.completion;
+		if (!(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
+			insertText = SnippetParser.escape(insertText);
+		}
+
+		const info = this.suggestController.getOverwriteInfo(item, false);
+		return new SuggestWidgetInlineSuggestion(info.overwriteBefore, info.overwriteAfter, insertText);
+	}
+
+	private _updateFromSuggestion(): void {
+		const focusedItem = this.suggestController.widget.value.getFocusedItem();
+		this._currentSuggestion = this.getSuggestText(focusedItem);
+		this.onDidChangeEventEmitter.fire();
+		// TODO: item.isResolved
+	}
+
+	getInlineSuggestions(position: Position): NormalizedInlineSuggestions {
+		if (this._currentSuggestion) {
+			return {
+				items: [{
+					replaceRange: Range.fromPositions(position.delta(0, -this._currentSuggestion.overwriteBefore), position.delta(0, this._currentSuggestion.overwriteAfter)),
+					text: this._currentSuggestion.text
+				}]
+			};
+		}
+		return { items: [] };
+	}
 }
 
 class InlineSuggestionsModel {
@@ -398,6 +485,8 @@ async function provideInlineSuggestions(
 	model: ITextModel,
 	token: CancellationToken = CancellationToken.None
 ): Promise<NormalizedInlineSuggestions | undefined> {
+
+	console.log(`provideInlineSuggestions`);
 
 	const defaultReplaceRange = getDefaultRange(position, model);
 

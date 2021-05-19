@@ -3292,7 +3292,7 @@ declare module 'vscode' {
 
 	export class InlineSuggestions {
 		items: InlineSuggestion[];
-		incomplete: boolean;
+		// incomplete: boolean;
 
 		constructor(items: InlineSuggestion[]);
 	}
@@ -3305,7 +3305,7 @@ declare module 'vscode' {
 	}
 
 	export interface InlineSuggestionsProvider {
-		provideInlineSuggestions(document: TextDocument, position: Position, token: CancellationToken, context: InlineSuggestionsContext): ProviderResult<InlineSuggestions>;
+		provideInlineSuggestions(document: TextDocument, position: Position, token: CancellationToken/* , context: InlineSuggestionsContext */): ProviderResult<InlineSuggestions>;
 	}
 
 	export namespace languages {
