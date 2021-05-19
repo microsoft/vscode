@@ -728,10 +728,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private createConfigurationElement(parent: HTMLElement): void {
 		this.configurationContainer = append(parent, $('.workspace-trust-settings'));
 		const configurationTitle = append(this.configurationContainer, $('.workspace-trusted-folders-title'));
-		configurationTitle.innerText = localize('trustedFolders', "Trusted Folders");
+		configurationTitle.innerText = localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces");
 
 		const configurationDescription = append(this.configurationContainer, $('.workspace-trusted-folders-description'));
-		configurationDescription.innerText = localize('trustedFoldersDescription', "You trust the following folders and their children.");
+		configurationDescription.innerText = localize('trustedFoldersDescription', "You trust the following folders, their children, and workspace files.");
 
 		this.workpaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
 
