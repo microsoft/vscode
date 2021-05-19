@@ -10,8 +10,12 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { iconRegistry, Codicon } from 'vs/base/common/codicons';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { hash } from 'vs/base/common/hash';
+import { URI } from 'vs/base/common/uri';
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -20,6 +24,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
@@ -32,43 +37,58 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			const terminalGroup = terminalGroups[groupIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				if (typeof terminal.icon === 'object' && 'id' in terminal.icon) {
-					// TODO:@meganrogge fix
-					const label = `$(${terminal.icon?.id}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
-
-					const highlights = matchesFuzzy(filter, label, true);
-					if (highlights) {
-						terminalPicks.push({
-							label,
-							highlights: { label: highlights },
-							buttons: [
-								{
-									iconClass: ThemeIcon.asClassName(renameTerminalIcon),
-									tooltip: localize('renameTerminal', "Rename Terminal")
-								},
-								{
-									iconClass: ThemeIcon.asClassName(killTerminalIcon),
-									tooltip: localize('killTerminal', "Kill Terminal Instance")
-								}
-							],
-							trigger: buttonIndex => {
-								switch (buttonIndex) {
-									case 0:
-										this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
-										return TriggerAction.NO_ACTION;
-									case 1:
-										terminal.dispose(true);
-										return TriggerAction.REMOVE_ITEM;
-								}
-
-								return TriggerAction.NO_ACTION;
+				const icon = terminal.icon;
+				const iconId = this._getIconId(icon);
+				const label = `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
+				const iconClasses: string[] = [];
+				const color = terminal.color ? `terminal-icon-${terminal.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
+				if (color) {
+					iconClasses.push(color);
+				}
+				const uri = icon instanceof URI ? icon :
+					icon instanceof Object && 'light' in icon && 'dark' in icon ?
+						(this._themeService.getColorTheme().type === ColorScheme.LIGHT ?
+							icon.light
+							: icon.dark) : undefined;
+				if (uri instanceof URI) {
+					const uriIconKey = hash(uri.path).toString(36);
+					const className = `terminal-uri-icon-${uriIconKey}`;
+					iconClasses.push(className);
+					iconClasses.push(`terminal-uri-icon`);
+				}
+				const highlights = matchesFuzzy(filter, label, true);
+				if (highlights) {
+					terminalPicks.push({
+						label,
+						highlights: { label: highlights },
+						buttons: [
+							{
+								iconClass: ThemeIcon.asClassName(renameTerminalIcon),
+								tooltip: localize('renameTerminal', "Rename Terminal")
 							},
-							accept: (keyMod, event) => {
-								this._terminalService.setActiveInstance(terminal);
-								this._terminalService.showPanel(!event.inBackground);
+							{
+								iconClass: ThemeIcon.asClassName(killTerminalIcon),
+								tooltip: localize('killTerminal', "Kill Terminal Instance")
+							},
+						],
+						iconClasses,
+						trigger: buttonIndex => {
+							switch (buttonIndex) {
+								case 0:
+									this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
+									return TriggerAction.NO_ACTION;
+								case 1:
+									terminal.dispose(true);
+									return TriggerAction.REMOVE_ITEM;
 							}
-						});
-					}
+
+							return TriggerAction.NO_ACTION;
+						},
+						accept: (keyMod, event) => {
+							this._terminalService.setActiveInstance(terminal);
+							this._terminalService.showPanel(!event.inBackground);
+						}
+					});
 				}
 			}
 		}
@@ -92,5 +112,13 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 		return terminalPicks;
 
+	}
+	private _getIconId(icon: any): string {
+		if (typeof icon === 'object' && 'id' in icon) {
+			return icon.id;
+		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {
+			return icon;
+		}
+		return Codicon.terminal.id;
 	}
 }

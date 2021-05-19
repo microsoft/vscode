@@ -291,7 +291,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}));
 
-		// Set color based on user set (instance.changeColor) or a themeIcon
 		const icon = instance.icon;
 
 		const color = instance.color ? `terminal-icon-${instance.color}` : typeof icon === 'object' && 'color' in icon ? `terminal-icon-${icon?.color?.id}`.replace('.', '_') : undefined;
@@ -369,7 +368,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	private _getIconId(icon: any): string {
-		// case: Codicon or ThemeIcon
 		if (typeof icon === 'object' && 'id' in icon) {
 			return icon.id;
 		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {

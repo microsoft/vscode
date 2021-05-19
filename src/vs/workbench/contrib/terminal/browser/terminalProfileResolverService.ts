@@ -19,7 +19,7 @@ import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IProfileContextProvider {
@@ -150,12 +150,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		if (ThemeIcon.isThemeIcon(iconPath)) {
 			return iconPath;
 		}
-
 		if (URI.isUri(iconPath) || this._isUriComponents(iconPath)) {
-			const possibleUri = URI.revive(iconPath);
-			return possibleUri;
+			return URI.revive(iconPath);
 		}
-
 		if (typeof iconPath === 'object' && iconPath && 'light' in iconPath && 'dark' in iconPath) {
 			const castedIcon = (iconPath as { light: unknown, dark: unknown });
 			if ((URI.isUri(castedIcon.light) || this._isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || this._isUriComponents(castedIcon.dark))) {
@@ -422,8 +419,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
 		@ITerminalService terminalService: ITerminalService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IThemeService themeService: IThemeService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(
 			{
