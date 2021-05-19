@@ -288,6 +288,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.banner.focusNextAction',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.RightArrow,
+	secondary: [KeyCode.DownArrow],
 	when: CONTEXT_BANNER_FOCUSED,
 	handler: (accessor: ServicesAccessor) => {
 		const bannerService = accessor.get(IBannerService);
@@ -299,6 +300,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.banner.focusPreviousAction',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.LeftArrow,
+	secondary: [KeyCode.UpArrow],
 	when: CONTEXT_BANNER_FOCUSED,
 	handler: (accessor: ServicesAccessor) => {
 		const bannerService = accessor.get(IBannerService);
