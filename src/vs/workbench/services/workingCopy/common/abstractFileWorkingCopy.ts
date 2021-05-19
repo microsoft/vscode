@@ -24,7 +24,7 @@ export interface IBaseFileWorkingCopyModelFactory<T extends IBaseFileWorkingCopy
 
 /**
  * A generic file working copy model to be reused by untitled
- * and titled file working copies.
+ * and existing file working copies.
  */
 export interface IBaseFileWorkingCopyModel extends IDisposable {
 

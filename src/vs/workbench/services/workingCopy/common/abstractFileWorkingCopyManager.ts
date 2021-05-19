@@ -88,6 +88,7 @@ export interface IBaseFileWorkingCopySaveAsOptions extends ISaveOptions {
 export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel, W extends IBaseFileWorkingCopy<M>> extends Disposable implements IBaseFileWorkingCopyManager<M, W> {
 
 	private readonly mapResourceToWorkingCopy = new ResourceMap<W>();
+	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
 
 	constructor(
 		protected readonly workingCopyTypeId: string,
@@ -111,10 +112,29 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 	}
 
 	protected add(resource: URI, workingCopy: W): void {
+		const knownWorkingCopy = this.get(resource);
+		if (knownWorkingCopy === workingCopy) {
+			return; // already cached
+		}
+
+		// Add to our working copy map
 		this.mapResourceToWorkingCopy.set(resource, workingCopy);
+
+		// Update our dipsose listener to remove it on dispose
+		this.mapResourceToDisposeListener.get(resource)?.dispose();
+		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
 	}
 
 	protected remove(resource: URI): void {
+
+		// Dispose any existing listener
+		const disposeListener = this.mapResourceToDisposeListener.get(resource);
+		if (disposeListener) {
+			dispose(disposeListener);
+			this.mapResourceToDisposeListener.delete(resource);
+		}
+
+		// Remove from our working copy map
 		this.mapResourceToWorkingCopy.delete(resource);
 	}
 
@@ -330,6 +350,10 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 		// for that purpose (https://github.com/microsoft/vscode/pull/123555)
 		//
 		this.mapResourceToWorkingCopy.clear();
+
+		// Dispose the dispose listeners
+		dispose(this.mapResourceToDisposeListener.values());
+		this.mapResourceToDisposeListener.clear();
 	}
 
 	async destroy(): Promise<void> {

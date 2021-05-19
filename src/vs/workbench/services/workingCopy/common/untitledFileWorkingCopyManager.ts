@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -22,6 +22,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFileWorkingCopyResolver } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { ResourceMap } from 'vs/base/common/map';
 
 /**
  * The only one that should be dealing with `IUntitledFileWorkingCopy` and
@@ -101,6 +102,8 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 	readonly onWillDispose = this._onWillDispose.event;
 
 	//#endregion
+
+	private readonly mapResourceToWorkingCopyListeners = new ResourceMap<IDisposable>();
 
 	constructor(
 		workingCopyTypeId: string,
@@ -223,19 +226,12 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 	private registerWorkingCopy(workingCopy: IUntitledFileWorkingCopy<T>): void {
 
 		// Install working copy listeners
-		const listeners = new DisposableStore();
-		listeners.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
-		listeners.add(workingCopy.onWillDispose(() => this._onWillDispose.fire(workingCopy)));
+		const workingCopyListeners = new DisposableStore();
+		workingCopyListeners.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
+		workingCopyListeners.add(workingCopy.onWillDispose(() => this._onWillDispose.fire(workingCopy)));
 
-		// Remove from cache on dispose
-		Event.once(workingCopy.onWillDispose)(() => {
-
-			// Registry
-			this.remove(workingCopy.resource);
-
-			// Listeners
-			listeners.dispose();
-		});
+		// Keep for disposal
+		this.mapResourceToWorkingCopyListeners.set(workingCopy.resource, workingCopyListeners);
 
 		// Add to cache
 		this.add(workingCopy.resource, workingCopy);
@@ -245,6 +241,29 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 		if (workingCopy.isDirty()) {
 			this._onDidChangeDirty.fire(workingCopy);
 		}
+	}
+
+	protected override remove(resource: URI): void {
+		super.remove(resource);
+
+		// Dispose any exsting working copy listeners
+		const workingCopyListener = this.mapResourceToWorkingCopyListeners.get(resource);
+		if (workingCopyListener) {
+			dispose(workingCopyListener);
+			this.mapResourceToWorkingCopyListeners.delete(resource);
+		}
+	}
+
+	//#endregion
+
+	//#region Lifecycle
+
+	override dispose(): void {
+		super.dispose();
+
+		// Dispose the working copy change listeners
+		dispose(this.mapResourceToWorkingCopyListeners.values());
+		this.mapResourceToWorkingCopyListeners.clear();
 	}
 
 	//#endregion
