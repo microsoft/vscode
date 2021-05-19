@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
-/// <reference lib="dom" />
-
 /**
  * @typedef {{
  *   postMessage: (channel: string, data?: any) => void,
- *   onMessage: (channel: string, handler: (event: MessageEvent, data: any) => void) => void,
+ *   onMessage: (channel: string, handler: any) => void,
  *   focusIframeOnCreate?: boolean,
  *   ready?: Promise<void>,
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
@@ -57,18 +55,6 @@ const getActiveFrame = () => {
 const getPendingFrame = () => {
 	return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
 };
-
-/**
- * @template T
- * @param {T | undefined | null} obj
- * @return {T}
- */
-function assertIsDefined(obj) {
-	if (typeof obj === 'undefined' || obj === null) {
-		throw new Error('Found unexpected null');
-	}
-	return obj;
-}
 
 const vscodePostMessageFuncName = '__vscode_post_message__';
 
@@ -216,9 +202,6 @@ const workerReady = new Promise(async (resolve, reject) => {
 		async registration => {
 			await navigator.serviceWorker.ready;
 
-			/**
-			 * @param {MessageEvent} event
-			 */
 			const versionHandler = (event) => {
 				if (event.data.channel !== 'version') {
 					return;
@@ -235,7 +218,7 @@ const workerReady = new Promise(async (resolve, reject) => {
 				}
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
-			assertIsDefined(registration.active).postMessage({ channel: 'version' });
+			registration.active.postMessage({ channel: 'version' });
 		},
 		error => {
 			reject(new Error(`Could not register service workers: ${error}.`));
@@ -248,7 +231,6 @@ const workerReady = new Promise(async (resolve, reject) => {
 export async function createWebviewManager(host) {
 	// state
 	let firstLoad = true;
-	/** @type {any} */
 	let loadTimeout;
 	let styleVersion = 0;
 
@@ -259,7 +241,7 @@ export async function createWebviewManager(host) {
 		/** @type {number | undefined} */
 		initialScrollProgress: undefined,
 
-		/** @type {{ [key: string]: string } | undefined} */
+		/** @type {{ [key: string]: string }} */
 		styles: undefined,
 
 		/** @type {string | undefined} */
@@ -271,13 +253,13 @@ export async function createWebviewManager(host) {
 
 	host.onMessage('did-load-resource', (_event, data) => {
 		navigator.serviceWorker.ready.then(registration => {
-			assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+			registration.active.postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 		});
 	});
 
 	host.onMessage('did-load-localhost', (_event, data) => {
 		navigator.serviceWorker.ready.then(registration => {
-			assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+			registration.active.postMessage({ channel: 'did-load-localhost', data });
 		});
 	});
 
@@ -300,9 +282,7 @@ export async function createWebviewManager(host) {
 
 		if (body) {
 			body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
-			if (initData.activeTheme) {
-				body.classList.add(initData.activeTheme);
-			}
+			body.classList.add(initData.activeTheme);
 
 			body.dataset.vscodeThemeKind = initData.activeTheme;
 			body.dataset.vscodeThemeName = initData.themeName || '';
@@ -455,9 +435,6 @@ export async function createWebviewManager(host) {
 
 	let isHandlingScroll = false;
 
-	/**
-	 * @param {WheelEvent} event
-	 */
 	const handleWheel = (event) => {
 		if (isHandlingScroll) {
 			return;
@@ -473,21 +450,15 @@ export async function createWebviewManager(host) {
 		});
 	};
 
-	/**
-	 * @param {Event} event
-	 */
 	const handleInnerScroll = (event) => {
+		if (!event.target || !event.target.body) {
+			return;
+		}
 		if (isHandlingScroll) {
 			return;
 		}
 
-		const target = /** @type {HTMLDocument | null} */ (event.target);
-		const currentTarget = /** @type {Window | null} */ (event.currentTarget);
-		if (!target || !currentTarget || !target.body) {
-			return;
-		}
-
-		const progress = currentTarget.scrollY / target.body.clientHeight;
+		const progress = event.currentTarget.scrollY / event.target.body.clientHeight;
 		if (isNaN(progress)) {
 			return;
 		}
@@ -504,19 +475,6 @@ export async function createWebviewManager(host) {
 	};
 
 	/**
-	 * @typedef {{
-	 *     contents: string;
-	 *     options: {
-	 *         readonly allowScripts: boolean;
-	 *         readonly allowMultipleAPIAcquire: boolean;
-	 *     }
-	 *     state: any;
-	 *     resourceEndpoint: string;
-	 * }} ContentUpdateData
-	 */
-
-	/**
-	 * @param {ContentUpdateData} data
 	 * @return {string}
 	 */
 	function toContentHtml(data) {
@@ -526,10 +484,7 @@ export async function createWebviewManager(host) {
 
 		newDocument.querySelectorAll('a').forEach(a => {
 			if (!a.title) {
-				const href = a.getAttribute('href');
-				if (typeof href === 'string') {
-					a.title = href;
-				}
+				a.title = a.getAttribute('href');
 			}
 		});
 
@@ -554,11 +509,8 @@ export async function createWebviewManager(host) {
 			try {
 				// Attempt to rewrite CSPs that hardcode old-style resource endpoint
 				const endpointUrl = new URL(data.resourceEndpoint);
-				const cspContent = csp.getAttribute('content');
-				if (cspContent) {
-					const newCsp = cspContent.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
-					csp.setAttribute('content', newCsp);
-				}
+				const newCsp = csp.getAttribute('content').replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
+				csp.setAttribute('content', newCsp);
 			} catch (e) {
 				console.error(`Could not rewrite csp: ${e}`);
 			}
@@ -611,7 +563,7 @@ export async function createWebviewManager(host) {
 
 		// update iframe-contents
 		let updateId = 0;
-		host.onMessage('content', async (_event, /** @type {ContentUpdateData} */ data) => {
+		host.onMessage('content', async (_event, data) => {
 			const currentUpdateId = ++updateId;
 
 			try {
@@ -634,19 +586,18 @@ export async function createWebviewManager(host) {
 			const frame = getActiveFrame();
 			const wasFirstLoad = firstLoad;
 			// keep current scrollY around and use later
-			/** @type {(body: HTMLElement, window: Window) => void} */
 			let setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
 				setInitialScrollPosition = (body, window) => {
-					if (typeof initData.initialScrollProgress === 'number' && !isNaN(initData.initialScrollProgress)) {
+					if (!isNaN(initData.initialScrollProgress)) {
 						if (window.scrollY === 0) {
 							window.scroll(0, body.clientHeight * initData.initialScrollProgress);
 						}
 					}
 				};
 			} else {
-				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? assertIsDefined(frame.contentWindow).scrollY : 0;
+				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentWindow.scrollY : 0;
 				setInitialScrollPosition = (body, window) => {
 					if (window.scrollY === 0) {
 						window.scroll(0, scrollY);
@@ -705,16 +656,15 @@ export async function createWebviewManager(host) {
 						return;
 					}
 
-					const contentDocument = assertIsDefined(newFrame.contentDocument);
-					if (contentDocument.readyState !== 'loading') {
+					if (newFrame.contentDocument.readyState !== 'loading') {
 						clearInterval(interval);
-						onFrameLoaded(contentDocument);
+						onFrameLoaded(newFrame.contentDocument);
 					}
 				}, 10);
 			} else {
-				assertIsDefined(newFrame.contentWindow).addEventListener('DOMContentLoaded', e => {
+				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
 					const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
-					onFrameLoaded(assertIsDefined(contentDocument));
+					onFrameLoaded(contentDocument);
 				});
 			}
 
@@ -742,7 +692,7 @@ export async function createWebviewManager(host) {
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
 					if (host.focusIframeOnCreate) {
-						assertIsDefined(newFrame.contentWindow).focus();
+						newFrame.contentWindow.focus();
 					}
 
 					contentWindow.addEventListener('scroll', handleInnerScroll);
@@ -770,12 +720,10 @@ export async function createWebviewManager(host) {
 				loadTimeout = setTimeout(() => {
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
-					onLoad(assertIsDefined(newFrame.contentDocument), assertIsDefined(newFrame.contentWindow));
+					onLoad(newFrame.contentDocument, newFrame.contentWindow);
 				}, 200);
 
-				const contentWindow = assertIsDefined(newFrame.contentWindow);
-
-				contentWindow.addEventListener('load', function (e) {
+				newFrame.contentWindow.addEventListener('load', function (e) {
 					const contentDocument = /** @type {Document} */ (e.target);
 
 					if (loadTimeout) {
@@ -786,11 +734,11 @@ export async function createWebviewManager(host) {
 				});
 
 				// Bubble out various events
-				contentWindow.addEventListener('click', handleInnerClick);
-				contentWindow.addEventListener('auxclick', handleAuxClick);
-				contentWindow.addEventListener('keydown', handleInnerKeydown);
-				contentWindow.addEventListener('keyup', handleInnerUp);
-				contentWindow.addEventListener('contextmenu', e => {
+				newFrame.contentWindow.addEventListener('click', handleInnerClick);
+				newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
+				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+				newFrame.contentWindow.addEventListener('keyup', handleInnerUp);
+				newFrame.contentWindow.addEventListener('contextmenu', e => {
 					e.preventDefault();
 					host.postMessage('did-context-menu', {
 						clientX: e.clientX,
@@ -812,7 +760,7 @@ export async function createWebviewManager(host) {
 			if (!pending) {
 				const target = getActiveFrame();
 				if (target) {
-					assertIsDefined(target.contentWindow).postMessage(data.message, '*', data.transfer);
+					target.contentWindow.postMessage(data.message, '*', data.transfer);
 					return;
 				}
 			}
@@ -828,7 +776,7 @@ export async function createWebviewManager(host) {
 			if (!target) {
 				return;
 			}
-			assertIsDefined(target.contentDocument).execCommand(data);
+			target.contentDocument.execCommand(data);
 		});
 
 		trackFocus({
@@ -836,13 +784,18 @@ export async function createWebviewManager(host) {
 			onBlur: () => host.postMessage('did-blur')
 		});
 
-		(/** @type {any} */ (window))[vscodePostMessageFuncName] = (/** @type {string} */ command, /** @type {any} */ data) => {
+		(/** @type {any} */ (window))[vscodePostMessageFuncName] = (command, data, transfer) => {
 			switch (command) {
 				case 'onmessage':
 				case 'do-update-state':
 					host.postMessage(command, data);
 					break;
 			}
+					if (e.defaultPrevented) {
+						// Extension code has already handled this event
+						return;
+					}
+
 		};
 
 		// signal ready
