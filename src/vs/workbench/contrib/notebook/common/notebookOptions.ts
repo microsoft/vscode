@@ -143,7 +143,7 @@ export class NotebookOptions {
 			}
 
 			if (focusIndicator) {
-				configuration.focusIndicator = this.configurationService.getValue<'border' | 'gutter'>(ExperimentalFocusIndicator);
+				configuration.focusIndicator = this.configurationService.getValue<'border' | 'gutter'>(ExperimentalFocusIndicator) ?? 'border';
 			}
 
 			if (compactView) {
