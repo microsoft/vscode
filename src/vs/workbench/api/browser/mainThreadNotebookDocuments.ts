@@ -119,12 +119,12 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		};
 	}
 
-	async $tryCreateNotebook(options: { viewType?: string, content?: NotebookDataDto }): Promise<UriComponents> {
+	async $tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents> {
 
 		// find a free URI for the untitled case
 		let uri: URI;
 		for (let counter = 1; ; counter++) {
-			let candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-Notebook-${counter}` });
+			let candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}`, query: options.viewType });
 			if (!this._notebookService.getNotebookTextModel(candidate)) {
 				uri = candidate;
 				break;
