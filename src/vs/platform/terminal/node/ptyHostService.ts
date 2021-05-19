@@ -17,6 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { URI } from 'vs/base/common/uri';
 
 enum Constants {
 	MaxRestarts = 5
@@ -170,7 +171,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	updateTitle(id: number, title: string): Promise<void> {
 		return this._proxy.updateTitle(id, title);
 	}
-	updateIcon(id: number, icon: string, color?: string): Promise<void> {
+	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
 		return this._proxy.updateIcon(id, icon, color);
 	}
 	attachToProcess(id: number): Promise<void> {

@@ -419,7 +419,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		//TODO:@meganrgge fix
-		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, typeof instance.icon === 'string' ? instance.icon : '', instance.color);
+		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
 	}
 
 	private _removeGroup(group: ITerminalGroup): void {

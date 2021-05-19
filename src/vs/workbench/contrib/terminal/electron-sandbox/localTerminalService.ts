@@ -8,6 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -118,7 +119,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		await this._localPtyService.updateTitle(id, title);
 	}
 
-	async updateIcon(id: number, icon: string, color?: string): Promise<void> {
+	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
 		await this._localPtyService.updateIcon(id, icon, color);
 	}
 

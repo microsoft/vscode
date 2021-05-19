@@ -261,7 +261,7 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
-	readonly icon?: ThemeIcon | string | URI | { light: URI, dark: URI };
+	readonly icon?: ThemeIcon | URI | { light: URI, dark: URI };
 	readonly color?: string;
 
 	readonly statusList: ITerminalStatusList;

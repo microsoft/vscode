@@ -120,7 +120,7 @@ export class PtyService extends Disposable implements IPtyService {
 		this._throwIfNoPty(id).setTitle(title);
 	}
 
-	async updateIcon(id: number, icon: string, color?: string): Promise<void> {
+	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
 		this._throwIfNoPty(id).setIcon(icon, color);
 	}
 
@@ -305,14 +305,14 @@ export class PersistentTerminalProcess extends Disposable {
 
 	get pid(): number { return this._pid; }
 	get title(): string { return this._title || this._terminalProcess.currentTitle; }
-	get icon(): any { return this._icon; }
+	get icon(): URI | { light: URI; dark: URI } | ThemeIcon | undefined { return this._icon; }
 	get color(): string | undefined { return this._color; }
 
 	setTitle(title: string): void {
 		this._title = title;
 	}
 
-	setIcon(icon: string, color?: string): void {
+	setIcon(icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): void {
 		this._icon = icon;
 		this._color = color;
 	}
@@ -325,7 +325,7 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
 		private readonly _logService: ILogService,
-		private _icon?: string | URI | { light: URI; dark: URI } | ThemeIcon,
+		private _icon?: URI | { light: URI; dark: URI } | ThemeIcon,
 		private _color?: string
 	) {
 		super();

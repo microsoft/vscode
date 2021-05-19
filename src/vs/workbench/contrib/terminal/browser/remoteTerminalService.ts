@@ -215,7 +215,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		await this._remoteTerminalChannel?.updateTitle(id, title);
 	}
 
-	async updateIcon(id: number, icon: string, color?: string): Promise<void> {
+	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
 		await this._remoteTerminalChannel?.updateIcon(id, icon, color);
 	}
 

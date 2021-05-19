@@ -117,7 +117,7 @@ export interface IPtyHostAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon: string | undefined;
+	icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } } | undefined;
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
@@ -175,7 +175,7 @@ export interface IOffProcessTerminalService {
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	updateTitle(id: number, title: string): Promise<void>;
-	updateIcon(id: number, icon: string, color?: string): Promise<void>;
+	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 }
@@ -241,7 +241,7 @@ export interface IPtyService {
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string): Promise<void>;
-	updateIcon(id: number, icon: string, color?: string): Promise<void>;
+	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles?(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
@@ -349,7 +349,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; color?: string };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }; color?: string };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in

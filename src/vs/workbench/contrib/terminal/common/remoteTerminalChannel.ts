@@ -266,7 +266,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$updateTitle', [id, title]);
 	}
 
-	updateIcon(id: number, icon: string, color?: string): Promise<string> {
+	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<string> {
 		return this._channel.call('$updateIcon', [id, icon, color]);
 	}
 
