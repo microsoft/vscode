@@ -41,9 +41,14 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				const iconId = this._getIconId(icon);
 				const label = `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
 				const iconClasses: string[] = [];
-				const color = terminal.color ? `terminal-icon-${terminal.color}` : ThemeIcon.isThemeIcon(icon) ? `terminal-icon-${icon.color?.id}`.replace('.', '_') : undefined;
+				let color = undefined;
+				if (terminal.color) {
+					color = terminal.color;
+				} else if (ThemeIcon.isThemeIcon(icon) && icon.color) {
+					color = icon.color.id.replace('.', '_');
+				}
 				if (color) {
-					iconClasses.push(color);
+					iconClasses.push(`terminal-icon-${color}`);
 				}
 				let uri = undefined;
 				if (icon instanceof URI) {

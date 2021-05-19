@@ -441,8 +441,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._class = undefined;
 			}
 			const icon = instance.icon;
-			if (ThemeIcon.isThemeIcon(icon)) {
-				this._color = `terminal-icon-${icon?.color?.id.replace('.', '_')}`;
+			if (ThemeIcon.isThemeIcon(icon) && icon.color) {
+				this._color = `terminal-icon-${icon.color.id.replace('.', '_')}`;
 				label.classList.add(this._color);
 			} else {
 				let uri = undefined;

@@ -296,11 +296,16 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}));
 
 		const icon = instance.icon;
+		let color = undefined;
+		if (instance.color) {
+			color = instance.color;
+		} else if (ThemeIcon.isThemeIcon(icon) && icon.color) {
+			color = icon.color.id.replace('.', '_');
+		}
 
-		const color = instance.color ? `terminal-icon-${instance.color}` : ThemeIcon.isThemeIcon(icon) ? `terminal-icon-${icon.color?.id}`.replace('.', '_') : undefined;
 		const extraClasses = [];
 		if (color) {
-			extraClasses.push(color);
+			extraClasses.push(`terminal-icon-${color}`);
 		}
 
 		let uri = undefined;

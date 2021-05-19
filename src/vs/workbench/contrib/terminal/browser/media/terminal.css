@@ -292,7 +292,6 @@
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .uri-icon {
 	background-repeat: no-repeat;
-	background-position: left center;
 	background-size: contain;
 	margin-right: 4px;
 	height: 100%;

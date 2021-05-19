@@ -265,8 +265,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
 		// disabled in remote because this needs to be sync and the OS may differ on the remote
 		// which would result in the wrong profile being selected and the wrong icon being
-		// permanently attached to the terminal. If this is an extension owned terminal,
-		// we don't want to override the iconPath it has set.
+		// permanently attached to the terminal.
 		if (!this.shellLaunchConfig.executable && !workbenchEnvironmentService.remoteAuthority) {
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
