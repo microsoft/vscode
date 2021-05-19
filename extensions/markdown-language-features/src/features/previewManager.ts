@@ -220,6 +220,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	public openStaticPreview(
 		uri: vscode.Uri,
 	): void {
+		vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 		vscode.commands.executeCommand('vscode.openWith', uri, this.customEditorViewType);
 	}
 
