@@ -1209,7 +1209,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 		}
 		if (this.currentTask.shellLaunchConfig) {
-			this.currentTask.shellLaunchConfig.iconPath = 'tools';
+			this.currentTask.shellLaunchConfig.icon = { id: 'tools' };
 		}
 
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;

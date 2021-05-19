@@ -93,7 +93,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService, shellLaunchConfig.iconPath);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService, shellLaunchConfig.icon);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);

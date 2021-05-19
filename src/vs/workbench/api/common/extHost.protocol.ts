@@ -456,7 +456,7 @@ export interface TerminalLaunchConfig {
 	shellArgs?: string[] | string;
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
-	iconPath?: string | URI | { light: URI; dark: URI } | ThemeIcon;
+	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	initialText?: string;
 	waitOnExit?: boolean;
 	strictEnv?: boolean;

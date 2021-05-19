@@ -317,7 +317,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _getIcon(): Codicon | ThemeIcon | URI | { light: URI, dark: URI } | undefined | string {
-		const iconPath = this._shellLaunchConfig.iconPath || this._shellLaunchConfig.attachPersistentProcess?.icon;
+		const iconPath = this._shellLaunchConfig.icon || this._shellLaunchConfig.attachPersistentProcess?.icon;
 		if (!iconPath) {
 			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
 		}
@@ -1806,8 +1806,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			title: nls.localize('changeTerminalIcon', "Change Icon"),
 			matchOnDescription: true
 		});
-		if (result) {
-			this.shellLaunchConfig.iconPath = result.description;
+		if (result && result.description) {
+			this.shellLaunchConfig.icon = { id: result.description };
 			this._onIconChanged.fire(this);
 		}
 	}

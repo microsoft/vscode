@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const enum TerminalSettingId {
@@ -390,10 +389,9 @@ export interface IShellLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 
 	/**
-	 * The codicon ID to use for this terminal. If not specified it will use the default fallback
-	 * icon.
+	 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
 	 */
-	iconPath?: ThemeIcon | Codicon | string | URI | { light: URI, dark: URI };
+	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 
 	/**
 	 * The color ID to use for this terminal. If not specified it will use the default fallback
@@ -551,7 +549,7 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
-	icon?: string;
+	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
@@ -572,7 +570,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: string;
+	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 	env?: ITerminalEnvironment;
 }
 

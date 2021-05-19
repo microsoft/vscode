@@ -117,7 +117,7 @@ export class ExtHostTerminal {
 		shellArgs?: string[] | string,
 		cwd?: string | URI,
 		env?: ITerminalEnvironment,
-		iconPath?: string | URI | { light: URI; dark: URI } | ThemeIcon,
+		icon?: URI | { light: URI; dark: URI } | ThemeIcon,
 		initialText?: string,
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
@@ -128,14 +128,14 @@ export class ExtHostTerminal {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, iconPath, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal });
+		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, icon, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal });
 	}
 
 	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, isExtensionCustomPtyTerminal: true, iconPath });
+		await this._proxy.$createTerminal(this._id, { name: this._name, isExtensionCustomPtyTerminal: true, icon: iconPath });
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
 			throw new Error('Terminal creation failed');

@@ -927,7 +927,7 @@ export class TerminalService implements ITerminalService {
 			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
 			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
 		}];
-		const icon = profile.icon ? (iconRegistry.get(profile.icon) || Codicon.terminal) : Codicon.terminal;
+		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : { id: Codicon.terminal.id };
 		const label = `$(${icon.id}) ${profile.profileName}`;
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
@@ -964,7 +964,7 @@ export class TerminalService implements ITerminalService {
 				executable: profile.path,
 				args: profile.args,
 				env: profile.env,
-				iconPath: profile.icon,
+				icon: profile.icon || undefined,
 				name: profile.overrideName ? profile.profileName : undefined,
 				cwd
 			};

@@ -73,8 +73,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
-		if (shellLaunchConfig.iconPath) {
-			shellLaunchConfig.iconPath = this._getCustomIcon(shellLaunchConfig.iconPath) || Codicon.terminal.id;
+		if (shellLaunchConfig.icon) {
+			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || Codicon.terminal;
 			return;
 		}
 
@@ -83,7 +83,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(os);
 		if (defaultProfile) {
-			shellLaunchConfig.iconPath = defaultProfile.icon;
+			shellLaunchConfig.icon = defaultProfile.icon;
 		}
 	}
 
@@ -112,7 +112,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		shellLaunchConfig.iconPath = this._getCustomIcon(shellLaunchConfig.iconPath) || resolvedProfile.icon || Codicon.terminal.id;
+		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || this._getCustomIcon(resolvedProfile.icon) || Codicon.terminal;
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
 			shellLaunchConfig.name = resolvedProfile.profileName;
@@ -123,6 +123,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			shellLaunchConfig.useShellEnvironment = this._configurationService.getValue(TerminalSettingId.InheritEnv);
 		}
 	}
+
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
 		return (await this.getDefaultProfile(options)).path;
@@ -140,7 +141,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(iconPath?: unknown): URI | undefined | ThemeIcon | Codicon | { light: URI, dark: URI } {
+	private _getCustomIcon(iconPath?: unknown): URI | undefined | ThemeIcon | { light: URI, dark: URI } {
 		if (!iconPath) {
 			return undefined;
 		}
@@ -345,18 +346,18 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 	}
 
-	private _guessProfileIcon(shell: string): string | undefined {
+	private _guessProfileIcon(shell: string): ThemeIcon | undefined {
 		const file = path.parse(shell).name;
 		switch (file) {
 			case 'bash':
-				return Codicon.terminalBash.id;
+				return { id: Codicon.terminalBash.id };
 			case 'pwsh':
 			case 'powershell':
-				return Codicon.terminalPowershell.id;
+				return { id: Codicon.terminalPowershell.id };
 			case 'tmux':
-				return Codicon.terminalTmux.id;
+				return { id: Codicon.terminalTmux.id };
 			case 'cmd':
-				return Codicon.terminalCmd.id;
+				return { id: Codicon.terminalCmd.id };
 			default:
 				return undefined;
 		}
