@@ -57,9 +57,9 @@ class InlineSuggestionsController extends Disposable {
 
 		this.widget = this._register(instantiationService.createInstance(GhostTextWidget, this.editor));
 
-		this.editor.onDidChangeModel(() => {
+		this._register(this.editor.onDidChangeModel(() => {
 			this.updateModelController();
-		});
+		}));
 		this.updateModelController();
 	}
 
@@ -104,7 +104,7 @@ export class InlineSuggestionsModelController extends Disposable {
 	) {
 		super();
 
-		this._register(this.textModel.onDidChangeContent((e) => {
+		this._register(this.editor.onDidChangeModelContent((e) => {
 			if (!InlineSuggestionsProviderRegistry.has(this.textModel)) {
 				return;
 			}
@@ -170,12 +170,10 @@ class InlineSuggestionsSession extends Disposable {
 	) {
 		super();
 
-		this._register(this.textModel.onDidChangeContent((e) => {
-			this.model.update(this.editor.getPosition());
+		this._register(this.editor.onDidChangeModelContent((e) => {
 			this.update();
 		}));
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			this.model.update(this.editor.getPosition());
 			this.update();
 		}));
 
@@ -183,7 +181,6 @@ class InlineSuggestionsSession extends Disposable {
 			this.update();
 		}));
 
-		this.model.update(this.editor.getPosition());
 		this.update();
 	}
 
@@ -261,7 +258,7 @@ class DelegatingInlineSuggestionsModel extends Disposable {
 	public readonly onDidChange = this.onDidChangeEventEmitter.event;
 
 	private readonly suggestWidgetModel = this._register(new SuggestWidgetInlineSuggestionsModel(this.editor));
-	private readonly directModel = this._register(new InlineSuggestionsModel(this.editor.getModel()));
+	private readonly directModel = this._register(new InlineSuggestionsModel(this.editor));
 
 	private currentModel: SuggestWidgetInlineSuggestionsModel | InlineSuggestionsModel;
 
@@ -270,17 +267,18 @@ class DelegatingInlineSuggestionsModel extends Disposable {
 	) {
 		super();
 
+		this.directModel.activate();
 		this.currentModel = this.directModel;
 
 		this._register(this.suggestWidgetModel.onDidChange(() => {
 			if (this.suggestWidgetModel.hasFocusedItem) {
 				if (this.currentModel !== this.suggestWidgetModel) {
-					// this.currentModel.deactivate();
+					this.directModel.deactivate();
 					this.currentModel = this.suggestWidgetModel;
 				}
 			} else {
 				if (this.currentModel !== this.directModel) {
-					// this.directModel.activate();
+					this.directModel.activate();
 					this.currentModel = this.directModel;
 				}
 			}
@@ -289,10 +287,6 @@ class DelegatingInlineSuggestionsModel extends Disposable {
 		this._register(this.directModel.onDidChange(() => {
 			this.onDidChangeEventEmitter.fire();
 		}));
-	}
-
-	update(position: Position): void {
-		this.currentModel.update(position);
 	}
 
 	getInlineSuggestions(position: Position): NormalizedInlineSuggestions {
@@ -332,9 +326,6 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 			}));
 		}
 		this.updateFromSuggestion();
-	}
-
-	update(): void {
 	}
 
 	private getSuggestText(suggestController: SuggestController, suggestion: ISelectedSuggestion): SuggestWidgetInlineSuggestion | null {
@@ -403,20 +394,43 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 	}
 }
 
-class InlineSuggestionsModel {
+class InlineSuggestionsModel extends Disposable {
+
+	private readonly onDidChangeEventEmitter = this._register(new Emitter<void>());
+	public readonly onDidChange = this.onDidChangeEventEmitter.event;
+
+	private readonly textModel: ITextModel = this.editor.getModel();
+	private isActive: boolean = false;
 	private updatePromise: CancelablePromise<NormalizedInlineSuggestions | undefined> | undefined = undefined;
-	private readonly onDidChangeEventEmitter = new Emitter();
 	private cachedList: NormalizedInlineSuggestions | undefined = undefined;
 	private cachedPosition: Position | undefined = undefined;
 
-	public readonly onDidChange = this.onDidChangeEventEmitter.event;
+	constructor(
+		private readonly editor: IActiveCodeEditor
+	) {
+		super();
 
-	constructor(private readonly model: ITextModel) {
-		console.log(this.cachedPosition);
+		this._register(toDisposable(() => {
+			this.clearGhostTextPromise();
+		}));
+		this._register(this.editor.onDidChangeModelContent(() => {
+			if (this.isActive) {
+				this._update(this.editor.getPosition());
+			}
+		}));
+		this._register(this.editor.onDidChangeCursorPosition((e) => {
+			if (this.isActive) {
+				this._update(this.editor.getPosition());
+			}
+		}));
 	}
 
-	public dispose(): void {
-		this.clearGhostTextPromise();
+	activate() {
+		this.isActive = true;
+	}
+
+	deactivate() {
+		this.isActive = false;
 	}
 
 	public getInlineSuggestions(position: Position): NormalizedInlineSuggestions {
@@ -428,15 +442,9 @@ class InlineSuggestionsModel {
 		};
 	}
 
-	public update(position: Position): void {
-		//this.cachedList = undefined;
-		//this.cachedPosition = undefined;
-		this._update(position);
-	}
-
 	private _update(position: Position): void {
 		this.clearGhostTextPromise();
-		this.updatePromise = createCancelablePromise(token => provideInlineSuggestions(position, this.model, token));
+		this.updatePromise = createCancelablePromise(token => provideInlineSuggestions(position, this.textModel, token));
 		this.updatePromise.then((result) => {
 			this.cachedList = result;
 			this.cachedPosition = position;
