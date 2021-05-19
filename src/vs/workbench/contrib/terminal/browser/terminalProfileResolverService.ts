@@ -74,7 +74,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
 		if (shellLaunchConfig.icon) {
-			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || Codicon.terminal;
+			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || { id: Codicon.terminal.id };
 			return;
 		}
 
@@ -112,7 +112,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || this._getCustomIcon(resolvedProfile.icon) || Codicon.terminal;
+		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || this._getCustomIcon(resolvedProfile.icon) || { id: Codicon.terminal.id };
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
 			shellLaunchConfig.name = resolvedProfile.profileName;

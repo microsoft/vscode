@@ -18,7 +18,7 @@ import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
@@ -375,15 +375,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	private _getIconId(icon: any): string {
-		if (!icon) {
+		if (!icon || (icon instanceof Object && !('id' in icon))) {
 			return Codicon.terminal.id;
 		}
-		if (ThemeIcon.isThemeIcon(icon.id)) {
-			return icon.id;
-		} else if (typeof icon === 'string' && iconRegistry.get(icon)) {
-			return icon;
-		}
-		return Codicon.terminal.id;
+		return icon.id;
 	}
 }
 

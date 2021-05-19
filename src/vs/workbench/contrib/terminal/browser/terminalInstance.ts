@@ -185,7 +185,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get title(): string { return this._getTitle(); }
-	get icon(): ThemeIcon | Codicon | string | URI | { light: URI, dark: URI } | undefined { return this._getIcon(); }
+	get icon(): ThemeIcon | string | URI | { light: URI, dark: URI } | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
 
 	private readonly _onExit = new Emitter<number | undefined>();
@@ -316,10 +316,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	private _getIcon(): Codicon | ThemeIcon | URI | { light: URI, dark: URI } | undefined | string {
+	private _getIcon(): ThemeIcon | URI | { light: URI, dark: URI } | undefined | string {
 		const iconPath = this._shellLaunchConfig.icon || this._shellLaunchConfig.attachPersistentProcess?.icon;
 		if (!iconPath) {
-			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
+			return this._processManager.processState >= ProcessState.Launching ? { id: Codicon.terminal.id } : undefined;
 		}
 		return iconPath;
 	}
