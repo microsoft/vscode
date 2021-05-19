@@ -76,6 +76,10 @@
 	background-color: unset;
 }
 
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+	background-color: unset;
+}
+
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
 	background-color: unset;
 }
