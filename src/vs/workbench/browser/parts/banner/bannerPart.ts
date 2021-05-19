@@ -10,7 +10,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
@@ -96,9 +96,9 @@ export class BannerPart extends Part implements IBannerService {
 	constructor(
 		@IThemeService themeService: IThemeService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IStorageService storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -131,8 +131,8 @@ export class BannerPart extends Part implements IBannerService {
 		clearNode(this.element);
 
 		// Remember choice
-		if (item.scope) {
-			this.storageService.store(item.id, true, item.scope, StorageTarget.USER);
+		if (typeof item.onClose === 'function') {
+			item.onClose();
 		}
 
 		this.item = undefined;
@@ -211,10 +211,6 @@ export class BannerPart extends Part implements IBannerService {
 	}
 
 	show(item: IBannerItem): void {
-		if (item.scope && this.storageService.getBoolean(item.id, item.scope, false)) {
-			return;
-		}
-
 		if (item.id === this.item?.id) {
 			this.setVisibility(true);
 			return;

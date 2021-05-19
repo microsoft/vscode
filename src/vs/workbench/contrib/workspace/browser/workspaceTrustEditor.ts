@@ -119,8 +119,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 					label: '',
 					tooltip: '',
 					weight: 0,
-					minimumWidth: 80,
-					maximumWidth: 80,
+					minimumWidth: 55,
+					maximumWidth: 55,
 					templateId: TrustedUriActionsColumnRenderer.TEMPLATE_ID,
 					project(row: ITrustedUriItem): ITrustedUriItem { return row; }
 				},
@@ -175,9 +175,12 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		}
 	}
 
+	private get currentWorkspaceUri(): URI {
+		return this.workspaceService.getWorkspace().folders[0]?.uri || URI.file('/');
+	}
+
 	private get trustedUriEntries(): ITrustedUriItem[] {
 		const currentWorkspace = this.workspaceService.getWorkspace();
-		const currentWorkspaceUri = currentWorkspace.folders[0]?.uri || URI.file('/');
 		const currentWorkspaceUris = currentWorkspace.folders.map(folder => folder.uri);
 		if (currentWorkspace.configuration) {
 			currentWorkspaceUris.push(currentWorkspace.configuration);
@@ -196,7 +199,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				parentOfWorkspaceItem: relatedToCurrentWorkspace
 			};
 		});
-		entries.push({ uri: currentWorkspaceUri, entryType: TrustedUriItemType.Add, parentOfWorkspaceItem: false });
+		entries.push({ uri: this.currentWorkspaceUri, entryType: TrustedUriItemType.Add, parentOfWorkspaceItem: false });
 		return entries;
 	}
 
@@ -233,7 +236,9 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	async edit(item: ITrustedUriItem) {
-		if (item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote) {
+		const canUseOpenDialog = item.uri.scheme === Schemas.file ||
+			(item.uri.scheme === this.currentWorkspaceUri.scheme && this.uriService.extUri.isEqualAuthority(this.currentWorkspaceUri.authority, item.uri.authority));
+		if (canUseOpenDialog) {
 			const uri = await this.fileDialogService.showOpenDialog({
 				canSelectFiles: false,
 				canSelectFolders: true,

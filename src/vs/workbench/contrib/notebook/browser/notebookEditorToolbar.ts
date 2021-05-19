@@ -23,6 +23,7 @@ import { INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebo
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
+import { ExperimentalGlobalToolbar } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
@@ -97,10 +98,10 @@ export class NotebookEditorToolbar extends Disposable {
 		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.contextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
-		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>('notebook.experimental.globalToolbar') ?? false;
+		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>(ExperimentalGlobalToolbar) ?? false;
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.experimental.globalToolbar')) {
-				this._useGlobalToolbar = this.configurationService.getValue<boolean>('notebook.experimental.globalToolbar');
+			if (e.affectsConfiguration(ExperimentalGlobalToolbar)) {
+				this._useGlobalToolbar = this.configurationService.getValue<boolean>(ExperimentalGlobalToolbar);
 				this._showNotebookActionsinEditorToolbar();
 			}
 		}));

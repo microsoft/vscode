@@ -8692,9 +8692,9 @@ sparkles@^1.0.0:
   integrity sha512-dSO0DDYUahUt/0/pD/Is3VIm5TGJjludZ0HVymmhYF6eNA53PVLhnUk0znSYbH8IYBuJdCE+1luR22jNLMaQdw==
 
 spdlog@^0.13.0:
-  version "0.13.4"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.4.tgz#7393d436f077fca1d07500741e50cbf8928a838a"
-  integrity sha512-tdzk9ysc640emskx+pE/A2JdJ5IAr440ZIsNjRlD9aPK6U6IQ94VUGpl7u0NHamAB8O1H7RxLgtHyXT32V+RaA==
+  version "0.13.5"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.5.tgz#a31027dcccbe032e9a53579f42cb45428af08bad"
+  integrity sha512-D1xA5tRXw7eZOoFBCAnOxCxLN3JpHVDjpPJG/xjJ0nFZvtfOUTAzK66MVxJCDht/ZFwjLcBAltvzjfz4JTuSEw==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^0.5.5"
