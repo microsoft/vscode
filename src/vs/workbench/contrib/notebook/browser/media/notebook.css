@@ -13,7 +13,7 @@
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container {
 	width: 100%;
-	display: flex;
+	display: none;
 	margin-top: 2px;
 	margin-bottom: 2px;
 }
