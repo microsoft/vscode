@@ -113,7 +113,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 			dirtyCounter++;
 		});
 
-		const workingCopy = await manager.untitled.resolve({ initialValue: bufferToStream(VSBuffer.fromString('Hello World')) });
+		const workingCopy = await manager.untitled.resolve({ contents: bufferToStream(VSBuffer.fromString('Hello World')) });
 
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(dirtyCounter, 1);
@@ -134,6 +134,20 @@ suite('UntitledFileWorkingCopyManager', () => {
 		workingCopy1.dispose();
 		workingCopy2.dispose();
 		workingCopy3.dispose();
+	});
+
+	test('resolve - untitled resource used for new working copy', async () => {
+		const invalidUntitledResource = URI.file('my/untitled.txt');
+		const validUntitledResource = invalidUntitledResource.with({ scheme: Schemas.untitled });
+
+		const workingCopy1 = await manager.untitled.resolve({ untitledResource: invalidUntitledResource });
+		assert.notStrictEqual(workingCopy1.resource.toString(), invalidUntitledResource.toString());
+
+		const workingCopy2 = await manager.untitled.resolve({ untitledResource: validUntitledResource });
+		assert.strictEqual(workingCopy2.resource.toString(), validUntitledResource.toString());
+
+		workingCopy1.dispose();
+		workingCopy2.dispose();
 	});
 
 	test('resolve - with associated resource', async () => {

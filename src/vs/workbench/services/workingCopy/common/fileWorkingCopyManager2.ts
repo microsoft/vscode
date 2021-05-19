@@ -20,7 +20,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, IFileWorkingCopyResolveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { IExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
+import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { isValidBasename } from 'vs/base/common/extpath';
 
@@ -37,18 +37,6 @@ export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U ext
 	readonly untitled: IUntitledFileWorkingCopyManager<U>;
 
 	/**
-	 * Resolves an untitled file working copy from the provided options.
-	 */
-	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
-	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<U>>;
-
-	/**
-	 * Resolves an untitled file working copy from the provided options
-	 * unless an existing working copy already exists with that resource.
-	 */
-	resolve(options?: IExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
-
-	/**
 	 * Allows to resolve a file working copy. If the manager already knows
 	 * about a file working copy with the same `URI`, it will return that
 	 * existing file working copy. There will never be more than one
@@ -63,9 +51,33 @@ export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U ext
 	 *
 	 * @param resource used as unique identifier of the file working copy in
 	 * case one is already known for this `URI`.
-	 * @param options
 	 */
 	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<F>>;
+
+	/**
+	 * Create a new untitled file working copy with optional initial contents.
+	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 */
+	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
+
+	/**
+	 * Create a new untitled file working copy with optional initial contents
+	 * and associated resource. The associated resource will be used when
+	 * saving and will not require to ask the user for a file path.
+	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 */
+	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<U>>;
+
+	/**
+	 * Creates a new untitled file working copy with optional initial contents
+	 * with the provided resource or return an existing untitled file working
+	 * copy otherwise.
+	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 */
+	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
 
 	/**
 	 * Implements "Save As" for file based working copies. The API is `URI` based
@@ -80,6 +92,8 @@ export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U ext
 	 * to respect file systems that are case insensitive.
 	 *
 	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 *
+	 * Note: Untitled file working copies are being disposed when saved.
 	 *
 	 * @param source the source resource to save as
 	 * @param target the optional target resource to save to. if not defined, the user
@@ -147,9 +161,9 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 
 	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
 	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<U>>;
-	resolve(options?: IExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
+	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
 	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<F>>;
-	resolve(arg1?: URI | INewUntitledFileWorkingCopyOptions | INewUntitledFileWorkingCopyWithAssociatedResourceOptions | IExistingUntitledFileWorkingCopyOptions, arg2?: IFileWorkingCopyResolveOptions): Promise<IUntitledFileWorkingCopy<U> | IFileWorkingCopy<F>> {
+	resolve(arg1?: URI | INewUntitledFileWorkingCopyOptions | INewUntitledFileWorkingCopyWithAssociatedResourceOptions | INewOrExistingUntitledFileWorkingCopyOptions, arg2?: IFileWorkingCopyResolveOptions): Promise<IUntitledFileWorkingCopy<U> | IFileWorkingCopy<F>> {
 		if (URI.isUri(arg1)) {
 			return this.files.resolve(arg1, arg2);
 		}

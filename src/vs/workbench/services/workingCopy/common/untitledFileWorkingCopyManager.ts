@@ -35,16 +35,29 @@ export interface IUntitledFileWorkingCopyManager<T extends IUntitledFileWorkingC
 	readonly onWillDispose: Event<IUntitledFileWorkingCopy<T>>;
 
 	/**
-	 * Resolves an untitled file working copy from the provided options.
+	 * Create a new untitled file working copy with optional initial contents.
+	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
 	 */
 	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
+
+	/**
+	 * Create a new untitled file working copy with optional initial contents
+	 * and associated resource. The associated resource will be used when
+	 * saving and will not require to ask the user for a file path.
+	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 */
 	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<T>>;
 
 	/**
-	 * Resolves an untitled file working copy from the provided options
-	 * unless an existing working copy already exists with that resource.
+	 * Creates a new untitled file working copy with optional initial contents
+	 * with the provided resource or return an existing untitled file working
+	 * copy otherwise.
+	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
 	 */
-	resolve(options?: IExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
+	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
 }
 
 export interface INewUntitledFileWorkingCopyOptions {
@@ -55,7 +68,7 @@ export interface INewUntitledFileWorkingCopyOptions {
 	 * Note: An untitled file working copy with initial
 	 * value is dirty right from the beginning.
 	 */
-	initialValue?: VSBufferReadableStream;
+	contents?: VSBufferReadableStream;
 }
 
 export interface INewUntitledFileWorkingCopyWithAssociatedResourceOptions extends INewUntitledFileWorkingCopyOptions {
@@ -71,7 +84,7 @@ export interface INewUntitledFileWorkingCopyWithAssociatedResourceOptions extend
 	associatedResource: { authority?: string; path?: string; query?: string; fragment?: string; }
 }
 
-export interface IExistingUntitledFileWorkingCopyOptions extends INewUntitledFileWorkingCopyOptions {
+export interface INewOrExistingUntitledFileWorkingCopyOptions extends INewUntitledFileWorkingCopyOptions {
 
 	/**
 	 * A resource to identify the untitled file working copy
@@ -82,7 +95,7 @@ export interface IExistingUntitledFileWorkingCopyOptions extends INewUntitledFil
 	untitledResource: URI;
 }
 
-type IInternalUntitledFileWorkingCopyOptions = INewUntitledFileWorkingCopyOptions & INewUntitledFileWorkingCopyWithAssociatedResourceOptions & IExistingUntitledFileWorkingCopyOptions;
+type IInternalUntitledFileWorkingCopyOptions = INewUntitledFileWorkingCopyOptions & INewUntitledFileWorkingCopyWithAssociatedResourceOptions & INewOrExistingUntitledFileWorkingCopyOptions;
 
 export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyModel> extends BaseFileWorkingCopyManager<T, IUntitledFileWorkingCopy<T>> implements IUntitledFileWorkingCopyManager<T> {
 
@@ -115,7 +128,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 
 	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
 	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<T>>;
-	resolve(options?: IExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
+	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
 	async resolve(options?: IInternalUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>> {
 		const workingCopy = this.doCreateOrGet(options);
 		await workingCopy.resolve();
@@ -141,7 +154,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 	private massageOptions(options: IInternalUntitledFileWorkingCopyOptions): IInternalUntitledFileWorkingCopyOptions {
 		const massagedOptions: IInternalUntitledFileWorkingCopyOptions = Object.create(null);
 
-		// Figure out associated and untitled resource
+		// Handle associcated resource
 		if (options.associatedResource) {
 			massagedOptions.untitledResource = URI.from({
 				scheme: Schemas.untitled,
@@ -151,14 +164,15 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 				query: options.associatedResource.query
 			});
 			massagedOptions.associatedResource = options.associatedResource;
-		} else {
-			if (options.untitledResource?.scheme === Schemas.untitled) {
-				massagedOptions.untitledResource = options.untitledResource;
-			}
+		}
+
+		// Handle untitled resource
+		else if (options.untitledResource?.scheme === Schemas.untitled) {
+			massagedOptions.untitledResource = options.untitledResource;
 		}
 
 		// Take over initial value
-		massagedOptions.initialValue = options.initialValue;
+		massagedOptions.contents = options.contents;
 
 		return massagedOptions;
 	}
@@ -182,7 +196,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 			untitledResource,
 			this.labelService.getUriBasenameLabel(untitledResource),
 			!!options.associatedResource,
-			options.initialValue,
+			options.contents,
 			this.modelFactory,
 			this.saveDelegate
 		) as unknown as IUntitledFileWorkingCopy<T>;
