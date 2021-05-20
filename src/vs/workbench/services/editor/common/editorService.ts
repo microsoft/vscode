@@ -16,6 +16,11 @@ export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export type IResourceEditorInputType = IResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
 
+export interface SidebySideURI {
+	primary: URI;
+	secondary: URI;
+}
+
 export interface IResourceEditorReplacement {
 	readonly editor: IResourceEditorInputType;
 	readonly replacement: IResourceEditorInputType;
