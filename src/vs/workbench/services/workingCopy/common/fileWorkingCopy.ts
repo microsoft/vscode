@@ -32,7 +32,7 @@ import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel, IBaseFileWorkingCopyMo
 /**
  * File specific working copy model factory.
  */
-export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<T> { }
+export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
 
 /**
  * The underlying model of a file working copy provides some
@@ -89,7 +89,7 @@ export interface IFileWorkingCopyModelContentChangedEvent {
  * of functionality can be built on top, such as saving in
  * a secure way to prevent data loss.
  */
-export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IResourceWorkingCopy, IBaseFileWorkingCopy<T> {
+export interface IFileWorkingCopy<M extends IFileWorkingCopyModel> extends IResourceWorkingCopy, IBaseFileWorkingCopy<M> {
 
 	/**
 	 * An event for when a file working copy was resolved.
@@ -140,7 +140,7 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IReso
 	/**
 	 * Whether we have a resolved model or not.
 	 */
-	isResolved(): this is IResolvedFileWorkingCopy<T>;
+	isResolved(): this is IResolvedFileWorkingCopy<M>;
 
 	/**
 	 * Whether the file working copy is readonly or not.
@@ -148,12 +148,12 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IReso
 	isReadonly(): boolean;
 }
 
-export interface IResolvedFileWorkingCopy<T extends IFileWorkingCopyModel> extends IFileWorkingCopy<T> {
+export interface IResolvedFileWorkingCopy<M extends IFileWorkingCopyModel> extends IFileWorkingCopy<M> {
 
 	/**
 	 * A resolved file working copy has a resolved model.
 	 */
-	readonly model: T;
+	readonly model: M;
 }
 
 /**
@@ -255,12 +255,12 @@ interface IFileWorkingCopyBackupMetaData extends IWorkingCopyBackupMeta {
 	orphaned: boolean;
 }
 
-export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWorkingCopy implements IFileWorkingCopy<T>  {
+export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWorkingCopy implements IFileWorkingCopy<M>  {
 
 	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.None;
 
-	private _model: T | undefined = undefined;
-	get model(): T | undefined { return this._model; }
+	private _model: M | undefined = undefined;
+	get model(): M | undefined { return this._model; }
 
 	//#region events
 
@@ -291,7 +291,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 		readonly typeId: string,
 		resource: URI,
 		readonly name: string,
-		private readonly modelFactory: IFileWorkingCopyModelFactory<T>,
+		private readonly modelFactory: IFileWorkingCopyModelFactory<M>,
 		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -318,7 +318,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 	private dirty = false;
 	private savedVersionId: unknown;
 
-	isDirty(): this is IResolvedFileWorkingCopy<T> {
+	isDirty(): this is IResolvedFileWorkingCopy<M> {
 		return this.dirty;
 	}
 
@@ -379,7 +379,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
-	isResolved(): this is IResolvedFileWorkingCopy<T> {
+	isResolved(): this is IResolvedFileWorkingCopy<M> {
 		return !!this.model;
 	}
 
@@ -640,7 +640,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 		}
 	}
 
-	private installModelListeners(model: IFileWorkingCopyModel): void {
+	private installModelListeners(model: M): void {
 
 		// See https://github.com/microsoft/vscode/issues/30189
 		// This code has been extracted to a different method because it caused a memory leak
@@ -653,7 +653,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends ResourceWo
 		this._register(model.onWillDispose(() => this.dispose()));
 	}
 
-	private onModelContentChanged(model: IFileWorkingCopyModel, isUndoingOrRedoing: boolean): void {
+	private onModelContentChanged(model: M, isUndoingOrRedoing: boolean): void {
 		this.trace(`[file working copy] onModelContentChanged() - enter`);
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times

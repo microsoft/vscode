@@ -74,7 +74,7 @@ export const vs: IStandaloneThemeData = {
 		[editorIndentGuides]: '#D3D3D3',
 		[editorActiveIndentGuides]: '#939393',
 		[editorSelectionHighlight]: '#ADD6FF4D',
-		[listFocusHighlightForeground]: '#33B6FF'
+		[listFocusHighlightForeground]: '#9DDDFF'
 	}
 };
 /* -------------------------------- End vs theme -------------------------------- */

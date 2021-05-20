@@ -33,19 +33,46 @@ suite('FileWorkingCopyManager2', () => {
 			'testFileWorkingCopyType2',
 			new TestFileWorkingCopyModelFactory(),
 			new TestUntitledFileWorkingCopyModelFactory(),
-			accessor.fileService,
-			instantiationService,
-			accessor.fileDialogService,
-			accessor.workingCopyFileService,
-			accessor.uriIdentityService,
-			accessor.dialogService,
-			accessor.environmentService,
-			accessor.pathService
+			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
+			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
+			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
+			accessor.environmentService, accessor.dialogService
 		);
 	});
 
 	teardown(() => {
 		manager.dispose();
+	});
+
+	test('onDidCreate, get, workingCopies', async () => {
+		let createCounter = 0;
+		manager.onDidCreate(e => {
+			createCounter++;
+		});
+
+		const fileUri = URI.file('/test.html');
+
+		assert.strictEqual(manager.workingCopies.length, 0);
+		assert.strictEqual(manager.get(fileUri), undefined);
+
+		const fileWorkingCopy = await manager.resolve(fileUri);
+		const untitledFileWorkingCopy = await manager.resolve();
+
+		assert.strictEqual(manager.workingCopies.length, 2);
+		assert.strictEqual(createCounter, 2);
+		assert.strictEqual(manager.get(fileWorkingCopy.resource), fileWorkingCopy);
+		assert.strictEqual(manager.get(untitledFileWorkingCopy.resource), untitledFileWorkingCopy);
+
+		const sameFileWorkingCopy = await manager.resolve(fileUri);
+		const sameUntitledFileWorkingCopy = await manager.resolve({ untitledResource: untitledFileWorkingCopy.resource });
+		assert.strictEqual(sameFileWorkingCopy, fileWorkingCopy);
+		assert.strictEqual(sameUntitledFileWorkingCopy, untitledFileWorkingCopy);
+		assert.strictEqual(manager.workingCopies.length, 2);
+		assert.strictEqual(createCounter, 2);
+
+		fileWorkingCopy.dispose();
+		untitledFileWorkingCopy.dispose();
 	});
 
 	test('resolve', async () => {

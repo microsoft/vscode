@@ -230,7 +230,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isDisabledByVirtualWorkspace(extension: IExtension): boolean {
 		if (getVirtualWorkspaceScheme(this.contextService.getWorkspace()) !== undefined) {
-			return !this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.manifest);
+			return this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) === false;
 		}
 		return false;
 	}

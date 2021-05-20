@@ -34,6 +34,12 @@ export class WebviewService extends Disposable implements IWebviewService {
 		}
 	}
 
+	private _webviews = new Set<Webview>();
+
+	public get webviews(): Iterable<Webview> {
+		return this._webviews.values();
+	}
+
 	private readonly _onDidChangeActiveWebview = this._register(new Emitter<Webview | undefined>());
 	public readonly onDidChangeActiveWebview = this._onDidChangeActiveWebview.event;
 
@@ -44,7 +50,7 @@ export class WebviewService extends Disposable implements IWebviewService {
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewElement {
 		const webview = this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
-		this.addWebviewListeners(webview);
+		this.registerNewWebview(webview);
 		return webview;
 	}
 
@@ -55,11 +61,13 @@ export class WebviewService extends Disposable implements IWebviewService {
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewOverlay {
 		const webview = this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions, extension);
-		this.addWebviewListeners(webview);
+		this.registerNewWebview(webview);
 		return webview;
 	}
 
-	protected addWebviewListeners(webview: Webview) {
+	protected registerNewWebview(webview: Webview) {
+		this._webviews.add(webview);
+
 		webview.onDidFocus(() => {
 			this.updateActiveWebview(webview);
 		});
@@ -71,6 +79,9 @@ export class WebviewService extends Disposable implements IWebviewService {
 		};
 
 		webview.onDidBlur(onBlur);
-		webview.onDidDispose(onBlur);
+		webview.onDidDispose(() => {
+			onBlur();
+			this._webviews.delete(webview);
+		});
 	}
 }

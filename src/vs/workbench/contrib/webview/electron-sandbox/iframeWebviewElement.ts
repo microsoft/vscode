@@ -13,7 +13,6 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
@@ -38,7 +37,6 @@ export class ElectronIframeWebview extends IFrameWebview {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITunnelService tunnelService: ITunnelService,
 		@IFileService fileService: IFileService,
-		@IRequestService requestService: IRequestService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -51,7 +49,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
 			contextMenuService,
-			configurationService, fileService, logService, menuService, notificationService, _remoteAuthorityResolverService, requestService, telemetryService, tunnelService, environmentService);
+			configurationService, fileService, logService, menuService, notificationService, _remoteAuthorityResolverService, telemetryService, tunnelService, environmentService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 
@@ -66,8 +64,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 
 	protected override initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
 		super.initElement(extension, options, {
-			platform: 'electron',
-			'vscode-resource-origin': this.webviewResourceEndpoint,
+			platform: 'electron'
 		});
 	}
 
@@ -77,10 +74,6 @@ export class ElectronIframeWebview extends IFrameWebview {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
 		return endpoint;
-	}
-
-	protected override get webviewResourceEndpoint(): string {
-		return `https://${this.id}.vscode-webview-test.com`;
 	}
 
 	protected override async doPostMessage(channel: string, data?: any): Promise<void> {
