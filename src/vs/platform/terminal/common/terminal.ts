@@ -389,7 +389,7 @@ export interface IShellLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 
 	/**
-	 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
+	 * The icon for the terminal, used primarily in the terminal tab.
 	 */
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 
