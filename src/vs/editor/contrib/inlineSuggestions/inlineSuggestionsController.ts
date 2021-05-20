@@ -483,6 +483,7 @@ class InlineSuggestionsModel extends Disposable {
 	private updatePromise: CancelablePromise<NormalizedInlineSuggestions | undefined> | undefined = undefined;
 	private cachedList: NormalizedInlineSuggestions | undefined = undefined;
 	private cachedPosition: Position | undefined = undefined;
+	private updateSoon = this._register(new RunOnceScheduler(() => this._update(), 50));
 
 	constructor(
 		private readonly editor: IActiveCodeEditor
@@ -494,7 +495,7 @@ class InlineSuggestionsModel extends Disposable {
 		}));
 		this._register(this.editor.onDidChangeModelContent(() => {
 			if (this.isActive) {
-				this._update(this.editor.getPosition());
+				this.updateSoon.schedule();
 			}
 		}));
 	}
@@ -505,6 +506,7 @@ class InlineSuggestionsModel extends Disposable {
 
 	deactivate() {
 		this.isActive = false;
+		this.updateSoon.cancel();
 	}
 
 	public getInlineSuggestions(position: Position): NormalizedInlineSuggestions {
@@ -516,8 +518,8 @@ class InlineSuggestionsModel extends Disposable {
 		};
 	}
 
-	private _update(position: Position): void {
-		// TODO: debouncing is not happening here
+	private _update(): void {
+		const position = this.editor.getPosition();
 		this.clearGhostTextPromise();
 		this.updatePromise = createCancelablePromise(token => provideInlineSuggestions(position, this.textModel, token));
 		this.updatePromise.then((result) => {
