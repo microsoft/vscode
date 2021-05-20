@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -128,7 +129,13 @@ function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | und
 
 	const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
 
-	const webview = extHostWebviewPanels.createWebviewPanel({} as IExtensionDescription, 'type', 'title', 1, {});
+	const webview = extHostWebviewPanels.createWebviewPanel({
+		extensionLocation: URI.from({
+			scheme: remoteAuthority ? Schemas.vscodeRemote : Schemas.file,
+			authority: remoteAuthority,
+			path: '/ext/path',
+		})
+	} as IExtensionDescription, 'type', 'title', 1, {});
 	return webview;
 }
 
