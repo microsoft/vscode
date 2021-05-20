@@ -190,10 +190,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
 			},
 			asWebviewUri(uri: URI) {
-				const remoteAuthority = that._initData.remote.isRemote
-					? that._initData.remote.authority
-					: undefined;
-				return asWebviewUri(String(handle), uri, remoteAuthority);
+				return asWebviewUri(String(handle), uri, that._initData.remote);
 			},
 			// --- priority
 			updateNotebookAffinity(notebook, priority) {

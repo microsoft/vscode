@@ -66,10 +66,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 			private _options: vscode.WebviewOptions = Object.create(null);
 
 			asWebviewUri(resource: vscode.Uri): vscode.Uri {
-				const remoteAuthority = that._initData.remote.isRemote
-					? that._initData.remote.authority
-					: undefined;
-				return asWebviewUri(this._uuid, resource, remoteAuthority);
+				return asWebviewUri(this._uuid, resource, that._initData.remote);
 			}
 
 			get cspSource(): string {
