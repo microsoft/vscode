@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./ghostText';
+import * as dom from 'vs/base/browser/dom';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as strings from 'vs/base/common/strings';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -16,6 +18,8 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -23,6 +27,8 @@ export interface GhostText {
 	lines: string[];
 	position: Position;
 	minAdditionalLineCount: number;
+	multiline: boolean;
+	expandCallback: () => void;
 }
 
 // TODO: use connors interface, maybe move to common?
@@ -66,10 +72,12 @@ export class GhostTextWidget extends Disposable {
 	private hasDecoration = false;
 	private decorationIds: string[] = [];
 	private viewZoneId: string | null = null;
+	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -104,10 +112,10 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private render(): void {
-		let renderData: { tabSize: number, position: Position, lines: string[], minAdditionalLineCount: number } | undefined;
+		let renderData: { tabSize: number; position: Position; lines: string[]; minAdditionalLineCount: number; multiline: boolean; expandCallback: () => void; } | undefined;
 
 		if (this.editor.hasModel() && this.model?.value) {
-			const { position, lines, minAdditionalLineCount } = this.model?.value;
+			const { position, lines, minAdditionalLineCount, multiline, expandCallback } = this.model?.value;
 
 			const textModel = this.editor.getModel();
 			const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
@@ -115,9 +123,9 @@ export class GhostTextWidget extends Disposable {
 
 			if (position.column !== maxColumn) {
 				console.warn('Can only show multiline ghost text at the end of a line');
-				renderData = { tabSize, position: new Position(position.lineNumber, maxColumn), lines: [], minAdditionalLineCount };
+				renderData = { tabSize, position: new Position(position.lineNumber, maxColumn), lines: [], minAdditionalLineCount, multiline, expandCallback };
 			} else {
-				renderData = { tabSize, position, lines, minAdditionalLineCount };
+				renderData = { tabSize, position, lines, minAdditionalLineCount, multiline, expandCallback };
 			}
 		} else {
 			renderData = undefined;
@@ -129,10 +137,16 @@ export class GhostTextWidget extends Disposable {
 		}
 
 		if (renderData) {
+			const suggestPreviewForeground = this._themeService.getColorTheme().getColor(editorSuggestPreviewOpacity);
+			let opacity = '0.467';
+			if (suggestPreviewForeground) {
+				opacity = String(suggestPreviewForeground.rgba.a);
+			}
 			this._codeEditorService.registerDecorationType(this._codeEditorDecorationTypeKey, {
 				after: {
+					// TODO: escape?
 					contentText: renderData.lines[0],
-					opacity: '0.467',
+					opacity,
 				}
 			});
 			this.hasDecoration = true;
@@ -147,6 +161,11 @@ export class GhostTextWidget extends Disposable {
 		}
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, newDecorations);
 
+		if (this.viewMoreContentWidget) {
+			this.viewMoreContentWidget.dispose();
+			this.viewMoreContentWidget = null;
+		}
+
 		this.editor.changeViewZones((changeAccessor) => {
 			if (this.viewZoneId) {
 				changeAccessor.removeZone(this.viewZoneId);
@@ -157,18 +176,54 @@ export class GhostTextWidget extends Disposable {
 				const remainingLines = renderData.lines.slice(1);
 				const heightInLines = Math.max(remainingLines.length, renderData.minAdditionalLineCount);
 				if (heightInLines > 0) {
-					const domNode = document.createElement('div');
-					this._renderLines(domNode, renderData.tabSize, remainingLines);
+					if (renderData.multiline) {
+						const domNode = document.createElement('div');
+						this._renderLines(domNode, renderData.tabSize, remainingLines);
 
-					this.viewZoneId = changeAccessor.addZone({
-						afterLineNumber: renderData.position.lineNumber,
-						afterColumn: renderData.position.column,
-						heightInLines: heightInLines,
-						domNode,
-					});
+						this.viewZoneId = changeAccessor.addZone({
+							afterLineNumber: renderData.position.lineNumber,
+							afterColumn: renderData.position.column,
+							heightInLines: heightInLines,
+							domNode,
+						});
+					} else if (remainingLines.length > 0) {
+						this.viewMoreContentWidget = this._renderViewMoreLines(renderData.position, renderData.lines[0], remainingLines.length, renderData.expandCallback);
+					}
 				}
 			}
 		});
+	}
+
+	private _renderViewMoreLines(position: Position, firstLineText: string, remainingLinesLength: number, expandCallback: () => void): ViewMoreLinesContentWidget {
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		const domNode = document.createElement('div');
+		domNode.className = 'suggest-preview-additional-widget';
+		Configuration.applyFontInfoSlow(domNode, fontInfo);
+
+		const spacer = document.createElement('span');
+		spacer.className = 'content-spacer';
+		spacer.append(firstLineText);
+		domNode.append(spacer);
+
+		const newline = document.createElement('span');
+		newline.className = 'content-newline suggest-preview-text';
+		newline.append('⏎  ');
+		domNode.append(newline);
+
+		const disposableStore = new DisposableStore();
+
+		const button = document.createElement('div');
+		button.className = 'button suggest-preview-text';
+		button.append(`+${remainingLinesLength} lines…`);
+
+		disposableStore.add(dom.addStandardDisposableListener(button, 'click', (e) => {
+			expandCallback();
+			e.preventDefault();
+			this.editor.focus();
+		}));
+
+		domNode.append(button);
+		return new ViewMoreLinesContentWidget(this.editor, position, domNode, disposableStore);
 	}
 
 	private _renderLines(domNode: HTMLElement, tabSize: number, lines: string[]): void {
@@ -182,7 +237,7 @@ export class GhostTextWidget extends Disposable {
 		const lineHeight = opts.get(EditorOption.lineHeight);
 
 		const sb = createStringBuilder(10000);
-		sb.appendASCIIString('<div style="opacity: 0.467">');
+		sb.appendASCIIString('<div class="suggest-preview-text">');
 
 		for (let i = 0, len = lines.length; i < len; i++) {
 			const line = lines[i];
@@ -227,3 +282,49 @@ export class GhostTextWidget extends Disposable {
 		domNode.innerHTML = trustedhtml as string;
 	}
 }
+
+class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
+	readonly allowEditorOverflow = false;
+	readonly suppressMouseDown = false;
+
+	constructor(
+		private editor: ICodeEditor,
+		private position: Position,
+		private domNode: HTMLElement,
+		disposableStore: DisposableStore
+	) {
+		super();
+		this._register(disposableStore);
+		this._register(toDisposable(() => {
+			this.editor.removeContentWidget(this);
+		}));
+		this.editor.addContentWidget(this);
+	}
+
+	getId(): string {
+		return 'editor.widget.viewMoreLinesWidget';
+	}
+
+	getDomNode(): HTMLElement {
+		return this.domNode;
+	}
+
+	getPosition(): IContentWidgetPosition | null {
+		return {
+			position: this.position,
+			preference: [ContentWidgetPositionPreference.EXACT]
+		};
+	}
+}
+
+registerThemingParticipant((theme, collector) => {
+	const suggestPreviewForeground = theme.getColor(editorSuggestPreviewOpacity);
+	if (suggestPreviewForeground) {
+		collector.addRule(`.monaco-editor .suggest-preview-text { opacity: ${suggestPreviewForeground.rgba.a}; }`);
+	}
+
+	const suggestPreviewBorder = theme.getColor(editorSuggestPreviewBorder);
+	if (suggestPreviewBorder) {
+		collector.addRule(`.monaco-editor .suggest-preview-text { border-bottom: 2px dashed ${suggestPreviewBorder}; }`);
+	}
+});

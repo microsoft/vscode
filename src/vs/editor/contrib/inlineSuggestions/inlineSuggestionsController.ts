@@ -173,6 +173,7 @@ class InlineSuggestionsSession extends Disposable {
 	private readonly model = this._register(new DelegatingInlineSuggestionsModel(this.editor, this.suggestWidgetModel));
 
 	private maxLineCount: number = 0;
+	private multiline: boolean = false;
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
@@ -242,10 +243,12 @@ class InlineSuggestionsSession extends Disposable {
 			this.ghostTextModel.setValue({
 				position: suggestion.suggestion.replaceRange.getStartPosition().delta(0, suggestion.committedSuggestionLength),
 				lines,
-				minAdditionalLineCount: this.maxLineCount - 1
+				minAdditionalLineCount: this.maxLineCount - 1,
+				multiline: this.multiline,
+				expandCallback: () => this._onDidExpand()
 			});
 
-			if (this.maxLineCount > 1) {
+			if (this.maxLineCount > 1 && this.multiline) {
 				const suggestController = SuggestController.get(this.editor);
 				if (suggestController) {
 					suggestController.forceRenderingAbove();
@@ -257,13 +260,20 @@ class InlineSuggestionsSession extends Disposable {
 				this.ghostTextModel.setValue({
 					position: new Position(this.triggerPosition.lineNumber, maxColumn),
 					lines: [],
-					minAdditionalLineCount: this.maxLineCount - 1
+					minAdditionalLineCount: this.maxLineCount - 1,
+					multiline: this.multiline,
+					expandCallback: () => this._onDidExpand()
 				});
 			} else {
 				this.ghostTextModel.setValue(undefined);
 			}
 		}
 
+	}
+
+	private _onDidExpand(): void {
+		this.multiline = true;
+		this.update();
 	}
 
 	public commitCurrentSuggestion(): void {
