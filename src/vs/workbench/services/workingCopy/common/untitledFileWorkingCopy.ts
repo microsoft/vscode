@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel, IBaseFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ISaveOptions } from 'vs/workbench/common/editor';
-import { raceCancellation } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { emptyStream } from 'vs/base/common/stream';
+{ Event, Emitter } from 'vs/base/common/event';
+{ VSBufferReadableStream } from 'vs/base/common/buffer';
+{ IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+{ IBaseFileWorkingCopy, IBaseFileWorkingCopyModel, IBaseFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
+{ Disposable } from 'vs/base/common/lifecycle';
+{ URI } from 'vs/base/common/uri';
+{ Schemas } from 'vs/base/common/network';
+{ IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+{ CancellationToken } from 'vs/base/common/cancellation';
+{ ISaveOptions } from 'vs/workbench/common/editor';
+{ raceCancellation } from 'vs/base/common/async';
+{ ILogService } from 'vs/platform/log/common/log';
+{ IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+i
+{ emptyStream } from 'vs/base/common/stream';
 
 /**
  * Untitled file specific working copy model factory.
- */
-export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
+ IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
 
 /**
  * The underlying model of a untitled file working copy provides
@@ -29,12 +29,12 @@ export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWor
  * The model is typically only available after the working copy
  * has been resolved via it's `resolve()` method.
  */
-export interface IUntitledFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
+IUntitledFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
 
-	readonly onDidChangeContent: Event<IUntitledFileWorkingCopyModelContentChangedEvent>;
+	onDidChangeContent: Event<IUntitledFileWorkingCopyModelContentChangedEvent>;
 }
 
-export interface IUntitledFileWorkingCopyModelContentChangedEvent {
+IUntitledFileWorkingCopyModelContentChangedEvent {
 
 	/**
 	 * Flag that indicates that the content change
@@ -42,31 +42,30 @@ export interface IUntitledFileWorkingCopyModelContentChangedEvent {
 	 * working copy without contents may be marked
 	 * as non-dirty.
 	 */
-	readonly isEmpty: boolean;
+	isEmpty: boolean;
 }
 
-export interface IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopy<M> {
+IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopy<M> {
 
 	/**
 	 * Whether this untitled file working copy model has an associated file path.
 	 */
-	readonly hasAssociatedFilePath: boolean;
+	hasAssociatedFilePath: boolean;
 
 	/**
 	 * Whether we have a resolved model or not.
 	 */
 	isResolved(): this is IResolvedUntitledFileWorkingCopy<M>;
 }
-
-export interface IResolvedUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IUntitledFileWorkingCopy<M> {
+        IResolvedUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IUntitledFileWorkingCopy<M> {
 
 	/**
 	 * A resolved untitled file working copy has a resolved model.
 	 */
-	readonly model: M;
+	model: M;
 }
 
-export interface IUntitledFileWorkingCopySaveDelegate<M extends IUntitledFileWorkingCopyModel> {
+IUntitledFileWorkingCopySaveDelegate<M extends IUntitledFileWorkingCopyModel> {
 
 	/**
 	 * A delegate to enable saving of untitled file working copies.
@@ -74,40 +73,40 @@ export interface IUntitledFileWorkingCopySaveDelegate<M extends IUntitledFileWor
 	(workingCopy: IUntitledFileWorkingCopy<M>, options?: ISaveOptions): Promise<boolean>;
 }
 
-export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
+UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
 
-	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.Untitled;
+	capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.Untitled;
 
 	private _model: M | undefined = undefined;
 	get model(): M | undefined { return this._model; }
 
 	//#region Events
 
-	private readonly _onDidChangeContent = this._register(new Emitter<void>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+	_onDidChangeContent = this._register(new Emitter<void>());
+	onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	_onDidChangeDirty = this._register(new Emitter<void>());
+	onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onDidRevert = this._register(new Emitter<void>());
-	readonly onDidRevert = this._onDidRevert.event;
+	_onDidRevert = this._register(new Emitter<void>());
+	onDidRevert = this._onDidRevert.event;
 
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+	_onWillDispose = this._register(new Emitter<void>());
+        onWillDispose = this._onWillDispose.event;
 
 	//#endregion
 
 	constructor(
-		readonly typeId: string,
-		readonly resource: URI,
-		readonly name: string,
-		readonly hasAssociatedFilePath: boolean,
-		private readonly initialValue: VSBufferReadableStream | undefined,
-		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
-		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<M>,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@ILogService private readonly logService: ILogService
+		typeId: string,
+		resource: URI,
+		name: string,
+		hasAssociatedFilePath: boolean,
+	        initialValue: VSBufferReadableStream | undefined,
+		modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
+		saveDelegate: IUntitledFileWorkingCopySaveDel
+                workingCopyService: IWorkingCopyService,
+		workingCopyBackupService: IWorkingCopyBackupService,
+		logService: ILogService
 	) {
 		super();
 
@@ -121,13 +120,13 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	//#region Dirty
 
-	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
+	dirty = this.hasAssociatedFilePath || !!this.initialValue;
 
 	isDirty(): boolean {
 		return this.dirty;
 	}
 
-	private setDirty(dirty: boolean): void {
+	setDirty(dirty: boolean): void {
 		if (this.dirty === dirty) {
 			return;
 		}
@@ -181,10 +180,8 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		// as the appropiate events to the outside.
 		if (!!backup || this.initialValue) {
 			this._onDidChangeContent.fire();
-		}
-	}
-
-	private async doCreateModel(contents: VSBufferReadableStream): Promise<void> {
+		
+                doCreateModel(contents: VSBufferReadableStream): Promise<void> {
 		this.trace('[untitled file working copy] doCreateModel()');
 
 		// Create model and dispose it when we get disposed
@@ -194,7 +191,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		this.installModelListeners(this._model);
 	}
 
-	private installModelListeners(model: M): void {
+	        installModelListeners(model: M): void {
 
 		// Content Change
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(e)));
@@ -203,7 +200,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		this._register(model.onWillDispose(() => this.dispose()));
 	}
 
-	private onModelContentChanged(e: IUntitledFileWorkingCopyModelContentChangedEvent): void {
+	        onModelContentChanged(e: IUntitledFileWorkingCopyModelContentChangedEvent): void {
 
 		// Mark the untitled file working copy as non-dirty once its
 		// content becomes empty and we do not have an associated
@@ -274,7 +271,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	//#endregion
 
-	override dispose(): void {
+          dispose(): void {
 		this.trace('[untitled file working copy] dispose()');
 
 		this._onWillDispose.fire();
@@ -282,7 +279,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		super.dispose();
 	}
 
-	private trace(msg: string): void {
+	  trace(msg: string): void {
 		this.logService.trace(msg, this.resource.toString(true), this.typeId);
 	}
 }
