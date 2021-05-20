@@ -302,7 +302,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 
 	const dndBackgroundColor = theme.getColor(TERMINAL_DRAG_AND_DROP_BACKGROUND) || theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
-	console.log('dndBackgroundColor', dndBackgroundColor);
 	if (dndBackgroundColor) {
 		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay { background-color: ${dndBackgroundColor.toString()}; }`);
 	}

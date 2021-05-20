@@ -5,6 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
@@ -69,7 +70,10 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
 		this.#hasCalledAsWebviewUri = true;
-		return asWebviewUri(this.#handle, resource, this.#initData.remote.authority);
+		const remoteAuthority = this.#extension.extensionLocation.scheme === Schemas.vscodeRemote
+			? this.#initData.remote.authority
+			: undefined;
+		return asWebviewUri(this.#handle, resource, remoteAuthority);
 	}
 
 	public get cspSource(): string {

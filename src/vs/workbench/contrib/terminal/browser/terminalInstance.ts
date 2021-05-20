@@ -186,7 +186,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
-	get title(): string { return this._getTitle(); }
+	get title(): string { return this._title; }
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
 
@@ -339,13 +339,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 		return undefined;
-	}
-
-	private _getTitle(): string {
-		if (this.shellLaunchConfig.attachPersistentProcess?.title) {
-			return this.shellLaunchConfig.attachPersistentProcess.title;
-		}
-		return this._title;
 	}
 
 	addDisposable(disposable: IDisposable): void {
@@ -1048,7 +1041,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Only listen for process title changes when a name is not provided
-				if (this._configHelper.config.experimentalUseTitleEvent) {
+				if (this._configHelper.config.titleMode === 'sequence') {
 					// Set the title to the first event if the sequence hasn't set it yet
 					Event.once(this._processManager.onProcessTitle)(e => {
 						if (!this._title) {
@@ -1600,10 +1593,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		switch (eventSource) {
 			case TitleEventSource.Process:
-				if (isWindows) {
-					// Remove the .exe extension
-					title = path.basename(title);
-					title = title.split('.exe')[0];
+
+				if (this._processManager.os === OperatingSystem.Windows) {
+					// Extract the file name without extension
+					title = path.win32.parse(title).name;
 				} else {
 					const firstSpaceIndex = title.indexOf(' ');
 					if (title.startsWith('/')) {
@@ -1618,6 +1611,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// automatically updates the terminal name
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
+				break;
+			case TitleEventSource.Sequence:
+				// On Windows, some shells will fire this with the full path which we want to trim
+				// to show just the file name. This should only happen if the title looks like an
+				// absolute Windows file path
+				if (this._processManager.os === OperatingSystem.Windows && title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
+					title = path.win32.parse(title).name;
+				}
 				break;
 		}
 		const didTitleChange = title !== this._title;

@@ -189,7 +189,7 @@ export interface ITerminalConfiguration {
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
-	experimentalUseTitleEvent: boolean;
+	titleMode: 'executable' | 'sequence';
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
