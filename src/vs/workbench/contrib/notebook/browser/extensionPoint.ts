@@ -30,6 +30,7 @@ namespace NotebookRendererContribution {
 	export const entrypoint = 'entrypoint';
 	export const hardDependencies = 'dependencies';
 	export const optionalDependencies = 'optionalDependencies';
+	export const requiresMessaging = 'requiresMessaging';
 }
 
 export interface INotebookRendererContribution {
@@ -40,6 +41,7 @@ export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.entrypoint]: NotebookRendererEntrypoint;
 	readonly [NotebookRendererContribution.hardDependencies]: readonly string[];
 	readonly [NotebookRendererContribution.optionalDependencies]: readonly string[];
+	readonly [NotebookRendererContribution.requiresMessaging]: boolean | 'optional' | undefined;
 }
 
 const notebookProviderContribution: IJSONSchema = {
@@ -163,6 +165,20 @@ const notebookRendererContribution: IJSONSchema = {
 				uniqueItems: true,
 				items: { type: 'string' },
 				markdownDescription: nls.localize('contributes.notebook.renderer.optionalDependencies', 'List of soft kernel dependencies the renderer can make use of. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer will be preferred over renderers that don\'t interact with the kernel.'),
+			},
+			[NotebookRendererContribution.requiresMessaging]: {
+				default: false,
+				enum: [
+					true,
+					false,
+					'optional'
+				],
+				enumDescriptions: [
+					nls.localize('contributes.notebook.renderer.requiresMessaging.true', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
+					nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
+					nls.localize('contributes.notebook.renderer.requiresMessaging.false', 'The renderer does not require messaging.'),
+				],
+				description: nls.localize('contributes.notebook.renderer.requiresMessaging', 'Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.'),
 			},
 		}
 	}

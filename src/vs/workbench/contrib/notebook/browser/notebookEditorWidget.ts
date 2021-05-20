@@ -42,7 +42,7 @@ import { IEditorMemento } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_ID, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_ID, NOTEBOOK_OUTPUT_FOCUSED, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/notebookEditorDecorations';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
@@ -72,6 +72,7 @@ import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
+import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 
 const $ = DOM.$;
 
@@ -316,6 +317,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@INotebookRendererMessagingService private readonly notebookRendererMessaging: INotebookRendererMessagingService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1108,7 +1110,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _createWebview(id: string, resource: URI): Promise<void> {
-		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeWebviewOptions());
+		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeWebviewOptions(), this.notebookRendererMessaging.getScoped(this._uuid));
 		this._webview.element.style.width = '100%';
 
 		// attach the webview container to the DOM tree first
@@ -2257,6 +2259,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			if (!this._webview) {
 				return;
+			}
+
+			if (output.type === RenderOutputType.Extension) {
+				this.notebookRendererMessaging.prepare(output.renderer.id);
 			}
 
 			const cellTop = this._list.getAbsoluteTopOfElement(cell);

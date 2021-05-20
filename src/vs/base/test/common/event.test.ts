@@ -894,4 +894,14 @@ suite('Event utils', () => {
 		listener.dispose();
 	});
 
+	test('dispose is reentrant', () => {
+		const emitter = new Emitter<number>({
+			onLastListenerRemove: () => {
+				emitter.dispose();
+			}
+		});
+
+		const listener = emitter.event(() => undefined);
+		listener.dispose(); // should not crash
+	});
 });

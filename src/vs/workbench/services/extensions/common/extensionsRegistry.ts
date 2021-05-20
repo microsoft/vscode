@@ -321,6 +321,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onAuthenticationRequest', 'An activation event emitted whenever sessions are requested from the specified authentication provider.')
 					},
 					{
+						label: 'onRenderer',
+						description: nls.localize('vscode.extension.activationEvents.onRenderer', 'An activation event emitted whenever a notebook output renderer is used.'),
+						body: 'onRenderer:${11:rendererId}'
+					},
+					{
 						label: '*',
 						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
 						body: '*'

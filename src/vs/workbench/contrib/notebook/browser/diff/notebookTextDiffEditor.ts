@@ -378,7 +378,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._modifiedWebview.dispose();
 		}
 
-		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions()) as BackLayerWebView<IDiffCellInfo>;
+		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions(), undefined) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		await this._modifiedWebview.createWebview();
@@ -391,7 +391,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._originalWebview.dispose();
 		}
 
-		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions()) as BackLayerWebView<IDiffCellInfo>;
+		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions(), undefined) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		await this._originalWebview.createWebview();
