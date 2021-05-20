@@ -323,7 +323,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _getIcon(): ThemeIcon | URI | { light: URI, dark: URI } | undefined {
 		const icon = this._shellLaunchConfig.icon || this._shellLaunchConfig.attachPersistentProcess?.icon;
 		if (!icon) {
-			return this._processManager.processState >= ProcessState.Launching ? { id: Codicon.terminal.id } : undefined;
+			return this._processManager.processState >= ProcessState.Launching ? Codicon.terminal : undefined;
 		}
 		return icon;
 	}

@@ -74,7 +74,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
 		if (shellLaunchConfig.icon) {
-			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || { id: Codicon.terminal.id };
+			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || Codicon.terminal;
 			return;
 		}
 

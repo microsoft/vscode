@@ -82,12 +82,12 @@ async function detectAvailableWindowsProfiles(
 	if (includeDetectedProfiles) {
 		detectedProfiles.set('PowerShell', {
 			source: ProfileSource.Pwsh,
-			icon: { id: Codicon.terminalPowershell.id },
+			icon: Codicon.terminalPowershell,
 			isAutoDetected: true
 		});
 		detectedProfiles.set('Windows PowerShell', {
 			path: `${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`,
-			icon: { id: Codicon.terminalPowershell.id },
+			icon: Codicon.terminalPowershell,
 			isAutoDetected: true
 		});
 		detectedProfiles.set('Git Bash', {
@@ -104,7 +104,7 @@ async function detectAvailableWindowsProfiles(
 		});
 		detectedProfiles.set('Command Prompt', {
 			path: `${system32Path}\\cmd.exe`,
-			icon: { id: Codicon.terminalCmd.id },
+			icon: Codicon.terminalCmd,
 			isAutoDetected: true
 		});
 	}

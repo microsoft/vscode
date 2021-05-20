@@ -418,7 +418,6 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		//TODO:@meganrgge fix
 		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
 	}
 
@@ -965,7 +964,7 @@ export class TerminalService implements ITerminalService {
 			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
 			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
 		}];
-		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : { id: Codicon.terminal.id };
+		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
 		const label = `$(${icon.id}) ${profile.profileName}`;
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
@@ -1002,7 +1001,7 @@ export class TerminalService implements ITerminalService {
 				executable: profile.path,
 				args: profile.args,
 				env: profile.env,
-				icon: profile.icon || undefined,
+				icon: profile.icon,
 				name: profile.overrideName ? profile.profileName : undefined,
 				cwd
 			};
