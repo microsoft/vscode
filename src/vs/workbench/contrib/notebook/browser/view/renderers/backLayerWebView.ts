@@ -431,9 +431,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private _currentKernel?: INotebookKernel;
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
-		public id: string,
-		public documentUri: URI,
+		public readonly notebookEditor: ICommonNotebookEditor,
+		public readonly id: string,
+		public readonly documentUri: URI,
 		public options: {
 			outputNodePadding: number,
 			outputNodeLeftPadding: number,
