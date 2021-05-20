@@ -12,7 +12,6 @@ import type * as vscode from 'vscode';
 import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol';
 import { asWebviewUri, webviewGenericCspSource, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import { generateUuid } from 'vs/base/common/uuid';
-import { Schemas } from 'vs/base/common/network';
 
 export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
@@ -67,7 +66,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 			private _options: vscode.WebviewOptions = Object.create(null);
 
 			asWebviewUri(resource: vscode.Uri): vscode.Uri {
-				const remoteAuthority = extension.extensionLocation.scheme === Schemas.vscodeRemote
+				const remoteAuthority = that._initData.remote.isRemote
 					? that._initData.remote.authority
 					: undefined;
 				return asWebviewUri(this._uuid, resource, remoteAuthority);

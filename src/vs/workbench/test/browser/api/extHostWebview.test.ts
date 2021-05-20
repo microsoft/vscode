@@ -31,7 +31,7 @@ suite('ExtHostWebview', () => {
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { remote: { authority: undefined } }, undefined, new NullLogService(), NullApiDeprecationService);
+		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { remote: { authority: undefined, isRemote: false } }, undefined, new NullLogService(), NullApiDeprecationService);
 
 		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
 
@@ -123,7 +123,8 @@ suite('ExtHostWebview', () => {
 function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {
 	const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
 		remote: {
-			authority: remoteAuthority
+			authority: remoteAuthority,
+			isRemote: !!remoteAuthority,
 		},
 	}, undefined, new NullLogService(), NullApiDeprecationService);
 

@@ -20,7 +20,6 @@ import { CellEditType, IImmediateCellEditOperation, NotebookCellExecutionState, 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { asArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
@@ -191,7 +190,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
 			},
 			asWebviewUri(uri: URI) {
-				const remoteAuthority = extension.extensionLocation.scheme === Schemas.vscodeRemote
+				const remoteAuthority = that._initData.remote.isRemote
 					? that._initData.remote.authority
 					: undefined;
 				return asWebviewUri(String(handle), uri, remoteAuthority);

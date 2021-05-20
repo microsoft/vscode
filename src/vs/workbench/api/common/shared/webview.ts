@@ -8,7 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import type * as vscode from 'vscode';
 
 export interface WebviewInitData {
-	readonly remote: { readonly authority: string | undefined };
+	readonly remote: {
+		readonly isRemote: boolean;
+		readonly authority: string | undefined
+	};
 }
 
 /**
