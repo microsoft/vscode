@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, IViewportRange, IBufferLine } from 'xterm';
+import type { Terminal, IViewportRange, IBufferLine, IBufferRange } from 'xterm';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
@@ -17,6 +17,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 import { normalize } from 'vs/base/common/path';
+import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+
+const MAX_LENGTH = 2000;
 
 export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -57,8 +60,10 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
-		startLine++;
-		endLine++;
+		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
+		if (text.length > MAX_LENGTH) {
+			return [];
+		}
 
 		if (startLine === endLine) {
 			const line = this._xterm.buffer.active.getLine(y - 1)!;
@@ -95,44 +100,46 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 
 			return result;
 		} else {
-			for (let i = startLine; i <= endLine; i++) {
-				const line = this._xterm.buffer.active.getLine(i)!;
-				let text = '';
-				let startX = -1;
-				const cellData = line.getCell(0)!;
-				for (let x = 0; x < line.length; x++) {
-					line.getCell(x, cellData);
-					const chars = cellData.getChars();
-					const width = cellData.getWidth();
+			//TODO@meganrogge: add all separators to this regexp
+			const regex = new RegExp(`${wordSeparators[0]}`, 'g');
+			let matches = text.split(regex);
+			let stringIndex = -1;
 
-					// Add a link if this is a separator
-					if (width !== 0 && wordSeparators.indexOf(chars) >= 0 && i === y || i === endLine) {
-						if (startX !== -1) {
-							result.push(this._createTerminalLink(startX, x, startLine, i, text, activateCallback));
-							text = '';
-							startX = -1;
-						}
-						continue;
-					}
+			if (matches.length === 0) {
+				// no separators, word wrapping several lines
+				const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
+					startColumn: 1,
+					startLineNumber: 1,
+					endColumn: stringIndex + text.length + 1,
+					endLineNumber: 1
+				}, startLine);
+				result.push(this._createTerminalLink(0, 0, 0, 0, text, activateCallback, bufferRange));
+				return result;
+			} else {
+				for (const match of matches) {
+					let link = match;
+					// Get index, match.index is for the outer match which includes negated chars
+					// therefore we cannot use match.index directly, instead we search the position
+					// of the match group in text again
+					// also correct regex and string search offsets for the next loop run
+					stringIndex = text.indexOf(link, stringIndex + 1);
+					regex.lastIndex = stringIndex + link.length;
 
-					// Mark the start of a link if it hasn't started yet
-					if (startX === -1) {
-						startX = x;
-					}
-
-					text += chars;
-				}
-
-				// Add the final link if there is one
-				if (startX !== -1 && i === endLine - 1) {
-					result.push(this._createTerminalLink(startX, line.length, startLine, endLine, text, activateCallback));
+					// Convert the link text's string index into a wrapped buffer range
+					const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
+						startColumn: stringIndex + 1,
+						startLineNumber: 1,
+						endColumn: stringIndex + link.length + 1,
+						endLineNumber: 1
+					}, startLine);
+					result.push(this._createTerminalLink(0, 0, 0, 0, link, activateCallback, bufferRange));
 				}
 			}
 			return result;
 		}
 	}
 
-	private _createTerminalLink(startX: number, endX: number, startY: number, endY: number, text: string, activateCallback: XtermLinkMatcherHandler): TerminalLink {
+	private _createTerminalLink(startX: number, endX: number, startY: number, endY: number, text: string, activateCallback: XtermLinkMatcherHandler, bufferRange?: IBufferRange): TerminalLink {
 		// Remove trailing colon if there is one so the link is more useful
 		if (text.length > 0 && text.charAt(text.length - 1) === ':') {
 			text = text.slice(0, -1);
@@ -140,7 +147,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		}
 		return this._instantiationService.createInstance(TerminalLink,
 			this._xterm,
-			{ start: { x: startX + 1, y: startY }, end: { x: endX, y: endY } },
+			bufferRange || { start: { x: startX + 1, y: startY }, end: { x: endX, y: endY } },
 			text,
 			this._xterm.buffer.active.viewportY,
 			activateCallback,
