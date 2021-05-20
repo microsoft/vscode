@@ -196,7 +196,7 @@ async function initializeWindowsProfiles(): Promise<void> {
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
 		paths: await getPowershellPaths(),
-		icon: { id: 'terminal-powershell' }
+		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
 	});
 }
 
@@ -246,12 +246,12 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			isDefault: profileName === defaultProfileName
 		};
 		if (distroName.includes('Ubuntu')) {
-			profile.icon = { id: 'terminal-ubuntu' };
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
 		}
 		else if (distroName.includes('Debian')) {
-			profile.icon = { id: 'terminal-debian' };
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalDebian);
 		} else {
-			profile.icon = { id: 'terminal-linux' };
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalLinux);
 		}
 
 		// Add the profile
