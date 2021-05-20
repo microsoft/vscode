@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { dirname } from 'vs/base/common/resources';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -62,7 +62,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 			}
 		}).join('');
 
-		// todo@jrieken LEAKING https://github.com/microsoft/vscode/issues/123667
+		const disposable = new DisposableStore();
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -76,8 +76,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 		});
 
 		const mode = this.modeService.create('json');
-		const resource = URI.parse(`notebook-output-${Date.now()}.json`);
-		const textModel = this.modelService.createModel(str, mode, resource, false);
+		const textModel = this.modelService.createModel(str, mode, undefined, true);
 		editor.setModel(textModel);
 
 		const width = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
@@ -90,8 +89,10 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 		});
 
 		container.style.height = `${height + 8}px`;
+		disposable.add(editor);
+		disposable.add(textModel);
 
-		return { type: RenderOutputType.Mainframe, initHeight: height };
+		return { type: RenderOutputType.Mainframe, initHeight: height, disposable };
 	}
 }
 
@@ -134,8 +135,6 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		return ['text/x-javascript'];
 	}
 
-	// private readonly _cellDisposables = new Map<number, DisposableStore>();
-
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -145,20 +144,8 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	override dispose(): void {
-		// dispose(this._cellDisposables.values());
-		// this._cellDisposables.clear();
-		super.dispose();
-	}
-
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-
-		// let cellDisposables = this._cellDisposables.get(output.cellViewModel.handle);
-		// cellDisposables?.dispose(); // still LEAKING, we need the IRenderOutput to be disposable so that the caller can issue the cleanup
-		// cellDisposables = new DisposableStore();
-		// this._cellDisposables.set(output.cellViewModel.handle, cellDisposables);
-		// todo@jrieken LEAKING https://github.com/microsoft/vscode/issues/123667
-
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement): IRenderOutput {
+		const disposable = new DisposableStore();
 		const str = items.map(getStringValue).join('');
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -184,12 +171,12 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 			width
 		});
 
-		this._register(editor);
-		this._register(textModel);
+		disposable.add(editor);
+		disposable.add(textModel);
 
 		container.style.height = `${height + 8}px`;
 
-		return { type: RenderOutputType.Mainframe };
+		return { type: RenderOutputType.Mainframe, disposable };
 	}
 }
 
@@ -444,15 +431,16 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-		items.forEach(item => {
+		const disposable = new DisposableStore();
+		for (let item of items) {
 			const str = getStringValue(item);
 			const mdOutput = document.createElement('div');
 			const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
 			mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }, undefined, { gfm: true }).element);
 			container.appendChild(mdOutput);
-		});
-
-		return { type: RenderOutputType.Mainframe };
+			disposable.add(mdRenderer);
+		}
+		return { type: RenderOutputType.Mainframe, disposable };
 	}
 }
 
@@ -472,32 +460,30 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-		items.forEach(item => {
-			const image = document.createElement('img');
+		const disposable = new DisposableStore();
+
+		for (let item of items) {
 
 			let src: string;
-
 			if (Array.isArray(item.valueBytes)) {
 				const bytes = new Uint8Array(item.valueBytes);
 				const blob = new Blob([bytes], { type: item.mime });
 				src = URL.createObjectURL(blob);
-
-				// todo@jrieken
-				// we need to release the object URL again
-				// https://github.com/microsoft/vscode/issues/123667
+				disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
 			} else {
 				// OLD
 				const imagedata = item.value;
 				src = `data:${item.mime};base64,${imagedata}`;
 			}
 
+			const image = document.createElement('img');
 			image.src = src;
 			const display = document.createElement('div');
 			display.classList.add('display');
 			display.appendChild(image);
 			container.appendChild(display);
-		});
-		return { type: RenderOutputType.Mainframe };
+		}
+		return { type: RenderOutputType.Mainframe, disposable };
 	}
 }
 
