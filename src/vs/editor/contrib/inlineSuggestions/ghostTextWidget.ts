@@ -20,8 +20,9 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
 export interface GhostText {
-	text: string;
+	lines: string[];
 	position: Position;
+	minAdditionalLineCount: number;
 }
 
 // TODO: use connors interface, maybe move to common?
@@ -103,10 +104,10 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private render(): void {
-		let renderData: { tabSize: number, position: Position, lines: string[] } | undefined;
+		let renderData: { tabSize: number, position: Position, lines: string[], minAdditionalLineCount: number } | undefined;
 
 		if (this.editor.hasModel() && this.model?.value) {
-			const { position, text } = this.model?.value;
+			const { position, lines, minAdditionalLineCount } = this.model?.value;
 
 			const textModel = this.editor.getModel();
 			const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
@@ -115,8 +116,7 @@ export class GhostTextWidget extends Disposable {
 				renderData = undefined;
 			} else {
 				const { tabSize } = textModel.getOptions();
-				const lines = strings.splitLines(text);
-				renderData = { tabSize, position, lines };
+				renderData = { tabSize, position, lines, minAdditionalLineCount };
 			}
 		} else {
 			renderData = undefined;
@@ -154,14 +154,15 @@ export class GhostTextWidget extends Disposable {
 
 			if (renderData) {
 				const remainingLines = renderData.lines.slice(1);
-				if (remainingLines.length > 0) {
+				const heightInLines = Math.max(remainingLines.length, renderData.minAdditionalLineCount);
+				if (heightInLines > 0) {
 					const domNode = document.createElement('div');
 					this._renderLines(domNode, renderData.tabSize, remainingLines);
 
 					this.viewZoneId = changeAccessor.addZone({
 						afterLineNumber: renderData.position.lineNumber,
 						afterColumn: renderData.position.column,
-						heightInLines: remainingLines.length,
+						heightInLines: heightInLines,
 						domNode,
 					});
 				}

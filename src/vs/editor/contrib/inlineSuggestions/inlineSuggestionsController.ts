@@ -18,7 +18,7 @@ import { GhostText, GhostTextWidget, ObservableValue } from 'vs/editor/contrib/i
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Emitter, Event } from 'vs/base/common/event';
-import { splitLines } from 'vs/base/common/strings';
+import * as strings from 'vs/base/common/strings';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
@@ -172,6 +172,8 @@ class InlineSuggestionsSession extends Disposable {
 	private readonly ghostTextModel = new ObservableValue<GhostText | undefined>(undefined);
 	private readonly model = this._register(new DelegatingInlineSuggestionsModel(this.editor, this.suggestWidgetModel));
 
+	private maxLineCount: number = 0;
+
 	constructor(
 		private readonly editor: IActiveCodeEditor,
 		private readonly widget: GhostTextWidget,
@@ -227,10 +229,19 @@ class InlineSuggestionsSession extends Disposable {
 
 		this.contextKeys.inlineSuggestionVisible.set(!!suggestion);
 
-		this.ghostTextModel.setValue(suggestion ? {
-			position: suggestion.suggestion.replaceRange.getStartPosition().delta(0, suggestion.committedSuggestionLength),
-			text: suggestion.suggestion.text.substr(suggestion.committedSuggestionLength),
-		} : undefined);
+		if (suggestion) {
+			const text = suggestion.suggestion.text.substr(suggestion.committedSuggestionLength);
+			const lines = strings.splitLines(text);
+			this.maxLineCount = Math.max(this.maxLineCount, lines.length);
+			this.ghostTextModel.setValue({
+				position: suggestion.suggestion.replaceRange.getStartPosition().delta(0, suggestion.committedSuggestionLength),
+				lines,
+				minAdditionalLineCount: this.maxLineCount - 1
+			});
+		} else {
+			this.ghostTextModel.setValue(undefined);
+		}
+
 	}
 
 	public commitCurrentSuggestion(): void {
@@ -493,7 +504,7 @@ function validateSuggestion(suggestion: NormalizedInlineSuggestion, model: IText
 	}
 	const lineNumber = suggestion.replaceRange.startLineNumber;
 
-	const suggestedLines = splitLines(suggestion.text);
+	const suggestedLines = strings.splitLines(suggestion.text);
 	const firstSuggestedLine = suggestedLines[0];
 
 	const modelLine = model.getLineContent(lineNumber);
