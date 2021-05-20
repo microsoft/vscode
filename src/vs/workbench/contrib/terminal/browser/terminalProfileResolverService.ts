@@ -348,14 +348,14 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		const file = path.parse(shell).name;
 		switch (file) {
 			case 'bash':
-				return { id: Codicon.terminalBash.id };
+				return Codicon.terminalBash;
 			case 'pwsh':
 			case 'powershell':
-				return { id: Codicon.terminalPowershell.id };
+				return Codicon.terminalPowershell;
 			case 'tmux':
-				return { id: Codicon.terminalTmux.id };
+				return Codicon.terminalTmux;
 			case 'cmd':
-				return { id: Codicon.terminalCmd.id };
+				return Codicon.terminal;
 			default:
 				return undefined;
 		}

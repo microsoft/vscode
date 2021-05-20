@@ -62,7 +62,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService,
-		@IThemeService _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super('TerminalTabsList', container,
 			{

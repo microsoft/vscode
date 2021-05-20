@@ -391,13 +391,15 @@ export interface IShellLaunchConfig {
 	/**
 	 * The icon for the terminal, used primarily in the terminal tab.
 	 */
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: TerminalIcon;
 
 	/**
 	 * The color ID to use for this terminal. If not specified it will use the default fallback
 	 */
 	color?: string;
 }
+
+export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 
 export interface IShellLaunchConfigDto {
 	name?: string;
