@@ -185,12 +185,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._onDidChangeTrust.fire(trusted);
 	}
 
-	get acceptsNonWorkspaceFiles(): boolean {
-		return this._trustState.acceptsNonWorkspaceFiles;
+	get acceptsOutOfWorkspaceFiles(): boolean {
+		return this._trustState.acceptsOutOfWorkspaceFiles;
 	}
 
-	set acceptsNonWorkspaceFiles(value: boolean) {
-		this._trustState.acceptsNonWorkspaceFiles = value;
+	set acceptsOutOfWorkspaceFiles(value: boolean) {
+		this._trustState.acceptsOutOfWorkspaceFiles = value;
 	}
 
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
@@ -419,7 +419,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 
 		// If we already asked the user, don't need to ask again
-		if (this.workspaceTrustManagementService.acceptsNonWorkspaceFiles) {
+		if (this.workspaceTrustManagementService.acceptsOutOfWorkspaceFiles) {
 			return WorkspaceTrustUriResponse.Open;
 		}
 
@@ -440,7 +440,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 		switch (result.choice) {
 			case 0:
-				this.workspaceTrustManagementService.acceptsNonWorkspaceFiles = true;
+				this.workspaceTrustManagementService.acceptsOutOfWorkspaceFiles = true;
 				return WorkspaceTrustUriResponse.Open;
 			case 1:
 				return WorkspaceTrustUriResponse.OpenInNewWindow;
@@ -495,7 +495,7 @@ class WorkspaceTrustState {
 	private readonly _memento: Memento;
 	private readonly _mementoObject: MementoObject;
 
-	private readonly _acceptsNonWorkspaceFilesKey = 'acceptsNonWorkspaceFiles';
+	private readonly _acceptsOutOfWorkspaceFilesKey = 'acceptsOutOfWorkspaceFiles';
 	private readonly _isTrustedKey = 'isTrusted';
 
 	constructor(storageService: IStorageService) {
@@ -503,12 +503,12 @@ class WorkspaceTrustState {
 		this._mementoObject = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	get acceptsNonWorkspaceFiles(): boolean {
-		return this._mementoObject[this._acceptsNonWorkspaceFilesKey] ?? false;
+	get acceptsOutOfWorkspaceFiles(): boolean {
+		return this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] ?? false;
 	}
 
-	set acceptsNonWorkspaceFiles(value: boolean) {
-		this._mementoObject[this._acceptsNonWorkspaceFilesKey] = value;
+	set acceptsOutOfWorkspaceFiles(value: boolean) {
+		this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
 		this._memento.saveMemento();
 	}
 
@@ -519,7 +519,7 @@ class WorkspaceTrustState {
 	set isTrusted(value: boolean | undefined) {
 		this._mementoObject[this._isTrustedKey] = value;
 		if (!value) {
-			this._mementoObject[this._acceptsNonWorkspaceFilesKey] = value;
+			this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
 		}
 
 		this._memento.saveMemento();
