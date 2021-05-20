@@ -63,22 +63,22 @@
 	}
 
 	hideHover(): void {
-		if (!this._currentHoverOptions) {
+	           (!this._currentHoverOptions) {
 			return;
 		}
 		this._currentHoverOptions = undefined;
 		this._contextViewService.hideContextView();
 	}
 
-	private _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable): void {
+	 _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable): void {
 		const entry = entries[entries.length - 1];
-		if (!entry.isIntersecting) {
+		 (!entry.isIntersecting) {
 			hover.dispose();
 		}
 	}
 }
 
- HoverContextViewDelegate implements IDelegate {
+ HoverContextViewDelegate IDelegate {
 
 	 anchorPosition() {
 		 this._hover.anchor;
@@ -92,7 +92,7 @@
 
 	render(container: HTMLElement) {
 		this._hover.render(container);
-		if (this._focus) {
+		 (this._focus) {
 			this._hover.focus();
 		}
 		 this._hover;
@@ -114,12 +114,12 @@ registerSingleton(IHoverService, HoverService, true);
 
 registerThemingParticipant((theme, collector) => {
 	const hoverBackground = theme.getColor(editorHoverBackground);
-	if (hoverBackground) {
+         (hoverBackground) {
 		collector.addRule(`.monaco-workbench .workbench-hover { background-color: ${hoverBackground}; }`);
 		collector.addRule(`.monaco-workbench .workbench-hover-pointer:after { background-color: ${hoverBackground}; }`);
 	}
 	 hoverBorder = theme.getColor(editorHoverBorder);
-	if (hoverBorder) {
+	 (hoverBorder) {
 		collector.addRule(`.monaco-workbench .workbench-hover { border: 1px solid ${hoverBorder}; }`);
 		collector.addRule(`.monaco-workbench .workbench-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-workbench .workbench-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
@@ -129,26 +129,26 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .workbench-hover-pointer:after { border-bottom: 1px solid ${hoverBorder}; }`);
 	}
 	 link = theme.getColor(textLinkForeground);
-	if (link) {
+	(link) {
 		collector.addRule(`.monaco-workbench .workbench-hover a { color: ${link}; }`);
 	}
 	 hoverForeground = theme.getColor(editorHoverForeground);
-	if (hoverForeground) {
+	(hoverForeground) {
 		collector.addRule(`.monaco-workbench .workbench-hover { color: ${hoverForeground}; }`);
 	}
 	 actionsBackground = theme.getColor(editorHoverStatusBarBackground);
-	if (actionsBackground) {
+	(actionsBackground) {
 		collector.addRule(`.monaco-workbench .workbench-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
 	}
 	 codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
+        (codeBackground) {
 		collector.addRule(`.monaco-workbench .workbench-hover code { background-color: ${codeBackground}; }`);
 	}
 });
 
 registerThemingParticipant((theme, collector) => {
 	 widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
+	(widgetShadowColor) {
 		collector.addRule(`.monaco-workbench .workbench-hover { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 });
