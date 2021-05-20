@@ -56,7 +56,7 @@ import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VirtualWorkspaceContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isWeb } from 'vs/base/common/platform';
+import { isIOS, isWeb } from 'vs/base/common/platform';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -557,7 +557,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this._register(this.searchBox.onShouldFocusResults(() => this.focusListView(), this));
 
 		this._register(this.onDidChangeVisibility(visible => {
-			if (visible) {
+			if (visible && !isIOS) {
 				this.searchBox!.focus();
 			}
 		}));
@@ -609,7 +609,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	override focus(): void {
-		if (this.searchBox) {
+		if (this.searchBox && !isIOS) {
 			this.searchBox.focus();
 		}
 	}
