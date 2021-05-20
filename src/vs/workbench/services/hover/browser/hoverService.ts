@@ -8,7 +8,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
@@ -21,8 +21,10 @@ export class HoverService implements IHoverService {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
+		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
 
 	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined {
