@@ -216,12 +216,12 @@ export class TerminalViewPane extends ViewPane {
 		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
 		for (const p of profiles) {
 			const suffix = p.profileName === defaultProfileName ? nls.localize('defaultTerminalSuffix', " (Default)") : '';
-			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName + suffix, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
-			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName + suffix, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName + suffix, category: TerminalTabContextMenuGroup.Profile }, undefined, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName + suffix, category: TerminalTabContextMenuGroup.Profile }, undefined, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
 		for (const contributed of this._terminalContributionService.terminalTypes) {
-			dropdownActions.push(new MenuItemAction({ id: contributed.command, title: contributed.title, category: TerminalTabContextMenuGroup.Profile }, undefined, undefined, this._contextKeyService, this._commandService));
+			dropdownActions.push(new MenuItemAction({ id: contributed.command, title: contributed.title, category: TerminalTabContextMenuGroup.Profile }, undefined, undefined, undefined, this._contextKeyService, this._commandService));
 		}
 
 		if (dropdownActions.length > 0) {
@@ -245,6 +245,7 @@ export class TerminalViewPane extends ViewPane {
 				title: nls.localize('terminal.new', "New Terminal"),
 				icon: Codicon.plus
 			},
+			undefined,
 			{
 				id: TerminalCommandId.Split,
 				title: nls.localize('terminal.split', "Split Terminal"),
@@ -365,6 +366,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				title: getSingleTabLabel(_terminalService.getActiveInstance()),
 				tooltip: getSingleTabTooltip(_terminalService.getActiveInstance())
 			},
+			undefined,
 			{
 				id: TerminalCommandId.Split,
 				title: nls.localize('workbench.action.terminal.split', "Split Terminal"),

@@ -52,6 +52,7 @@ export type ISerializableCommandAction = UriDto<ICommandAction>;
 
 export interface IMenuItem {
 	command: ICommandAction;
+	title?: string | ICommandActionTitle;
 	alt?: ICommandAction;
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
@@ -382,13 +383,16 @@ export class MenuItemAction implements IAction {
 
 	constructor(
 		item: ICommandAction,
+		title: string | ICommandActionTitle | undefined,
 		alt: ICommandAction | undefined,
 		options: IMenuActionOptions | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
 		this.id = item.id;
-		this.label = typeof item.title === 'string' ? item.title : item.title.value;
+		this.label = title
+			? (typeof title === 'string' ? title : title.value)
+			: (typeof item.title === 'string' ? item.title : item.title.value);
 		this.tooltip = item.tooltip ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = false;
@@ -408,7 +412,7 @@ export class MenuItemAction implements IAction {
 		}
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, undefined, options, contextKeyService, _commandService) : undefined;
 		this._options = options;
 		if (ThemeIcon.isThemeIcon(item.icon)) {
 			this.class = CSSIcon.asClassName(item.icon);

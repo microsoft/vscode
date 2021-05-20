@@ -238,6 +238,7 @@ namespace schema {
 
 	export interface IUserFriendlyMenuItem {
 		command: string;
+		title?: string;
 		alt?: string;
 		when?: string;
 		group?: string;
@@ -342,6 +343,10 @@ namespace schema {
 		properties: {
 			command: {
 				description: localize('vscode.extension.contributes.menuItem.command', 'Identifier of the command to execute. The command must be declared in the \'commands\'-section'),
+				type: 'string'
+			},
+			title: {
+				description: localize('vscode.extension.contributes.menuItem.title', 'Title by which the item is represented in the UI'),
 				type: 'string'
 			},
 			alt: {
@@ -740,7 +745,9 @@ menusExtensionPoint.setHandler(extensions => {
 						collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
 					}
 
-					item = { command, alt, group: undefined, order: undefined, when: undefined };
+					const title = menuItem.title || command.title;
+
+					item = { command, alt, title, group: undefined, order: undefined, when: undefined };
 				} else {
 					if (menu.supportsSubmenus === false) {
 						collector.error(localize('unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));

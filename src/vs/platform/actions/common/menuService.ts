@@ -135,7 +135,7 @@ class Menu implements IMenu {
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const action = isIMenuItem(item)
-						? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService)
+						? new MenuItemAction(item.command, item.title, item.alt, options, this._contextKeyService, this._commandService)
 						: new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
 
 					activeActions.push(action);

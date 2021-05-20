@@ -559,6 +559,7 @@ export class DeleteCellAction extends MenuItemAction {
 				precondition: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 			},
 			undefined,
+			undefined,
 			{ shouldForwardArgs: true },
 			contextKeyService,
 			commandService);
