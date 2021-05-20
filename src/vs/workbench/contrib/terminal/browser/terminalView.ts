@@ -523,11 +523,13 @@ class TerminalThemeIconStyle extends Themable {
 
 	private _registerListeners(): void {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onInstancesChanged(() => this.updateStyles()));
 	}
 
 	override updateStyles(): void {
 		super.updateStyles();
 		let css = '';
+		// TODO add a rule collector to avoid duplication
 		for (const instance of this._terminalService.terminalInstances) {
 			const icon = instance.icon;
 			if (!icon) {
@@ -541,7 +543,7 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const iconClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
-				css += `.monaco-workbench .${iconClasses[0]} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
+				css += `.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon {`;
 				css += `background-image: ${dom.asCSSUrl(uri)};}`;
 			}
 		}

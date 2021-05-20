@@ -1101,8 +1101,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._onProcessExit(error);
 			}
 		});
-		//TODO:find better place for this
-		this._onIconChanged.fire(this);
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
