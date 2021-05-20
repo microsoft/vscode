@@ -93,7 +93,7 @@ class InlineSuggestionsContextKeys {
 */
 export class InlineSuggestionsModelController extends Disposable {
 	private readonly textModel = this.editor.getModel();
-	private readonly model = this._register(new DelegatingInlineSuggestionsModel(this.editor));
+	private readonly suggestWidgetModel = this._register(new SuggestWidgetInlineSuggestionsModel(this.editor));
 	private readonly completionSession = this._register(new MutableDisposable<InlineSuggestionsSession>());
 	private readonly checkAndStartSessionSoon = this._register(new RunOnceScheduler(() => this.checkAndStartSession(), 50));
 
@@ -106,10 +106,27 @@ export class InlineSuggestionsModelController extends Disposable {
 
 		this._register(this.editor.onDidChangeModelContent((e) => {
 			if (this.completionSession.value && !this.completionSession.value.isValid()) {
-				return;
+				this.completionSession.clear();
 			}
 			this.checkAndStartSessionSoon.schedule();
 		}));
+		const suggestController = SuggestController.get(this.editor);
+		if (suggestController) {
+			let isBoundToSuggestWidget = false;
+			const bindToSuggestWidget = () => {
+				if (isBoundToSuggestWidget) {
+					return;
+				}
+				isBoundToSuggestWidget = true;
+
+				this._register(suggestController.widget.value.onDidShow(() => {
+					this.checkAndStartSession();
+				}));
+			};
+			this._register(Event.once(suggestController.model.onDidTrigger)(e => {
+				bindToSuggestWidget();
+			}));
+		}
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			if (this.completionSession.value && !this.completionSession.value.isValid()) {
 				this.completionSession.clear();
@@ -118,15 +135,19 @@ export class InlineSuggestionsModelController extends Disposable {
 	}
 
 	private checkAndStartSession(): void {
-		const pos = this.editor.getPosition();
+		if (this.completionSession.value && this.completionSession.value.isValid()) {
+			return;
+		}
 
+		const pos = this.editor.getPosition();
 		if (pos.column === this.textModel.getLineMaxColumn(pos.lineNumber)) {
 			this.triggerAt(pos);
 		}
 	}
 
 	private triggerAt(position: Position): void {
-		this.completionSession.value = new InlineSuggestionsSession(this.editor, this.widget, this.model, this.contextKeys, position);
+		this.completionSession.clear();
+		this.completionSession.value = new InlineSuggestionsSession(this.editor, this.widget, this.contextKeys, this.suggestWidgetModel, position);
 	}
 
 	// public clearSession(): void {
@@ -149,12 +170,13 @@ export class InlineSuggestionsModelController extends Disposable {
 class InlineSuggestionsSession extends Disposable {
 	private readonly textModel = this.editor.getModel();
 	private readonly ghostTextModel = new ObservableValue<GhostText | undefined>(undefined);
+	private readonly model = this._register(new DelegatingInlineSuggestionsModel(this.editor, this.suggestWidgetModel));
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
 		private readonly widget: GhostTextWidget,
-		private readonly model: DelegatingInlineSuggestionsModel,
 		private readonly contextKeys: InlineSuggestionsContextKeys,
+		private readonly suggestWidgetModel: SuggestWidgetInlineSuggestionsModel,
 		private readonly triggerPosition: Position,
 	) {
 		super();
@@ -168,7 +190,9 @@ class InlineSuggestionsSession extends Disposable {
 		this._register(this.model.onDidChange(() => {
 			this.update();
 		}));
+		// console.log(`CREATING SESSION`);
 		this._register(toDisposable(() => {
+			// console.log(`DISPOSING SESSION`);
 			if (this.widget.model === this.ghostTextModel) {
 				this.widget.setModel(undefined);
 			}
@@ -240,13 +264,13 @@ class DelegatingInlineSuggestionsModel extends Disposable {
 	private readonly onDidChangeEventEmitter = this._register(new Emitter<void>());
 	public readonly onDidChange = this.onDidChangeEventEmitter.event;
 
-	private readonly suggestWidgetModel = this._register(new SuggestWidgetInlineSuggestionsModel(this.editor));
 	private readonly directModel = this._register(new InlineSuggestionsModel(this.editor));
 
 	private currentModel: SuggestWidgetInlineSuggestionsModel | InlineSuggestionsModel;
 
 	constructor(
-		private readonly editor: IActiveCodeEditor
+		private readonly editor: IActiveCodeEditor,
+		private readonly suggestWidgetModel: SuggestWidgetInlineSuggestionsModel
 	) {
 		super();
 
