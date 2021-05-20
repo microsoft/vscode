@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+ BaseSeverity  'vs/base/common/severity';
+ { createDecorator }  'vs/platform/instantiation/common/instantiation';
+ { IAction }  'vs/base/common/actions';
+ { Event }  'vs/base/common/event';
+ { IDisposable }  'vs/base/common/lifecycle';
 
-export import Severity = BaseSeverity;
+  Severity = BaseSeverity;
 
-export const INotificationService = createDecorator<INotificationService>('notificationService');
+ const INotificationService = createDecorator<INotificationService>('notificationService');
 
-export type NotificationMessage = string | Error;
+ type NotificationMessage = string | Error;
 
-export interface INotificationProperties {
+ interface INotificationProperties {
 
 	/**
 	 * Sticky notifications are not automatically removed after a certain timeout. By
 	 * default, notifications with primary actions and severity error are always sticky.
 	 */
-	readonly sticky?: boolean;
+	 sticky?: boolean;
 
 	/**
 	 * Silent notifications are not shown to the user unless the notification center
 	 * is opened. The status bar will still indicate all number of notifications to
 	 * catch some attention.
 	 */
-	readonly silent?: boolean;
+	 silent?: boolean;
 
 	/**
 	 * Adds an action to never show the notification again. The choice will be persisted
 	 * such as future requests will not cause the notification to show again.
 	 */
-	readonly neverShowAgain?: INeverShowAgainOptions;
+	 neverShowAgain?: INeverShowAgainOptions;
 }
 
-export enum NeverShowAgainScope {
+  NeverShowAgainScope {
 
 	/**
 	 * Will never show this notification on the current workspace again.
@@ -50,50 +50,51 @@ export enum NeverShowAgainScope {
 	GLOBAL
 }
 
-export interface INeverShowAgainOptions {
+  INeverShowAgainOptions {
 
 	/**
 	 * The id is used to persist the selection of not showing the notification again.
 	 */
-	readonly id: string;
+	 id: string;
 
 	/**
 	 * By default the action will show up as primary action. Setting this to true will
 	 * make it a secondary action instead.
 	 */
-	readonly isSecondary?: boolean;
+	 isSecondary?: boolean;
 
 	/**
 	 * Whether to persist the choice in the current workspace or for all workspaces. By
 	 * default it will be persisted for all workspaces (= `NeverShowAgainScope.GLOBAL`).
 	 */
-	readonly scope?: NeverShowAgainScope;
+	 scope?: NeverShowAgainScope;
 }
 
-export interface INotification extends INotificationProperties {
+  INotification extends INotificationProperties {
 
 	/**
 	 * The id of the notification. If provided, will be used to compare
 	 * notifications with others to decide whether a notification is
 	 * duplicate or not.
 	 */
-	readonly id?: string;
+	 id?: string;
 
 	/**
 	 * The severity of the notification. Either `Info`, `Warning` or `Error`.
 	 */
-	readonly severity: Severity;
+	
+         severity: Severity;
 
 	/**
 	 * The message of the notification. This can either be a `string` or `Error`. Messages
 	 * can optionally include links in the format: `[text](link)`
 	 */
-	readonly message: NotificationMessage;
+	 message: NotificationMessage;
 
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	readonly source?: string | { label: string; id: string; };
+	 source?: string | { label: string; id: string; };
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as
@@ -113,10 +114,10 @@ export interface INotification extends INotificationProperties {
 	 * The initial set of progress properties for the notification. To update progress
 	 * later on, access the `INotificationHandle.progress` property.
 	 */
-	readonly progress?: INotificationProgressProperties;
+        progress?: INotificationProgressProperties;
 }
 
-export interface INotificationActions {
+        INotificationActions {
 
 	/**
 	 * Primary actions show up as buttons as part of the message and will close
@@ -124,142 +125,142 @@ export interface INotificationActions {
 	 *
 	 * Pass `ActionWithMenuAction` for an action that has additional menu actions.
 	 */
-	readonly primary?: readonly IAction[];
+         primary?: readonly IAction[];
 
 	/**
 	 * Secondary actions are meant to provide additional configuration or context
 	 * for the notification and will show up less prominent. A notification does not
 	 * close automatically when invoking a secondary action.
 	 */
-	readonly secondary?: readonly IAction[];
+	 secondary?: readonly IAction[];
 }
 
-export interface INotificationProgressProperties {
+        INotificationProgressProperties {
 
 	/**
 	 * Causes the progress bar to spin infinitley.
 	 */
-	readonly infinite?: boolean;
+        infinite?: boolean;
 
 	/**
 	 * Indicate the total amount of work.
 	 */
-	readonly total?: number;
+        total?: number;
 
 	/**
 	 * Indicate that a specific chunk of work is done.
 	 */
-	readonly worked?: number;
+        worked?: number;
 }
 
-export interface INotificationProgress {
+        INotificationProgress {
 
 	/**
 	 * Causes the progress bar to spin infinitley.
 	 */
-	infinite(): void;
+	infinite(): ;
 
 	/**
 	 * Indicate the total amount of work.
 	 */
-	total(value: number): void;
+	total(value: number): ;
 
 	/**
 	 * Indicate that a specific chunk of work is done.
 	 */
-	worked(value: number): void;
+	worked(value: number): ;
 
 	/**
 	 * Indicate that the long running operation is done.
 	 */
-	done(): void;
+	done(): ;
 }
 
-export interface INotificationHandle {
+  INotificationHandle {
 
 	/**
 	 * Will be fired once the notification is closed.
 	 */
-	readonly onDidClose: Event<void>;
+	 onDidClose: Event<void>;
 
 	/**
 	 * Will be fired whenever the visibility of the notification changes.
 	 * A notification can either be visible as toast or inside the notification
 	 * center if it is visible.
 	 */
-	readonly onDidChangeVisibility: Event<boolean>;
+	 onDidChangeVisibility: Event<boolean>;
 
 	/**
 	 * Allows to indicate progress on the notification even after the
 	 * notification is already visible.
 	 */
-	readonly progress: INotificationProgress;
+	 progress: INotificationProgress;
 
 	/**
 	 * Allows to update the severity of the notification.
 	 */
-	updateSeverity(severity: Severity): void;
+	updateSeverity(severity: Severity): ;
 
 	/**
 	 * Allows to update the message of the notification even after the
 	 * notification is already visible.
 	 */
-	updateMessage(message: NotificationMessage): void;
+	updateMessage(message: NotificationMessage): ;
 
 	/**
 	 * Allows to update the actions of the notification even after the
 	 * notification is already visible.
 	 */
-	updateActions(actions?: INotificationActions): void;
+	updateActions(actions?: INotificationActions): ;
 
 	/**
 	 * Hide the notification and remove it from the notification center.
 	 */
-	close(): void;
+	close(): ;
 }
 
-interface IBasePromptChoice {
+         IBasePromptChoice {
 
 	/**
 	 * Label to show for the choice to the user.
 	 */
-	readonly label: string;
+	 label: string;
 
 	/**
 	 * Whether to keep the notification open after the choice was selected
 	 * by the user. By default, will close the notification upon click.
 	 */
-	readonly keepOpen?: boolean;
+	 keepOpen?: boolean;
 
 	/**
 	 * Triggered when the user selects the choice.
 	 */
-	run: () => void;
+	run: () => ;
 }
 
-export interface IPromptChoice extends IBasePromptChoice {
+        IPromptChoice extends IBasePromptChoice {
 
 	/**
 	 * Primary choices show up as buttons in the notification below the message.
 	 * Secondary choices show up under the gear icon in the header of the notification.
 	 */
-	readonly isSecondary?: boolean;
+        isSecondary?: boolean;
 }
 
-export interface IPromptChoiceWithMenu extends IPromptChoice {
+        IPromptChoiceWithMenu extends IPromptChoice {
 
 	/**
 	 * Additional choices those will be shown in the dropdown menu for this choice.
 	 */
-	readonly menu: IBasePromptChoice[];
+         menu: IBasePromptChoice[];
 
 	/**
 	 * Menu is not supported on secondary choices
 	 */
-	readonly isSecondary: false | undefined;
+         isSecondary: false | undefined;
 }
 
-export interface IPromptOptions extends INotificationProperties {
+         IPromptOptions extends INotificationProperties {
 
 	/**
 	 * Will be called if the user closed the notification without picking
@@ -268,22 +269,22 @@ export interface IPromptOptions extends INotificationProperties {
 	onCancel?: () => void;
 }
 
-export interface IStatusMessageOptions {
+        IStatusMessageOptions {
 
 	/**
 	 * An optional timeout after which the status message should show. By default
 	 * the status message will show immediately.
 	 */
-	readonly showAfter?: number;
+	 showAfter?: number;
 
 	/**
 	 * An optional timeout after which the status message is to be hidden. By default
 	 * the status message will not hide until another status message is displayed.
 	 */
-	readonly hideAfter?: number;
+	 hideAfter?: number;
 }
 
-export enum NotificationsFilter {
+         NotificationsFilter {
 
 	/**
 	 * No filter is enabled.
@@ -309,17 +310,17 @@ export enum NotificationsFilter {
  */
 export interface INotificationService {
 
-	readonly _serviceBrand: undefined;
+         _serviceBrand: undefined;
 
 	/**
 	 * Emitted when a new notification is added.
 	 */
-	readonly onDidAddNotification: Event<INotification>;
+	 onDidAddNotification: Event<INotification>;
 
 	/**
 	 * Emitted when a notification is removed.
 	 */
-	readonly onDidRemoveNotification: Event<INotification>;
+	 onDidRemoveNotification: Event<INotification>;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
@@ -382,12 +383,12 @@ export interface INotificationService {
 	setFilter(filter: NotificationsFilter): void;
 }
 
-export class NoOpNotification implements INotificationHandle {
+        NoOpNotification implements INotificationHandle {
 
-	readonly progress = new NoOpProgress();
+        progress = new NoOpProgress();
 
-	readonly onDidClose = Event.None;
-	readonly onDidChangeVisibility = Event.None;
+        onDidClose = Event.None;
+        onDidChangeVisibility = Event.None;
 
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: NotificationMessage): void { }
@@ -396,7 +397,7 @@ export class NoOpNotification implements INotificationHandle {
 	close(): void { }
 }
 
-export class NoOpProgress implements INotificationProgress {
+        NoOpProgress implements INotificationProgress {
 	infinite(): void { }
 	done(): void { }
 	total(value: number): void { }
