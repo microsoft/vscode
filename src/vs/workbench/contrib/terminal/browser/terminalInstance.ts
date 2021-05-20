@@ -186,7 +186,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
-	get title(): string { return this._getTitle(); }
+	get title(): string { return this._title; }
 	get icon(): ThemeIcon | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
 
@@ -344,13 +344,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 		return undefined;
-	}
-
-	private _getTitle(): string {
-		if (this.shellLaunchConfig.attachPersistentProcess?.title) {
-			return this.shellLaunchConfig.attachPersistentProcess.title;
-		}
-		return this._title;
 	}
 
 	addDisposable(disposable: IDisposable): void {
