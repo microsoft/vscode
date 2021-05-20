@@ -172,8 +172,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return workspaceUris;
 	}
 
-	private async updateWorkspaceTrust(): Promise<void> {
-		const trusted = this.calculateWorkspaceTrust();
+	private async updateWorkspaceTrust(trusted?: boolean): Promise<void> {
+		if (trusted === undefined) {
+			trusted = this.calculateWorkspaceTrust();
+		}
+
 		if (this.isWorkpaceTrusted() === trusted) { return; }
 
 		// Update workspace trust
@@ -299,9 +302,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this._trustState.isTrusted = trusted;
-			await this.updateWorkspaceTrust();
-
+			await this.updateWorkspaceTrust(trusted);
 			return;
 		}
 
