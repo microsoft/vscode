@@ -1227,6 +1227,9 @@ declare module 'vscode' {
 		with(change: { start?: number, end?: number }): NotebookRange;
 	}
 
+	// todo@API document which mime types are supported out of the box and
+	// which are considered secure
+
 	// code specific mime types
 	// application/x.notebook.error-traceback
 	// application/x.notebook.stdout
@@ -1234,23 +1237,48 @@ declare module 'vscode' {
 	// application/x.notebook.stream
 	export class NotebookCellOutputItem {
 
-		// todo@API
-		// add factory functions for common mime types
-		// static textplain(value:string): NotebookCellOutputItem;
-		// static errortrace(value:any): NotebookCellOutputItem;
+		static error(err: Error): NotebookCellOutputItem;
+
+		static stdout(value: string): NotebookCellOutputItem;
+
+		static stderr(value: string): NotebookCellOutputItem;
 
 		/**
-		 * Creates `application/x.notebook.error`
+		 * Factory function to create a `NotebookCellOutputItem` from
+		 * a JSON object.
 		 *
-		 * @param err An error for which an output item is wanted
+		 * *Note* that this function is not expecting "stringified JSON" but
+		 * an object that can be stringified. This function will throw an error
+		 * when the passed value cannot be JSON-stringified.
+		 *
+		 * @param value A JSON-stringifyable value.
+		 * @param mime Optional MIME type, defaults to `application/json`
 		 */
-		static error(err: Error): NotebookCellOutputItem;
+		static json(value: any, mime?: string): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` from a string.
+		 *
+		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
+		 *
+		 * @param value A string/
+		 * @param mime Optional MIME type, defaults to `text/plain`.
+		 */
+		static text(value: string, mime?: string): NotebookCellOutputItem;
+
+		/**
+		 *
+		 * @param value
+		 * @param mime Optional MIME type, defaults to `application/octet-stream`.
+		 */
+		//todo@API bytes, raw, buffer?
+		static bytes(value: Uint8Array, mime?: string): NotebookCellOutputItem;
 
 		mime: string;
 
 		//todo@API string or Unit8Array?
 		// value: string | Uint8Array | unknown;
-		value: unknown;
+		value: Uint8Array | unknown;
 
 		metadata?: { [key: string]: any };
 
