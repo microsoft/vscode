@@ -17,7 +17,7 @@ import * as errors from 'vs/base/common/errors';
 import { GhostText, GhostTextWidget, ObservableValue } from 'vs/editor/contrib/inlineSuggestions/ghostTextWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { splitLines } from 'vs/base/common/strings';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -25,14 +25,6 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-
-/*
-TODO
-
-GhostTextProviderRegistry.onDidChange(() => {
-	this.trigger();
-});
-*/
 
 class InlineSuggestionsController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible ', false, nls.localize('inlineSuggestionVisible ', "TODO"));
@@ -311,17 +303,29 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 
 		const suggestController = SuggestController.get(this.editor);
 		if (suggestController) {
-			// TODO: This is forcing the instantiation of the SuggestWidget
-			this._register(suggestController.widget.value.onDidShow(() => {
-				this.isSuggestWidgetVisible = true;
-				this.updateFromSuggestion();
-			}));
-			this._register(suggestController.widget.value.onDidHide(() => {
-				this.isSuggestWidgetVisible = false;
-				this.updateFromSuggestion();
-			}));
-			this._register(suggestController.widget.value.onDidFocus(() => {
-				this.updateFromSuggestion();
+
+			let isBoundToSuggestWidget = false;
+			const bindToSuggestWidget = () => {
+				if (isBoundToSuggestWidget) {
+					return;
+				}
+				isBoundToSuggestWidget = true;
+
+				this._register(suggestController.widget.value.onDidShow(() => {
+					this.isSuggestWidgetVisible = true;
+					this.updateFromSuggestion();
+				}));
+				this._register(suggestController.widget.value.onDidHide(() => {
+					this.isSuggestWidgetVisible = false;
+					this.updateFromSuggestion();
+				}));
+				this._register(suggestController.widget.value.onDidFocus(() => {
+					this.updateFromSuggestion();
+				}));
+			};
+
+			this._register(Event.once(suggestController.model.onDidTrigger)(e => {
+				bindToSuggestWidget();
 			}));
 		}
 		this.updateFromSuggestion();
@@ -556,7 +560,7 @@ async function provideInlineSuggestions(
 	token: CancellationToken = CancellationToken.None
 ): Promise<NormalizedInlineSuggestions | undefined> {
 
-	console.log(`provideInlineSuggestions`);
+	console.log(`provideInlineSuggestions at ${position}`);
 
 	const defaultReplaceRange = getDefaultRange(position, model);
 
