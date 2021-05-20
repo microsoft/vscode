@@ -94,7 +94,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onInstanceIconChanged(() => this.render());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
 		this._terminalService.onDidChangeConnectionState(() => this.render());
-		_themeService.onDidColorThemeChange(() => this.render());
+		this._themeService.onDidColorThemeChange(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
