@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItemInsertTextRule, InlineSuggestion, InlineSuggestions, InlineSuggestionsProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
@@ -77,6 +77,12 @@ class InlineSuggestionsController extends Disposable {
 	public commit(): void {
 		if (this.modelController.value) {
 			this.modelController.value.commit();
+		}
+	}
+
+	public hide(): void {
+		if (this.modelController.value) {
+			this.modelController.value.hide();
 		}
 	}
 }
@@ -150,10 +156,6 @@ export class InlineSuggestionsModelController extends Disposable {
 		this.completionSession.value = new InlineSuggestionsSession(this.editor, this.widget, this.contextKeys, this.suggestWidgetModel, position);
 	}
 
-	// public clearSession(): void {
-	// 	this.completionSession.clear();
-	// }
-
 	public trigger(): void {
 		if (!this.completionSession.value) {
 			this.triggerAt(this.editor.getPosition());
@@ -164,6 +166,10 @@ export class InlineSuggestionsModelController extends Disposable {
 		if (this.completionSession.value) {
 			this.completionSession.value.commitCurrentSuggestion();
 		}
+	}
+
+	public hide(): void {
+		this.completionSession.clear();
 	}
 }
 
@@ -585,29 +591,6 @@ export class TriggerGhostTextAction extends EditorAction {
 	}
 }
 
-export class CommitInlineSuggestionAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.commitInlineSuggestion',
-			label: nls.localize('commitInlineSuggestion', "Commit Inline Suggestion"),
-			alias: 'Commit Inline Suggestion',
-			precondition: InlineSuggestionsController.inlineSuggestionVisible,
-			kbOpts: {
-				weight: 100,
-				primary: KeyCode.Tab,
-				secondary: [KeyCode.RightArrow],
-			}
-		});
-	}
-
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = InlineSuggestionsController.get(editor);
-		if (controller) {
-			controller.commit();
-		}
-	}
-}
-
 export interface NormalizedInlineSuggestion extends InlineSuggestion {
 	replaceRange: Range;
 }
@@ -653,6 +636,30 @@ async function provideInlineSuggestions(
 	return { items };
 }
 
+const InlineSuggestionCommand = EditorCommand.bindToContribution<InlineSuggestionsController>(InlineSuggestionsController.get);
+
+registerEditorCommand(new InlineSuggestionCommand({
+	id: 'commitInlineSuggestion',
+	precondition: InlineSuggestionsController.inlineSuggestionVisible,
+	kbOpts: {
+		weight: 100,
+		primary: KeyCode.Tab,
+	},
+	handler(x) {
+		x.commit();
+	}
+}));
+registerEditorCommand(new InlineSuggestionCommand({
+	id: 'hideInlineSuggestion',
+	precondition: InlineSuggestionsController.inlineSuggestionVisible,
+	kbOpts: {
+		weight: 100,
+		primary: KeyCode.Escape,
+	},
+	handler(x) {
+		x.hide();
+	}
+}));
+
 registerEditorContribution(InlineSuggestionsController.ID, InlineSuggestionsController);
 registerEditorAction(TriggerGhostTextAction);
-registerEditorAction(CommitInlineSuggestionAction);
