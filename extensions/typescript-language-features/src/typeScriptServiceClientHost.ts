@@ -19,7 +19,7 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import VersionStatus from './tsServer/versionStatus';
-import TypeScriptServiceClient from './typescriptServiceClient';
+import TypeScriptServiceClient, { LogLevelMonitor } from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './commands/commandManager';
 import { Disposable } from './utils/dispose';
@@ -147,6 +147,9 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
+
+		// TODO: not sure if this is the right place to register this.
+		this._register(new LogLevelMonitor(context));
 	}
 
 	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {
