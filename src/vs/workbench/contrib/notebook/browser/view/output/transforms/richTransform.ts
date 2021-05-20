@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { dirname } from 'vs/base/common/resources';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -25,8 +25,14 @@ import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/vi
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-function getStringValue(data: unknown): string {
-	return isArray(data) ? data.join('') : String(data);
+function getStringValue(item: IOutputItemDto): string {
+	if (Array.isArray(item.valueBytes)) {
+		// todo@jrieken NOT proper, should be VSBuffer
+		return new TextDecoder().decode(new Uint8Array(item.valueBytes));
+	} else {
+		// "old" world
+		return Array.isArray(item.value) ? item.value.join('') : String(item.value);
+	}
 }
 
 class JSONRendererContrib extends Disposable implements IOutputRendererContribution {
@@ -47,8 +53,16 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const str = items.map(item => JSON.stringify(item.value, null, '\t')).join('');
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement): IRenderOutput {
+		const str = items.map(item => {
+			if (isArray(item.valueBytes)) {
+				return getStringValue(item);
+			} else {
+				return JSON.stringify(item.value, null, '\t');
+			}
+		}).join('');
+
+		// todo@jrieken LEAKING https://github.com/microsoft/vscode/issues/123667
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -99,8 +113,7 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		let scriptVal = '';
 		items.forEach(item => {
-			const data = item.value;
-			const str = isArray(data) ? data.join('') : data;
+			const str = getStringValue(item);
 			scriptVal += `<script type="application/javascript">${str}</script>`;
 
 		});
@@ -121,7 +134,7 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		return ['text/x-javascript'];
 	}
 
-	private readonly _cellDisposables = new Map<number, DisposableStore>();
+	// private readonly _cellDisposables = new Map<number, DisposableStore>();
 
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
@@ -133,19 +146,20 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	override dispose(): void {
-		dispose(this._cellDisposables.values());
-		this._cellDisposables.clear();
+		// dispose(this._cellDisposables.values());
+		// this._cellDisposables.clear();
 		super.dispose();
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 
-		let cellDisposables = this._cellDisposables.get(output.cellViewModel.handle);
-		cellDisposables?.dispose();
-		cellDisposables = new DisposableStore();
-		this._cellDisposables.set(output.cellViewModel.handle, cellDisposables);
+		// let cellDisposables = this._cellDisposables.get(output.cellViewModel.handle);
+		// cellDisposables?.dispose(); // still LEAKING, we need the IRenderOutput to be disposable so that the caller can issue the cleanup
+		// cellDisposables = new DisposableStore();
+		// this._cellDisposables.set(output.cellViewModel.handle, cellDisposables);
+		// todo@jrieken LEAKING https://github.com/microsoft/vscode/issues/123667
 
-		const str = items.map(item => getStringValue(item.value)).join('');
+		const str = items.map(getStringValue).join('');
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
 			dimension: {
@@ -170,8 +184,8 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 			width
 		});
 
-		cellDisposables.add(editor);
-		cellDisposables.add(textModel);
+		this._register(editor);
+		this._register(textModel);
 
 		container.style.height = `${height + 8}px`;
 
@@ -202,7 +216,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 
 		items.forEach(item => {
-			const text = getStringValue(item.value);
+			const text = getStringValue(item);
 			const contentNode = DOM.$('span.output-stream');
 			truncatedArrayOfString(notebookUri!, output.cellViewModel, contentNode, [text], linkDetector, this.openerService, this.textFileService, this.themeService);
 			container.appendChild(contentNode);
@@ -228,6 +242,7 @@ class StderrRendererContrib extends StreamRendererContrib {
 	}
 }
 
+/** @deprecated */
 class ErrorRendererContrib extends Disposable implements IOutputRendererContribution {
 	getType() {
 		return RenderOutputType.Mainframe;
@@ -303,15 +318,9 @@ class JSErrorRendererContrib implements IOutputRendererContribution {
 		const linkDetector = this._instantiationService.createInstance(LinkDetector);
 
 		for (let item of items) {
-
-			if (typeof item.value !== 'string') {
-				this._logService.warn('INVALID output item (not a string)', item.value);
-				continue;
-			}
-
 			let err: Error;
 			try {
-				err = <Error>JSON.parse(item.value);
+				err = <Error>JSON.parse(getStringValue(item));
 			} catch (e) {
 				this._logService.warn('INVALID output item (failed to parse)', e);
 				continue;
@@ -358,7 +367,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 
-		const str = items.map(item => getStringValue(item.value));
+		const str = items.map(getStringValue);
 		const contentNode = DOM.$('.output-plaintext');
 		truncatedArrayOfString(notebookUri!, output.cellViewModel, contentNode, str, linkDetector, this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
@@ -383,9 +392,7 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const data = items.map(item => getStringValue(item.value)).join('');
-
-		const str = (isArray(data) ? data.join('') : data) as string;
+		const str = items.map(getStringValue).join('');
 		return {
 			type: RenderOutputType.Html,
 			source: output,
@@ -410,7 +417,7 @@ class SVGRendererContrib extends Disposable implements IOutputRendererContributi
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const str = items.map(item => getStringValue(item.value)).join('');
+		const str = items.map(getStringValue).join('');
 		return {
 			type: RenderOutputType.Html,
 			source: output,
@@ -437,8 +444,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		items.forEach(item => {
-			const data = item.value;
-			const str = (isArray(data) ? data.join('') : data) as string;
+			const str = getStringValue(item);
 			const mdOutput = document.createElement('div');
 			const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
 			mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }, undefined, { gfm: true }).element);
@@ -449,13 +455,13 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 	}
 }
 
-class PNGRendererContrib extends Disposable implements IOutputRendererContribution {
+class ImgRendererContrib extends Disposable implements IOutputRendererContribution {
 	getType() {
 		return RenderOutputType.Mainframe;
 	}
 
 	getMimetypes() {
-		return ['image/png'];
+		return ['image/png', 'image/jpeg'];
 	}
 
 	constructor(
@@ -467,43 +473,29 @@ class PNGRendererContrib extends Disposable implements IOutputRendererContributi
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
 		items.forEach(item => {
 			const image = document.createElement('img');
-			const imagedata = item.value;
-			image.src = `data:image/png;base64,${imagedata}`;
+
+			let src: string;
+
+			if (Array.isArray(item.valueBytes)) {
+				const bytes = new Uint8Array(item.valueBytes);
+				const blob = new Blob([bytes], { type: item.mime });
+				src = URL.createObjectURL(blob);
+
+				// todo@jrieken
+				// we need to release the object URL again
+				// https://github.com/microsoft/vscode/issues/123667
+			} else {
+				// OLD
+				const imagedata = item.value;
+				src = `data:${item.mime};base64,${imagedata}`;
+			}
+
+			image.src = src;
 			const display = document.createElement('div');
 			display.classList.add('display');
 			display.appendChild(image);
 			container.appendChild(display);
 		});
-		return { type: RenderOutputType.Mainframe };
-	}
-}
-
-class JPEGRendererContrib extends Disposable implements IOutputRendererContribution {
-	getType() {
-		return RenderOutputType.Mainframe;
-	}
-
-	getMimetypes() {
-		return ['image/jpeg'];
-	}
-
-	constructor(
-		public notebookEditor: ICommonNotebookEditor,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-		items.forEach(item => {
-			const image = document.createElement('img');
-			const imagedata = item.value;
-			image.src = `data:image/jpeg;base64,${imagedata}`;
-			const display = document.createElement('div');
-			display.classList.add('display');
-			display.appendChild(image);
-			container.appendChild(display);
-		});
-
 		return { type: RenderOutputType.Mainframe };
 	}
 }
@@ -513,8 +505,7 @@ NotebookRegistry.registerOutputTransform('javascript', JavaScriptRendererContrib
 NotebookRegistry.registerOutputTransform('html', HTMLRendererContrib);
 NotebookRegistry.registerOutputTransform('svg', SVGRendererContrib);
 NotebookRegistry.registerOutputTransform('markdown', MdRendererContrib);
-NotebookRegistry.registerOutputTransform('png', PNGRendererContrib);
-NotebookRegistry.registerOutputTransform('jpeg', JPEGRendererContrib);
+NotebookRegistry.registerOutputTransform('img', ImgRendererContrib);
 NotebookRegistry.registerOutputTransform('plain', PlainTextRendererContrib);
 NotebookRegistry.registerOutputTransform('code', CodeRendererContrib);
 NotebookRegistry.registerOutputTransform('error-trace', ErrorRendererContrib);

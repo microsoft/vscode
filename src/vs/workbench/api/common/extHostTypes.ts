@@ -3088,20 +3088,45 @@ export class NotebookCellOutputItem {
 	}
 
 	static error(err: Error): NotebookCellOutputItem {
-		return new NotebookCellOutputItem(
-			'application/x.notebook.error',
-			JSON.stringify({ name: err.name, message: err.message, stack: err.stack })
-		);
+		const obj = {
+			name: err.name,
+			message: err.message,
+			stack: err.stack
+		};
+		return NotebookCellOutputItem.json(obj, 'application/x.notebook.error');
+	}
+
+	static stdout(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/x.notebook.stdout');
+	}
+
+	static stderr(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/x.notebook.stderr');
+	}
+
+	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return NotebookCellOutputItem.text(rawStr, mime);
+	}
+
+	static text(value: string, mime: string = 'text/plain'): NotebookCellOutputItem {
+		const bytes = new TextEncoder().encode(String(value));
+		return new NotebookCellOutputItem(mime, bytes);
+	}
+
+	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(mime, value);
 	}
 
 	constructor(
 		public mime: string,
-		public value: unknown, // JSON'able
+		public value: Uint8Array | unknown, // JSON'able
 		public metadata?: Record<string, any>
 	) {
 		if (isFalsyOrWhitespace(this.mime)) {
 			throw new Error('INVALID mime type, must not be empty or falsy');
 		}
+		// todo@joh stringify and check metadata and throw when not JSONable
 	}
 }
 
