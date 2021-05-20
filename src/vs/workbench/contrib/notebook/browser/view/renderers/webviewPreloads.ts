@@ -124,19 +124,9 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 	interface RendererContext {
 		getState<T>(): T | undefined;
 		setState<T>(newState: T): void;
-
 		getRenderer(id: string): any | undefined;
-	}
-
-	function createRendererContext(rendererId: string): RendererContext {
-		return {
-			setState: newState => vscode.setState({ ...vscode.getState(), [rendererId]: newState }),
-			getState: <T>() => {
-				const state = vscode.getState();
-				return typeof state === 'object' && state ? state[rendererId] as T : undefined;
-			},
-			getRenderer: (id: string) => renderers.getRenderer(id),
-		};
+		postMessage?(message: unknown): void;
+		onDidReceiveMessage?: Event<unknown>;
 	}
 
 	interface ScriptModule {
@@ -782,6 +772,9 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
+			case 'customRendererMessage':
+				renderers.getRenderer(event.data.rendererId)?.receiveMessage(event.data.message);
+				break;
 			case 'notebookStyles':
 				const documentStyle = document.documentElement.style;
 
@@ -813,6 +806,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 			private readonly loadExtension: (id: string) => Promise<void>,
 		) { }
 
+		private _onMessageEvent = createEmitter();
 		private _loadPromise: Promise<RendererApi> | undefined;
 		private _api: RendererApi | undefined;
 
@@ -826,6 +820,29 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 			return this._loadPromise;
 		}
 
+		public receiveMessage(message: unknown) {
+			this._onMessageEvent.fire(message);
+		}
+
+		private createRendererContext(): RendererContext {
+			const { id, messaging } = this.data;
+			const context: RendererContext = {
+				setState: newState => vscode.setState({ ...vscode.getState(), [id]: newState }),
+				getState: <T>() => {
+					const state = vscode.getState();
+					return typeof state === 'object' && state ? state[id] as T : undefined;
+				},
+				getRenderer: (id: string) => renderers.getRenderer(id)?.api,
+			};
+
+			if (messaging) {
+				context.onDidReceiveMessage = this._onMessageEvent.event;
+				context.postMessage = message => postNotebookMessage('customRendererMessage', { rendererId: id, message });
+			}
+
+			return context;
+		}
+
 		/** Inner function cached in the _loadPromise(). */
 		private async _load() {
 			const module = await runRenderScript(this.data.entrypoint, this.data.id);
@@ -833,7 +850,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 				return;
 			}
 
-			const api = module.activate(createRendererContext(this.data.id));
+			const api = module.activate(this.createRendererContext());
 			this._api = api;
 
 			// Squash any errors extends errors. They won't prevent the renderer
@@ -934,8 +951,8 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 			}
 		}
 
-		public getRenderer(id: string): RendererApi | undefined {
-			return this._renderers.get(id)?.api;
+		public getRenderer(id: string) {
+			return this._renderers.get(id);
 		}
 
 		public async load(id: string) {
@@ -1220,6 +1237,7 @@ export interface RendererMetadata {
 	readonly entrypoint: string;
 	readonly mimeTypes: readonly string[];
 	readonly extends: string | undefined;
+	readonly messaging: boolean;
 }
 
 export function preloadsScriptStr(styleValues: PreloadStyles, renderers: readonly RendererMetadata[]) {

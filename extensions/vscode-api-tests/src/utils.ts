@@ -143,3 +143,9 @@ export function testRepeat(n: number, description: string, callback: (this: any)
 		test(`${description} (iteration ${i})`, callback);
 	}
 }
+
+export function suiteRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		suite(`${description} (iteration ${i})`, callback);
+	}
+}

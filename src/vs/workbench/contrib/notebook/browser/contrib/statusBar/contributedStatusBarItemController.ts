@@ -6,7 +6,7 @@
 import { flatten } from 'vs/base/common/arrays';
 import { Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -69,7 +69,7 @@ class CellStatusBarHelper extends Disposable {
 	private _currentItemIds: string[] = [];
 	private _currentItemLists: INotebookCellStatusBarItemList[] = [];
 
-	private readonly _cancelTokenSource: CancellationTokenSource;
+	private _activeToken = new MutableDisposable<CancellationTokenSource>();
 
 	private readonly _updateThrottler = new Throttler();
 
@@ -79,9 +79,6 @@ class CellStatusBarHelper extends Disposable {
 		private readonly _notebookCellStatusBarService: INotebookCellStatusBarService
 	) {
 		super();
-
-		this._cancelTokenSource = new CancellationTokenSource();
-		this._register(toDisposable(() => this._cancelTokenSource.dispose(true)));
 
 		this._updateSoon();
 		this._register(this._cell.model.onDidChangeContent(() => this._updateSoon()));
@@ -102,11 +99,15 @@ class CellStatusBarHelper extends Disposable {
 		const cellIndex = this._notebookViewModel.getCellIndex(this._cell);
 		const docUri = this._notebookViewModel.notebookDocument.uri;
 		const viewType = this._notebookViewModel.notebookDocument.viewType;
-		const itemLists = await this._notebookCellStatusBarService.getStatusBarItemsForCell(docUri, cellIndex, viewType, this._cancelTokenSource.token);
-		if (this._cancelTokenSource.token.isCancellationRequested) {
+		this._activeToken.value = new CancellationTokenSource();
+		const itemLists = await this._notebookCellStatusBarService.getStatusBarItemsForCell(docUri, cellIndex, viewType, this._activeToken.value.token);
+		if (this._activeToken.value.token.isCancellationRequested) {
 			itemLists.forEach(itemList => itemList.dispose && itemList.dispose());
+			this._activeToken.clear();
 			return;
 		}
+
+		this._activeToken.clear();
 
 		const items = flatten(itemLists.map(itemList => itemList.items));
 		const newIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);

@@ -53,31 +53,13 @@ export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, ca
  * Groups the collection into a dictionary based on the provided
  * group function.
  */
-export function groupBy<T>(data: T[], groupFn: (element: T) => string): IStringDictionary<T[]> {
-	const result: IStringDictionary<T[]> = Object.create(null);
+export function groupBy<K extends string | number | symbol, V>(data: V[], groupFn: (element: V) => K): Record<K, V[]> {
+	const result: Record<K, V[]> = Object.create(null);
 	for (const element of data) {
 		const key = groupFn(element);
 		let target = result[key];
 		if (!target) {
 			target = result[key] = [];
-		}
-		target.push(element);
-	}
-	return result;
-}
-
-/**
- * Groups the collection into a dictionary based on the provided
- * group function.
- */
-export function groupByNumber<T>(data: T[], groupFn: (element: T) => number): Map<number, T[]> {
-	const result = new Map<number, T[]>();
-	for (const element of data) {
-		const key = groupFn(element);
-		let target = result.get(key);
-		if (!target) {
-			target = [];
-			result.set(key, target);
 		}
 		target.push(element);
 	}

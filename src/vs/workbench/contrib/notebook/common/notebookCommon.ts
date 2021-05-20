@@ -131,6 +131,8 @@ export const enum NotebookRendererMatch {
 	Never = 3,
 }
 
+export type RendererMessagingSpec = true | false | 'optional';
+
 export interface INotebookRendererInfo {
 	id: string;
 	displayName: string;
@@ -139,6 +141,7 @@ export interface INotebookRendererInfo {
 	preloads: ReadonlyArray<URI>;
 	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
+	messaging: RendererMessagingSpec;
 
 	readonly mimeTypes: readonly string[];
 
@@ -901,6 +904,7 @@ export const ExperimentalFocusIndicator = 'notebook.experimental.cellFocusIndica
 export const ExperimentalInsertToolbarPosition = 'notebook.experimental.insertToolbarPosition';
 export const ExperimentalGlobalToolbar = 'notebook.experimental.globalToolbar';
 export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
+export const ExperimentalConsolidatedOutputButton = 'notebook.experimental.consolidatedOutputButton';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
