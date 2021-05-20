@@ -336,8 +336,8 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 		}
 
 		let { insertText } = item.completion;
-		if (!(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
-			insertText = SnippetParser.escape(insertText);
+		if (item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet) {
+			insertText = new SnippetParser().text(insertText);
 		}
 
 		const info = suggestController.getOverwriteInfo(item, false);
