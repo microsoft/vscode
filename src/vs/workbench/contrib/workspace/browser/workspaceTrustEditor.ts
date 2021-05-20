@@ -744,7 +744,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const set = new Set<string>();
 		for (const ext of filtered) {
 			const isVirtualWorkspace = getVirtualWorkspaceScheme(this.workspaceService.getWorkspace()) !== undefined;
-			if (!isVirtualWorkspace || this.extensionManifestPropertiesService.canSupportVirtualWorkspace(ext.local.manifest)) {
+			if (!isVirtualWorkspace || this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(ext.local.manifest) !== false) {
 				set.add(ext.identifier.id);
 			}
 		}
