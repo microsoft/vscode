@@ -5,6 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { splitName } from 'vs/base/common/labels';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
@@ -352,7 +353,8 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 
@@ -421,10 +423,19 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 			return WorkspaceTrustUriResponse.Open;
 		}
 
-		const result = await this.dialogService.show(Severity.Info, localize('openLooseFileMesssage', "Are you sure you want to open these files?"), [localize('open', "Open"), localize('newWindow', "Open in New Window"), localize('cancel', "Cancel")], {
-			detail: localize('openLooseFileDetails', "You are trying to open untrusted files into the current window which is trusted. How would you like to continue?"),
+		const markdownDetails = [
+			this.workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY ?
+				localize('openLooseFileWorkspaceDetails', "You are trying to open untrusted files in a workspace which is trusted.") :
+				localize('openLooseFileWindowDetails', "You are trying to open untrusted files in a window which is trusted."),
+			localize('openLooseFileLearnMore', "If you don't trust the authors of these files, we recommend to open them in a new Restricted Mode window as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+		];
+
+		const result = await this.dialogService.show(Severity.Info, localize('openLooseFileMesssage', "Do you trust the authors of these files?"), [localize('open', "Open"), localize('newWindow', "Open in New Restricted Mode Window"), localize('cancel', "Cancel")], {
 			cancelId: 2,
-			custom: { icon: Codicon.shield }
+			custom: {
+				icon: Codicon.shield,
+				markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
+			}
 		});
 
 		switch (result.choice) {
