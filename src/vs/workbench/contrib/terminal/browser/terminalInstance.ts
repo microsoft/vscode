@@ -9,7 +9,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -29,7 +29,7 @@ import { ansiColorIdentifiers, ansiColorMap, TERMINAL_BACKGROUND_COLOR, TERMINAL
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -58,6 +58,7 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -132,6 +133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _webglAddon: WebglAddon | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
+	private _dndObserver: IDisposable | undefined;
 
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 
@@ -216,6 +218,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get onMaximumDimensionsChanged(): Event<void> { return this._onMaximumDimensionsChanged.event; }
 	private readonly _onFocus = new Emitter<ITerminalInstance>();
 	get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
+	private readonly _onRequestAddInstanceToGroup = new Emitter<IRequestAddInstanceToGroupEvent>();
+	get onRequestAddInstanceToGroup(): Event<IRequestAddInstanceToGroupEvent> { return this._onRequestAddInstanceToGroup.event; }
 
 	constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -273,6 +277,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcessManager();
 
+
+		this._register(toDisposable(() => this._dndObserver?.dispose()));
+
 		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(async () => {
@@ -306,13 +313,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			initialDataEventsTimeout = undefined;
 			this._initialDataEvents = undefined;
 		}, 10000);
-		this._register({
-			dispose: () => {
-				if (initialDataEventsTimeout) {
-					window.clearTimeout(initialDataEventsTimeout);
-				}
+		this._register(toDisposable(() => {
+			if (initialDataEventsTimeout) {
+				window.clearTimeout(initialDataEventsTimeout);
 			}
-		});
+		}));
 	}
 
 	private _getIcon(): ThemeIcon | URI | { light: URI, dark: URI } | undefined {
@@ -597,6 +602,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container?.removeChild(this._wrapperElement);
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
+		setTimeout(() => this._initDragAndDrop(container));
 	}
 
 	private async _attachToElement(container: HTMLElement): Promise<void> {
@@ -744,30 +750,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
-		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DROP, async (dragEvent: DragEvent) => {
-			if (!dragEvent.dataTransfer) {
-				return;
-			}
-
-			// Check if files were dragged from the tree explorer
-			let path: string | undefined;
-			const resources = dragEvent.dataTransfer.getData(DataTransfers.RESOURCES);
-			if (resources) {
-				path = URI.parse(JSON.parse(resources)[0]).fsPath;
-			} else if (dragEvent.dataTransfer.files?.[0].path /* Electron only */) {
-				// Check if the file was dragged from the filesystem
-				path = URI.file(dragEvent.dataTransfer.files[0].path).fsPath;
-			}
-
-			if (!path) {
-				return;
-			}
-
-			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
-
-			this.sendText(preparedPath, false);
-			this.focus();
-		}));
+		this._initDragAndDrop(container);
 
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
@@ -787,6 +770,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (xterm.getOption('disableStdin')) {
 			this._attachPressAnyKeyToCloseListener(xterm);
 		}
+	}
+
+	private _initDragAndDrop(container: HTMLElement) {
+		this._dndObserver?.dispose();
+		const dndController = new TerminalInstanceDropAndDropController(container);
+		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
+		dndController.onDropFile(async path => {
+			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
+			this.sendText(preparedPath, false);
+			this.focus();
+		});
+		this._dndObserver = new DragAndDropObserver(container.parentElement!, dndController);
 	}
 
 	private async _measureRenderTime(): Promise<void> {
@@ -1831,6 +1826,116 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.shellLaunchConfig.color = result.id;
 			this._onIconChanged.fire(this);
 		}
+	}
+}
+
+class TerminalInstanceDropAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
+	private _dropOverlay?: HTMLElement;
+
+
+	private readonly _onDropFile = new Emitter<string>();
+	get onDropFile(): Event<string> { return this._onDropFile.event; }
+	private readonly _onDropTerminal = new Emitter<IRequestAddInstanceToGroupEvent>();
+	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
+
+	constructor(
+		private readonly _container: HTMLElement
+	) {
+		super();
+		this._register(toDisposable(() => this._clearDropOverlay()));
+	}
+
+	private _clearDropOverlay() {
+		if (this._dropOverlay && this._dropOverlay.parentElement) {
+			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
+		}
+		this._dropOverlay = undefined;
+	}
+
+	onDragEnter(e: DragEvent) {
+		if (!this._dropOverlay) {
+			this._dropOverlay = document.createElement('div');
+			this._dropOverlay.classList.add('terminal-drop-overlay');
+		}
+
+		const types = e.dataTransfer?.types || [];
+
+		// Dragging terminals
+		if (types.includes('terminals')) {
+			const side = this._getDropSide(e);
+			this._dropOverlay.classList.toggle('drop-left', side === 'left');
+			this._dropOverlay.classList.toggle('drop-right', side === 'right');
+		}
+
+		if (!this._dropOverlay.parentElement) {
+			this._container.appendChild(this._dropOverlay);
+		}
+	}
+	onDragLeave(e: DragEvent) {
+		this._clearDropOverlay();
+	}
+
+	onDragEnd(e: DragEvent) {
+		this._clearDropOverlay();
+	}
+
+	onDragOver(e: DragEvent) {
+		if (!e.dataTransfer || !this._dropOverlay) {
+			return;
+		}
+
+		const types = e.dataTransfer?.types || [];
+
+		// Dragging terminals
+		if (types.includes('terminals')) {
+			const side = this._getDropSide(e);
+			this._dropOverlay.classList.toggle('drop-left', side === 'left');
+			this._dropOverlay.classList.toggle('drop-right', side === 'right');
+		}
+
+		this._dropOverlay.style.opacity = '1';
+	}
+
+	async onDrop(e: DragEvent) {
+		this._clearDropOverlay();
+
+		if (!e.dataTransfer) {
+			return;
+		}
+
+		// Check if files were dragged from the tree explorer
+		let path: string | undefined;
+		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+		if (resources) {
+			const uri = URI.parse(JSON.parse(resources)[0]);
+			if (uri.scheme === Schemas.vscodeTerminal) {
+				this._onDropTerminal.fire({
+					uri,
+					side: this._getDropSide(e)
+				});
+				return;
+			} else {
+				path = uri.fsPath;
+			}
+		} else if (e.dataTransfer.files?.[0].path /* Electron only */) {
+			// Check if the file was dragged from the filesystem
+			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+		}
+
+		if (!path) {
+			return;
+		}
+
+		this._onDropFile.fire(path);
+	}
+
+	private _getDropSide(e: DragEvent): 'left' | 'right' {
+		const target = this._container;
+		if (!target) {
+			return 'right';
+		}
+		const rect = target.getBoundingClientRect();
+		return e.clientX - rect.left < rect.width / 2 ? 'left' : 'right';
 	}
 }
 

@@ -33,6 +33,11 @@ export interface IWebviewService {
 	readonly activeWebview: Webview | undefined;
 
 	/**
+	 * All webviews.
+	 */
+	readonly webviews: Iterable<Webview>;
+
+	/**
 	 * Fired when the currently focused webview changes.
 	 */
 	readonly onDidChangeActiveWebview: Event<Webview | undefined>;

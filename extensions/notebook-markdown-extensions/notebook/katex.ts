@@ -6,23 +6,28 @@ import type * as markdownIt from 'markdown-it';
 
 const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
-const link = document.createElement('link');
-link.rel = 'stylesheet';
-link.classList.add('markdown-style');
-link.href = styleHref;
-document.head.append(link);
+export function activate(ctx: {
+	getRenderer: (id: string) => any
+}) {
+	const markdownItRenderer = ctx.getRenderer('markdownItRenderer');
 
-const style = document.createElement('style');
-style.classList.add('markdown-style');
-style.textContent = `
-	.katex-error {
-		color: var(--vscode-editorError-foreground);
-	}
-`;
-document.head.append(style);
+	const link = document.createElement('link');
+	link.rel = 'stylesheet';
+	link.classList.add('markdown-style');
+	link.href = styleHref;
+	document.head.append(link);
 
-const katex = require('@iktakahiro/markdown-it-katex');
+	const style = document.createElement('style');
+	style.classList.add('markdown-style');
+	style.textContent = `
+		.katex-error {
+			color: var(--vscode-editorError-foreground);
+		}
+	`;
+	document.head.append(style);
 
-export function extendMarkdownIt(md: markdownIt.MarkdownIt) {
-	return md.use(katex);
+	const katex = require('@iktakahiro/markdown-it-katex');
+	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
+		return md.use(katex);
+	});
 }

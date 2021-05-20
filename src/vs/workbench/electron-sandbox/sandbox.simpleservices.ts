@@ -12,7 +12,7 @@ import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnectio
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWindows } from 'vs/base/common/platform';
-import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, Webview, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
@@ -270,6 +270,7 @@ class SimpleWebviewService implements IWebviewService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeWebview = undefined;
+	readonly webviews: Webview[] = [];
 	readonly onDidChangeActiveWebview = Event.None;
 
 	createWebviewElement(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewElement { throw new Error('Method not implemented.'); }

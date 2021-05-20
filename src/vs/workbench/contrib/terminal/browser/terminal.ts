@@ -77,6 +77,7 @@ export interface ITerminalGroup {
 	attachToElement(element: HTMLElement): void;
 	addInstance(instance: ITerminalInstance): void;
 	removeInstance(instance: ITerminalInstance): void;
+	moveInstance(instance: ITerminalInstance, index: number): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
@@ -150,6 +151,11 @@ export interface ITerminalService {
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
 	unsplitInstance(instance: ITerminalInstance): void;
 	joinInstances(instances: ITerminalInstance[]): void;
+	/**
+	 * Moves a terminal instance's group to the target instance group's position.
+	 */
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -316,6 +322,11 @@ export interface ITerminalInstance {
 	onMaximumDimensionsChanged: Event<void>;
 
 	onFocus: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when a terminal is dropped on this instance via drag and drop.
+	 */
+	onRequestAddInstanceToGroup: Event<IRequestAddInstanceToGroupEvent>;
 
 	/**
 	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
@@ -593,6 +604,11 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
 	changeColor(): Promise<void>;
+}
+
+export interface IRequestAddInstanceToGroupEvent {
+	uri: URI;
+	side: 'left' | 'right'
 }
 
 export const enum LinuxDistro {

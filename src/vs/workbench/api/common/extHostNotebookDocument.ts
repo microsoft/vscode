@@ -258,7 +258,7 @@ export class ExtHostNotebookDocument {
 		if (this._disposed) {
 			return Promise.reject(new Error('Notebook has been closed'));
 		}
-		return this._proxy.$trySaveDocument(this.uri);
+		return this._proxy.$trySaveNotebook(this.uri);
 	}
 
 	private _spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {
