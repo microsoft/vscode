@@ -25,6 +25,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class InlineSuggestionsController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible ', false, nls.localize('inlineSuggestionVisible ', "TODO"));
@@ -52,11 +53,17 @@ class InlineSuggestionsController extends Disposable {
 		this._register(this.editor.onDidChangeModel(() => {
 			this.updateModelController();
 		}));
+		this._register(this.editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.suggest)) {
+				this.updateModelController();
+			}
+		}));
 		this.updateModelController();
 	}
 
 	private updateModelController(): void {
-		this.modelController.value = this.editor.hasModel()
+		const suggestOptions = this.editor.getOption(EditorOption.suggest);
+		this.modelController.value = this.editor.hasModel() && suggestOptions.showSuggestionPreview
 			? new InlineSuggestionsModelController(this.editor, this.widget, this.contextKeys)
 			: undefined;
 	}
@@ -107,10 +114,6 @@ export class InlineSuggestionsModelController extends Disposable {
 				return;
 			}
 			this.updateSession();
-		}));
-
-		this._register(toDisposable(() => {
-			this.hide();
 		}));
 	}
 
@@ -169,9 +172,13 @@ class InlineSuggestionsSession extends Disposable {
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			this.update();
 		}));
-
 		this._register(this.model.onDidChange(() => {
 			this.update();
+		}));
+		this._register(toDisposable(() => {
+			if (this.widget.model === this.ghostTextModel) {
+				this.widget.setModel(undefined);
+			}
 		}));
 
 		this.update();
