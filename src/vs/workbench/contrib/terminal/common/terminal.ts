@@ -12,6 +12,7 @@ import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/comm
 import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -234,7 +235,7 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon: string | undefined;
+	icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } } | undefined;
 	color: string | undefined;
 }
 

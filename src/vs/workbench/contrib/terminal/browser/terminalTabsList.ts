@@ -32,6 +32,7 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
+import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { Schemas } from 'vs/base/common/network';
 
 const $ = DOM.$;
@@ -60,7 +61,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ITerminalService private _terminalService: ITerminalService,
 		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IDecorationsService _decorationsService: IDecorationsService
+		@IDecorationsService _decorationsService: IDecorationsService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super('TerminalTabsList', container,
 			{
@@ -91,6 +93,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
+		this._terminalService.onDidChangeConnectionState(() => this.render());
+		this._themeService.onDidColorThemeChange(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
@@ -176,7 +180,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IListService private readonly _listService: IListService
+		@IListService private readonly _listService: IListService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 	}
 
@@ -254,32 +259,26 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-
+		const iconId = getIconId(instance);
 		const hasActionbar = !this.shouldHideActionBar();
-		let label: string;
+		let label: string = '';
 		if (!hasText) {
 			const primaryStatus = instance.statusList.primary;
 			// Don't show ignore severity
 			if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
-				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
+				label = `${prefix}$(${primaryStatus.icon?.id || iconId})`;
 			} else {
-				label = `${prefix}$(${instance.icon?.id})`;
+				label = `${prefix}$(${iconId})`;
 			}
 		} else {
 			this.fillActionBar(instance, template);
-			label = `${prefix}$(${instance.icon?.id})`;
+			label = `${prefix}$(${iconId})`;
 			// Only add the title if the icon is set, this prevents the title jumping around for
 			// example when launching with a ShellLaunchConfig.name and no icon
 			if (instance.icon) {
 				label += ` ${instance.title}`;
 			}
 		}
-
-		const codicon = template.element.querySelector<HTMLElement>('.codicon');
-		if (codicon) {
-			codicon.style.color = instance?.icon?.color?.id || '';
-		}
-
 
 		if (!hasActionbar) {
 			template.actionBar.clear();
@@ -296,6 +295,16 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}));
 
+		const extraClasses: string[] = [];
+		const colorClass = getColorClass(instance);
+		if (colorClass) {
+			extraClasses.push(colorClass);
+		}
+		const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+		if (uriClasses) {
+			extraClasses.push(...uriClasses);
+		}
+
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
@@ -309,7 +318,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				markdown: new MarkdownString(title, { supportThemeIcons: true }),
 				markdownNotSupportedFallback: undefined
 			},
-			extraClasses: instance.color ? [`terminal-icon-${instance.color}`] : undefined
+			extraClasses
 		});
 	}
 

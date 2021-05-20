@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const enum TerminalSettingId {
 	ShellLinux = 'terminal.integrated.shell.linux',
@@ -116,7 +117,7 @@ export interface IPtyHostAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon: string | undefined;
+	icon: TerminalIcon | undefined;
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
@@ -174,7 +175,7 @@ export interface IOffProcessTerminalService {
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	updateTitle(id: number, title: string): Promise<void>;
-	updateIcon(id: number, icon: string, color?: string): Promise<void>;
+	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 }
@@ -240,7 +241,7 @@ export interface IPtyService {
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string): Promise<void>;
-	updateIcon(id: number, icon: string, color?: string): Promise<void>;
+	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles?(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
@@ -348,7 +349,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; color?: string };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: TerminalIcon; color?: string };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -388,16 +389,17 @@ export interface IShellLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 
 	/**
-	 * The codicon ID to use for this terminal. If not specified it will use the default fallback
-	 * icon.
+	 * The icon for the terminal, used primarily in the terminal tab.
 	 */
-	icon?: string;
+	icon?: TerminalIcon;
 
 	/**
 	 * The color ID to use for this terminal. If not specified it will use the default fallback
 	 */
 	color?: string;
 }
+
+export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 
 export interface IShellLaunchConfigDto {
 	name?: string;
@@ -549,7 +551,7 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
-	icon?: string;
+	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
@@ -570,7 +572,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: string;
+	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 	env?: ITerminalEnvironment;
 }
 

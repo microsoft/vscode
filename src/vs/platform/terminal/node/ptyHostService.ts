@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, SafeConfigProvider, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, SafeConfigProvider, TerminalSettingId, TerminalIcon } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -170,7 +170,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	updateTitle(id: number, title: string): Promise<void> {
 		return this._proxy.updateTitle(id, title);
 	}
-	updateIcon(id: number, icon: string, color?: string): Promise<void> {
+	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
 		return this._proxy.updateIcon(id, icon, color);
 	}
 	attachToProcess(id: number): Promise<void> {
