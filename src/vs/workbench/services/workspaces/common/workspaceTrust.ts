@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { splitName } from 'vs/base/common/labels';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -389,6 +390,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		const result = await this.dialogService.show(Severity.Info, localize('openLooseFileMesssage', "Are you sure you want to open these files?"), [localize('open', "Open"), localize('newWindow', "Open in New Window"), localize('cancel', "Cancel")], {
 			detail: localize('openLooseFileDetails', "You are trying to open untrusted files into the current window which is trusted. How would you like to continue?"),
 			cancelId: 2,
+			custom: { icon: Codicon.shield }
 		});
 
 		switch (result.choice) {

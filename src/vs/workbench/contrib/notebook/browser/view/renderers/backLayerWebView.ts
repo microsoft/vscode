@@ -132,17 +132,13 @@ export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
 export interface ICellDragStartMessage extends BaseToWebviewMessage {
 	type: 'cell-drag-start';
 	readonly cellId: string;
-	readonly position: {
-		readonly clientY: number;
-	};
+	readonly dragOffsetY: number;
 }
 
 export interface ICellDragMessage extends BaseToWebviewMessage {
 	type: 'cell-drag';
 	readonly cellId: string;
-	readonly position: {
-		readonly clientY: number;
-	};
+	readonly dragOffsetY: number;
 }
 
 export interface ICellDropMessage extends BaseToWebviewMessage {
@@ -150,9 +146,7 @@ export interface ICellDropMessage extends BaseToWebviewMessage {
 	readonly cellId: string;
 	readonly ctrlKey: boolean
 	readonly altKey: boolean;
-	readonly position: {
-		readonly clientY: number;
-	};
+	readonly dragOffsetY: number;
 }
 
 export interface ICellDragEndMessage extends BaseToWebviewMessage {
@@ -794,12 +788,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 	private asWebviewUri(uri: URI, fromExtension: URI | undefined) {
 		const remoteAuthority = fromExtension?.scheme === Schemas.vscodeRemote ? fromExtension.authority : undefined;
-		return asWebviewUri({
-			isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
-			webviewCspSource: this.environmentService.webviewCspSource,
-			webviewResourceRoot: this.environmentService.webviewResourceRoot,
-			remote: { authority: remoteAuthority }
-		}, this.id, uri);
+		return asWebviewUri(this.id, uri, remoteAuthority);
 	}
 
 	postKernelMessage(message: any) {
@@ -1037,8 +1026,8 @@ var requirejs = (function() {
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
 							if (data.shiftKey || (isMacintosh ? data.metaKey : data.ctrlKey)) {
-								// Add to selection
-								this.notebookEditor.toggleNotebookCellSelection(cell);
+								// Modify selection
+								this.notebookEditor.toggleNotebookCellSelection(cell, /* fromPrevious */ data.shiftKey);
 							} else {
 								// Normal click
 								this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
@@ -1098,18 +1087,18 @@ var requirejs = (function() {
 					}
 				case 'cell-drag-start':
 					{
-						this.notebookEditor.markdownCellDragStart(data.cellId, data.position);
+						this.notebookEditor.markdownCellDragStart(data.cellId, data);
 						break;
 					}
 				case 'cell-drag':
 					{
-						this.notebookEditor.markdownCellDrag(data.cellId, data.position);
+						this.notebookEditor.markdownCellDrag(data.cellId, data);
 						break;
 					}
 				case 'cell-drop':
 					{
 						this.notebookEditor.markdownCellDrop(data.cellId, {
-							clientY: data.position.clientY,
+							dragOffsetY: data.dragOffsetY,
 							ctrlKey: data.ctrlKey,
 							altKey: data.altKey,
 						});

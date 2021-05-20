@@ -143,10 +143,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
+	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDrag(cellId: string, position: { clientY: number }): void {
+	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void {
 		// throw new Error('Method not implemented.');
 	}
 	markdownCellDragEnd(cellId: string): void {

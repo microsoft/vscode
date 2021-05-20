@@ -1171,7 +1171,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 					cellId: drag.cellId,
 					ctrlKey: e.ctrlKey,
 					altKey: e.altKey,
-					position: { clientY: e.clientY },
+					dragOffsetY: e.clientY,
 				});
 			});
 		}
@@ -1187,7 +1187,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 
 			postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
 				cellId: cellId,
-				position: { clientY: e.clientY },
+				dragOffsetY: e.clientY,
 			});
 
 			// Continuously send updates while dragging instead of relying on `updateDrag`.
@@ -1199,7 +1199,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 
 				postNotebookMessage<ICellDragMessage>('cell-drag', {
 					cellId: cellId,
-					position: { clientY: this.currentDrag.clientY },
+					dragOffsetY: this.currentDrag.clientY,
 				});
 				requestAnimationFrame(trySendDragUpdate);
 			};

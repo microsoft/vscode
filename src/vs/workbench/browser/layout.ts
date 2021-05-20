@@ -1366,6 +1366,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
 
+	setBannerHidden(hidden: boolean): void {
+		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
+	}
+
 	setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.editor.hidden = hidden;
 
@@ -1806,7 +1810,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					{
 						type: 'leaf',
 						data: { type: Parts.BANNER_PART },
-						size: bannerHeight
+						size: bannerHeight,
+						visible: false
 					},
 					{
 						type: 'branch',
