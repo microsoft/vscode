@@ -221,7 +221,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._register(this.pluginManager.onDidChangePlugins(() => {
 			this.restartTsServer();
 		}));
-
 	}
 
 	public get capabilities() {
@@ -1124,12 +1123,10 @@ export class LogLevelMonitor extends Disposable {
 	}
 
 	private notifyExtendedLogging() {
-
 		const enum Choice {
 			DisableLogging = 0,
 			DoNotShowAgain = 1
 		}
-
 		interface Item extends vscode.MessageItem {
 			readonly choice: Choice;
 		}
@@ -1165,5 +1162,4 @@ export class LogLevelMonitor extends Disposable {
 				return;
 			});
 	}
-
 }
