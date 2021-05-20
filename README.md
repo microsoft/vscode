@@ -1,3 +1,9 @@
+Github.com/l198881/vscode
+
+Sponsors: www.paypal.me/leo.haim.nigri
+
+_______________________________________________
+
 # Visual Studio Code - Open Source
 
 <!-- [![Build Status](https://dev.azure.com/vscode/VSCode/_apis/build/status/VS%20Code?branchName=master)](https://aka.ms/vscode-builds) -->
@@ -55,6 +61,6 @@ These extensions include grammars and snippets for several languages. Extensions
 
 ## License
 
-Copyright (c) Microsoft Corporation. All rights reserved.
+Copyright (c) Microsoft Corporation. All rights reserved. .By: L.H.N (email: leo.haim.nigri@gmail.com) 
 
 Licensed under the [MIT](LICENSE.txt) License.
