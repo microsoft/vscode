@@ -818,14 +818,17 @@ export class GettingStartedPage extends EditorPane {
 			bar.setAttribute('aria-valuemin', '0');
 			bar.setAttribute('aria-valuenow', '' + numDone);
 			bar.setAttribute('aria-valuemax', '' + numTotal);
-			const progress = Math.max((numDone / numTotal) * 100, 3);
+			const progress = (numDone / numTotal) * 100;
 			bar.style.width = `${progress}%`;
 
+
+			(element.parentElement as HTMLElement).classList[numDone === 0 ? 'add' : 'remove']('no-progress');
+
 			if (numTotal === numDone) {
-				bar.title = `All steps complete!`;
+				bar.title = localize('gettingStarted.allStepsComplete', "All {0} steps complete!", numTotal);
 			}
 			else {
-				bar.title = `${numDone} of ${numTotal} steps complete`;
+				bar.title = localize('gettingStarted.someStepsComplete', "{0} of {1} steps complete", numDone, numTotal);
 			}
 		});
 	}

@@ -191,6 +191,14 @@
 	width: 100%;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category.no-progress {
+	padding: 3px 12px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category.no-progress .category-progress {
+	display: none;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories ul {
 	list-style: none;
 	margin: 0;
