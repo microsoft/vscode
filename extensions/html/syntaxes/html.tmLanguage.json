@@ -1078,40 +1078,52 @@
 							"name": "punctuation.definition.tag.end.html"
 						}
 					},
-					"end": "(?i)(</)(\\2)\\s*(>)",
+					"end": "\\s*(>)",
 					"endCaptures": {
 						"0": {
-							"name": "meta.tag.structure.$2.end.html"
+							"name": "meta.tag.structure.svg.end.html"
 						},
 						"1": {
-							"name": "punctuation.definition.tag.begin.html"
-						},
-						"2": {
-							"name": "entity.name.tag.html"
-						},
-						"3": {
 							"name": "punctuation.definition.tag.end.html"
 						}
 					},
 					"name": "meta.element.structure.$2.html",
 					"patterns": [
 						{
-							"begin": "(?<!>)\\G",
-							"end": ">",
+							"begin": "\\G",
+							"end": "(?i)(</)(svg)\\b",
 							"endCaptures": {
 								"0": {
-									"name": "punctuation.definition.tag.end.html"
+									"name": "meta.tag.structure.svg.end.html"
+								},
+								"1": {
+									"name": "punctuation.definition.tag.begin.html"
+								},
+								"2": {
+									"name": "entity.name.tag.html"
 								}
 							},
-							"name": "meta.tag.structure.start.html",
+							"name": "meta.element.structure.svg.html",
 							"patterns": [
 								{
-									"include": "#attribute"
+									"begin": "(?<!>)\\G",
+									"end": ">",
+									"endCaptures": {
+										"0": {
+											"name": "punctuation.definition.tag.end.html"
+										}
+									},
+									"name": "meta.tag.structure.start.html",
+									"patterns": [
+										{
+											"include": "#attribute"
+										}
+									]
+								},
+								{
+									"include": "#tags"
 								}
 							]
-						},
-						{
-							"include": "#tags"
 						}
 					]
 				}
