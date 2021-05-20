@@ -41,6 +41,8 @@ export interface IWorkspaceTrustManagementService {
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	onDidChangeTrustedFolders: Event<void>;
 
+	get acceptsNonWorkspaceFiles(): boolean;
+	set acceptsNonWorkspaceFiles(value: boolean);
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
 	isWorkpaceTrusted(): boolean;
 	canSetParentFolderTrust(): boolean;
