@@ -333,10 +333,15 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			default: ' ()[]{}\',"`─'
 		},
-		[TerminalSettingId.ExperimentalUseTitleEvent]: {
-			description: localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
-			type: 'boolean',
-			default: false
+		[TerminalSettingId.TitleMode]: {
+			description: localize('terminal.integrated.titleMode', "Determines how the terminal's title is set, this shows up in the terminal's tab or dropdown entry."),
+			type: 'string',
+			enum: ['executable', 'sequence'],
+			markdownEnumDescriptions: [
+				localize('titleMode.executable', "The title is set by the _terminal_, the name of the detected foreground process will be used."),
+				localize('titleMode.sequence', "The title is set by the _process_ via an escape sequence, this is useful if your shell dynamically sets the title.")
+			],
+			default: 'executable'
 		},
 		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),

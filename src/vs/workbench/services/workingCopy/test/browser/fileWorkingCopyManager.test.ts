@@ -29,15 +29,10 @@ suite('FileWorkingCopyManager', () => {
 		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>(
 			'testFileWorkingCopyType',
 			new TestFileWorkingCopyModelFactory(),
-			accessor.fileService,
-			accessor.lifecycleService,
-			accessor.labelService,
-			instantiationService,
-			accessor.logService,
-			accessor.workingCopyFileService,
-			accessor.workingCopyBackupService,
-			accessor.uriIdentityService,
-			accessor.fileDialogService
+			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
+			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
+			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService
 		);
 	});
 

@@ -4,27 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { Event } from 'vs/base/common/event';
 import { Promises } from 'vs/base/common/async';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { toLocalResource, joinPath, isEqual, basename, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService, IDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ISaveOptions } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, IFileWorkingCopyResolveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { FileWorkingCopyManager, IFileWorkingCopyManager, IFileWorkingCopyManagerResolveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { isValidBasename } from 'vs/base/common/extpath';
+import { IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
+import { IBaseFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IDisposable {
+export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<F | U, IBaseFileWorkingCopy<F | U>> {
 
 	/**
 	 * Provides access to the manager for titled file working copies.
@@ -52,7 +65,7 @@ export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U ext
 	 * @param resource used as unique identifier of the file working copy in
 	 * case one is already known for this `URI`.
 	 */
-	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<F>>;
+	resolve(resource: URI, options?: IFileWorkingCopyManagerResolveOptions): Promise<IFileWorkingCopy<F>>;
 
 	/**
 	 * Create a new untitled file working copy with optional initial contents.
@@ -101,20 +114,8 @@ export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U ext
 	 * @returns the target working copy that was saved to or `undefined` in case of
 	 * cancellation
 	 */
-	saveAs(source: URI, target: URI, options?: ISaveOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined>;
-	saveAs(source: URI, target: undefined, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined>;
-
-	/**
-	 * Disposes all working copies of the manager and disposes the manager. This
-	 * method is different from `dispose` in that it will unregister any working
-	 * copy from the `IWorkingCopyService`. Since this impact things like backups,
-	 * the method is `async` because it needs to trigger `save` for any dirty
-	 * working copy to preserve the data.
-	 *
-	 * Callers should make sure to e.g. close any editors associated with the
-	 * working copy.
-	 */
-	destroy(): Promise<void>;
+	saveAs(source: URI, target: URI, options?: ISaveOptions): Promise<IFileWorkingCopy<F> | undefined>;
+	saveAs(source: URI, target: undefined, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<F> | undefined>;
 }
 
 export interface IFileWorkingCopySaveAsOptions extends ISaveOptions {
@@ -128,6 +129,8 @@ export interface IFileWorkingCopySaveAsOptions extends ISaveOptions {
 
 export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends Disposable implements IFileWorkingCopyManager2<F, U> {
 
+	readonly onDidCreate: Event<IBaseFileWorkingCopy<F | U>>;
+
 	readonly files: IFileWorkingCopyManager<F>;
 	readonly untitled: IUntitledFileWorkingCopyManager<U>;
 
@@ -136,26 +139,62 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 		private readonly fileModelFactory: IFileWorkingCopyModelFactory<F>,
 		private readonly untitledFileModelFactory: IUntitledFileWorkingCopyModelFactory<U>,
 		@IFileService private readonly fileService: IFileService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILabelService labelService: ILabelService,
+		@ILogService logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
+		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IDialogService private readonly dialogService: IDialogService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ITextFileService textFileService: ITextFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@INotificationService notificationService: INotificationService,
+		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
+		@IEditorService editorService: IEditorService,
+		@IElevatedFileService elevatedFileService: IElevatedFileService,
+		@IPathService private readonly pathService: IPathService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IPathService private readonly pathService: IPathService
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
 		// File manager
-		this.files = this._register(this.instantiationService.createInstance(FileWorkingCopyManager, this.workingCopyTypeId, this.fileModelFactory)) as unknown as IFileWorkingCopyManager<F>;
+		this.files = this._register(new FileWorkingCopyManager(
+			this.workingCopyTypeId,
+			this.fileModelFactory,
+			fileService, lifecycleService, labelService, logService, workingCopyFileService,
+			workingCopyBackupService, uriIdentityService, fileDialogService, textFileService, filesConfigurationService,
+			workingCopyService, notificationService, workingCopyEditorService, editorService, elevatedFileService
+		));
 
 		// Untitled manager
-		this.untitled = this._register(this.instantiationService.createInstance(UntitledFileWorkingCopyManager, this.workingCopyTypeId, this.untitledFileModelFactory, async (workingCopy, options) => {
-			const result = await this.saveAs(workingCopy.resource, undefined, options);
+		this.untitled = this._register(new UntitledFileWorkingCopyManager(
+			this.workingCopyTypeId,
+			this.untitledFileModelFactory,
+			async (workingCopy, options) => {
+				const result = await this.saveAs(workingCopy.resource, undefined, options);
 
-			return result ? true : false;
-		})) as unknown as IUntitledFileWorkingCopyManager<U>;
+				return result ? true : false;
+			},
+			fileService, labelService, logService, workingCopyBackupService, workingCopyService
+		));
+
+		// Events
+		this.onDidCreate = Event.any<IBaseFileWorkingCopy<F | U>>(this.files.onDidCreate, this.untitled.onDidCreate);
 	}
+
+	//#region get / get all
+
+	get workingCopies(): (IUntitledFileWorkingCopy<U> | IFileWorkingCopy<F>)[] {
+		return [...this.files.workingCopies, ...this.untitled.workingCopies];
+	}
+
+	get(resource: URI): IUntitledFileWorkingCopy<U> | IFileWorkingCopy<F> | undefined {
+		return this.files.get(resource) ?? this.untitled.get(resource);
+	}
+
+	//#endregion
 
 	//#region resolve
 
@@ -175,7 +214,7 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 
 	//#region Save
 
-	async saveAs(source: URI, target?: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined> {
+	async saveAs(source: URI, target?: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<F> | undefined> {
 
 		// Get to target resource
 		if (!target) {
@@ -217,7 +256,7 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 		return this.doSaveAs(source, target, options);
 	}
 
-	private async doSave(resource: URI, options?: ISaveOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined> {
+	private async doSave(resource: URI, options?: ISaveOptions): Promise<IFileWorkingCopy<F> | undefined> {
 
 		// Save is only possible with file working copies,
 		// any other have to go via `saveAs` flow.
@@ -232,7 +271,7 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 		return undefined;
 	}
 
-	private async doSaveAs(source: URI, target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<IFileWorkingCopyModel> | undefined> {
+	private async doSaveAs(source: URI, target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<F> | undefined> {
 		let sourceContents: VSBufferReadableStream;
 
 		// If the source is an existing file working copy, we can directly
@@ -278,11 +317,7 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 		return targetFileWorkingCopy;
 	}
 
-	private get(resource: URI): IUntitledFileWorkingCopy<U> | IFileWorkingCopy<F> | undefined {
-		return this.files.get(resource) ?? this.untitled.get(resource);
-	}
-
-	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetFileWorkingCopy: IFileWorkingCopy<IFileWorkingCopyModel> }> {
+	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetFileWorkingCopy: IFileWorkingCopy<F> }> {
 
 		// Prefer an existing file working copy if it is already resolved
 		// for the given target resource

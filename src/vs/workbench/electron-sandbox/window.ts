@@ -661,12 +661,7 @@ export class NativeWindow extends Disposable {
 			return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
 		}
 
-		// For one file, just put it into the current active editor
-		if (resources.length === 1) {
-			return this.editorService.openEditor(resources[0]);
-		}
-
-		// Otherwise open all
+		// Open resource(s)
 		return this.editorService.openEditors(resources);
 	}
 }

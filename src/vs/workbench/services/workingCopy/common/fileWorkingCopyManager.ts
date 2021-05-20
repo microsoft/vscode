@@ -5,7 +5,7 @@
 
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { FileWorkingCopy, FileWorkingCopyState, IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { FileWorkingCopy, FileWorkingCopyState, IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, IFileWorkingCopyResolveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
@@ -14,7 +14,6 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { URI } from 'vs/base/common/uri';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -23,43 +22,45 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 /**
  * The only one that should be dealing with `IFileWorkingCopy` and handle all
  * operations that are working copy related, such as save/revert, backup
  * and resolving.
  */
-export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<T, IFileWorkingCopy<T>> {
-
-	/**
-	 * An event for when a file working copy was created.
-	 */
-	readonly onDidCreate: Event<IFileWorkingCopy<T>>;
+export interface IFileWorkingCopyManager<M extends IFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<M, IFileWorkingCopy<M>> {
 
 	/**
 	 * An event for when a file working copy was resolved.
 	 */
-	readonly onDidResolve: Event<IFileWorkingCopy<T>>;
+	readonly onDidResolve: Event<IFileWorkingCopy<M>>;
 
 	/**
 	 * An event for when a file working copy changed it's dirty state.
 	 */
-	readonly onDidChangeDirty: Event<IFileWorkingCopy<T>>;
+	readonly onDidChangeDirty: Event<IFileWorkingCopy<M>>;
 
 	/**
 	 * An event for when a file working copy failed to save.
 	 */
-	readonly onDidSaveError: Event<IFileWorkingCopy<T>>;
+	readonly onDidSaveError: Event<IFileWorkingCopy<M>>;
 
 	/**
 	 * An event for when a file working copy successfully saved.
 	 */
-	readonly onDidSave: Event<IFileWorkingCopySaveEvent<T>>;
+	readonly onDidSave: Event<IFileWorkingCopySaveEvent<M>>;
 
 	/**
 	 * An event for when a file working copy was reverted.
 	 */
-	readonly onDidRevert: Event<IFileWorkingCopy<T>>;
+	readonly onDidRevert: Event<IFileWorkingCopy<M>>;
 
 	/**
 	 * Allows to resolve a file working copy. If the manager already knows
@@ -78,29 +79,29 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	 * case one is already known for this `URI`.
 	 * @param options
 	 */
-	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>>;
+	resolve(resource: URI, options?: IFileWorkingCopyManagerResolveOptions): Promise<IFileWorkingCopy<M>>;
 
 	/**
 	 * Waits for the file working copy to be ready to be disposed. There may be
 	 * conditions under which the file working copy cannot be disposed, e.g. when
 	 * it is dirty. Once the promise is settled, it is safe to dispose.
 	 */
-	canDispose(workingCopy: IFileWorkingCopy<T>): true | Promise<true>;
+	canDispose(workingCopy: IFileWorkingCopy<M>): true | Promise<true>;
 
 
 	/**
 	 * @deprecated
 	 */
-	saveAs(source: URI, target: URI): Promise<IFileWorkingCopy<T> | undefined>;
-	saveAs(source: URI, target: undefined): Promise<IFileWorkingCopy<T> | undefined>;
+	saveAs(source: URI, target: URI): Promise<IFileWorkingCopy<M> | undefined>;
+	saveAs(source: URI, target: undefined): Promise<IFileWorkingCopy<M> | undefined>;
 }
 
-export interface IFileWorkingCopySaveEvent<T extends IFileWorkingCopyModel> {
+export interface IFileWorkingCopySaveEvent<M extends IFileWorkingCopyModel> {
 
 	/**
 	 * The file working copy that was successfully saved.
 	 */
-	workingCopy: IFileWorkingCopy<T>;
+	workingCopy: IFileWorkingCopy<M>;
 
 	/**
 	 * The reason why the file working copy was saved.
@@ -108,17 +109,7 @@ export interface IFileWorkingCopySaveEvent<T extends IFileWorkingCopyModel> {
 	reason: SaveReason;
 }
 
-export interface IFileWorkingCopyResolveOptions {
-
-	/**
-	 * The contents to use for the file working copy if known.
-	 * If not provided, the contents will be retrieved from the
-	 * underlying resource or backup if present.
-	 *
-	 * If contents are provided, the file working copy will be marked
-	 * as dirty right from the beginning.
-	 */
-	contents?: VSBufferReadableStream;
+export interface IFileWorkingCopyManagerResolveOptions extends IFileWorkingCopyResolveOptions {
 
 	/**
 	 * If the file working copy was already resolved before,
@@ -133,26 +124,23 @@ export interface IFileWorkingCopyResolveOptions {
 	};
 }
 
-export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends BaseFileWorkingCopyManager<T, IFileWorkingCopy<T>> implements IFileWorkingCopyManager<T> {
+export class FileWorkingCopyManager<M extends IFileWorkingCopyModel> extends BaseFileWorkingCopyManager<M, IFileWorkingCopy<M>> implements IFileWorkingCopyManager<M> {
 
 	//#region Events
 
-	private readonly _onDidCreate = this._register(new Emitter<IFileWorkingCopy<T>>());
-	readonly onDidCreate = this._onDidCreate.event;
-
-	private readonly _onDidResolve = this._register(new Emitter<IFileWorkingCopy<T>>());
+	private readonly _onDidResolve = this._register(new Emitter<IFileWorkingCopy<M>>());
 	readonly onDidResolve = this._onDidResolve.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<IFileWorkingCopy<T>>());
+	private readonly _onDidChangeDirty = this._register(new Emitter<IFileWorkingCopy<M>>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onDidSaveError = this._register(new Emitter<IFileWorkingCopy<T>>());
+	private readonly _onDidSaveError = this._register(new Emitter<IFileWorkingCopy<M>>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
-	private readonly _onDidSave = this._register(new Emitter<IFileWorkingCopySaveEvent<T>>());
+	private readonly _onDidSave = this._register(new Emitter<IFileWorkingCopySaveEvent<M>>());
 	readonly onDidSave = this._onDidSave.event;
 
-	private readonly _onDidRevert = this._register(new Emitter<IFileWorkingCopy<T>>());
+	private readonly _onDidRevert = this._register(new Emitter<IFileWorkingCopy<M>>());
 	readonly onDidRevert = this._onDidRevert.event;
 
 	//#endregion
@@ -164,16 +152,22 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 
 	constructor(
 		private readonly workingCopyTypeId: string,
-		private readonly modelFactory: IFileWorkingCopyModelFactory<T>,
+		private readonly modelFactory: IFileWorkingCopyModelFactory<M>,
 		@IFileService fileService: IFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
 		super(fileService, logService, workingCopyBackupService);
 
@@ -195,7 +189,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 	}
 
 	private async onWillShutdown(): Promise<void> {
-		let fileWorkingCopies: IFileWorkingCopy<T>[];
+		let fileWorkingCopies: IFileWorkingCopy<M>[];
 
 		// As long as file working copies are pending to be saved, we prolong the shutdown
 		// until that has happened to ensure we are not shutting down in the middle of
@@ -223,7 +217,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		}
 	}
 
-	private queueWorkingCopyResolve(workingCopy: IFileWorkingCopy<T>): void {
+	private queueWorkingCopyResolve(workingCopy: IFileWorkingCopy<M>): void {
 
 		// Resolves a working copy to update (use a queue to prevent accumulation of
 		// resolve when the resolving actually takes long. At most we only want the
@@ -260,7 +254,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 						}
 
 						// Find all working copies that related to source (can be many if resource is a folder)
-						const sourceWorkingCopies: IFileWorkingCopy<T>[] = [];
+						const sourceWorkingCopies: IFileWorkingCopy<M>[] = [];
 						for (const workingCopy of this.workingCopies) {
 							if (this.uriIdentityService.extUri.isEqualOrParent(workingCopy.resource, source)) {
 								sourceWorkingCopies.push(workingCopy);
@@ -364,7 +358,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 
 	//#region Resolve
 
-	async resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>> {
+	async resolve(resource: URI, options?: IFileWorkingCopyManagerResolveOptions): Promise<IFileWorkingCopy<M>> {
 
 		// Await a pending working copy resolve first before proceeding
 		// to ensure that we never resolve a working copy more than once
@@ -411,13 +405,15 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		else {
 			didCreateWorkingCopy = true;
 
-			workingCopy = this.instantiationService.createInstance(
-				FileWorkingCopy,
+			workingCopy = new FileWorkingCopy(
 				this.workingCopyTypeId,
 				resource,
 				this.labelService.getUriBasenameLabel(resource),
-				this.modelFactory
-			) as unknown as IFileWorkingCopy<T>;
+				this.modelFactory,
+				this.fileService, this.logService, this.textFileService, this.filesConfigurationService,
+				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
+				this.editorService, this.elevatedFileService
+			);
 
 			workingCopyResolve = workingCopy.resolve(options);
 
@@ -432,7 +428,6 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 
 		// Emit some events if we created the working copy
 		if (didCreateWorkingCopy) {
-			this._onDidCreate.fire(workingCopy);
 
 			// If the working copy is dirty right from the beginning,
 			// make sure to emit this as an event
@@ -479,7 +474,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		return undefined;
 	}
 
-	private registerWorkingCopy(workingCopy: IFileWorkingCopy<T>): void {
+	private registerWorkingCopy(workingCopy: IFileWorkingCopy<M>): void {
 
 		// Install working copy listeners
 		const workingCopyListeners = new DisposableStore();
@@ -508,7 +503,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 
 	//#region Lifecycle
 
-	canDispose(workingCopy: IFileWorkingCopy<T>): true | Promise<true> {
+	canDispose(workingCopy: IFileWorkingCopy<M>): true | Promise<true> {
 
 		// Quick return if working copy already disposed or not dirty and not resolving
 		if (
@@ -522,7 +517,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		return this.doCanDispose(workingCopy);
 	}
 
-	private async doCanDispose(workingCopy: IFileWorkingCopy<T>): Promise<true> {
+	private async doCanDispose(workingCopy: IFileWorkingCopy<M>): Promise<true> {
 
 		// If we have a pending working copy resolve, await it first and then try again
 		const pendingResolve = this.joinPendingResolve(workingCopy.resource);
@@ -563,7 +558,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 	/**
 	 * @deprecated TODO@bpasero remove
 	 */
-	async saveAs(source: URI, target?: URI): Promise<IFileWorkingCopy<T> | undefined> {
+	async saveAs(source: URI, target?: URI): Promise<IFileWorkingCopy<M> | undefined> {
 
 		// If not provided, ask user for target
 		if (!target) {
@@ -578,7 +573,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		return this.doSaveAs(source, target);
 	}
 
-	private async doSaveAs(source: URI, target: URI): Promise<IFileWorkingCopy<T> | undefined> {
+	private async doSaveAs(source: URI, target: URI): Promise<IFileWorkingCopy<M> | undefined> {
 		let sourceContents: VSBufferReadableStream;
 
 		// If the source is an existing file working copy, we can directly
@@ -598,7 +593,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Bas
 		return this.doSaveAsWorkingCopy(source, sourceContents, target);
 	}
 
-	private async doSaveAsWorkingCopy(source: URI, sourceContents: VSBufferReadableStream, target: URI): Promise<IFileWorkingCopy<T>> {
+	private async doSaveAsWorkingCopy(source: URI, sourceContents: VSBufferReadableStream, target: URI): Promise<IFileWorkingCopy<M>> {
 
 		// Prefer an existing working copy if it is already resolved
 		// for the given target resource

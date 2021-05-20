@@ -10,7 +10,7 @@ import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
-export interface IBaseFileWorkingCopyModelFactory<T extends IBaseFileWorkingCopyModel> {
+export interface IBaseFileWorkingCopyModelFactory<M extends IBaseFileWorkingCopyModel> {
 
 	/**
 	 * Create a model from the given content under the provided resource.
@@ -19,7 +19,7 @@ export interface IBaseFileWorkingCopyModelFactory<T extends IBaseFileWorkingCopy
 	 * @param contents the content of the model to create it
 	 * @param token support for cancellation
 	 */
-	createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<T>;
+	createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<M>;
 }
 
 /**
@@ -72,7 +72,7 @@ export interface IBaseFileWorkingCopyModel extends IDisposable {
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;
 }
 
-export interface IBaseFileWorkingCopy<T extends IBaseFileWorkingCopyModel> extends IWorkingCopy, IDisposable {
+export interface IBaseFileWorkingCopy<M extends IBaseFileWorkingCopyModel> extends IWorkingCopy, IDisposable {
 
 	/**
 	 * An event for when the file working copy has been reverted.
@@ -89,7 +89,7 @@ export interface IBaseFileWorkingCopy<T extends IBaseFileWorkingCopyModel> exten
 	 * based working copy. As long as the file working copy
 	 * has not been resolved, the model is `undefined`.
 	 */
-	readonly model: T | undefined;
+	readonly model: M | undefined;
 
 	/**
 	 * Resolves the file working copy and thus makes the `model`
@@ -100,13 +100,13 @@ export interface IBaseFileWorkingCopy<T extends IBaseFileWorkingCopyModel> exten
 	/**
 	 * Whether we have a resolved model or not.
 	 */
-	isResolved(): this is IBaseResolvedFileWorkingCopy<T>;
+	isResolved(): this is IBaseResolvedFileWorkingCopy<M>;
 }
 
-export interface IBaseResolvedFileWorkingCopy<T extends IBaseFileWorkingCopyModel> extends IBaseFileWorkingCopy<T> {
+export interface IBaseResolvedFileWorkingCopy<M extends IBaseFileWorkingCopyModel> extends IBaseFileWorkingCopy<M> {
 
 	/**
 	 * A resolved file working copy has a resolved model.
 	 */
-	readonly model: T;
+	readonly model: M;
 }
