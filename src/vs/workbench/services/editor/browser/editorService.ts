@@ -37,6 +37,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IFileToOpen } from 'vs/platform/windows/common/windows';
 
 type CachedEditorInput = TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -76,7 +79,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
@@ -787,12 +792,28 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	//#region Workspace Trust
+	/**
+	 * Given a set of resources returns a boolean to indicate whether or not to proceed with opening
+	 */
+	private async handleWorkspaceTrust(resources: Array<URI | undefined>): Promise<boolean> {
+		const filteredResources = coalesce(resources);
+		const trustResult = await this.workspaceTrustRequestService.requestOpenUris(filteredResources);
+		if (trustResult === WorkspaceTrustUriResponse.OpenInNewWindow) {
+			const filesToOpen: IFileToOpen[] = [];
+			filteredResources.forEach(resource => filesToOpen.push({ fileUri: resource }));
+			await this.hostService.openWindow(filesToOpen, { forceNewWindow: true });
+			return false;
+		}
+		return trustResult === WorkspaceTrustUriResponse.Open;
+	}
+	//#endregion
+
 	//#region openEditors()
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
-
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = editors.map(editor => {
 			if (isEditorInputWithOptions(editor)) {
@@ -804,6 +825,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				options: TextEditorOptions.from(editor)
 			};
 		});
+
+		const editorResources = typedEditors.map(e => e.editor.resource);
+		if (!(await this.handleWorkspaceTrust(editorResources))) {
+			typedEditors.forEach(editor => editor.editor.dispose());
+			return [];
+		}
 
 		// Find target groups to open
 		const mapGroupToEditorsCandidates = new Map<IEditorGroup, IEditorInputWithOptions[]>();
