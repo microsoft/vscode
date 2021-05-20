@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { GhostTextWidget } from 'vs/editor/contrib/inlineSuggestions/ghostTextWidget';
+import { GhostText, GhostTextWidget, ObservableValue } from 'vs/editor/contrib/inlineSuggestions/ghostTextWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Emitter } from 'vs/base/common/event';
@@ -160,6 +160,7 @@ export class InlineSuggestionsModelController extends Disposable {
 
 class InlineSuggestionsSession extends Disposable {
 	private readonly textModel = this.editor.getModel();
+	private readonly ghostTextModel = new ObservableValue<GhostText | undefined>(undefined);
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
@@ -182,6 +183,7 @@ class InlineSuggestionsSession extends Disposable {
 		}));
 
 		this.update();
+		this.widget.setModel(this.ghostTextModel);
 	}
 
 	get currentSuggestion(): ValidatedInlineSuggestion | undefined {
@@ -209,14 +211,10 @@ class InlineSuggestionsSession extends Disposable {
 
 		this.contextKeys.inlineSuggestionVisible.set(!!suggestion);
 
-		if (suggestion) {
-			this.widget.show({
-				position: suggestion.suggestion.replaceRange.getStartPosition().delta(0, suggestion.committedSuggestionLength),
-				text: suggestion.suggestion.text.substr(suggestion.committedSuggestionLength),
-			});
-		} else {
-			this.widget.hide();
-		}
+		this.ghostTextModel.setValue(suggestion ? {
+			position: suggestion.suggestion.replaceRange.getStartPosition().delta(0, suggestion.committedSuggestionLength),
+			text: suggestion.suggestion.text.substr(suggestion.committedSuggestionLength),
+		} : undefined);
 	}
 
 	public commitCurrentSuggestion(): void {

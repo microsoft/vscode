@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -14,6 +14,8 @@ import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
+import { Event, Emitter } from 'vs/base/common/event';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -22,28 +24,53 @@ export interface GhostText {
 	position: Position;
 }
 
+// TODO: use connors interface, maybe move to common?
+export interface IObservableValue<T> {
+	onDidChange: Event<T>;
+	readonly value: T;
+}
+
+export class ObservableValue<T> implements IObservableValue<T> {
+	private _value: T;
+	private readonly onDidChangeEmitter = new Emitter<T>();
+	public readonly onDidChange = this.onDidChangeEmitter.event;
+
+	constructor(value: T) {
+		this._value = value;
+	}
+
+	get value() { return this._value; }
+
+	public setValue(value: T): void {
+		this._value = value;
+		this.onDidChangeEmitter.fire(this._value);
+	}
+}
+
+export type GhostTextWidgetModel = IObservableValue<GhostText | undefined>;
+
+function createDisposableRef<T>(object: T, disposable: IDisposable): IReference<T> {
+	return {
+		object,
+		dispose: () => disposable.dispose(),
+	};
+}
+
 export class GhostTextWidget extends Disposable {
 	private static instanceCount = 0;
 
-	private readonly _codeEditorDecorationTypeKey: string;
-
-	private currentGhostText: GhostText | null;
-	private hasDecoration: boolean;
-	private decorationIds: string[];
-	private viewZoneId: string | null;
+	// We add 0 to bring it before any other decoration.
+	private readonly _codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.instanceCount}`;
+	private readonly modelRef = this._register(new MutableDisposable<IReference<GhostTextWidgetModel>>());
+	private hasDecoration = false;
+	private decorationIds: string[] = [];
+	private viewZoneId: string | null = null;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
 	) {
 		super();
-
-		// We add 0 to bring it before any other decoration.
-		this._codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.instanceCount}`;
-		this.currentGhostText = null;
-		this.hasDecoration = false;
-		this.decorationIds = [];
-		this.viewZoneId = null;
 
 		this._register(this.editor.onDidChangeConfiguration((e) => {
 			if (
@@ -55,85 +82,89 @@ export class GhostTextWidget extends Disposable {
 				|| e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
 			) {
-				this._render();
+				this.render();
 			}
 		}));
-		this._register(toDisposable(() => this._removeInlineText()));
+		this._register(toDisposable(() => {
+			this.setModel(undefined);
+		}));
 	}
 
-	private _removeInlineText(): void {
+	public get model(): GhostTextWidgetModel | undefined {
+		return this.modelRef.value?.object;
+	}
+
+	public setModel(model: GhostTextWidgetModel | undefined): void {
+		if (model === this.model) { return; }
+		this.modelRef.value = model
+			? createDisposableRef(model, model.onDidChange(() => this.render()))
+			: undefined;
+		this.render();
+	}
+
+	private render(): void {
+		let renderData: { tabSize: number, position: Position, lines: string[] } | undefined;
+
+		if (this.editor.hasModel() && this.model?.value) {
+			const { position, text } = this.model?.value;
+
+			const textModel = this.editor.getModel();
+			const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
+			if (position.column !== maxColumn) {
+				console.warn('Can only show multiline ghost text at the end of a line');
+				return;
+			}
+
+			const { tabSize } = textModel.getOptions();
+			const lines = strings.splitLines(text);
+			renderData = { tabSize, position, lines };
+		} else {
+			renderData = undefined;
+		}
+
 		if (this.hasDecoration) {
 			this.hasDecoration = false;
 			this._codeEditorService.removeDecorationType(this._codeEditorDecorationTypeKey);
 		}
-	}
 
-	public hide(): void {
-		this._removeInlineText();
-		this.editor.changeViewZones((changeAccessor) => {
-			if (this.viewZoneId) {
-				changeAccessor.removeZone(this.viewZoneId);
-				this.viewZoneId = null;
-			}
-		});
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
-		this.currentGhostText = null;
-	}
-
-	public show(ghostText: GhostText): void {
-		if (!this.editor.hasModel()) {
-			return;
-		}
-		const model = this.editor.getModel();
-		const maxColumn = model.getLineMaxColumn(ghostText.position.lineNumber);
-		if (ghostText.position.column !== maxColumn) {
-			console.warn('Can only show multiline ghost text at the end of a line');
-			return;
-		}
-		this.currentGhostText = ghostText;
-		this._render();
-	}
-
-	private _render(): void {
-		if (!this.editor.hasModel() || !this.currentGhostText) {
-			return;
+		if (renderData) {
+			this._codeEditorService.registerDecorationType(this._codeEditorDecorationTypeKey, {
+				after: {
+					contentText: renderData.lines[0],
+					opacity: '0.467',
+				}
+			});
+			this.hasDecoration = true;
 		}
 
-		const model = this.editor.getModel();
-		const { tabSize } = model.getOptions();
-		const ghostLines = strings.splitLines(this.currentGhostText.text);
-
-		this._removeInlineText();
-
-		this._codeEditorService.registerDecorationType(this._codeEditorDecorationTypeKey, {
-			after: {
-				contentText: ghostLines[0],
-				opacity: '0.467',
-			}
-		});
-		this.hasDecoration = true;
-		const insertPosition = this.currentGhostText.position;
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [{
-			range: Range.fromPositions(insertPosition, insertPosition),
-			options: this._codeEditorService.resolveDecorationOptions(this._codeEditorDecorationTypeKey, true)
-		}]);
+		const newDecorations = new Array<IModelDeltaDecoration>();
+		if (renderData) {
+			newDecorations.push({
+				range: Range.fromPositions(renderData.position, renderData.position),
+				options: this._codeEditorService.resolveDecorationOptions(this._codeEditorDecorationTypeKey, true)
+			});
+		}
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, newDecorations);
 
 		this.editor.changeViewZones((changeAccessor) => {
 			if (this.viewZoneId) {
 				changeAccessor.removeZone(this.viewZoneId);
 				this.viewZoneId = null;
 			}
-			const remainingLines = ghostLines.slice(1);
-			if (remainingLines.length > 0) {
-				const domNode = document.createElement('div');
-				this._renderLines(domNode, tabSize, remainingLines);
 
-				this.viewZoneId = changeAccessor.addZone({
-					afterLineNumber: insertPosition.lineNumber,
-					afterColumn: insertPosition.column,
-					heightInLines: ghostLines.length - 1,
-					domNode,
-				});
+			if (renderData) {
+				const remainingLines = renderData.lines.slice(1);
+				if (remainingLines.length > 0) {
+					const domNode = document.createElement('div');
+					this._renderLines(domNode, renderData.tabSize, remainingLines);
+
+					this.viewZoneId = changeAccessor.addZone({
+						afterLineNumber: renderData.position.lineNumber,
+						afterColumn: renderData.position.column,
+						heightInLines: remainingLines.length,
+						domNode,
+					});
+				}
 			}
 		});
 	}
