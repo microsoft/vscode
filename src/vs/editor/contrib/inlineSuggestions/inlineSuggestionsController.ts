@@ -235,14 +235,6 @@ interface ValidatedInlineSuggestion {
 	committedSuggestionLength: number;
 }
 
-class SuggestWidgetInlineSuggestion {
-	constructor(
-		public overwriteBefore: number,
-		public overwriteAfter: number,
-		public text: string
-	) { }
-}
-
 class DelegatingInlineSuggestionsModel extends Disposable {
 
 	private readonly onDidChangeEventEmitter = this._register(new Emitter<void>());
@@ -285,6 +277,15 @@ class DelegatingInlineSuggestionsModel extends Disposable {
 	}
 }
 
+class SuggestWidgetInlineSuggestion {
+	constructor(
+		public lineNumber: number,
+		public overwriteBefore: number,
+		public overwriteAfter: number,
+		public text: string
+	) { }
+}
+
 class SuggestWidgetInlineSuggestionsModel extends Disposable {
 
 	private readonly onDidChangeEventEmitter = this._register(new Emitter<void>());
@@ -303,7 +304,6 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 
 		const suggestController = SuggestController.get(this.editor);
 		if (suggestController) {
-
 			let isBoundToSuggestWidget = false;
 			const bindToSuggestWidget = () => {
 				if (isBoundToSuggestWidget) {
@@ -331,7 +331,7 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 		this.updateFromSuggestion();
 	}
 
-	private getSuggestText(suggestController: SuggestController, suggestion: ISelectedSuggestion): SuggestWidgetInlineSuggestion | null {
+	private getSuggestText(suggestController: SuggestController, lineNumber: number, suggestion: ISelectedSuggestion): SuggestWidgetInlineSuggestion | null {
 		const item = suggestion.item;
 
 		if (Array.isArray(item.completion.additionalTextEdits)) {
@@ -345,7 +345,7 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 		}
 
 		const info = suggestController.getOverwriteInfo(item, false);
-		return new SuggestWidgetInlineSuggestion(info.overwriteBefore, info.overwriteAfter, insertText);
+		return new SuggestWidgetInlineSuggestion(lineNumber, info.overwriteBefore, info.overwriteAfter, insertText);
 	}
 
 	private updateFromSuggestion(): void {
@@ -365,7 +365,7 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 		}
 
 		// TODO: item.isResolved
-		this.setFocusedItem(this.getSuggestText(suggestController, focusedItem));
+		this.setFocusedItem(this.getSuggestText(suggestController, this.editor.getPosition().lineNumber, focusedItem));
 	}
 
 	private setNoFocusedItem(): void {
@@ -385,6 +385,9 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 	}
 
 	getInlineSuggestions(position: Position): NormalizedInlineSuggestions {
+		if (this.currentSuggestion && this.currentSuggestion.lineNumber !== position.lineNumber) {
+			this.currentSuggestion = null;
+		}
 		if (this.currentSuggestion) {
 			return {
 				items: [{
@@ -441,6 +444,7 @@ class InlineSuggestionsModel extends Disposable {
 	}
 
 	private _update(position: Position): void {
+		// TODO: debouncing is not happening here
 		this.clearGhostTextPromise();
 		this.updatePromise = createCancelablePromise(token => provideInlineSuggestions(position, this.textModel, token));
 		this.updatePromise.then((result) => {
