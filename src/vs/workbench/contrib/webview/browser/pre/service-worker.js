@@ -25,7 +25,7 @@ const resourceOrigin = searchParams.get('vscode-resource-origin') ?? sw.origin;
 /**
  * Root path for resources
  */
-const resourceRoot = rootPath + '/vscode-resource';
+const resourceRoot = '/vscode-resource';
 
 const serviceWorkerFetchIgnoreSubdomain = searchParams.get('serviceWorkerFetchIgnoreSubdomain') ?? false;
 
@@ -175,7 +175,6 @@ sw.addEventListener('message', async (event) => {
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
-
 	if (serviceWorkerFetchIgnoreSubdomain && requestUrl.pathname.startsWith(resourceRoot + '/')) {
 		// #121981
 		const ignoreFirstSubdomainRegex = /(.*):\/\/.*?\.(.*)/;
