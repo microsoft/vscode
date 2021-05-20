@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent, TerminalIcon } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -17,7 +17,6 @@ import { getSystemShell } from 'vs/base/node/shell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { execFile } from 'child_process';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
 
 type WorkspaceId = string;
@@ -305,14 +304,14 @@ export class PersistentTerminalProcess extends Disposable {
 
 	get pid(): number { return this._pid; }
 	get title(): string { return this._title || this._terminalProcess.currentTitle; }
-	get icon(): URI | { light: URI; dark: URI } | ThemeIcon | undefined { return this._icon; }
+	get icon(): TerminalIcon | undefined { return this._icon; }
 	get color(): string | undefined { return this._color; }
 
 	setTitle(title: string): void {
 		this._title = title;
 	}
 
-	setIcon(icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): void {
+	setIcon(icon: TerminalIcon, color?: string): void {
 		this._icon = icon;
 		this._color = color;
 	}
@@ -325,7 +324,7 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
 		private readonly _logService: ILogService,
-		private _icon?: URI | { light: URI; dark: URI } | ThemeIcon,
+		private _icon?: TerminalIcon,
 		private _color?: string
 	) {
 		super();

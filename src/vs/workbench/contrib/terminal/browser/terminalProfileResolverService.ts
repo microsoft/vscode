@@ -13,7 +13,7 @@ import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/t
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
@@ -141,7 +141,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(icon?: unknown): URI | undefined | ThemeIcon | { light: URI, dark: URI } {
+	private _getCustomIcon(icon?: unknown): TerminalIcon | undefined {
 		if (!icon) {
 			return undefined;
 		}
@@ -355,7 +355,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			case 'tmux':
 				return Codicon.terminalTmux;
 			case 'cmd':
-				return Codicon.terminal;
+				return Codicon.terminalCmd;
 			default:
 				return undefined;
 		}

@@ -41,7 +41,6 @@ import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/d
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { hash } from 'vs/base/common/hash';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export class TerminalViewPane extends ViewPane {
@@ -534,14 +533,15 @@ class TerminalThemeIconStyle extends Themable {
 			if (!icon) {
 				return;
 			}
-			const uri = icon instanceof URI ? icon :
-				icon instanceof Object && 'light' in icon && 'dark' in icon ?
-					(this._themeService.getColorTheme().type === ColorScheme.LIGHT ?
-						icon.light
-						: icon.dark) : undefined;
-			if (uri instanceof URI) {
-				let uriIconKey = hash(uri.path).toString(36);
-				css += `.monaco-workbench .terminal-uri-icon-${uriIconKey} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
+			let uri = undefined;
+			if (icon instanceof URI) {
+				uri = icon;
+			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+				uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
+			}
+			const iconClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
+				css += `.monaco-workbench .${iconClasses[0]} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) {`;
 				css += `background-image: ${dom.asCSSUrl(uri)};}`;
 			}
 		}

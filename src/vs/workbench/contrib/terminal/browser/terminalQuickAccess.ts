@@ -58,7 +58,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 							{
 								iconClass: ThemeIcon.asClassName(killTerminalIcon),
 								tooltip: localize('killTerminal', "Kill Terminal Instance")
-							},
+							}
 						],
 						iconClasses,
 						trigger: buttonIndex => {

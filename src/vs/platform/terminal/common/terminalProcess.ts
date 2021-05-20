@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { UriComponents } from 'vs/base/common/uri';
+import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon } from 'vs/platform/terminal/common/terminal';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
 export interface ISingleTerminalConfiguration<T> {
@@ -55,7 +55,7 @@ export interface IProcessDetails {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } } | undefined;
+	icon: TerminalIcon | undefined;
 	color: string | undefined;
 }
 

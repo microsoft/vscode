@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -215,7 +215,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		await this._remoteTerminalChannel?.updateTitle(id, title);
 	}
 
-	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
+	async updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
 		await this._remoteTerminalChannel?.updateIcon(id, icon, color);
 	}
 

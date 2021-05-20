@@ -1065,7 +1065,6 @@ export class TerminalService implements ITerminalService {
 			// after onInstancesChanged so consumers can react to the instance being added first
 			this.setActiveInstanceByIndex(0);
 		}
-
 		return instance;
 	}
 
