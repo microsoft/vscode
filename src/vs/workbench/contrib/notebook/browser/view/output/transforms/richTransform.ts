@@ -401,6 +401,7 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 }
 
+//todo@jrieken duplicates HTMLRendererContrib
 class SVGRendererContrib extends Disposable implements IOutputRendererContribution {
 	getType() {
 		return RenderOutputType.Html;
