@@ -66,6 +66,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		}
 
 		const regex = new RegExp(`${wordSeparators.split('').join('|').replace(/ /g, `[${'\u00A0'} ]`)}`, 'g');
+
 		let words = text.split(' ');
 		let stringIndex = -1;
 
@@ -84,12 +85,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 				if (!word) {
 					continue;
 				}
-				// Get index, match.index is for the outer match which includes negated chars
-				// therefore we cannot use match.index directly, instead we search the position
-				// of the match group in text again
-				// also correct regex and string search offsets for the next loop run
 				stringIndex = text.indexOf(word, stringIndex + 1);
-				regex.lastIndex = stringIndex + word.length;
 
 				// Convert the word's string index into a wrapped buffer range
 				const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
