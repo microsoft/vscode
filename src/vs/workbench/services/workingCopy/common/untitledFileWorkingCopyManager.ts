@@ -22,24 +22,24 @@ import { ResourceMap } from 'vs/base/common/map';
  * handle all operations that are working copy related, such as save/revert,
  * backup and resolving.
  */
-export interface IUntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<T, IUntitledFileWorkingCopy<T>> {
+export interface IUntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<M, IUntitledFileWorkingCopy<M>> {
 
 	/**
 	 * An event for when a untitled file working copy changed it's dirty state.
 	 */
-	readonly onDidChangeDirty: Event<IUntitledFileWorkingCopy<T>>;
+	readonly onDidChangeDirty: Event<IUntitledFileWorkingCopy<M>>;
 
 	/**
 	 * An event for when a untitled file working copy is about to be disposed.
 	 */
-	readonly onWillDispose: Event<IUntitledFileWorkingCopy<T>>;
+	readonly onWillDispose: Event<IUntitledFileWorkingCopy<M>>;
 
 	/**
 	 * Create a new untitled file working copy with optional initial contents.
 	 *
 	 * Note: Callers must `dispose` the working copy when no longer needed.
 	 */
-	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
+	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<M>>;
 
 	/**
 	 * Create a new untitled file working copy with optional initial contents
@@ -48,7 +48,7 @@ export interface IUntitledFileWorkingCopyManager<T extends IUntitledFileWorkingC
 	 *
 	 * Note: Callers must `dispose` the working copy when no longer needed.
 	 */
-	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<T>>;
+	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<M>>;
 
 	/**
 	 * Creates a new untitled file working copy with optional initial contents
@@ -57,7 +57,7 @@ export interface IUntitledFileWorkingCopyManager<T extends IUntitledFileWorkingC
 	 *
 	 * Note: Callers must `dispose` the working copy when no longer needed.
 	 */
-	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
+	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<M>>;
 }
 
 export interface INewUntitledFileWorkingCopyOptions {
@@ -97,14 +97,14 @@ export interface INewOrExistingUntitledFileWorkingCopyOptions extends INewUntitl
 
 type IInternalUntitledFileWorkingCopyOptions = INewUntitledFileWorkingCopyOptions & INewUntitledFileWorkingCopyWithAssociatedResourceOptions & INewOrExistingUntitledFileWorkingCopyOptions;
 
-export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyModel> extends BaseFileWorkingCopyManager<T, IUntitledFileWorkingCopy<T>> implements IUntitledFileWorkingCopyManager<T> {
+export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyModel> extends BaseFileWorkingCopyManager<M, IUntitledFileWorkingCopy<M>> implements IUntitledFileWorkingCopyManager<M> {
 
 	//#region Events
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledFileWorkingCopy<T>>());
+	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledFileWorkingCopy<M>>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onWillDispose = this._register(new Emitter<IUntitledFileWorkingCopy<T>>());
+	private readonly _onWillDispose = this._register(new Emitter<IUntitledFileWorkingCopy<M>>());
 	readonly onWillDispose = this._onWillDispose.event;
 
 	//#endregion
@@ -113,7 +113,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 
 	constructor(
 		private readonly workingCopyTypeId: string,
-		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<T>,
+		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
 		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate,
 		@IFileService fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -126,17 +126,17 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 
 	//#region Resolve
 
-	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
-	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<T>>;
-	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>>;
-	async resolve(options?: IInternalUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<T>> {
+	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<M>>;
+	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<M>>;
+	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<M>>;
+	async resolve(options?: IInternalUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<M>> {
 		const workingCopy = this.doCreateOrGet(options);
 		await workingCopy.resolve();
 
 		return workingCopy;
 	}
 
-	private doCreateOrGet(options: IInternalUntitledFileWorkingCopyOptions = Object.create(null)): IUntitledFileWorkingCopy<T> {
+	private doCreateOrGet(options: IInternalUntitledFileWorkingCopyOptions = Object.create(null)): IUntitledFileWorkingCopy<M> {
 		const massagedOptions = this.massageOptions(options);
 
 		// Return existing instance if asked for it
@@ -177,7 +177,7 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 		return massagedOptions;
 	}
 
-	private doCreate(options: IInternalUntitledFileWorkingCopyOptions): IUntitledFileWorkingCopy<T> {
+	private doCreate(options: IInternalUntitledFileWorkingCopyOptions): IUntitledFileWorkingCopy<M> {
 
 		// Create a new untitled resource if none is provided
 		let untitledResource = options.untitledResource;
@@ -199,14 +199,15 @@ export class UntitledFileWorkingCopyManager<T extends IUntitledFileWorkingCopyMo
 			options.contents,
 			this.modelFactory,
 			this.saveDelegate
-		) as unknown as IUntitledFileWorkingCopy<T>;
+		) as unknown as IUntitledFileWorkingCopy<M>;
 
+		// Register
 		this.registerWorkingCopy(workingCopy);
 
 		return workingCopy;
 	}
 
-	private registerWorkingCopy(workingCopy: IUntitledFileWorkingCopy<T>): void {
+	private registerWorkingCopy(workingCopy: IUntitledFileWorkingCopy<M>): void {
 
 		// Install working copy listeners
 		const workingCopyListeners = new DisposableStore();

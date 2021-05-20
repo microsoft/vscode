@@ -48,6 +48,36 @@ suite('FileWorkingCopyManager2', () => {
 		manager.dispose();
 	});
 
+	test('onDidCreate, get, workingCopies', async () => {
+		let createCounter = 0;
+		manager.onDidCreate(e => {
+			createCounter++;
+		});
+
+		const fileUri = URI.file('/test.html');
+
+		assert.strictEqual(manager.workingCopies.length, 0);
+		assert.strictEqual(manager.get(fileUri), undefined);
+
+		const fileWorkingCopy = await manager.resolve(fileUri);
+		const untitledFileWorkingCopy = await manager.resolve();
+
+		assert.strictEqual(manager.workingCopies.length, 2);
+		assert.strictEqual(createCounter, 2);
+		assert.strictEqual(manager.get(fileWorkingCopy.resource), fileWorkingCopy);
+		assert.strictEqual(manager.get(untitledFileWorkingCopy.resource), untitledFileWorkingCopy);
+
+		const sameFileWorkingCopy = await manager.resolve(fileUri);
+		const sameUntitledFileWorkingCopy = await manager.resolve({ untitledResource: untitledFileWorkingCopy.resource });
+		assert.strictEqual(sameFileWorkingCopy, fileWorkingCopy);
+		assert.strictEqual(sameUntitledFileWorkingCopy, untitledFileWorkingCopy);
+		assert.strictEqual(manager.workingCopies.length, 2);
+		assert.strictEqual(createCounter, 2);
+
+		fileWorkingCopy.dispose();
+		untitledFileWorkingCopy.dispose();
+	});
+
 	test('resolve', async () => {
 		const fileWorkingCopy = await manager.resolve(URI.file('/test.html'));
 		assert.ok(fileWorkingCopy instanceof FileWorkingCopy);

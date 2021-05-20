@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Promises } from 'vs/base/common/async';
@@ -13,6 +14,11 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
 
 export interface IBaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel, W extends IBaseFileWorkingCopy<M>> extends IDisposable {
+
+	/**
+	 * An event for when a file working copy was created.
+	 */
+	readonly onDidCreate: Event<W>;
 
 	/**
 	 * Access to all known file working copies within the manager.
@@ -39,6 +45,9 @@ export interface IBaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel
 }
 
 export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyModel, W extends IBaseFileWorkingCopy<M>> extends Disposable implements IBaseFileWorkingCopyManager<M, W> {
+
+	private readonly _onDidCreate = this._register(new Emitter<W>());
+	readonly onDidCreate = this._onDidCreate.event;
 
 	private readonly mapResourceToWorkingCopy = new ResourceMap<W>();
 	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
@@ -67,6 +76,9 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 		// Update our dipsose listener to remove it on dispose
 		this.mapResourceToDisposeListener.get(resource)?.dispose();
 		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
+
+		// Signal creation event
+		this._onDidCreate.fire(workingCopy);
 	}
 
 	protected remove(resource: URI): void {

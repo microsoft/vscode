@@ -21,7 +21,7 @@ import { emptyStream } from 'vs/base/common/stream';
 /**
  * Untitled file specific working copy model factory.
  */
-export interface IUntitledFileWorkingCopyModelFactory<T extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<T> { }
+export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
 
 /**
  * The underlying model of a untitled file working copy provides
@@ -45,7 +45,7 @@ export interface IUntitledFileWorkingCopyModelContentChangedEvent {
 	readonly isEmpty: boolean;
 }
 
-export interface IUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopy<T> {
+export interface IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopy<M> {
 
 	/**
 	 * Whether this untitled file working copy model has an associated file path.
@@ -55,15 +55,15 @@ export interface IUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyMode
 	/**
 	 * Whether we have a resolved model or not.
 	 */
-	isResolved(): this is IResolvedUntitledFileWorkingCopy<T>;
+	isResolved(): this is IResolvedUntitledFileWorkingCopy<M>;
 }
 
-export interface IResolvedUntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends IUntitledFileWorkingCopy<T> {
+export interface IResolvedUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IUntitledFileWorkingCopy<M> {
 
 	/**
 	 * A resolved untitled file working copy has a resolved model.
 	 */
-	readonly model: T;
+	readonly model: M;
 }
 
 export interface IUntitledFileWorkingCopySaveDelegate {
@@ -74,12 +74,12 @@ export interface IUntitledFileWorkingCopySaveDelegate {
 	(workingCopy: IUntitledFileWorkingCopy<IUntitledFileWorkingCopyModel>, options?: ISaveOptions): Promise<boolean>;
 }
 
-export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<T>  {
+export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
 
 	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.Untitled;
 
-	private _model: T | undefined = undefined;
-	get model(): T | undefined { return this._model; }
+	private _model: M | undefined = undefined;
+	get model(): M | undefined { return this._model; }
 
 	//#region Events
 
@@ -103,7 +103,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 		readonly name: string,
 		readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: VSBufferReadableStream | undefined,
-		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<T>,
+		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
 		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
@@ -194,7 +194,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 		this.installModelListeners(this._model);
 	}
 
-	private installModelListeners(model: IUntitledFileWorkingCopyModel): void {
+	private installModelListeners(model: M): void {
 
 		// Content Change
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(e)));
@@ -221,7 +221,7 @@ export class UntitledFileWorkingCopy<T extends IUntitledFileWorkingCopyModel> ex
 		this._onDidChangeContent.fire();
 	}
 
-	isResolved(): this is IResolvedUntitledFileWorkingCopy<T> {
+	isResolved(): this is IResolvedUntitledFileWorkingCopy<M> {
 		return !!this.model;
 	}
 
