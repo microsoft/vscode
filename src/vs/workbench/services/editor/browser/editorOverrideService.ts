@@ -40,13 +40,9 @@ type ContributionPoints = Array<ContributionPoint>;
 export class EditorOverrideService extends Disposable implements IEditorOverrideService {
 	readonly _serviceBrand: undefined;
 
-	// Constants
 	private static readonly configureDefaultID = 'promptOpenWith.configureDefault';
-	private static readonly overrideCacheStorageID = 'editorOverrideService.cache';
-	private static readonly conflictingDefaultsStorageID = 'editorOverrideService.conflictingDefaults';
-
-	// Data Stores
 	private _contributionPoints: Map<string | glob.IRelativePattern, ContributionPoints> = new Map<string | glob.IRelativePattern, ContributionPoints>();
+	private static readonly overrideCacheStorageID = 'editorOverrideService.cache';
 	private cache: Set<string> | undefined;
 
 	constructor(
@@ -133,8 +129,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 		const input = await this.doOverrideEditorInput(editor, options, group, selectedContribution);
 		if (conflictingDefault && input) {
-			// Show the conflicting default dialog
-			await this.doHandleConflictingDefaults(selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
+			// Wait one second to give the user ample time to see the current editor then ask them to configure a default
+			this.doHandleConflictingDefaults(selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
 		}
 
 		// Add the group as we might've changed it with the quickpick
@@ -371,23 +367,12 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 
 	private async doHandleConflictingDefaults(editorName: string, currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
-		type StoredChoice = {
-			[key: string]: string[];
+		const makeCurrentEditorDefault = () => {
+			const viewType = currentEditor.viewType;
+			if (viewType) {
+				this.updateUserAssociations(`*${extname(currentEditor.resource!)}`, viewType);
+			}
 		};
-		const contributionPoints = this.findMatchingContributions(currentEditor.resource!);
-		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorOverrideService.conflictingDefaultsStorageID, StorageScope.GLOBAL, '{}'));
-		const globForResource = `*${extname(currentEditor.resource!)}`;
-		// Writes to the storage service that a choice has been made for the currently installed editors
-		const writeCurrentEditorsToStorage = () => {
-			storedChoices[globForResource] = [];
-			contributionPoints.forEach(contrib => storedChoices[globForResource].push(contrib.editorInfo.id));
-			this.storageService.store(EditorOverrideService.conflictingDefaultsStorageID, JSON.stringify(storedChoices), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		};
-
-		// If the user has already made a choice for this editor we don't want to ask them again
-		if (storedChoices[globForResource]?.find(editorID => editorID === currentEditor.viewType)) {
-			return;
-		}
 
 		const handle = this.notificationService.prompt(Severity.Warning,
 			localize('editorOverride.conflictingDefaults', 'There are multiple default editors available for the resource.'),
@@ -415,12 +400,12 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			},
 			{
 				label: localize('editorOverride.keepDefault', 'Keep {0}', editorName),
-				run: writeCurrentEditorsToStorage
+				run: makeCurrentEditorDefault
 			}
 			]);
 		// If the user pressed X we assume they want to keep the current editor as default
 		const onCloseListener = handle.onDidClose(() => {
-			writeCurrentEditorsToStorage();
+			makeCurrentEditorDefault();
 			onCloseListener.dispose();
 		});
 	}
