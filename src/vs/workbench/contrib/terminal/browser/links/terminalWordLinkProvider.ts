@@ -41,7 +41,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	protected _provideLinks(y: number): TerminalLink[] {
 		// Dispose of all old links if new links are provides, links are only cached for the current line
 		const result: TerminalLink[] = [];
-		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
+		let wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
 		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link));
 
 		let startLine = y - 1;
@@ -65,89 +65,54 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			return [];
 		}
 
-		if (startLine === endLine) {
-			const line = this._xterm.buffer.active.getLine(y - 1)!;
-			let text = '';
-			let startX = -1;
-			const cellData = line.getCell(0)!;
-			for (let x = 0; x < line.length; x++) {
-				line.getCell(x, cellData);
-				const chars = cellData.getChars();
-				const width = cellData.getWidth();
+		const regex = new RegExp(`${wordSeparators.split('').join('|').replace(/ /g, `[${'\u00A0'} ]`)}`, 'g');
+		let words = text.split(' ');
+		let stringIndex = -1;
 
-				// Add a link if this is a separator
-				if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
-					if (startX !== -1) {
-						result.push(this._createTerminalLink(startX, x, y, y, text, activateCallback));
-						text = '';
-						startX = -1;
-					}
-					continue;
-				}
-
-				// Mark the start of a link if it hasn't started yet
-				if (startX === -1) {
-					startX = x;
-				}
-
-				text += chars;
-			}
-
-			// Add the final link if there is one
-			if (startX !== -1) {
-				result.push(this._createTerminalLink(startX, line.length, y, y, text, activateCallback));
-			}
-
+		if (words.length === 0) {
+			// no separators, word wrapping several lines
+			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
+				startColumn: 1,
+				startLineNumber: 1,
+				endColumn: stringIndex + text.length + 1,
+				endLineNumber: 1
+			}, startLine);
+			result.push(this._createTerminalLink(text, activateCallback, bufferRange));
 			return result;
 		} else {
-			//TODO@meganrogge: add all separators to this regexp
-			const regex = new RegExp(`${wordSeparators[0]}`, 'g');
-			let matches = text.split(regex);
-			let stringIndex = -1;
+			for (const word of words) {
+				if (!word) {
+					continue;
+				}
+				// Get index, match.index is for the outer match which includes negated chars
+				// therefore we cannot use match.index directly, instead we search the position
+				// of the match group in text again
+				// also correct regex and string search offsets for the next loop run
+				stringIndex = text.indexOf(word, stringIndex + 1);
+				regex.lastIndex = stringIndex + word.length;
 
-			if (matches.length === 0) {
-				// no separators, word wrapping several lines
+				// Convert the word's string index into a wrapped buffer range
 				const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
-					startColumn: 1,
+					startColumn: stringIndex + 1,
 					startLineNumber: 1,
-					endColumn: stringIndex + text.length + 1,
+					endColumn: stringIndex + word.length + 1,
 					endLineNumber: 1
 				}, startLine);
-				result.push(this._createTerminalLink(0, 0, 0, 0, text, activateCallback, bufferRange));
-				return result;
-			} else {
-				for (const match of matches) {
-					let link = match;
-					// Get index, match.index is for the outer match which includes negated chars
-					// therefore we cannot use match.index directly, instead we search the position
-					// of the match group in text again
-					// also correct regex and string search offsets for the next loop run
-					stringIndex = text.indexOf(link, stringIndex + 1);
-					regex.lastIndex = stringIndex + link.length;
-
-					// Convert the link text's string index into a wrapped buffer range
-					const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
-						startColumn: stringIndex + 1,
-						startLineNumber: 1,
-						endColumn: stringIndex + link.length + 1,
-						endLineNumber: 1
-					}, startLine);
-					result.push(this._createTerminalLink(0, 0, 0, 0, link, activateCallback, bufferRange));
-				}
+				result.push(this._createTerminalLink(word, activateCallback, bufferRange));
 			}
-			return result;
 		}
+		return result;
 	}
 
-	private _createTerminalLink(startX: number, endX: number, startY: number, endY: number, text: string, activateCallback: XtermLinkMatcherHandler, bufferRange?: IBufferRange): TerminalLink {
+	private _createTerminalLink(text: string, activateCallback: XtermLinkMatcherHandler, bufferRange: IBufferRange): TerminalLink {
 		// Remove trailing colon if there is one so the link is more useful
 		if (text.length > 0 && text.charAt(text.length - 1) === ':') {
 			text = text.slice(0, -1);
-			endX--;
+			bufferRange.end.x--;
 		}
 		return this._instantiationService.createInstance(TerminalLink,
 			this._xterm,
-			bufferRange || { start: { x: startX + 1, y: startY }, end: { x: endX, y: endY } },
+			bufferRange,
 			text,
 			this._xterm.buffer.active.viewportY,
 			activateCallback,
