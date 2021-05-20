@@ -1598,10 +1598,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		switch (eventSource) {
 			case TitleEventSource.Process:
-				if (isWindows) {
-					// Remove the .exe extension
-					title = path.basename(title);
-					title = title.split('.exe')[0];
+
+				if (this._processManager.os === OperatingSystem.Windows) {
+					// Extract the file name without extension
+					title = path.win32.parse(title).name;
 				} else {
 					const firstSpaceIndex = title.indexOf(' ');
 					if (title.startsWith('/')) {
@@ -1616,6 +1616,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// automatically updates the terminal name
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
+				break;
+			case TitleEventSource.Sequence:
+				// On Windows, some shells will fire this with the full path which we want to trim
+				// to show just the file name. This should only happen if the title looks like an
+				// absolute Windows file path
+				title = 'C:\\blah blah\\pwsh.exe';
+				if (this._processManager.os === OperatingSystem.Windows && title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
+					title = path.win32.parse(title).name;
+				}
 				break;
 		}
 		const didTitleChange = title !== this._title;
