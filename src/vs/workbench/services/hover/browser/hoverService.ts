@@ -22,16 +22,16 @@
 	 _currentHoverOptions: IHoverOptions | undefined;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		 _instantiationService: IInstantiationService,
+		 _contextViewService: IContextViewService,
+		 _contextMenuService: IContextMenuService
 	) {
 		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
 
 	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined {
-		if (this._currentHoverOptions === options) {
-			return undefined;
+		(this._currentHoverOptions === options) {
+			undefined;
 		}
 		this._currentHoverOptions = options;
 
@@ -44,7 +44,7 @@
 		 = this._contextViewService as IContextViewProvider;
 		provider.showContextView(new HoverContextViewDelegate(hover, focus));
 		hover.onRequestLayout(() => provider.layout());
-		if ('targetElements' in options.target) {
+		('targetElements' in options.target) {
 			for (const element of options.target.targetElements) {
 				hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));
 			}
@@ -52,7 +52,7 @@
 			hoverDisposables.add(addDisposableListener(options.target, EventType.CLICK, () => this.hideHover()));
 		}
 
-		if ('IntersectionObserver' in window) {
+	        ('IntersectionObserver' in window) {
 			const observer = new IntersectionObserver(e => this._intersectionChange(e, hover), { threshold: 0 });
 			const firstTargetElement = 'targetElements' in options.target ? options.target.targetElements[0] : options.target;
 			observer.observe(firstTargetElement);
@@ -62,9 +62,9 @@
 		 hover;
 	}
 
-	hideHover(): void {
+	hideHover():  {
 	           (!this._currentHoverOptions) {
-			return;
+			;
 		}
 		this._currentHoverOptions = undefined;
 		this._contextViewService.hideContextView();
