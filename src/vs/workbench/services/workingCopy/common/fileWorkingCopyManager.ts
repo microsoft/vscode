@@ -14,7 +14,6 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { URI } from 'vs/base/common/uri';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -23,6 +22,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 /**
  * The only one that should be dealing with `IFileWorkingCopy` and handle all
@@ -150,12 +156,18 @@ export class FileWorkingCopyManager<M extends IFileWorkingCopyModel> extends Bas
 		@IFileService fileService: IFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
 		super(fileService, logService, workingCopyBackupService);
 
@@ -393,13 +405,15 @@ export class FileWorkingCopyManager<M extends IFileWorkingCopyModel> extends Bas
 		else {
 			didCreateWorkingCopy = true;
 
-			workingCopy = this.instantiationService.createInstance(
-				FileWorkingCopy,
+			workingCopy = new FileWorkingCopy(
 				this.workingCopyTypeId,
 				resource,
 				this.labelService.getUriBasenameLabel(resource),
-				this.modelFactory
-			) as unknown as IFileWorkingCopy<M>;
+				this.modelFactory,
+				this.fileService, this.logService, this.textFileService, this.filesConfigurationService,
+				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
+				this.editorService, this.elevatedFileService
+			);
 
 			workingCopyResolve = workingCopy.resolve(options);
 

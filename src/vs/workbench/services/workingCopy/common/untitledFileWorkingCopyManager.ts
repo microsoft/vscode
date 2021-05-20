@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, IUntitledFileWorkingCopySaveDelegate, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -114,12 +114,12 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 	constructor(
 		private readonly workingCopyTypeId: string,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
-		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate,
+		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<M>,
 		@IFileService fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
-		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService
+		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super(fileService, logService, workingCopyBackupService);
 	}
@@ -190,16 +190,18 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 		}
 
 		// Create new working copy with provided options
-		const workingCopy = this.instantiationService.createInstance(
-			UntitledFileWorkingCopy,
+		const workingCopy = new UntitledFileWorkingCopy(
 			this.workingCopyTypeId,
 			untitledResource,
 			this.labelService.getUriBasenameLabel(untitledResource),
 			!!options.associatedResource,
 			options.contents,
 			this.modelFactory,
-			this.saveDelegate
-		) as unknown as IUntitledFileWorkingCopy<M>;
+			this.saveDelegate,
+			this.workingCopyService,
+			this.workingCopyBackupService,
+			this.logService
+		);
 
 		// Register
 		this.registerWorkingCopy(workingCopy);

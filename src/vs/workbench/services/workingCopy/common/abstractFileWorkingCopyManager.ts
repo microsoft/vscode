@@ -55,7 +55,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IBaseFileWorkingCopyM
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
 		@ILogService protected readonly logService: ILogService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService
+		@IWorkingCopyBackupService protected readonly workingCopyBackupService: IWorkingCopyBackupService
 	) {
 		super();
 	}

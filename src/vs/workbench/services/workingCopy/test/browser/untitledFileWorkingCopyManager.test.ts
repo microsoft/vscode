@@ -32,14 +32,11 @@ suite('UntitledFileWorkingCopyManager', () => {
 			'testFileWorkingCopyTypeUntitled',
 			new TestFileWorkingCopyModelFactory(),
 			new TestUntitledFileWorkingCopyModelFactory(),
-			accessor.fileService,
-			instantiationService,
-			accessor.fileDialogService,
-			accessor.workingCopyFileService,
-			accessor.uriIdentityService,
-			accessor.dialogService,
-			accessor.environmentService,
-			accessor.pathService
+			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
+			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
+			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
+			accessor.environmentService, accessor.dialogService
 		);
 	});
 
