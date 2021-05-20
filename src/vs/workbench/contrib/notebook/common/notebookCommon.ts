@@ -904,6 +904,7 @@ export const ExperimentalFocusIndicator = 'notebook.experimental.cellFocusIndica
 export const ExperimentalInsertToolbarPosition = 'notebook.experimental.insertToolbarPosition';
 export const ExperimentalGlobalToolbar = 'notebook.experimental.globalToolbar';
 export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
+export const ExperimentalConsolidatedOutputButton = 'notebook.experimental.consolidatedOutputButton';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

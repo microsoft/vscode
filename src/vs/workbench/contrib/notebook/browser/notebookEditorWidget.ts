@@ -2657,17 +2657,14 @@ export const cellEditorBackground = registerColor('notebook.cellEditorBackground
 registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.notebookOverlay .output a,
-			.notebookOverlay .cell.markdown a,
+		collector.addRule(`.notebookOverlay .cell.markdown a,
 			.notebookOverlay .output-show-more-container a
 			{ color: ${link};} `);
 
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.notebookOverlay .output a:hover,
-			.notebookOverlay .cell .output a:active,
-			.notebookOverlay .output-show-more-container a:active
+		collector.addRule(`.notebookOverlay .output-show-more-container a:active
 			{ color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
