@@ -12,7 +12,8 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -33,17 +34,28 @@ export class HoverService implements IHoverService {
 		}
 		this._currentHoverOptions = options;
 
+		const hoverDisposables = new DisposableStore();
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
-		hover.onDispose(() => this._currentHoverOptions = undefined);
+		hover.onDispose(() => {
+			this._currentHoverOptions = undefined;
+			hoverDisposables.dispose();
+		});
 		const provider = this._contextViewService as IContextViewProvider;
 		provider.showContextView(new HoverContextViewDelegate(hover, focus));
 		hover.onRequestLayout(() => provider.layout());
+		if ('targetElements' in options.target) {
+			for (const element of options.target.targetElements) {
+				hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));
+			}
+		} else {
+			hoverDisposables.add(addDisposableListener(options.target, EventType.CLICK, () => this.hideHover()));
+		}
 
 		if ('IntersectionObserver' in window) {
 			const observer = new IntersectionObserver(e => this._intersectionChange(e, hover), { threshold: 0 });
 			const firstTargetElement = 'targetElements' in options.target ? options.target.targetElements[0] : options.target;
 			observer.observe(firstTargetElement);
-			hover.onDispose(() => observer.disconnect());
+			hoverDisposables.add(toDisposable(() => observer.disconnect()));
 		}
 
 		return hover;
