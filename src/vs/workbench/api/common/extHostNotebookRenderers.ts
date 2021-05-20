@@ -6,10 +6,11 @@
 import { Emitter } from 'vs/base/common/event';
 import { ExtHostNotebookRenderersShape, IMainContext, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookEditor } from 'vs/workbench/api/common/extHostNotebookEditor';
 import * as vscode from 'vscode';
 
 export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
-	private readonly _rendererMessageEmitters = new Map<string /* rendererId */, Emitter<{ document: vscode.NotebookEditor, data: any }>>();
+	private readonly _rendererMessageEmitters = new Map<string /* rendererId */, Emitter<vscode.NotebookRendererMessage<any>>>();
 	private readonly proxy: MainThreadNotebookRenderersShape;
 
 	constructor(mainContext: IMainContext, private readonly _extHostNotebook: ExtHostNotebookController) {
@@ -22,15 +23,21 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 			return;
 		}
 
-		this._rendererMessageEmitters.get(rendererId)?.fire({ document: editor.apiEditor, data: message });
+		this._rendererMessageEmitters.get(rendererId)?.fire({ editor: editor.apiEditor, message });
 	}
 
 	public createRendererMessaging<TSend, TRecv>(rendererId: string): vscode.NotebookRendererMessaging<TSend, TRecv> {
-		const emitter = this.getOrCreateEmitterFor(rendererId);
-		const listener = emitter.event(e => messaging.messageHandler?.(e.document, e.data));
 		const messaging: vscode.NotebookRendererMessaging<TSend, TRecv> = {
-			dispose: () => listener.dispose(),
-			postMessage: message => this.proxy.$postMessage(rendererId, message),
+			onDidReceiveMessage: (...args) =>
+				this.getOrCreateEmitterFor(rendererId).event(...args),
+			postMessage: (editor, message) => {
+				const extHostEditor = ExtHostNotebookEditor.apiEditorsToExtHost.get(editor);
+				if (!extHostEditor) {
+					throw new Error(`The first argument to postMessage() must be a NotebookEditor`);
+				}
+
+				this.proxy.$postMessage(extHostEditor.id, rendererId, message);
+			},
 		};
 
 		return messaging;

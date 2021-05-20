@@ -2107,6 +2107,18 @@ declare module 'vscode' {
 
 	//#region @connor4312 - notebook messaging: https://github.com/microsoft/vscode/issues/123601
 
+	export interface NotebookRendererMessage<T> {
+		/**
+		 * Editor that sent the message.
+		 */
+		editor: NotebookEditor;
+
+		/**
+		 * Message sent from the webview.
+		 */
+		message: T;
+	}
+
 	/**
 	 * Renderer messaging is used to communicate with a single renderer. It's
 	 * returned from {@link notebook.createRendererMessaging}.
@@ -2115,18 +2127,14 @@ declare module 'vscode' {
 		/**
 		 * Events that fires when a message is received from a renderer.
 		 */
-		messageHandler?: (editor: NotebookEditor, message: TReceive) => void;
+		onDidReceiveMessage: Event<NotebookRendererMessage<TReceive>>;
 
 		/**
 		 * Sends a message to the renderer.
+		 * @param editor Editor to target with the message
 		 * @param message Message to send
 		 */
-		postMessage(message: TSend): void;
-
-		/**
-		 * Disposes of the messaging instance and unsubscribes from messages.
-		 */
-		dispose(): void;
+		postMessage(editor: NotebookEditor, message: TSend): void;
 	}
 
 	export namespace notebook {

@@ -915,7 +915,7 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
-	$postMessage(rendererId: string, message: unknown): void;
+	$postMessage(editorId: string, rendererId: string, message: unknown): void;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
