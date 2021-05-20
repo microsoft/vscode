@@ -1801,7 +1801,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			matchOnDescription: true
 		});
 		if (result && result.description) {
-			this.shellLaunchConfig.icon = { id: result.description };
+			this.shellLaunchConfig.icon = iconRegistry.get(result.description);
 			this._onIconChanged.fire(this);
 		}
 	}
