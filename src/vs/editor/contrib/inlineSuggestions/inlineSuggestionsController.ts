@@ -12,7 +12,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItemInsertTextRule, InlineSuggestion, InlineSuggestions, InlineSuggestionsProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { GhostText, GhostTextWidget, ObservableValue } from 'vs/editor/contrib/inlineSuggestions/ghostTextWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -95,6 +95,7 @@ export class InlineSuggestionsModelController extends Disposable {
 	private readonly textModel = this.editor.getModel();
 	private readonly model = this._register(new DelegatingInlineSuggestionsModel(this.editor));
 	private readonly completionSession = this._register(new MutableDisposable<InlineSuggestionsSession>());
+	private readonly checkAndStartSessionSoon = this._register(new RunOnceScheduler(() => this.checkAndStartSession(), 50));
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
@@ -104,31 +105,23 @@ export class InlineSuggestionsModelController extends Disposable {
 		super();
 
 		this._register(this.editor.onDidChangeModelContent((e) => {
-			if (!InlineSuggestionsProviderRegistry.has(this.textModel)) {
+			if (this.completionSession.value && !this.completionSession.value.isValid()) {
 				return;
 			}
-			this.updateSession();
+			this.checkAndStartSessionSoon.schedule();
 		}));
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (!InlineSuggestionsProviderRegistry.has(this.textModel)) {
-				return;
+			if (this.completionSession.value && !this.completionSession.value.isValid()) {
+				this.completionSession.clear();
 			}
-			this.updateSession();
 		}));
 	}
 
-	private updateSession(): void {
+	private checkAndStartSession(): void {
 		const pos = this.editor.getPosition();
 
-		if (this.completionSession.value && this.completionSession.value.isValid()) {
-			return;
-		}
-
-		// only trigger when cursor is at the end of a line
 		if (pos.column === this.textModel.getLineMaxColumn(pos.lineNumber)) {
 			this.triggerAt(pos);
-		} else {
-			this.hide();
 		}
 	}
 
@@ -136,9 +129,9 @@ export class InlineSuggestionsModelController extends Disposable {
 		this.completionSession.value = new InlineSuggestionsSession(this.editor, this.widget, this.model, this.contextKeys, position);
 	}
 
-	public hide(): void {
-		this.completionSession.clear();
-	}
+	// public clearSession(): void {
+	// 	this.completionSession.clear();
+	// }
 
 	public trigger(): void {
 		if (!this.completionSession.value) {
