@@ -152,7 +152,12 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 		const text = await loadScriptSource(url, originalUri);
 		return {
 			activate: () => {
-				return invokeSourceWithGlobals(text, kernelPreloadGlobals);
+				try {
+					return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
+				} catch (e) {
+					console.error(e);
+					throw e;
+				}
 			}
 		};
 	};
@@ -646,6 +651,10 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 					cellOutputContainer.appendChild(outputContainer);
 					outputContainer.appendChild(outputNode);
 					resizeObserver.observe(outputNode, outputId, true);
+
+					if (content.type === RenderOutputType.Html) {
+						domEval(outputNode);
+					}
 
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
