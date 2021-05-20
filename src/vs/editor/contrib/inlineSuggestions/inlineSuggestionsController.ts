@@ -199,6 +199,12 @@ class InlineSuggestionsSession extends Disposable {
 				this.widget.setModel(undefined);
 			}
 		}));
+		this._register(toDisposable(() => {
+			const suggestController = SuggestController.get(this.editor);
+			if (suggestController) {
+				suggestController.stopForceRenderingAbove();
+			}
+		}));
 
 		this.update();
 		this.widget.setModel(this.ghostTextModel);
@@ -238,8 +244,24 @@ class InlineSuggestionsSession extends Disposable {
 				lines,
 				minAdditionalLineCount: this.maxLineCount - 1
 			});
+
+			if (this.maxLineCount > 1) {
+				const suggestController = SuggestController.get(this.editor);
+				if (suggestController) {
+					suggestController.forceRenderingAbove();
+				}
+			}
 		} else {
-			this.ghostTextModel.setValue(undefined);
+			if (this.maxLineCount > 1) {
+				const maxColumn = this.textModel.getLineMaxColumn(this.triggerPosition.lineNumber);
+				this.ghostTextModel.setValue({
+					position: new Position(this.triggerPosition.lineNumber, maxColumn),
+					lines: [],
+					minAdditionalLineCount: this.maxLineCount - 1
+				});
+			} else {
+				this.ghostTextModel.setValue(undefined);
+			}
 		}
 
 	}

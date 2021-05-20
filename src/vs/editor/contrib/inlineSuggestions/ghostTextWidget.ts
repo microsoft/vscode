@@ -111,11 +111,12 @@ export class GhostTextWidget extends Disposable {
 
 			const textModel = this.editor.getModel();
 			const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
+			const { tabSize } = textModel.getOptions();
+
 			if (position.column !== maxColumn) {
 				console.warn('Can only show multiline ghost text at the end of a line');
-				renderData = undefined;
+				renderData = { tabSize, position: new Position(position.lineNumber, maxColumn), lines: [], minAdditionalLineCount };
 			} else {
-				const { tabSize } = textModel.getOptions();
 				renderData = { tabSize, position, lines, minAdditionalLineCount };
 			}
 		} else {
