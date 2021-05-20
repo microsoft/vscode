@@ -174,6 +174,8 @@ export type ExtensionKind = 'ui' | 'workspace' | 'web';
 export type ExtensionUntrustedWorkpaceSupportType = boolean | 'limited';
 export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: 'limited', description: string, restrictedConfigurations?: string[] };
 
+export type ExtensionVirtualWorkpaceSupportType = boolean | 'partial';
+
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
 		&& typeof thing === 'object'

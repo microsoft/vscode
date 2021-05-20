@@ -53,6 +53,8 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
+export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+
 export enum NotebookRunState {
 	Running = 1,
 	Idle = 2
@@ -132,6 +134,7 @@ export const enum NotebookRendererMatch {
 export interface INotebookRendererInfo {
 	id: string;
 	displayName: string;
+	extends?: string;
 	entrypoint: URI;
 	preloads: ReadonlyArray<URI>;
 	extensionLocation: URI;
@@ -894,6 +897,9 @@ export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 export const ExperimentalCompactView = 'notebook.experimental.compactView';
+export const ExperimentalFocusIndicator = 'notebook.experimental.cellFocusIndicator';
+export const ExperimentalInsertToolbarPosition = 'notebook.experimental.insertToolbarPosition';
+export const ExperimentalGlobalToolbar = 'notebook.experimental.globalToolbar';
 export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
 
 export const enum CellStatusbarAlignment {

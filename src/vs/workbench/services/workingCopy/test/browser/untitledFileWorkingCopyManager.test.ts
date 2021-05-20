@@ -48,6 +48,11 @@ suite('UntitledFileWorkingCopyManager', () => {
 	});
 
 	test('basics', async () => {
+		let createCounter = 0;
+		manager.untitled.onDidCreate(e => {
+			createCounter++;
+		});
+
 		let disposeCounter = 0;
 		manager.untitled.onWillDispose(e => {
 			disposeCounter++;
@@ -66,6 +71,8 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 		const workingCopy1 = await manager.untitled.resolve();
 		const workingCopy2 = await manager.untitled.resolve();
+
+		assert.strictEqual(createCounter, 2);
 
 		assert.strictEqual(manager.untitled.get(workingCopy1.resource), workingCopy1);
 		assert.strictEqual(manager.untitled.get(workingCopy2.resource), workingCopy2);
@@ -123,10 +130,17 @@ suite('UntitledFileWorkingCopyManager', () => {
 	});
 
 	test('resolve - existing', async () => {
+		let createCounter = 0;
+		manager.untitled.onDidCreate(e => {
+			createCounter++;
+		});
+
 		const workingCopy1 = await manager.untitled.resolve();
+		assert.strictEqual(createCounter, 1);
 
 		const workingCopy2 = await manager.untitled.resolve({ untitledResource: workingCopy1.resource });
 		assert.strictEqual(workingCopy1, workingCopy2);
+		assert.strictEqual(createCounter, 1);
 
 		const workingCopy3 = await manager.untitled.resolve({ untitledResource: URI.file('/invalid/untitled') });
 		assert.strictEqual(workingCopy3.resource.scheme, Schemas.untitled);
