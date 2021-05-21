@@ -234,7 +234,8 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	async makeCategoryVisibleWhenAvailable(categoryID: string) {
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		await this.gettingStartedService.installedExtensionsRegistered;
+
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
@@ -442,6 +443,11 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 		}
+	}
+
+	async selectStepLoose(id: string) {
+		const toSelect = this.editorInput.selectedCategory + '#' + id;
+		this.selectStep(toSelect);
 	}
 
 	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {

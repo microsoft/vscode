@@ -25,6 +25,7 @@ import product from 'vs/platform/product/common/product';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
@@ -118,6 +119,19 @@ registerAction2(class extends Action2 {
 		const editorPane = editorService.activeEditorPane;
 		if (editorPane instanceof GettingStartedPage) {
 			editorPane.escape();
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'walkthroughs.selectStep',
+	handler: (accessor, stepID: string) => {
+		const editorService = accessor.get(IEditorService);
+		const editorPane = editorService.activeEditorPane;
+		if (editorPane instanceof GettingStartedPage) {
+			editorPane.selectStepLoose(stepID);
+		} else {
+			console.error('Cannot run walkthroughs.selectStep outside of walkthrough context');
 		}
 	}
 });

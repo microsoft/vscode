@@ -128,6 +128,8 @@ export interface IGettingStartedService {
 	progressByEvent(eventName: string): void;
 	progressStep(id: string): void;
 	deprogressStep(id: string): void;
+
+	installedExtensionsRegistered: Promise<void>;
 }
 
 export class GettingStartedService extends Disposable implements IGettingStartedService {
@@ -161,6 +163,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private sessionInstalledExtensions = new Set<string>();
 
 	private trackedContextKeys = new Set<string>();
+
+	private triggerInstalledExtensionsRegistered!: () => void;
+	installedExtensionsRegistered: Promise<void>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -206,6 +211,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
 			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		}));
+
+		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
 
 		startEntries.forEach(async (entry, index) => {
 			this.getCategoryOverrides(entry);
@@ -417,6 +424,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 			this.registerWalkthrough(walkthoughDescriptior, steps);
 		}));
+
+		this.triggerInstalledExtensionsRegistered();
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') !== 'hide') {
 			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
