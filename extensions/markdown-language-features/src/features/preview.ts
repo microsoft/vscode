@@ -11,7 +11,7 @@ import { Logger } from '../logger';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
-import { normalizeResource, WebviewResourceProvider } from '../util/resources';
+import { WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
@@ -423,7 +423,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			baseRoots.push(vscode.Uri.file(path.dirname(this._resource.fsPath)));
 		}
 
-		return baseRoots.map(root => normalizeResource(this._resource, root));
+		return baseRoots;
 	}
 
 
@@ -456,7 +456,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	//#region WebviewResourceProvider
 
 	asWebviewUri(resource: vscode.Uri) {
-		return this._webviewPanel.webview.asWebviewUri(normalizeResource(this._resource, resource));
+		return this._webviewPanel.webview.asWebviewUri(resource);
 	}
 
 	get cspSource() {

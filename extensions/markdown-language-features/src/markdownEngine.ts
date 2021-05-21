@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownIt, Token } from 'markdown-it';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { hash } from './util/hash';
-import { isOfScheme, MarkdownFileExtensions, Schemes } from './util/links';
+import { isOfScheme, Schemes } from './util/links';
+import { WebviewResourceProvider } from './util/resources';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -62,12 +62,13 @@ export interface RenderOutput {
 
 interface RenderEnv {
 	containingImages: { src: string }[];
+	currentDocument: vscode.Uri | undefined;
+	resourceProvider: WebviewResourceProvider | undefined;
 }
 
 export class MarkdownEngine {
 	private md?: Promise<MarkdownIt>;
 
-	private currentDocument?: vscode.Uri;
 	private _slugCount = new Map<string, number>();
 	private _tokenCache = new TokenCache();
 
@@ -113,7 +114,7 @@ export class MarkdownEngine {
 					this.addLineNumberRenderer(md, renderName);
 				}
 
-				this.addImageStabilizer(md);
+				this.addImageRenderer(md);
 				this.addFencedRenderer(md);
 				this.addLinkNormalizer(md);
 				this.addLinkValidator(md);
@@ -138,8 +139,6 @@ export class MarkdownEngine {
 			return cached;
 		}
 
-		this.currentDocument = document.uri;
-
 		const tokens = this.tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
 		return tokens;
@@ -151,7 +150,7 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public async render(input: SkinnyTextDocument | string): Promise<RenderOutput> {
+	public async render(input: SkinnyTextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
 		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
 
@@ -160,7 +159,9 @@ export class MarkdownEngine {
 			: this.tokenizeDocument(input, config, engine);
 
 		const env: RenderEnv = {
-			containingImages: []
+			containingImages: [],
+			currentDocument: typeof input === 'string' ? undefined : input.uri,
+			resourceProvider,
 		};
 
 		const html = engine.renderer.render(tokens, {
@@ -210,7 +211,7 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addImageStabilizer(md: MarkdownIt): void {
+	private addImageRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules.image;
 		md.renderer.rules.image = (tokens: Token[], idx: number, options: any, env: RenderEnv, self: any) => {
 			const token = tokens[idx];
@@ -221,6 +222,11 @@ export class MarkdownEngine {
 				env.containingImages?.push({ src });
 				const imgHash = hash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
+
+				if (!token.attrGet('data-src')) {
+					token.attrSet('src', this.toResourceUri(src, env.currentDocument, env.resourceProvider));
+					token.attrSet('data-src', src);
+				}
 			}
 
 			if (original) {
@@ -252,40 +258,6 @@ export class MarkdownEngine {
 					return normalizeLink(vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }).toString());
 				}
 
-				// Support file:// links
-				if (isOfScheme(Schemes.file, link)) {
-					// Ensure link is relative by prepending `/` so that it uses the <base> element URI
-					// when resolving the absolute URL
-					return normalizeLink('/' + link.replace(/^file:/, 'file'));
-				}
-
-				// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
-				if (!/^[a-z\-]+:/i.test(link)) {
-					// Use a fake scheme for parsing
-					let uri = vscode.Uri.parse('markdown-link:' + link);
-
-					// Relative paths should be resolved correctly inside the preview but we need to
-					// handle absolute paths specially (for images) to resolve them relative to the workspace root
-					if (uri.path[0] === '/') {
-						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
-						if (root) {
-							uri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
-								scheme: 'markdown-link',
-								fragment: uri.fragment,
-								query: uri.query,
-							});
-						}
-					}
-
-					const extname = path.extname(uri.fsPath);
-
-					if (uri.fragment && (extname === '' || MarkdownFileExtensions.includes(extname))) {
-						uri = uri.with({
-							fragment: this.slugifier.fromHeading(uri.fragment).value
-						});
-					}
-					return normalizeLink(uri.toString(true).replace(/^markdown-link:/, ''));
-				}
 			} catch (e) {
 				// noop
 			}
@@ -342,6 +314,50 @@ export class MarkdownEngine {
 			}
 			return old_render(tokens, idx, options, env, self);
 		};
+	}
+
+	private toResourceUri(href: string, currentDocument: vscode.Uri | undefined, resourceProvider: WebviewResourceProvider | undefined): string {
+		try {
+			// Support file:// links
+			if (isOfScheme(Schemes.file, href)) {
+				const uri = vscode.Uri.parse(href);
+				if (resourceProvider) {
+					return resourceProvider.asWebviewUri(uri).toString(true);
+				}
+				// Not sure how to resolve this
+				return href;
+			}
+
+			// If original link doesn't look like a url with a scheme, assume it must be a link to a file in workspace
+			if (!/^[a-z\-]+:/i.test(href)) {
+				// Use a fake scheme for parsing
+				let uri = vscode.Uri.parse('markdown-link:' + href);
+
+				// Relative paths should be resolved correctly inside the preview but we need to
+				// handle absolute paths specially to resolve them relative to the workspace root
+				if (uri.path[0] === '/' && currentDocument) {
+					const root = vscode.workspace.getWorkspaceFolder(currentDocument);
+					if (root) {
+						uri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
+							fragment: uri.fragment,
+							query: uri.query,
+						});
+
+						if (resourceProvider) {
+							return resourceProvider.asWebviewUri(uri).toString(true);
+						} else {
+							uri = uri.with({ scheme: 'markdown-link' });
+						}
+					}
+				}
+
+				return uri.toString(true).replace(/^markdown-link:/, '');
+			}
+
+			return href;
+		} catch {
+			return href;
+		}
 	}
 }
 
