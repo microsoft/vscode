@@ -448,7 +448,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			leftMargin: number,
 			rightMargin: number,
 			runGutter: number,
-			dragAndDropEnabled: boolean
+			dragAndDropEnabled: boolean,
+			fontSize: number
 		},
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
 		@IWebviewService readonly webviewService: IWebviewService,
@@ -490,7 +491,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		leftMargin: number,
 		rightMargin: number,
 		runGutter: number,
-		dragAndDropEnabled: boolean
+		dragAndDropEnabled: boolean,
+		fontSize: number
 	}) {
 		this.options = options;
 		this._updateStyles();
@@ -523,6 +525,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
+			'notebook-cell-output-font-size': `${this.options.fontSize}px`
 		};
 	}
 
@@ -671,6 +674,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div > div.output {
+						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
 						margin-left: var(--notebook-output-left-margin);
 						padding-top: var(--notebook-output-node-padding);

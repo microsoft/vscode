@@ -53,6 +53,7 @@ export interface NotebookLayoutConfiguration {
 	consolidatedOutputButton: boolean;
 	showFoldingControls: 'always' | 'mouseover';
 	dragAndDropEnabled: boolean;
+	fontSize: number;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -67,6 +68,7 @@ interface NotebookOptionsChangeEvent {
 	showFoldingControls?: boolean;
 	consolidatedOutputButton?: boolean;
 	dragAndDropEnabled?: boolean;
+	fontSize?: boolean;
 }
 
 const defaultConfigConstants = {
@@ -103,6 +105,7 @@ export class NotebookOptions {
 		const insertToolbarPosition = this._computeInsertToolbarPositionOption();
 		const showFoldingControls = this._computeShowFoldingControlsOption();
 		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition);
+		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
 
 		this._disposables = [];
 		this._layoutConfiguration = {
@@ -129,7 +132,8 @@ export class NotebookOptions {
 			compactView,
 			focusIndicator,
 			insertToolbarPosition,
-			showFoldingControls
+			showFoldingControls,
+			fontSize
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
@@ -155,8 +159,20 @@ export class NotebookOptions {
 		const consolidatedOutputButton = e.affectsConfiguration(ExperimentalConsolidatedOutputButton);
 		const showFoldingControls = e.affectsConfiguration(ExperimentalShowFoldingControls);
 		const dragAndDropEnabled = e.affectsConfiguration(ExperimentalDragAndDropEnabled);
+		const fontSize = e.affectsConfiguration('editor.fontSize');
 
-		if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction && !compactView && !focusIndicator && !insertToolbarPosition && !globalToolbar && !consolidatedOutputButton && !showFoldingControls && !dragAndDropEnabled) {
+		if (
+			!cellStatusBarVisibility
+			&& !cellToolbarLocation
+			&& !cellToolbarInteraction
+			&& !compactView
+			&& !focusIndicator
+			&& !insertToolbarPosition
+			&& !globalToolbar
+			&& !consolidatedOutputButton
+			&& !showFoldingControls
+			&& !dragAndDropEnabled
+			&& !fontSize) {
 			return;
 		}
 
@@ -209,6 +225,10 @@ export class NotebookOptions {
 			configuration.dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(ExperimentalDragAndDropEnabled) ?? true;
 		}
 
+		if (fontSize) {
+			configuration.fontSize = this.configurationService.getValue<number>('editor.fontSize');
+		}
+
 		this._layoutConfiguration = Object.freeze(configuration);
 
 		// trigger event
@@ -222,7 +242,8 @@ export class NotebookOptions {
 			globalToolbar,
 			showFoldingControls,
 			consolidatedOutputButton,
-			dragAndDropEnabled
+			dragAndDropEnabled,
+			fontSize: fontSize
 		});
 	}
 
@@ -347,6 +368,7 @@ export class NotebookOptions {
 			rightMargin: this._layoutConfiguration.cellRightMargin,
 			runGutter: this._layoutConfiguration.cellRunGutter,
 			dragAndDropEnabled: this._layoutConfiguration.dragAndDropEnabled,
+			fontSize: this._layoutConfiguration.fontSize
 		};
 	}
 
@@ -359,7 +381,8 @@ export class NotebookOptions {
 			leftMargin: 0,
 			rightMargin: 0,
 			runGutter: 0,
-			dragAndDropEnabled: false
+			dragAndDropEnabled: false,
+			fontSize: this._layoutConfiguration.fontSize
 		};
 	}
 
