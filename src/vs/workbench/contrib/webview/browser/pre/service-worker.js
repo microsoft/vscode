@@ -254,7 +254,7 @@ async function processResourceRequest(event, requestUrl) {
 
 	const { requestId, promise } = resourceRequestStore.create();
 
-	const firstHostSegment = requestUrl.hostname.slice(0, resourceBaseAuthority.length);
+	const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
 	const scheme = firstHostSegment.split('+', 1)[0];
 	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
 
