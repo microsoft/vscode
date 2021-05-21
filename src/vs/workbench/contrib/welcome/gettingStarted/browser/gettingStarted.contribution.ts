@@ -22,6 +22,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import product from 'vs/platform/product/common/product';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
@@ -29,7 +32,7 @@ export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gett
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.showGettingStarted',
+			id: 'workbench.action.openWalkthrough',
 			title: localize('Getting Started', "Getting Started"),
 			category: localize('help', "Help"),
 			f1: true,
@@ -41,8 +44,42 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor) {
-		accessor.get(IEditorService).openEditor(new GettingStartedInput({}), {});
+	public run(accessor: ServicesAccessor, walkthroughID?: string) {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(IEditorService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		if (walkthroughID) {
+			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
+			for (const group of editorGroupsService.groups) {
+				if (group.activeEditor instanceof GettingStartedInput) {
+					if (!group.activeEditor.selectedCategory) {
+						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(walkthroughID);
+						return;
+					}
+				}
+			}
+
+			// Otherwise, try to find a getting started input somewhere with no selected walkthrough, and open it to this one.
+			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, resource: GettingStartedInput.RESOURCE });
+			for (const { editor, groupId } of result) {
+				if (editor instanceof GettingStartedInput) {
+					if (!editor.selectedCategory) {
+						editor.selectedCategory = walkthroughID;
+						editorService.openEditor(editor, { revealIfOpened: true, override: EditorOverride.DISABLED }, groupId);
+						return;
+					}
+				}
+			}
+
+			// Otherwise, just make a new one.
+			if (configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
+				editorService.openEditor(instantiationService.createInstance(GettingStartedInput, { selectedCategory: walkthroughID }), {});
+			}
+		} else {
+			editorService.openEditor(new GettingStartedInput({}), {});
+		}
 	}
 });
 
