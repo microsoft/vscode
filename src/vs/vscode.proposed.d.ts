@@ -1263,7 +1263,7 @@ declare module 'vscode' {
 		 * @param mime Optional MIME type, defaults to `application/octet-stream`.
 		 * @returns A new output item object.
 		 */
-		//todo@API bytes, raw, buffer?
+		//todo@API better names: bytes, raw, buffer?
 		static bytes(value: Uint8Array, mime?: string): NotebookCellOutputItem;
 
 		/**
@@ -1297,8 +1297,8 @@ declare module 'vscode' {
 		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
 		 * is interpreted.
 		 *
-		 * Notebooks have built-in support for certain mime-types, extensions can add support new
-		 * types or refine existing types.
+		 * Notebooks have built-in support for certain mime-types, extensions can add support for new
+		 * types and override existing types.
 		 */
 		mime: string;
 
@@ -1310,7 +1310,14 @@ declare module 'vscode' {
 
 		metadata?: { [key: string]: any };
 
-		constructor(mime: string, value: unknown, metadata?: { [key: string]: any });
+		/**
+		 * Create a new notbook cell output item.
+		 *
+		 * @param mime The mime type of the output item.
+		 * @param value The value of the output item.
+		 * @param metadata Optional metadata for this output item.
+		 */
+		constructor(mime: string, value: Uint8Array | unknown, metadata?: { [key: string]: any });
 	}
 
 	// @jrieken transient
