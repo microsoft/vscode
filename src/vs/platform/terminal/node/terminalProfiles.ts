@@ -34,7 +34,7 @@ export function detectAvailableProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			safeConfigProvider(TerminalSettingId.UseWslProfiles) || true,
+			safeConfigProvider<boolean>(TerminalSettingId.UseWslProfiles) !== false,
 			safeConfigProvider(TerminalSettingId.ProfilesWindows),
 			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
 			variableResolver
