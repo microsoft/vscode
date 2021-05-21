@@ -462,11 +462,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	isOrphaned(): boolean {
-		return SimpleNotebookEditorModel._isStordFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN);
+		return SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN);
 	}
 
 	isReadonly(): boolean {
-		if (SimpleNotebookEditorModel._isStordFileWorkingCopy(this._workingCopy)) {
+		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy.isReadonly();
 		} else if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
 			return true;
@@ -518,7 +518,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this._instantiationService.createInstance(NotebookEditorInput, newWorkingCopy.resource, this.viewType, {});
 	}
 
-	private static _isStordFileWorkingCopy(candidate?: unknown): candidate is IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> {
+	private static _isStoredFileWorkingCopy(candidate?: unknown): candidate is IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> {
 		return candidate instanceof StoredFileWorkingCopy;
 	}
 }
