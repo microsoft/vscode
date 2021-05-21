@@ -30,28 +30,28 @@ import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services
 import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel, IBaseFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
 
 /**
- * File specific working copy model factory.
+ * Stored file specific working copy model factory.
  */
-export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
+export interface IStoredFileWorkingCopyModelFactory<M extends IStoredFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
 
 /**
- * The underlying model of a file working copy provides some
- * methods for the file working copy to function. The model is
+ * The underlying model of a stored file working copy provides some
+ * methods for the stored file working copy to function. The model is
  * typically only available after the working copy has been
  * resolved via it's `resolve()` method.
  */
-export interface IFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
+export interface IStoredFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
 
-	readonly onDidChangeContent: Event<IFileWorkingCopyModelContentChangedEvent>;
+	readonly onDidChangeContent: Event<IStoredFileWorkingCopyModelContentChangedEvent>;
 
 	/**
 	 * A version ID of the model. If a `onDidChangeContent` is fired
 	 * from the model and the last known saved `versionId` matches
-	 * with the `model.versionId`, the file working copy will discard
-	 * any dirty state.
+	 * with the `model.versionId`, the stored file working copy will
+	 * discard any dirty state.
 	 *
 	 * A use case is the following:
-	 * - a file working copy gets edited and thus dirty
+	 * - a stored file working copy gets edited and thus dirty
 	 * - the user triggers undo to revert the changes
 	 * - at this point the `versionId` should match the one we had saved
 	 *
@@ -70,7 +70,7 @@ export interface IFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
 	pushStackElement(): void;
 }
 
-export interface IFileWorkingCopyModelContentChangedEvent {
+export interface IStoredFileWorkingCopyModelContentChangedEvent {
 
 	/**
 	 * Flag that indicates that this event was generated while undoing.
@@ -84,37 +84,37 @@ export interface IFileWorkingCopyModelContentChangedEvent {
 }
 
 /**
- * A file based `IWorkingCopy` is backed by a `URI` from a
+ * A stored file based `IWorkingCopy` is backed by a `URI` from a
  * known file system provider. Given this assumption, a lot
  * of functionality can be built on top, such as saving in
  * a secure way to prevent data loss.
  */
-export interface IFileWorkingCopy<M extends IFileWorkingCopyModel> extends IResourceWorkingCopy, IBaseFileWorkingCopy<M> {
+export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IResourceWorkingCopy, IBaseFileWorkingCopy<M> {
 
 	/**
-	 * An event for when a file working copy was resolved.
+	 * An event for when a stored file working copy was resolved.
 	 */
 	readonly onDidResolve: Event<void>;
 
 	/**
-	 * An event for when a file working copy was saved successfully.
+	 * An event for when a stored file working copy was saved successfully.
 	 */
 	readonly onDidSave: Event<SaveReason>;
 
 	/**
-	 * An event indicating that a file working copy save operation failed.
+	 * An event indicating that a stored file working copy save operation failed.
 	 */
 	readonly onDidSaveError: Event<void>;
 
 	/**
-	 * An event for when the readonly state of the file working copy changes.
+	 * An event for when the readonly state of the stored file working copy changes.
 	 */
 	readonly onDidChangeReadonly: Event<void>;
 
 	/**
-	 * Resolves a file working copy.
+	 * Resolves a stored file working copy.
 	 */
-	resolve(options?: IFileWorkingCopyResolveOptions): Promise<void>;
+	resolve(options?: IStoredFileWorkingCopyResolveOptions): Promise<void>;
 
 	/**
 	 * Explicitly sets the working copy to be dirty.
@@ -122,12 +122,12 @@ export interface IFileWorkingCopy<M extends IFileWorkingCopyModel> extends IReso
 	markDirty(): void;
 
 	/**
-	 * Whether the file working copy is in the provided `state`
+	 * Whether the stored file working copy is in the provided `state`
 	 * or not.
 	 *
 	 * @param state the `FileWorkingCopyState` to check on.
 	 */
-	hasState(state: FileWorkingCopyState): boolean;
+	hasState(state: StoredFileWorkingCopyState): boolean;
 
 	/**
 	 * Allows to join a state change away from the provided `state`.
@@ -135,119 +135,119 @@ export interface IFileWorkingCopy<M extends IFileWorkingCopyModel> extends IReso
 	 * @param state currently only `FileWorkingCopyState.PENDING_SAVE`
 	 * can be awaited on to resolve.
 	 */
-	joinState(state: FileWorkingCopyState.PENDING_SAVE): Promise<void>;
+	joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void>;
 
 	/**
 	 * Whether we have a resolved model or not.
 	 */
-	isResolved(): this is IResolvedFileWorkingCopy<M>;
+	isResolved(): this is IResolvedStoredFileWorkingCopy<M>;
 
 	/**
-	 * Whether the file working copy is readonly or not.
+	 * Whether the stored file working copy is readonly or not.
 	 */
 	isReadonly(): boolean;
 }
 
-export interface IResolvedFileWorkingCopy<M extends IFileWorkingCopyModel> extends IFileWorkingCopy<M> {
+export interface IResolvedStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IStoredFileWorkingCopy<M> {
 
 	/**
-	 * A resolved file working copy has a resolved model.
+	 * A resolved stored file working copy has a resolved model.
 	 */
 	readonly model: M;
 }
 
 /**
- * States the file working copy can be in.
+ * States the stored file working copy can be in.
  */
-export const enum FileWorkingCopyState {
+export const enum StoredFileWorkingCopyState {
 
 	/**
-	 * A file working copy is saved.
+	 * A stored file working copy is saved.
 	 */
 	SAVED,
 
 	/**
-	 * A file working copy is dirty.
+	 * A stored file working copy is dirty.
 	 */
 	DIRTY,
 
 	/**
-	 * A file working copy is currently being saved but
+	 * A stored file working copy is currently being saved but
 	 * this operation has not completed yet.
 	 */
 	PENDING_SAVE,
 
 	/**
-	 * A file working copy is in conflict mode when changes
+	 * A stored file working copy is in conflict mode when changes
 	 * cannot be saved because the underlying file has changed.
-	 * File working copies in conflict mode are always dirty.
+	 * Stored file working copies in conflict mode are always dirty.
 	 */
 	CONFLICT,
 
 	/**
-	 * A file working copy is in orphan state when the underlying
+	 * A stored file working copy is in orphan state when the underlying
 	 * file has been deleted.
 	 */
 	ORPHAN,
 
 	/**
 	 * Any error that happens during a save that is not causing
-	 * the `FileWorkingCopyState.CONFLICT` state.
-	 * File working copies in error mode are always dirty.
+	 * the `StoredFileWorkingCopyState.CONFLICT` state.
+	 * Stored file working copies in error mode are always dirty.
 	 */
 	ERROR
 }
 
-export interface IFileWorkingCopySaveOptions extends ISaveOptions {
+export interface IStoredFileWorkingCopySaveOptions extends ISaveOptions {
 
 	/**
-	 * Save the file working copy with an attempt to unlock it.
+	 * Save the stored file working copy with an attempt to unlock it.
 	 */
 	writeUnlock?: boolean;
 
 	/**
-	 * Save the file working copy with elevated privileges.
+	 * Save the stored file working copy with elevated privileges.
 	 *
 	 * Note: This may not be supported in all environments.
 	 */
 	writeElevated?: boolean;
 
 	/**
-	 * Allows to write to a file working copy even if it has been
+	 * Allows to write to a stored file working copy even if it has been
 	 * modified on disk. This should only be triggered from an
 	 * explicit user action.
 	 */
 	ignoreModifiedSince?: boolean;
 
 	/**
-	 * If set, will bubble up the file working copy save error to
+	 * If set, will bubble up the stored file working copy save error to
 	 * the caller instead of handling it.
 	 */
 	ignoreErrorHandler?: boolean;
 }
 
-export interface IFileWorkingCopyResolveOptions {
+export interface IStoredFileWorkingCopyResolveOptions {
 
 	/**
-	 * The contents to use for the file working copy if known. If not
+	 * The contents to use for the stored file working copy if known. If not
 	 * provided, the contents will be retrieved from the underlying
 	 * resource or backup if present.
 	 *
-	 * If contents are provided, the file working copy will be marked
+	 * If contents are provided, the stored file working copy will be marked
 	 * as dirty right from the beginning.
 	 */
 	contents?: VSBufferReadableStream;
 
 	/**
-	 * Go to disk bypassing any cache of the file working copy if any.
+	 * Go to disk bypassing any cache of the stored file working copy if any.
 	 */
 	forceReadFromFile?: boolean;
 }
 
 /**
- * Metadata associated with a file working copy backup.
+ * Metadata associated with a stored file working copy backup.
  */
-interface IFileWorkingCopyBackupMetaData extends IWorkingCopyBackupMeta {
+interface IStoredFileWorkingCopyBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
 	ctime: number;
 	size: number;
@@ -255,7 +255,7 @@ interface IFileWorkingCopyBackupMetaData extends IWorkingCopyBackupMeta {
 	orphaned: boolean;
 }
 
-export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWorkingCopy implements IFileWorkingCopy<M>  {
+export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends ResourceWorkingCopy implements IStoredFileWorkingCopy<M>  {
 
 	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.None;
 
@@ -291,7 +291,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		readonly typeId: string,
 		resource: URI,
 		readonly name: string,
-		private readonly modelFactory: IFileWorkingCopyModelFactory<M>,
+		private readonly modelFactory: IStoredFileWorkingCopyModelFactory<M>,
 		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -318,7 +318,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	private dirty = false;
 	private savedVersionId: unknown;
 
-	isDirty(): this is IResolvedFileWorkingCopy<M> {
+	isDirty(): this is IResolvedStoredFileWorkingCopy<M> {
 		return this.dirty;
 	}
 
@@ -379,16 +379,16 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
-	isResolved(): this is IResolvedFileWorkingCopy<M> {
+	isResolved(): this is IResolvedStoredFileWorkingCopy<M> {
 		return !!this.model;
 	}
 
-	async resolve(options?: IFileWorkingCopyResolveOptions): Promise<void> {
-		this.trace('[file working copy] resolve() - enter');
+	async resolve(options?: IStoredFileWorkingCopyResolveOptions): Promise<void> {
+		this.trace('[stored file working copy] resolve() - enter');
 
 		// Return early if we are disposed
 		if (this.isDisposed()) {
-			this.trace('[file working copy] resolve() - exit - without resolving because file working copy is disposed');
+			this.trace('[stored file working copy] resolve() - exit - without resolving because file working copy is disposed');
 
 			return;
 		}
@@ -397,7 +397,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		// resolve a working copy that is dirty or is in the process of saving to prevent
 		// data loss.
 		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
-			this.trace('[file working copy] resolve() - exit - without resolving because file working copy is dirty or being saved');
+			this.trace('[stored file working copy] resolve() - exit - without resolving because file working copy is dirty or being saved');
 
 			return;
 		}
@@ -405,7 +405,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		return this.doResolve(options);
 	}
 
-	private async doResolve(options?: IFileWorkingCopyResolveOptions): Promise<void> {
+	private async doResolve(options?: IStoredFileWorkingCopyResolveOptions): Promise<void> {
 
 		// First check if we have contents to use for the working copy
 		if (options?.contents) {
@@ -426,7 +426,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	}
 
 	private async resolveFromBuffer(buffer: VSBufferReadableStream): Promise<void> {
-		this.trace('[file working copy] resolveFromBuffer()');
+		this.trace('[stored file working copy] resolveFromBuffer()');
 
 		// Try to resolve metdata from disk
 		let mtime: number;
@@ -470,12 +470,12 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	private async resolveFromBackup(): Promise<boolean> {
 
 		// Resolve backup if any
-		const backup = await this.workingCopyBackupService.resolve<IFileWorkingCopyBackupMetaData>(this);
+		const backup = await this.workingCopyBackupService.resolve<IStoredFileWorkingCopyBackupMetaData>(this);
 
 		// Abort if someone else managed to resolve the working copy by now
 		let isNew = !this.isResolved();
 		if (!isNew) {
-			this.trace('[file working copy] resolveFromBackup() - exit - withoutresolving because previously new file working copy got created meanwhile');
+			this.trace('[stored file working copy] resolveFromBackup() - exit - withoutresolving because previously new file working copy got created meanwhile');
 
 			return true; // imply that resolving has happened in another operation
 		}
@@ -491,8 +491,8 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		return false;
 	}
 
-	private async doResolveFromBackup(backup: IResolvedWorkingCopyBackup<IFileWorkingCopyBackupMetaData>): Promise<void> {
-		this.trace('[file working copy] doResolveFromBackup()');
+	private async doResolveFromBackup(backup: IResolvedWorkingCopyBackup<IStoredFileWorkingCopyBackupMetaData>): Promise<void> {
+		this.trace('[stored file working copy] doResolveFromBackup()');
 
 		// Resolve with backup
 		await this.resolveFromContent({
@@ -512,8 +512,8 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		}
 	}
 
-	private async resolveFromFile(options?: IFileWorkingCopyResolveOptions): Promise<void> {
-		this.trace('[file working copy] resolveFromFile()');
+	private async resolveFromFile(options?: IStoredFileWorkingCopyResolveOptions): Promise<void> {
+		this.trace('[stored file working copy] resolveFromFile()');
 
 		const forceReadFromFile = options?.forceReadFromFile;
 
@@ -540,7 +540,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 			// Return early if the working copy content has changed
 			// meanwhile to prevent loosing any changes
 			if (currentVersionId !== this.versionId) {
-				this.trace('[file working copy] resolveFromFile() - exit - without resolving because file working copy content changed');
+				this.trace('[stored file working copy] resolveFromFile() - exit - without resolving because file working copy content changed');
 
 				return;
 			}
@@ -572,11 +572,11 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	}
 
 	private async resolveFromContent(content: IFileStreamContent, dirty: boolean): Promise<void> {
-		this.trace('[file working copy] resolveFromContent() - enter');
+		this.trace('[stored file working copy] resolveFromContent() - enter');
 
 		// Return early if we are disposed
 		if (this.isDisposed()) {
-			this.trace('[file working copy] resolveFromContent() - exit - because working copy is disposed');
+			this.trace('[stored file working copy] resolveFromContent() - exit - because working copy is disposed');
 
 			return;
 		}
@@ -617,7 +617,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	}
 
 	private async doCreateModel(contents: VSBufferReadableStream): Promise<void> {
-		this.trace('[file working copy] doCreateModel()');
+		this.trace('[stored file working copy] doCreateModel()');
 
 		// Create model and dispose it when we get disposed
 		this._model = this._register(await this.modelFactory.createModel(this.resource, contents, CancellationToken.None));
@@ -629,7 +629,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	private ignoreDirtyOnModelContentChange = false;
 
 	private async doUpdateModel(contents: VSBufferReadableStream): Promise<void> {
-		this.trace('[file working copy] doUpdateModel()');
+		this.trace('[stored file working copy] doUpdateModel()');
 
 		// Update model value in a block that ignores content change events for dirty tracking
 		this.ignoreDirtyOnModelContentChange = true;
@@ -654,11 +654,11 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	}
 
 	private onModelContentChanged(model: M, isUndoingOrRedoing: boolean): void {
-		this.trace(`[file working copy] onModelContentChanged() - enter`);
+		this.trace(`[stored file working copy] onModelContentChanged() - enter`);
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
 		this.versionId++;
-		this.trace(`[file working copy] onModelContentChanged() - new versionId ${this.versionId}`);
+		this.trace(`[stored file working copy] onModelContentChanged() - new versionId ${this.versionId}`);
 
 		// Remember when the user changed the model through a undo/redo operation.
 		// We need this information to throttle save participants to fix
@@ -675,7 +675,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 			// The contents changed as a matter of Undo and the version reached matches the saved one
 			// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 			if (model.versionId === this.savedVersionId) {
-				this.trace('[file working copy] onModelContentChanged() - model content changed back to last saved version');
+				this.trace('[stored file working copy] onModelContentChanged() - model content changed back to last saved version');
 
 				// Clear flags
 				const wasDirty = this.dirty;
@@ -689,7 +689,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 
 			// Otherwise the content has changed and we signal this as becoming dirty
 			else {
-				this.trace('[file working copy] onModelContentChanged() - model content changed and marked as dirty');
+				this.trace('[stored file working copy] onModelContentChanged() - model content changed and marked as dirty');
 
 				// Mark as dirty
 				this.setDirty(true);
@@ -707,7 +707,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 
 		// Fill in metadata if we are resolved
-		let meta: IFileWorkingCopyBackupMetaData | undefined = undefined;
+		let meta: IStoredFileWorkingCopyBackupMetaData | undefined = undefined;
 		if (this.lastResolvedFileStat) {
 			meta = {
 				mtime: this.lastResolvedFileStat.mtime,
@@ -738,41 +738,41 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
-	async save(options: IFileWorkingCopySaveOptions = Object.create(null)): Promise<boolean> {
+	async save(options: IStoredFileWorkingCopySaveOptions = Object.create(null)): Promise<boolean> {
 		if (!this.isResolved()) {
 			return false;
 		}
 
 		if (this.isReadonly()) {
-			this.trace('[file working copy] save() - ignoring request for readonly resource');
+			this.trace('[stored file working copy] save() - ignoring request for readonly resource');
 
 			return false; // if working copy is readonly we do not attempt to save at all
 		}
 
 		if (
-			(this.hasState(FileWorkingCopyState.CONFLICT) || this.hasState(FileWorkingCopyState.ERROR)) &&
+			(this.hasState(StoredFileWorkingCopyState.CONFLICT) || this.hasState(StoredFileWorkingCopyState.ERROR)) &&
 			(options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)
 		) {
-			this.trace('[file working copy] save() - ignoring auto save request for file working copy that is in conflict or error');
+			this.trace('[stored file working copy] save() - ignoring auto save request for file working copy that is in conflict or error');
 
 			return false; // if working copy is in save conflict or error, do not save unless save reason is explicit
 		}
 
 		// Actually do save
-		this.trace('[file working copy] save() - enter');
+		this.trace('[stored file working copy] save() - enter');
 		await this.doSave(options);
-		this.trace('[file working copy] save() - exit');
+		this.trace('[stored file working copy] save() - exit');
 
 		return true;
 	}
 
-	private async doSave(options: IFileWorkingCopySaveOptions): Promise<void> {
+	private async doSave(options: IStoredFileWorkingCopySaveOptions): Promise<void> {
 		if (typeof options.reason !== 'number') {
 			options.reason = SaveReason.EXPLICIT;
 		}
 
 		let versionId = this.versionId;
-		this.trace(`[file working copy] doSave(${versionId}) - enter with versionId ${versionId}`);
+		this.trace(`[stored file working copy] doSave(${versionId}) - enter with versionId ${versionId}`);
 
 		// Lookup any running pending save for this versionId and return it if found
 		//
@@ -780,7 +780,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		//           while the save was not yet finished to disk
 		//
 		if (this.saveSequentializer.hasPending(versionId)) {
-			this.trace(`[file working copy] doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`);
+			this.trace(`[stored file working copy] doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`);
 
 			return this.saveSequentializer.pending;
 		}
@@ -789,7 +789,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		//
 		// Scenario: user invoked save action even though the working copy is not dirty
 		if (!options.force && !this.dirty) {
-			this.trace(`[file working copy] doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`);
+			this.trace(`[stored file working copy] doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`);
 
 			return;
 		}
@@ -803,7 +803,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		//             while the first save has not returned yet.
 		//
 		if (this.saveSequentializer.hasPending()) {
-			this.trace(`[file working copy] doSave(${versionId}) - exit - because busy saving`);
+			this.trace(`[stored file working copy] doSave(${versionId}) - exit - because busy saving`);
 
 			// Indicate to the save sequentializer that we want to
 			// cancel the pending operation so that ours can run
@@ -852,8 +852,8 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 					// Reported as: https://github.com/microsoft/vscode/issues/102542
 					if (options.reason === SaveReason.AUTO && typeof this.lastContentChangeFromUndoRedo === 'number') {
 						const timeFromUndoRedoToSave = Date.now() - this.lastContentChangeFromUndoRedo;
-						if (timeFromUndoRedoToSave < FileWorkingCopy.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD) {
-							await timeout(FileWorkingCopy.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD - timeFromUndoRedoToSave);
+						if (timeFromUndoRedoToSave < StoredFileWorkingCopy.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD) {
+							await timeout(StoredFileWorkingCopy.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD - timeFromUndoRedoToSave);
 						}
 					}
 
@@ -862,7 +862,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 						await this.textFileService.files.runSaveParticipants(this.model, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
 					}
 				} catch (error) {
-					this.logService.error(`[file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true), this.typeId);
+					this.logService.error(`[stored file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true), this.typeId);
 				}
 			}
 
@@ -896,7 +896,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 			// Save to Disk. We mark the save operation as currently pending with
 			// the latest versionId because it might have changed from a save
 			// participant triggering
-			this.trace(`[file working copy] doSave(${versionId}) - before write()`);
+			this.trace(`[stored file working copy] doSave(${versionId}) - before write()`);
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
 			const resolvedFileWorkingCopy = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
@@ -939,17 +939,17 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		})(), () => saveCancellation.cancel());
 	}
 
-	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: IFileWorkingCopySaveOptions): void {
+	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {
 
 		// Updated resolved stat with updated stat
 		this.updateLastResolvedFileStat(stat);
 
 		// Update dirty state unless working copy has changed meanwhile
 		if (versionId === this.versionId) {
-			this.trace(`[file working copy] handleSaveSuccess(${versionId}) - setting dirty to false because versionId did not change`);
+			this.trace(`[stored file working copy] handleSaveSuccess(${versionId}) - setting dirty to false because versionId did not change`);
 			this.setDirty(false);
 		} else {
-			this.trace(`[file working copy] handleSaveSuccess(${versionId}) - not setting dirty to false because versionId did change meanwhile`);
+			this.trace(`[stored file working copy] handleSaveSuccess(${versionId}) - not setting dirty to false because versionId did change meanwhile`);
 		}
 
 		// Update orphan state given save was successful
@@ -959,8 +959,8 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 		this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
 	}
 
-	private handleSaveError(error: Error, versionId: number, options: IFileWorkingCopySaveOptions): void {
-		this.logService.error(`[file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true), this.typeId);
+	private handleSaveError(error: Error, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {
+		this.logService.error(`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true), this.typeId);
 
 		// Return early if the save() call was made asking to
 		// handle the save error itself.
@@ -1110,7 +1110,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 			return; // ignore if not resolved or not dirty and not enforced
 		}
 
-		this.trace('[file working copy] revert()');
+		this.trace('[stored file working copy] revert()');
 
 		// Unset flags
 		const wasDirty = this.dirty;
@@ -1150,24 +1150,24 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	private inConflictMode = false;
 	private inErrorMode = false;
 
-	hasState(state: FileWorkingCopyState): boolean {
+	hasState(state: StoredFileWorkingCopyState): boolean {
 		switch (state) {
-			case FileWorkingCopyState.CONFLICT:
+			case StoredFileWorkingCopyState.CONFLICT:
 				return this.inConflictMode;
-			case FileWorkingCopyState.DIRTY:
+			case StoredFileWorkingCopyState.DIRTY:
 				return this.dirty;
-			case FileWorkingCopyState.ERROR:
+			case StoredFileWorkingCopyState.ERROR:
 				return this.inErrorMode;
-			case FileWorkingCopyState.ORPHAN:
+			case StoredFileWorkingCopyState.ORPHAN:
 				return this.isOrphaned();
-			case FileWorkingCopyState.PENDING_SAVE:
+			case StoredFileWorkingCopyState.PENDING_SAVE:
 				return this.saveSequentializer.hasPending();
-			case FileWorkingCopyState.SAVED:
+			case StoredFileWorkingCopyState.SAVED:
 				return !this.dirty;
 		}
 	}
 
-	joinState(state: FileWorkingCopyState.PENDING_SAVE): Promise<void> {
+	joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
 		return this.saveSequentializer.pending ?? Promise.resolve();
 	}
 
@@ -1188,7 +1188,7 @@ export class FileWorkingCopy<M extends IFileWorkingCopyModel> extends ResourceWo
 	//#region Dispose
 
 	override dispose(): void {
-		this.trace('[file working copy] dispose()');
+		this.trace('[stored file working copy] dispose()');
 
 		// State
 		this.inConflictMode = false;

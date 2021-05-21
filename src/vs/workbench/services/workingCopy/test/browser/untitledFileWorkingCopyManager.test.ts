@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileWorkingCopyManager2, IFileWorkingCopyManager2 } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager2';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { TestFileWorkingCopyModel, TestFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/fileWorkingCopy.test';
+import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
 import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
@@ -19,7 +19,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	let manager: IFileWorkingCopyManager2<TestFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
+	let manager: IFileWorkingCopyManager2<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
@@ -29,8 +29,8 @@ suite('UntitledFileWorkingCopyManager', () => {
 		accessor.fileService.registerProvider(Schemas.vscodeRemote, new TestInMemoryFileSystemProvider());
 
 		manager = new FileWorkingCopyManager2(
-			'testFileWorkingCopyTypeUntitled',
-			new TestFileWorkingCopyModelFactory(),
+			'testUntitledFileWorkingCopyType',
+			new TestStoredFileWorkingCopyModelFactory(),
 			new TestUntitledFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
@@ -68,6 +68,9 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 		const workingCopy1 = await manager.untitled.resolve();
 		const workingCopy2 = await manager.untitled.resolve();
+
+		assert.strictEqual(workingCopy1.typeId, 'testUntitledFileWorkingCopyType');
+		assert.strictEqual(workingCopy1.resource.scheme, Schemas.untitled);
 
 		assert.strictEqual(createCounter, 2);
 

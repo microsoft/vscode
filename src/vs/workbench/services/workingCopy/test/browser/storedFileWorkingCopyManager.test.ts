@@ -7,28 +7,28 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { IFileWorkingCopy, IFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { timeout } from 'vs/base/common/async';
-import { TestFileWorkingCopyModel, TestFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/fileWorkingCopy.test';
+import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-suite('FileWorkingCopyManager', () => {
+suite('StoredFileWorkingCopyManager', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	let manager: IFileWorkingCopyManager<TestFileWorkingCopyModel>;
+	let manager: IStoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>(
-			'testFileWorkingCopyType',
-			new TestFileWorkingCopyModelFactory(),
+		manager = new StoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>(
+			'testStoredFileWorkingCopyType',
+			new TestStoredFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
@@ -43,7 +43,7 @@ suite('FileWorkingCopyManager', () => {
 	test('resolve', async () => {
 		const resource = URI.file('/test.html');
 
-		const events: IFileWorkingCopy<IFileWorkingCopyModel>[] = [];
+		const events: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>[] = [];
 		const listener = manager.onDidCreate(workingCopy => {
 			events.push(workingCopy);
 		});
@@ -55,7 +55,8 @@ suite('FileWorkingCopyManager', () => {
 		const workingCopy1 = await resolvePromise;
 		assert.ok(workingCopy1);
 		assert.ok(workingCopy1.model);
-		assert.strictEqual(workingCopy1.typeId, 'testFileWorkingCopyType');
+		assert.strictEqual(workingCopy1.typeId, 'testStoredFileWorkingCopyType');
+		assert.strictEqual(workingCopy1.resource.toString(), resource.toString());
 		assert.strictEqual(manager.get(resource), workingCopy1);
 
 		const workingCopy2 = await manager.resolve(resource);
@@ -528,14 +529,14 @@ suite('FileWorkingCopyManager', () => {
 	});
 
 	async function testSaveAs(source: URI, target: URI, resolveSource: boolean, resolveTarget: boolean) {
-		let sourceWorkingCopy: IFileWorkingCopy<TestFileWorkingCopyModel> | undefined = undefined;
+		let sourceWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
 		if (resolveSource) {
 			sourceWorkingCopy = await manager.resolve(source);
 			sourceWorkingCopy.model?.updateContents('hello world');
 			assert.ok(sourceWorkingCopy.isDirty());
 		}
 
-		let targetWorkingCopy: IFileWorkingCopy<TestFileWorkingCopyModel> | undefined = undefined;
+		let targetWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
 		if (resolveTarget) {
 			targetWorkingCopy = await manager.resolve(target);
 			targetWorkingCopy.model?.updateContents('hello world');

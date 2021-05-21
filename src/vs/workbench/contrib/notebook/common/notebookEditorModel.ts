@@ -23,7 +23,7 @@ import { TaskSequentializer } from 'vs/base/common/async';
 import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { FileWorkingCopy, FileWorkingCopyState, IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -426,7 +426,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	readonly onDidChangeOrphaned: Event<void> = this._onDidChangeOrphaned.event;
 	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
 
-	private _workingCopy?: IFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
+	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = new DisposableStore();
 
 	constructor(
@@ -462,11 +462,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	isOrphaned(): boolean {
-		return SimpleNotebookEditorModel._isFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(FileWorkingCopyState.ORPHAN);
+		return SimpleNotebookEditorModel._isStordFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN);
 	}
 
 	isReadonly(): boolean {
-		if (SimpleNotebookEditorModel._isFileWorkingCopy(this._workingCopy)) {
+		if (SimpleNotebookEditorModel._isStordFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy.isReadonly();
 		} else if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
 			return true;
@@ -518,14 +518,14 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this._instantiationService.createInstance(NotebookEditorInput, newWorkingCopy.resource, this.viewType, {});
 	}
 
-	private static _isFileWorkingCopy(candidate?: unknown): candidate is IFileWorkingCopy<NotebookFileWorkingCopyModel> {
-		return candidate instanceof FileWorkingCopy;
+	private static _isStordFileWorkingCopy(candidate?: unknown): candidate is IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> {
+		return candidate instanceof StoredFileWorkingCopy;
 	}
 }
 
-export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
+export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
 
-	private readonly _onDidChangeContent = new Emitter<IFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>();
+	private readonly _onDidChangeContent = new Emitter<IStoredFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>();
 	private readonly _changeListener: IDisposable;
 
 	readonly onDidChangeContent = this._onDidChangeContent.event;
@@ -614,7 +614,7 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel, IUnt
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
 
 	constructor(
 		private readonly _viewType: string,

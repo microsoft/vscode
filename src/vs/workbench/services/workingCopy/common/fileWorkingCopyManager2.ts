@@ -17,8 +17,8 @@ import { ISaveOptions } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, IFileWorkingCopyResolveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { FileWorkingCopyManager, IFileWorkingCopyManager, IFileWorkingCopyManagerResolveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopyManagerResolveOptions } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -37,12 +37,12 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<F | U, IBaseFileWorkingCopy<F | U>> {
+export interface IFileWorkingCopyManager2<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IBaseFileWorkingCopy<S | U>> {
 
 	/**
-	 * Provides access to the manager for titled file working copies.
+	 * Provides access to the manager for stored file working copies.
 	 */
-	readonly files: IFileWorkingCopyManager<F>;
+	readonly stored: IStoredFileWorkingCopyManager<S>;
 
 	/**
 	 * Provides access to the manager for untitled file working copies.
@@ -50,22 +50,24 @@ export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U ext
 	readonly untitled: IUntitledFileWorkingCopyManager<U>;
 
 	/**
-	 * Allows to resolve a file working copy. If the manager already knows
-	 * about a file working copy with the same `URI`, it will return that
-	 * existing file working copy. There will never be more than one
-	 * file working copy per `URI` until the file working copy is disposed.
+	 * Allows to resolve a stored file working copy. If the manager already knows
+	 * about a stored file working copy with the same `URI`, it will return that
+	 * existing stored file working copy. There will never be more than one
+	 * stored file working copy per `URI` until the stored file working copy is
+	 * disposed.
 	 *
-	 * Use the `IFileWorkingCopyResolveOptions.reload` option to control the
-	 * behaviour for when a file working copy was previously already resolved
+	 * Use the `IStoredFileWorkingCopyResolveOptions.reload` option to control the
+	 * behaviour for when a stored file working copy was previously already resolved
 	 * with regards to resolving it again from the underlying file resource
 	 * or not.
 	 *
 	 * Note: Callers must `dispose` the working copy when no longer needed.
 	 *
-	 * @param resource used as unique identifier of the file working copy in
+	 * @param resource used as unique identifier of the stored file working copy in
 	 * case one is already known for this `URI`.
+	 * @param options
 	 */
-	resolve(resource: URI, options?: IFileWorkingCopyManagerResolveOptions): Promise<IFileWorkingCopy<F>>;
+	resolve(resource: URI, options?: IStoredFileWorkingCopyManagerResolveOptions): Promise<IStoredFileWorkingCopy<S>>;
 
 	/**
 	 * Create a new untitled file working copy with optional initial contents.
@@ -111,11 +113,11 @@ export interface IFileWorkingCopyManager2<F extends IFileWorkingCopyModel, U ext
 	 * @param source the source resource to save as
 	 * @param target the optional target resource to save to. if not defined, the user
 	 * will be asked for input
-	 * @returns the target working copy that was saved to or `undefined` in case of
+	 * @returns the target stored working copy that was saved to or `undefined` in case of
 	 * cancellation
 	 */
-	saveAs(source: URI, target: URI, options?: ISaveOptions): Promise<IFileWorkingCopy<F> | undefined>;
-	saveAs(source: URI, target: undefined, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<F> | undefined>;
+	saveAs(source: URI, target: URI, options?: ISaveOptions): Promise<IStoredFileWorkingCopy<S> | undefined>;
+	saveAs(source: URI, target: undefined, options?: IFileWorkingCopySaveAsOptions): Promise<IStoredFileWorkingCopy<S> | undefined>;
 }
 
 export interface IFileWorkingCopySaveAsOptions extends ISaveOptions {
@@ -127,17 +129,17 @@ export interface IFileWorkingCopySaveAsOptions extends ISaveOptions {
 	suggestedTarget?: URI;
 }
 
-export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends Disposable implements IFileWorkingCopyManager2<F, U> {
+export class FileWorkingCopyManager2<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends Disposable implements IFileWorkingCopyManager2<S, U> {
 
-	readonly onDidCreate: Event<IBaseFileWorkingCopy<F | U>>;
+	readonly onDidCreate: Event<IBaseFileWorkingCopy<S | U>>;
 
-	readonly files: IFileWorkingCopyManager<F>;
+	readonly stored: IStoredFileWorkingCopyManager<S>;
 	readonly untitled: IUntitledFileWorkingCopyManager<U>;
 
 	constructor(
 		private readonly workingCopyTypeId: string,
-		private readonly fileModelFactory: IFileWorkingCopyModelFactory<F>,
-		private readonly untitledFileModelFactory: IUntitledFileWorkingCopyModelFactory<U>,
+		private readonly storedWorkingCopyModelFactory: IStoredFileWorkingCopyModelFactory<S>,
+		private readonly untitledWorkingCopyModelFactory: IUntitledFileWorkingCopyModelFactory<U>,
 		@IFileService private readonly fileService: IFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILabelService labelService: ILabelService,
@@ -159,19 +161,19 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 	) {
 		super();
 
-		// File manager
-		this.files = this._register(new FileWorkingCopyManager(
+		// Stored file working copies manager
+		this.stored = this._register(new StoredFileWorkingCopyManager(
 			this.workingCopyTypeId,
-			this.fileModelFactory,
+			this.storedWorkingCopyModelFactory,
 			fileService, lifecycleService, labelService, logService, workingCopyFileService,
 			workingCopyBackupService, uriIdentityService, fileDialogService, textFileService, filesConfigurationService,
 			workingCopyService, notificationService, workingCopyEditorService, editorService, elevatedFileService
 		));
 
-		// Untitled manager
+		// Untitled file working copies manager
 		this.untitled = this._register(new UntitledFileWorkingCopyManager(
 			this.workingCopyTypeId,
-			this.untitledFileModelFactory,
+			this.untitledWorkingCopyModelFactory,
 			async (workingCopy, options) => {
 				const result = await this.saveAs(workingCopy.resource, undefined, options);
 
@@ -181,17 +183,17 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 		));
 
 		// Events
-		this.onDidCreate = Event.any<IBaseFileWorkingCopy<F | U>>(this.files.onDidCreate, this.untitled.onDidCreate);
+		this.onDidCreate = Event.any<IBaseFileWorkingCopy<S | U>>(this.stored.onDidCreate, this.untitled.onDidCreate);
 	}
 
 	//#region get / get all
 
-	get workingCopies(): (IUntitledFileWorkingCopy<U> | IFileWorkingCopy<F>)[] {
-		return [...this.files.workingCopies, ...this.untitled.workingCopies];
+	get workingCopies(): (IUntitledFileWorkingCopy<U> | IStoredFileWorkingCopy<S>)[] {
+		return [...this.stored.workingCopies, ...this.untitled.workingCopies];
 	}
 
-	get(resource: URI): IUntitledFileWorkingCopy<U> | IFileWorkingCopy<F> | undefined {
-		return this.files.get(resource) ?? this.untitled.get(resource);
+	get(resource: URI): IUntitledFileWorkingCopy<U> | IStoredFileWorkingCopy<S> | undefined {
+		return this.stored.get(resource) ?? this.untitled.get(resource);
 	}
 
 	//#endregion
@@ -201,10 +203,10 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 	resolve(options?: INewUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
 	resolve(options?: INewUntitledFileWorkingCopyWithAssociatedResourceOptions): Promise<IUntitledFileWorkingCopy<U>>;
 	resolve(options?: INewOrExistingUntitledFileWorkingCopyOptions): Promise<IUntitledFileWorkingCopy<U>>;
-	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<F>>;
-	resolve(arg1?: URI | INewUntitledFileWorkingCopyOptions | INewUntitledFileWorkingCopyWithAssociatedResourceOptions | INewOrExistingUntitledFileWorkingCopyOptions, arg2?: IFileWorkingCopyResolveOptions): Promise<IUntitledFileWorkingCopy<U> | IFileWorkingCopy<F>> {
+	resolve(resource: URI, options?: IStoredFileWorkingCopyResolveOptions): Promise<IStoredFileWorkingCopy<S>>;
+	resolve(arg1?: URI | INewUntitledFileWorkingCopyOptions | INewUntitledFileWorkingCopyWithAssociatedResourceOptions | INewOrExistingUntitledFileWorkingCopyOptions, arg2?: IStoredFileWorkingCopyResolveOptions): Promise<IUntitledFileWorkingCopy<U> | IStoredFileWorkingCopy<S>> {
 		if (URI.isUri(arg1)) {
-			return this.files.resolve(arg1, arg2);
+			return this.stored.resolve(arg1, arg2);
 		}
 
 		return this.untitled.resolve(arg1);
@@ -214,7 +216,7 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 
 	//#region Save
 
-	async saveAs(source: URI, target?: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<F> | undefined> {
+	async saveAs(source: URI, target?: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IStoredFileWorkingCopy<S> | undefined> {
 
 		// Get to target resource
 		if (!target) {
@@ -256,22 +258,22 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 		return this.doSaveAs(source, target, options);
 	}
 
-	private async doSave(resource: URI, options?: ISaveOptions): Promise<IFileWorkingCopy<F> | undefined> {
+	private async doSave(resource: URI, options?: ISaveOptions): Promise<IStoredFileWorkingCopy<S> | undefined> {
 
-		// Save is only possible with file working copies,
+		// Save is only possible with stored file working copies,
 		// any other have to go via `saveAs` flow.
-		const fileWorkingCopy = this.files.get(resource);
-		if (fileWorkingCopy) {
-			const success = await fileWorkingCopy.save(options);
+		const storedFileWorkingCopy = this.stored.get(resource);
+		if (storedFileWorkingCopy) {
+			const success = await storedFileWorkingCopy.save(options);
 			if (success) {
-				return fileWorkingCopy;
+				return storedFileWorkingCopy;
 			}
 		}
 
 		return undefined;
 	}
 
-	private async doSaveAs(source: URI, target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IFileWorkingCopy<F> | undefined> {
+	private async doSaveAs(source: URI, target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IStoredFileWorkingCopy<S> | undefined> {
 		let sourceContents: VSBufferReadableStream;
 
 		// If the source is an existing file working copy, we can directly
@@ -287,7 +289,7 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 		}
 
 		// Resolve target
-		const { targetFileExists, targetFileWorkingCopy } = await this.doResolveSaveTarget(source, target);
+		const { targetFileExists, targetStoredFileWorkingCopy } = await this.doResolveSaveTarget(source, target);
 
 		// Confirm to overwrite if we have an untitled file working copy with associated path where
 		// the file actually exists on disk and we are instructed to save to that file path.
@@ -306,24 +308,24 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 		}
 
 		// Take over content from source to target
-		await targetFileWorkingCopy.model?.update(sourceContents, CancellationToken.None);
+		await targetStoredFileWorkingCopy.model?.update(sourceContents, CancellationToken.None);
 
 		// Save target
-		await targetFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 
 		// Revert the source
 		await sourceWorkingCopy?.revert();
 
-		return targetFileWorkingCopy;
+		return targetStoredFileWorkingCopy;
 	}
 
-	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetFileWorkingCopy: IFileWorkingCopy<F> }> {
+	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetStoredFileWorkingCopy: IStoredFileWorkingCopy<S> }> {
 
-		// Prefer an existing file working copy if it is already resolved
+		// Prefer an existing stored file working copy if it is already resolved
 		// for the given target resource
 		let targetFileExists = false;
-		let targetFileWorkingCopy = this.files.get(target);
-		if (targetFileWorkingCopy?.isResolved()) {
+		let targetStoredFileWorkingCopy = this.stored.get(target);
+		if (targetStoredFileWorkingCopy?.isResolved()) {
 			targetFileExists = true;
 		}
 
@@ -344,13 +346,13 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 			// prefer that one over resolving the target. Otherwise we
 			// would potentially introduce a
 			if (this.uriIdentityService.extUri.isEqual(source, target) && this.get(source)) {
-				targetFileWorkingCopy = await this.files.resolve(source);
+				targetStoredFileWorkingCopy = await this.stored.resolve(source);
 			} else {
-				targetFileWorkingCopy = await this.files.resolve(target);
+				targetStoredFileWorkingCopy = await this.stored.resolve(target);
 			}
 		}
 
-		return { targetFileExists, targetFileWorkingCopy };
+		return { targetFileExists, targetStoredFileWorkingCopy };
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
@@ -393,7 +395,7 @@ export class FileWorkingCopyManager2<F extends IFileWorkingCopyModel, U extends 
 
 	async destroy(): Promise<void> {
 		await Promises.settled([
-			this.files.destroy(),
+			this.stored.destroy(),
 			this.untitled.destroy()
 		]);
 	}

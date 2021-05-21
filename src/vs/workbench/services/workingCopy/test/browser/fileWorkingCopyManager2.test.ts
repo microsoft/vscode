@@ -7,9 +7,9 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, TestInMemoryFileSystemProvider } from 'vs/workbench/test/browser/workbenchTestServices';
-import { FileWorkingCopy, IFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { StoredFileWorkingCopy, IStoredFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { TestFileWorkingCopyModel, TestFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/fileWorkingCopy.test';
+import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { Schemas } from 'vs/base/common/network';
 import { IFileWorkingCopyManager2, FileWorkingCopyManager2 } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager2';
 import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
@@ -20,7 +20,7 @@ suite('FileWorkingCopyManager2', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	let manager: IFileWorkingCopyManager2<TestFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
+	let manager: IFileWorkingCopyManager2<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
@@ -31,7 +31,7 @@ suite('FileWorkingCopyManager2', () => {
 
 		manager = new FileWorkingCopyManager2(
 			'testFileWorkingCopyType2',
-			new TestFileWorkingCopyModelFactory(),
+			new TestStoredFileWorkingCopyModelFactory(),
 			new TestUntitledFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
@@ -77,8 +77,8 @@ suite('FileWorkingCopyManager2', () => {
 
 	test('resolve', async () => {
 		const fileWorkingCopy = await manager.resolve(URI.file('/test.html'));
-		assert.ok(fileWorkingCopy instanceof FileWorkingCopy);
-		assert.strictEqual(await manager.files.resolve(fileWorkingCopy.resource), fileWorkingCopy);
+		assert.ok(fileWorkingCopy instanceof StoredFileWorkingCopy);
+		assert.strictEqual(await manager.stored.resolve(fileWorkingCopy.resource), fileWorkingCopy);
 
 		const untitledFileWorkingCopy = await manager.resolve();
 		assert.ok(untitledFileWorkingCopy instanceof UntitledFileWorkingCopy);
@@ -95,13 +95,13 @@ suite('FileWorkingCopyManager2', () => {
 		await manager.resolve({ contents: bufferToStream(VSBuffer.fromString('Hello Untitled')) });
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 2);
-		assert.strictEqual(manager.files.workingCopies.length, 1);
+		assert.strictEqual(manager.stored.workingCopies.length, 1);
 		assert.strictEqual(manager.untitled.workingCopies.length, 1);
 
 		await manager.destroy();
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
-		assert.strictEqual(manager.files.workingCopies.length, 0);
+		assert.strictEqual(manager.stored.workingCopies.length, 0);
 		assert.strictEqual(manager.untitled.workingCopies.length, 0);
 	});
 
@@ -179,14 +179,14 @@ suite('FileWorkingCopyManager2', () => {
 	});
 
 	async function testSaveAsFile(source: URI, target: URI, resolveSource: boolean, resolveTarget: boolean) {
-		let sourceWorkingCopy: IFileWorkingCopy<TestFileWorkingCopyModel> | undefined = undefined;
+		let sourceWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
 		if (resolveSource) {
 			sourceWorkingCopy = await manager.resolve(source);
 			sourceWorkingCopy.model?.updateContents('hello world');
 			assert.ok(sourceWorkingCopy.isDirty());
 		}
 
-		let targetWorkingCopy: IFileWorkingCopy<TestFileWorkingCopyModel> | undefined = undefined;
+		let targetWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
 		if (resolveTarget) {
 			targetWorkingCopy = await manager.resolve(target);
 			targetWorkingCopy.model?.updateContents('hello world');
@@ -231,7 +231,7 @@ suite('FileWorkingCopyManager2', () => {
 		const result = await manager.saveAs(workingCopy.resource, undefined);
 		assert.strictEqual(result?.resource.toString(), target.toString());
 
-		assert.strictEqual((result?.model as TestFileWorkingCopyModel).contents, 'Simple Save As');
+		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As');
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
 
@@ -249,7 +249,7 @@ suite('FileWorkingCopyManager2', () => {
 		const result = await manager.saveAs(workingCopy.resource, undefined);
 		assert.strictEqual(result?.resource.toString(), target.toString());
 
-		assert.strictEqual((result?.model as TestFileWorkingCopyModel).contents, 'Simple Save As with associated resource');
+		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As with associated resource');
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
 
@@ -267,7 +267,7 @@ suite('FileWorkingCopyManager2', () => {
 		const result = await manager.saveAs(workingCopy.resource, undefined);
 		assert.strictEqual(result, targetFileWorkingCopy);
 
-		assert.strictEqual((result?.model as TestFileWorkingCopyModel).contents, 'Simple Save As');
+		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As');
 
 		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
 
