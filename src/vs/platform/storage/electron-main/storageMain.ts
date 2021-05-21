@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises } from 'fs';
-import { exists, writeFile } from 'vs/base/node/pfs';
+import { exists, Promises, writeFile } from 'vs/base/node/pfs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
@@ -276,7 +275,7 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		}
 
 		// Ensure storage folder exists
-		await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
+		await Promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
 		// Write metadata into folder (but do not await)
 		this.ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath);

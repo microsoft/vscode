@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import { tmpdir } from 'os';
+import { promisify } from 'util';
 import { join } from 'vs/base/common/path';
 import { ResourceQueue } from 'vs/base/common/async';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -56,7 +57,7 @@ async function rimrafMove(path: string): Promise<void> {
 	try {
 		const pathInTemp = join(tmpdir(), generateUuid());
 		try {
-			await fs.promises.rename(path, pathInTemp);
+			await Promises.rename(path, pathInTemp);
 		} catch (error) {
 			return rimrafUnlink(path); // if rename fails, delete without tmp dir
 		}
@@ -71,7 +72,7 @@ async function rimrafMove(path: string): Promise<void> {
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	return fs.promises.rmdir(path, { recursive: true, maxRetries: 3 });
+	return Promises.rmdir(path, { recursive: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
@@ -102,12 +103,12 @@ export interface IDirent {
 export async function readdir(path: string): Promise<string[]>;
 export async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
 export async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
-	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : fs.promises.readdir(path)));
+	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : Promises.readdir(path)));
 }
 
 async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	try {
-		return await fs.promises.readdir(path, { withFileTypes: true });
+		return await Promises.readdir(path, { withFileTypes: true });
 	} catch (error) {
 		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
 	}
@@ -126,7 +127,7 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 		let isSymbolicLink = false;
 
 		try {
-			const lstat = await fs.promises.lstat(join(path, child));
+			const lstat = await Promises.lstat(join(path, child));
 
 			isFile = lstat.isFile();
 			isDirectory = lstat.isDirectory();
@@ -251,7 +252,7 @@ export namespace SymlinkSupport {
 		// First stat the link
 		let lstats: fs.Stats | undefined;
 		try {
-			lstats = await fs.promises.lstat(path);
+			lstats = await Promises.lstat(path);
 
 			// Return early if the stat is not a symbolic link at all
 			if (!lstats.isSymbolicLink()) {
@@ -264,7 +265,7 @@ export namespace SymlinkSupport {
 		// If the stat is a symbolic link or failed to stat, use fs.stat()
 		// which for symbolic links will stat the target they point to
 		try {
-			const stats = await fs.promises.stat(path);
+			const stats = await Promises.stat(path);
 
 			return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
 		} catch (error) {
@@ -279,7 +280,7 @@ export namespace SymlinkSupport {
 			// are not supported (https://github.com/nodejs/node/issues/36790)
 			if (isWindows && error.code === 'EACCES') {
 				try {
-					const stats = await fs.promises.stat(await fs.promises.readlink(path));
+					const stats = await Promises.stat(await Promises.readlink(path));
 
 					return { stat: stats, symbolicLink: { dangling: false } };
 				} catch (error) {
@@ -488,24 +489,19 @@ export async function move(source: string, target: string): Promise<void> {
 	// as well because conceptually it is a change of a similar category.
 	async function updateMtime(path: string): Promise<void> {
 		try {
-			const stat = await fs.promises.lstat(path);
+			const stat = await Promises.lstat(path);
 			if (stat.isDirectory() || stat.isSymbolicLink()) {
 				return; // only for files
 			}
 
-			const fh = await fs.promises.open(path, 'a');
-			try {
-				await fh.utimes(stat.atime, new Date());
-			} finally {
-				await fh.close();
-			}
+			await Promises.utimes(path, stat.atime, new Date());
 		} catch (error) {
 			// Ignore any error
 		}
 	}
 
 	try {
-		await fs.promises.rename(source, target);
+		await Promises.rename(source, target);
 		await updateMtime(target);
 	} catch (error) {
 
@@ -594,7 +590,7 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 async function doCopyDirectory(source: string, target: string, mode: number, payload: ICopyPayload): Promise<void> {
 
 	// Create folder
-	await fs.promises.mkdir(target, { recursive: true, mode });
+	await Promises.mkdir(target, { recursive: true, mode });
 
 	// Copy each file recursively
 	const files = await readdir(source);
@@ -606,16 +602,16 @@ async function doCopyDirectory(source: string, target: string, mode: number, pay
 async function doCopyFile(source: string, target: string, mode: number): Promise<void> {
 
 	// Copy file
-	await fs.promises.copyFile(source, target);
+	await Promises.copyFile(source, target);
 
 	// restore mode (https://github.com/nodejs/node/issues/1104)
-	await fs.promises.chmod(target, mode);
+	await Promises.chmod(target, mode);
 }
 
 async function doCopySymlink(source: string, target: string, payload: ICopyPayload): Promise<void> {
 
 	// Figure out link target
-	let linkTarget = await fs.promises.readlink(source);
+	let linkTarget = await Promises.readlink(source);
 
 	// Special case: the symlink points to a target that is
 	// actually within the path that is being copied. In that
@@ -626,7 +622,7 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 	}
 
 	// Create symlink
-	await fs.promises.symlink(linkTarget, target);
+	await Promises.symlink(linkTarget, target);
 }
 
 //#endregion
@@ -635,12 +631,65 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 
 export async function exists(path: string): Promise<boolean> {
 	try {
-		await fs.promises.access(path);
+		await Promises.access(path);
 
 		return true;
 	} catch {
 		return false;
 	}
+}
+
+//#endregion
+
+//#region Promise based fs methods
+
+/**
+ * Note: prefer this namespace over the `fs.promises` API
+ * to enable `graceful-fs` to function properly. Given issue
+ * https://github.com/isaacs/node-graceful-fs/issues/160 it
+ * is evident that the module only takes care of the non-promise
+ * based fs methods.
+ *
+ * Another reason is `realpath` being entirely different in
+ * the promise based implementation compared to the other
+ * one (https://github.com/microsoft/vscode/issues/118562)
+ */
+export namespace Promises {
+	export const access = promisify(fs.access);
+
+	export const stat = promisify(fs.stat);
+	export const lstat = promisify(fs.lstat);
+	export const utimes = promisify(fs.utimes);
+
+	export const read = promisify(fs.read);
+	export const readFile = promisify(fs.readFile);
+
+	export const write = promisify(fs.write);
+	export const writeFile = promisify(fs.writeFile);
+
+	export const appendFile = promisify(fs.appendFile);
+
+	export const fdatasync = promisify(fs.fdatasync);
+	export const truncate = promisify(fs.truncate);
+
+	export const rename = promisify(fs.rename);
+	export const copyFile = promisify(fs.copyFile);
+
+	export const open = promisify(fs.open);
+	export const close = promisify(fs.close);
+
+	export const symlink = promisify(fs.symlink);
+	export const readlink = promisify(fs.readlink);
+
+	export const chmod = promisify(fs.chmod);
+
+	export const readdir = promisify(fs.readdir);
+	export const mkdir = promisify(fs.mkdir);
+
+	export const unlink = promisify(fs.unlink);
+	export const rmdir = promisify(fs.rmdir);
+
+	export const realpath = promisify(fs.realpath);
 }
 
 //#endregion

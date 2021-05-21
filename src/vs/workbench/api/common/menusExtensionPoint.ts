@@ -438,6 +438,7 @@ namespace schema {
 	export interface IUserFriendlyCommand {
 		command: string;
 		title: string | ILocalizedString;
+		shortTitle?: string | ILocalizedString;
 		enablement?: string;
 		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
@@ -455,6 +456,9 @@ namespace schema {
 			return false;
 		}
 		if (!isValidLocalizedString(command.title, collector, 'title')) {
+			return false;
+		}
+		if (command.shortTitle && !isValidLocalizedString(command.shortTitle, collector, 'shortTitle')) {
 			return false;
 		}
 		if (command.enablement && typeof command.enablement !== 'string') {
@@ -508,6 +512,10 @@ namespace schema {
 			},
 			title: {
 				description: localize('vscode.extension.contributes.commandType.title', 'Title by which the command is represented in the UI'),
+				type: 'string'
+			},
+			shortTitle: {
+				description: localize('vscode.extension.contributes.commandType.shortTitle', 'Short title by which the command is represented in the UI'),
 				type: 'string'
 			},
 			category: {
@@ -567,7 +575,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			return;
 		}
 
-		const { icon, enablement, category, title, command } = userFriendlyCommand;
+		const { icon, enablement, category, title, shortTitle, command } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
@@ -588,6 +596,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		bucket.push({
 			id: command,
 			title,
+			shortTitle: extension.description.enableProposedApi ? shortTitle : undefined,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon

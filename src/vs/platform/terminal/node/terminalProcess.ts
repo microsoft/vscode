@@ -18,6 +18,7 @@ import { localize } from 'vs/nls';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { timeout } from 'vs/base/common/async';
+import { Promises } from 'vs/base/node/pfs';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -182,7 +183,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async _validateCwd(): Promise<undefined | ITerminalLaunchError> {
 		try {
-			const result = await fs.promises.stat(this._initialCwd);
+			const result = await Promises.stat(this._initialCwd);
 			if (!result.isDirectory()) {
 				return { message: localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
 			}
@@ -200,7 +201,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
 		try {
-			const result = await fs.promises.stat(slc.executable);
+			const result = await Promises.stat(slc.executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
 				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file of a symlink", slc.executable) };
 			}

@@ -87,6 +87,8 @@ import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookK
 import { RemoteTrustOption } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ExtHostNotebookRenderers } from 'vs/workbench/api/common/extHostNotebookRenderers';
+import { Schemas } from 'vs/base/common/network';
+import { matchesScheme } from 'vs/platform/opener/common/opener';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -318,6 +320,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			asExternalUri(uri: URI) {
 				if (uri.scheme === initData.environment.appUriScheme) {
 					return extHostUrls.createAppUri(uri);
+				}
+
+				if (!matchesScheme(uri.scheme, Schemas.http) && !matchesScheme(uri.scheme, Schemas.https)) {
+					checkProposedApiEnabled(extension); // https://github.com/microsoft/vscode/issues/124263
 				}
 
 				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
