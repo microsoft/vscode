@@ -261,7 +261,7 @@
 .monaco-workbench .notebookOverlay .output .cell-output-toolbar {
 	position: absolute;
 	top: 4px;
-	left: -30px;
+	left: -32px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;
