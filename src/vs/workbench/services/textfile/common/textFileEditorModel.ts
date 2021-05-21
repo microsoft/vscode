@@ -94,7 +94,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inErrorMode = false;
 
 	constructor(
-		public readonly resource: URI,
+		readonly resource: URI,
 		private preferredEncoding: string | undefined,	// encoding as chosen by the user
 		private preferredMode: string | undefined,		// mode as chosen by the user
 		@IModeService modeService: IModeService,

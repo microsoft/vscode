@@ -193,7 +193,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	private editorDisposables: Map<EditorInput, IDisposable> | undefined;
 
 	constructor(
-		public readonly id: string,
+		readonly id: string,
 		private key: string,
 		private memento: MementoObject,
 		private limit: number,
