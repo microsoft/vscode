@@ -305,11 +305,8 @@ export abstract class TitleControl extends Themable {
 		};
 
 		// If it's a custom editor or a notebook add the viewtype
-		if ((editor as object).hasOwnProperty('viewType')) {
-			interface EditorInputWithViewType extends IEditorInput {
-				viewType: string;
-			}
-			editorOptions = { ...editorOptions, override: (editor as EditorInputWithViewType).viewType };
+		if (editor.editorId) {
+			editorOptions = { ...editorOptions, override: editor.editorId };
 		}
 
 		this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], () => editorOptions, e);

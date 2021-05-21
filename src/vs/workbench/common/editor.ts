@@ -393,6 +393,12 @@ export interface IEditorInput extends IDisposable {
 	readonly typeId: string;
 
 	/**
+	 * Unique editor identifier. Used to identify which type of editor it is.
+	 * This is primarily used for overrides where a user wants to open a particular editor
+	 */
+	readonly editorId: string | undefined;
+
+	/**
 	 * Returns the optional associated resource of this input.
 	 *
 	 * This resource should be unique for all editors of the same
@@ -536,6 +542,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	private disposed: boolean = false;
 
 	abstract get typeId(): string;
+
+	get editorId(): string | undefined { return; }
 
 	abstract get resource(): URI | undefined;
 

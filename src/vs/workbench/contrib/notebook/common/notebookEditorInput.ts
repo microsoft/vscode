@@ -59,6 +59,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return NotebookEditorInput.ID;
 	}
 
+	override get editorId(): string {
+		return this.editorId;
+	}
+
 	override isDirty() {
 		if (!this._editorModelReference) {
 			return this._defaultDirtyState;
