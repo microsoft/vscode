@@ -20,20 +20,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-function getStringValue(item: IOutputItemDto): string {
-	if (Array.isArray(item.valueBytes)) {
-		// todo@jrieken NOT proper, should be VSBuffer
-		return new TextDecoder().decode(new Uint8Array(item.valueBytes));
-	} else {
-		// "old" world
-		return Array.isArray(item.value) ? item.value.join('') : String(item.value);
-	}
-}
 
 class JSONRendererContrib extends Disposable implements IOutputRendererContribution {
 	getType() {
@@ -487,20 +478,31 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 	}
 }
 
-NotebookRegistry.registerOutputTransform('json', JSONRendererContrib);
-NotebookRegistry.registerOutputTransform('javascript', JavaScriptRendererContrib);
-NotebookRegistry.registerOutputTransform('html', HTMLRendererContrib);
-NotebookRegistry.registerOutputTransform('svg', SVGRendererContrib);
-NotebookRegistry.registerOutputTransform('markdown', MdRendererContrib);
-NotebookRegistry.registerOutputTransform('img', ImgRendererContrib);
-NotebookRegistry.registerOutputTransform('plain', PlainTextRendererContrib);
-NotebookRegistry.registerOutputTransform('code', CodeRendererContrib);
-NotebookRegistry.registerOutputTransform('error-trace', ErrorRendererContrib);
-NotebookRegistry.registerOutputTransform('jserror', JSErrorRendererContrib);
-NotebookRegistry.registerOutputTransform('stream-text', StreamRendererContrib);
-NotebookRegistry.registerOutputTransform('stderr', StderrRendererContrib);
+OutputRendererRegistry.registerOutputTransform(JSONRendererContrib);
+OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
+OutputRendererRegistry.registerOutputTransform(HTMLRendererContrib);
+OutputRendererRegistry.registerOutputTransform(SVGRendererContrib);
+OutputRendererRegistry.registerOutputTransform(MdRendererContrib);
+OutputRendererRegistry.registerOutputTransform(ImgRendererContrib);
+OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
+OutputRendererRegistry.registerOutputTransform(CodeRendererContrib);
+OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
+OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
+OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
+OutputRendererRegistry.registerOutputTransform(ErrorRendererContrib);
 
-export function getOutputSimpleEditorOptions(): IEditorOptions {
+// --- utils ---
+function getStringValue(item: IOutputItemDto): string {
+	if (Array.isArray(item.valueBytes)) {
+		// todo@jrieken NOT proper, should be VSBuffer
+		return new TextDecoder().decode(new Uint8Array(item.valueBytes));
+	} else {
+		// "old" world
+		return Array.isArray(item.value) ? item.value.join('') : String(item.value);
+	}
+}
+
+function getOutputSimpleEditorOptions(): IEditorOptions {
 	return {
 		readOnly: true,
 		wordWrap: 'on',
