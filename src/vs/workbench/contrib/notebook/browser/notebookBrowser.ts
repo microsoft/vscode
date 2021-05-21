@@ -118,6 +118,7 @@ export interface ICellOutputViewModel {
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 	supportAppend(): boolean;
+	hasMultiMimeType(): boolean;
 	toRawJSON(): any;
 }
 

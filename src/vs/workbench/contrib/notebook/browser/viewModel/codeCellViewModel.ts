@@ -343,6 +343,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		this._ensureOutputsTop();
+		if (height < 28 && this._outputViewModels[index].hasMultiMimeType()) {
+			height = 28;
+		}
+
 		this._outputCollection[index] = height;
 		if (this._outputsTop!.changeValue(index, height)) {
 			this.layoutChange({ outputHeight: true }, source);
