@@ -922,7 +922,7 @@ export class NotebookWorkingCopyTypeIdentifier {
 	private static _prefix = 'notebook/';
 
 	static create(viewType: string): string {
-		return `${NotebookWorkingCopyTypeIdentifier._prefix}/${viewType}`;
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}${viewType}`;
 	}
 
 	static parse(candidate: string): string | undefined {
