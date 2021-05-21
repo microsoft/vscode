@@ -19,7 +19,7 @@ export function setup() {
 		it('has a tooltp with a keybinding', async function () {
 			const app = this.app as Application;
 			const tooltip: string = await app.workbench.search.getSearchTooltip();
-			if (!/Search \([^F]+F\)/.test(tooltip)) {
+			if (!/Search \(.+\)/.test(tooltip)) {
 				throw Error(`Expected search tooltip to contain keybinding but got ${tooltip}`);
 			}
 		});
