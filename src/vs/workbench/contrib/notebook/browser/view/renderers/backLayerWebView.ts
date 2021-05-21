@@ -192,7 +192,7 @@ export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; outputId: string; value: unknown; metadata: unknown; mimeType: string };
+	| { type: RenderOutputType.Extension; outputId: string; value: unknown; valueBytes: Uint8Array, metadata: unknown; mimeType: string };
 	cellId: string;
 	outputId: string;
 	cellTop: number;
@@ -1481,6 +1481,10 @@ var requirejs = (function() {
 			const output = content.source.model;
 			renderer = content.renderer;
 			const outputDto = output.outputs.find(op => op.mime === content.mimeType);
+
+			// TODO@notebook - the message can contain "bytes" and those are transferable
+			// which improves IPC performance and therefore should be used. However, it does
+			// means that the bytes cannot be used here anymore
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -1490,6 +1494,7 @@ var requirejs = (function() {
 					outputId: output.outputId,
 					mimeType: content.mimeType,
 					value: outputDto?.value,
+					valueBytes: new Uint8Array(outputDto?.valueBytes ?? []),
 					metadata: outputDto?.metadata,
 				},
 			};
