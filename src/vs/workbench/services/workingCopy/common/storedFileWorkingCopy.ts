@@ -27,12 +27,12 @@ import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/com
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel, IBaseFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
 /**
  * Stored file specific working copy model factory.
  */
-export interface IStoredFileWorkingCopyModelFactory<M extends IStoredFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
+export interface IStoredFileWorkingCopyModelFactory<M extends IStoredFileWorkingCopyModel> extends IFileWorkingCopyModelFactory<M> { }
 
 /**
  * The underlying model of a stored file working copy provides some
@@ -40,7 +40,7 @@ export interface IStoredFileWorkingCopyModelFactory<M extends IStoredFileWorking
  * typically only available after the working copy has been
  * resolved via it's `resolve()` method.
  */
-export interface IStoredFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
+export interface IStoredFileWorkingCopyModel extends IFileWorkingCopyModel {
 
 	readonly onDidChangeContent: Event<IStoredFileWorkingCopyModelContentChangedEvent>;
 
@@ -89,7 +89,7 @@ export interface IStoredFileWorkingCopyModelContentChangedEvent {
  * of functionality can be built on top, such as saving in
  * a secure way to prevent data loss.
  */
-export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IResourceWorkingCopy, IBaseFileWorkingCopy<M> {
+export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IResourceWorkingCopy, IFileWorkingCopy<M> {
 
 	/**
 	 * An event for when a stored file working copy was resolved.

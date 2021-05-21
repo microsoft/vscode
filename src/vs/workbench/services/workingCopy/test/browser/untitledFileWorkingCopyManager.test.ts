@@ -8,7 +8,7 @@ import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileWorkingCopyManager2, IFileWorkingCopyManager2 } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager2';
+import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
@@ -19,7 +19,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	let manager: IFileWorkingCopyManager2<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
+	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
@@ -28,7 +28,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
 		accessor.fileService.registerProvider(Schemas.vscodeRemote, new TestInMemoryFileSystemProvider());
 
-		manager = new FileWorkingCopyManager2(
+		manager = new FileWorkingCopyManager(
 			'testUntitledFileWorkingCopyType',
 			new TestStoredFileWorkingCopyModelFactory(),
 			new TestUntitledFileWorkingCopyModelFactory(),

@@ -24,7 +24,7 @@ import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCo
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
-import { IBaseFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
+import { IFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -37,7 +37,7 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export interface IFileWorkingCopyManager2<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IBaseFileWorkingCopy<S | U>> {
+export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
 
 	/**
 	 * Provides access to the manager for stored file working copies.
@@ -129,9 +129,9 @@ export interface IFileWorkingCopySaveAsOptions extends ISaveOptions {
 	suggestedTarget?: URI;
 }
 
-export class FileWorkingCopyManager2<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends Disposable implements IFileWorkingCopyManager2<S, U> {
+export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends Disposable implements IFileWorkingCopyManager<S, U> {
 
-	readonly onDidCreate: Event<IBaseFileWorkingCopy<S | U>>;
+	readonly onDidCreate: Event<IFileWorkingCopy<S | U>>;
 
 	readonly stored: IStoredFileWorkingCopyManager<S>;
 	readonly untitled: IUntitledFileWorkingCopyManager<U>;
@@ -166,7 +166,7 @@ export class FileWorkingCopyManager2<S extends IStoredFileWorkingCopyModel, U ex
 			this.workingCopyTypeId,
 			this.storedWorkingCopyModelFactory,
 			fileService, lifecycleService, labelService, logService, workingCopyFileService,
-			workingCopyBackupService, uriIdentityService, fileDialogService, textFileService, filesConfigurationService,
+			workingCopyBackupService, uriIdentityService, textFileService, filesConfigurationService,
 			workingCopyService, notificationService, workingCopyEditorService, editorService, elevatedFileService
 		));
 
@@ -183,7 +183,7 @@ export class FileWorkingCopyManager2<S extends IStoredFileWorkingCopyModel, U ex
 		));
 
 		// Events
-		this.onDidCreate = Event.any<IBaseFileWorkingCopy<S | U>>(this.stored.onDidCreate, this.untitled.onDidCreate);
+		this.onDidCreate = Event.any<IFileWorkingCopy<S | U>>(this.stored.onDidCreate, this.untitled.onDidCreate);
 	}
 
 	//#region get / get all

@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IBaseFileWorkingCopy, IBaseFileWorkingCopyModel, IBaseFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopy';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -21,7 +21,7 @@ import { emptyStream } from 'vs/base/common/stream';
 /**
  * Untitled file specific working copy model factory.
  */
-export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyModelFactory<M> { }
+export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWorkingCopyModel> extends IFileWorkingCopyModelFactory<M> { }
 
 /**
  * The underlying model of a untitled file working copy provides
@@ -29,7 +29,7 @@ export interface IUntitledFileWorkingCopyModelFactory<M extends IUntitledFileWor
  * The model is typically only available after the working copy
  * has been resolved via it's `resolve()` method.
  */
-export interface IUntitledFileWorkingCopyModel extends IBaseFileWorkingCopyModel {
+export interface IUntitledFileWorkingCopyModel extends IFileWorkingCopyModel {
 
 	readonly onDidChangeContent: Event<IUntitledFileWorkingCopyModelContentChangedEvent>;
 }
@@ -45,7 +45,7 @@ export interface IUntitledFileWorkingCopyModelContentChangedEvent {
 	readonly isEmpty: boolean;
 }
 
-export interface IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopy<M> {
+export interface IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IFileWorkingCopy<M> {
 
 	/**
 	 * Whether this untitled file working copy model has an associated file path.

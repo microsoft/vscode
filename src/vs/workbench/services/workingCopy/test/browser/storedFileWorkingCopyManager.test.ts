@@ -30,7 +30,7 @@ suite('StoredFileWorkingCopyManager', () => {
 			'testStoredFileWorkingCopyType',
 			new TestStoredFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
-			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
+			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService,
 			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService
 		);
@@ -446,122 +446,6 @@ suite('StoredFileWorkingCopyManager', () => {
 		assert.strictEqual(sourceWorkingCopy.isDirty(), true);
 		assert.strictEqual(sourceWorkingCopy.model?.contents, 'hello move');
 	});
-
-	// saveAs: unresolved source, unresolved target
-
-	test('saveAs (same target, unresolved source, unresolved target)', () => {
-		const source = URI.file('/path/source.txt');
-
-		return testSaveAs(source, source, false, false);
-	});
-
-	test('saveAs (same target, different case, unresolved source, unresolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/SOURCE.txt');
-
-		return testSaveAs(source, target, false, false);
-	});
-
-	test('saveAs (different target, unresolved source, unresolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/target.txt');
-
-		return testSaveAs(source, target, false, false);
-	});
-
-	// saveAs: resolved source, unresolved target
-
-	test('saveAs (same target, resolved source, unresolved target)', () => {
-		const source = URI.file('/path/source.txt');
-
-		return testSaveAs(source, source, true, false);
-	});
-
-	test('saveAs (same target, different case, resolved source, unresolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/SOURCE.txt');
-
-		return testSaveAs(source, target, true, false);
-	});
-
-	test('saveAs (different target, resolved source, unresolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/target.txt');
-
-		return testSaveAs(source, target, true, false);
-	});
-
-	// saveAs: unresolved source, resolved target
-
-	test('saveAs (same target, unresolved source, resolved target)', () => {
-		const source = URI.file('/path/source.txt');
-
-		return testSaveAs(source, source, false, true);
-	});
-
-	test('saveAs (same target, different case, unresolved source, resolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/SOURCE.txt');
-
-		return testSaveAs(source, target, false, true);
-	});
-
-	test('saveAs (different target, unresolved source, resolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/target.txt');
-
-		return testSaveAs(source, target, false, true);
-	});
-
-	// saveAs: resolved source, resolved target
-
-	test('saveAs (same target, resolved source, resolved target)', () => {
-		const source = URI.file('/path/source.txt');
-
-		return testSaveAs(source, source, true, true);
-	});
-
-	test('saveAs (different target, resolved source, resolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/target.txt');
-
-		return testSaveAs(source, target, true, true);
-	});
-
-	async function testSaveAs(source: URI, target: URI, resolveSource: boolean, resolveTarget: boolean) {
-		let sourceWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
-		if (resolveSource) {
-			sourceWorkingCopy = await manager.resolve(source);
-			sourceWorkingCopy.model?.updateContents('hello world');
-			assert.ok(sourceWorkingCopy.isDirty());
-		}
-
-		let targetWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
-		if (resolveTarget) {
-			targetWorkingCopy = await manager.resolve(target);
-			targetWorkingCopy.model?.updateContents('hello world');
-			assert.ok(targetWorkingCopy.isDirty());
-		}
-
-		const result = await manager.saveAs(source, target);
-		if (accessor.uriIdentityService.extUri.isEqual(source, target) && resolveSource) {
-			// if the uris are considered equal (different case on macOS/Windows)
-			// and the source is to be resolved, the resulting working copy resource
-			// will be the source resource because we consider file working copies
-			// the same in that case
-			assert.strictEqual(source.toString(), result?.resource.toString());
-		} else {
-			assert.strictEqual(target.toString(), result?.resource.toString());
-		}
-
-		if (resolveSource) {
-			assert.strictEqual(sourceWorkingCopy?.isDirty(), false);
-		}
-
-		if (resolveTarget) {
-			assert.strictEqual(targetWorkingCopy?.isDirty(), false);
-		}
-	}
 
 	test('canDispose with dirty working copy', async () => {
 		const resource = URI.file('/path/index_something.txt');

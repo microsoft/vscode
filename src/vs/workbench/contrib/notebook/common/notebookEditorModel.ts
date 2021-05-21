@@ -29,7 +29,7 @@ import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { filter } from 'vs/base/common/objects';
-import { IFileWorkingCopyManager2 } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager2';
+import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 
 //#region --- complex content provider
@@ -432,7 +432,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	constructor(
 		readonly resource: URI,
 		readonly viewType: string,
-		private readonly _workingCopyManager: IFileWorkingCopyManager2<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
+		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService
 	) {

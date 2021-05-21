@@ -10,10 +10,11 @@ import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
-export interface IBaseFileWorkingCopyModelFactory<M extends IBaseFileWorkingCopyModel> {
+export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> {
 
 	/**
-	 * Create a model from the given content under the provided resource.
+	 * Create a model for the untitled or stored working copy
+	 * from the given content under the provided resource.
 	 *
 	 * @param resource the `URI` of the model
 	 * @param contents the content of the model to create it
@@ -24,15 +25,15 @@ export interface IBaseFileWorkingCopyModelFactory<M extends IBaseFileWorkingCopy
 
 /**
  * A generic file working copy model to be reused by untitled
- * and existing file working copies.
+ * and stored file working copies.
  */
-export interface IBaseFileWorkingCopyModel extends IDisposable {
+export interface IFileWorkingCopyModel extends IDisposable {
 
 	/**
 	 * This event signals ANY changes to the contents, for example:
 	 * - through the user typing into the editor
 	 * - from API usage (e.g. bulk edits)
-	 * - when `IBaseFileWorkingCopyModel#update` is invoked with contents
+	 * - when `IFileWorkingCopyModel#update` is invoked with contents
 	 *   that are different from the current contents
 	 *
 	 * The file working copy will listen to these changes and may mark
@@ -59,7 +60,7 @@ export interface IBaseFileWorkingCopyModel extends IDisposable {
 
 	/**
 	 * Updates the model with the provided contents. The implementation should
-	 * behave in a similar fashion as `IBaseFileWorkingCopyModelFactory#createModel`
+	 * behave in a similar fashion as `IFileWorkingCopyModelFactory#createModel`
 	 * except that here the model already exists and just needs to update to
 	 * the provided contents.
 	 *
@@ -72,7 +73,7 @@ export interface IBaseFileWorkingCopyModel extends IDisposable {
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;
 }
 
-export interface IBaseFileWorkingCopy<M extends IBaseFileWorkingCopyModel> extends IWorkingCopy, IDisposable {
+export interface IFileWorkingCopy<M extends IFileWorkingCopyModel> extends IWorkingCopy, IDisposable {
 
 	/**
 	 * An event for when the file working copy has been reverted.
@@ -100,10 +101,10 @@ export interface IBaseFileWorkingCopy<M extends IBaseFileWorkingCopyModel> exten
 	/**
 	 * Whether we have a resolved model or not.
 	 */
-	isResolved(): this is IBaseResolvedFileWorkingCopy<M>;
+	isResolved(): this is IResolvedFileWorkingCopy<M>;
 }
 
-export interface IBaseResolvedFileWorkingCopy<M extends IBaseFileWorkingCopyModel> extends IBaseFileWorkingCopy<M> {
+export interface IResolvedFileWorkingCopy<M extends IFileWorkingCopyModel> extends IFileWorkingCopy<M> {
 
 	/**
 	 * A resolved file working copy has a resolved model.
