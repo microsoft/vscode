@@ -310,33 +310,7 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	getMimetypes() {
-		return ['text/html'];
-	}
-
-	constructor(
-		public notebookEditor: ICommonNotebookEditor,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const str = items.map(getStringValue).join('');
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: str
-		};
-	}
-}
-
-//todo@jrieken duplicates HTMLRendererContrib
-class SVGRendererContrib extends Disposable implements IOutputRendererContribution {
-	getType() {
-		return RenderOutputType.Html;
-	}
-
-	getMimetypes() {
-		return ['image/svg+xml'];
+		return ['text/html', 'image/svg+xml'];
 	}
 
 	constructor(
@@ -431,7 +405,6 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 OutputRendererRegistry.registerOutputTransform(JSONRendererContrib);
 OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
 OutputRendererRegistry.registerOutputTransform(HTMLRendererContrib);
-OutputRendererRegistry.registerOutputTransform(SVGRendererContrib);
 OutputRendererRegistry.registerOutputTransform(MdRendererContrib);
 OutputRendererRegistry.registerOutputTransform(ImgRendererContrib);
 OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
