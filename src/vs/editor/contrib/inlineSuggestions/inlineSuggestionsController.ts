@@ -9,7 +9,7 @@ import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/life
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItemInsertTextRule, InlineSuggestion, InlineSuggestions, InlineSuggestionsProviderRegistry } from 'vs/editor/common/modes';
+import { CompletionItemInsertTextRule, InlineCompletionContext, InlineCompletionTriggerKind, InlineCompletion as InlineCompletion, InlineCompletions as InlineCompletions, InlineSuggestionsProviderRegistry as InlineCompletionsProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
@@ -27,12 +27,12 @@ import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-class InlineSuggestionsController extends Disposable {
-	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible ', false, nls.localize('inlineSuggestionVisible ', "TODO"));
+class InlineCompletionsController extends Disposable {
+	public static readonly inlineCompletionVisible = new RawContextKey<boolean>('inlineSuggestionVisible ', false, nls.localize('inlineSuggestionVisible ', "TODO"));
 	static ID = 'editor.contrib.inlineSuggestionsController';
 
-	public static get(editor: ICodeEditor): InlineSuggestionsController {
-		return editor.getContribution<InlineSuggestionsController>(InlineSuggestionsController.ID);
+	public static get(editor: ICodeEditor): InlineCompletionsController {
+		return editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID);
 	}
 
 	private readonly widget: GhostTextWidget;
@@ -88,7 +88,7 @@ class InlineSuggestionsController extends Disposable {
 }
 
 class InlineSuggestionsContextKeys {
-	public readonly inlineSuggestionVisible = InlineSuggestionsController.inlineSuggestionVisible.bindTo(this.contextKeyService);
+	public readonly inlineSuggestionVisible = InlineCompletionsController.inlineCompletionVisible.bindTo(this.contextKeyService);
 
 	constructor(private readonly contextKeyService: IContextKeyService) {
 	}
@@ -217,7 +217,7 @@ class InlineSuggestionsSession extends Disposable {
 		this.widget.setModel(this.ghostTextModel);
 	}
 
-	get currentSuggestion(): ValidatedInlineSuggestion | undefined {
+	get currentSuggestion(): ValidatedInlineCompletion | undefined {
 		const cursorPos = this.editor.getPosition();
 		const suggestions = this.model.getInlineSuggestions(cursorPos);
 		const validatedSuggestions = suggestions.items
@@ -231,7 +231,7 @@ class InlineSuggestionsSession extends Disposable {
 	isValid(): boolean {
 		const pos = this.editor.getPosition();
 		if (this.currentSuggestion) {
-			return this.currentSuggestion.suggestion.replaceRange.containsPosition(pos);
+			return this.currentSuggestion.suggestion.range.containsPosition(pos);
 		}
 		return this.triggerPosition.lineNumber === pos.lineNumber; // the cursor is still on this line
 	}
@@ -247,7 +247,7 @@ class InlineSuggestionsSession extends Disposable {
 			const lines = strings.splitLines(text);
 			this.maxLineCount = Math.max(this.maxLineCount, lines.length);
 			this.ghostTextModel.setValue({
-				position: suggestion.suggestion.replaceRange.getStartPosition().delta(0, suggestion.committedSuggestionLength),
+				position: suggestion.suggestion.range.getStartPosition().delta(0, suggestion.committedSuggestionLength),
 				lines,
 				minAdditionalLineCount: this.maxLineCount - 1,
 				multiline: this.multiline,
@@ -289,18 +289,18 @@ class InlineSuggestionsSession extends Disposable {
 		}
 	}
 
-	public commit(suggestion: ValidatedInlineSuggestion): void {
+	public commit(suggestion: ValidatedInlineCompletion): void {
 		this.editor.executeEdits(
 			'inlineSuggestions.accept',
 			[
-				EditOperation.replaceMove(suggestion.suggestion.replaceRange, suggestion.suggestion.text)
+				EditOperation.replaceMove(suggestion.suggestion.range, suggestion.suggestion.text)
 			]
 		);
 	}
 }
 
-interface ValidatedInlineSuggestion {
-	suggestion: NormalizedInlineSuggestion;
+interface ValidatedInlineCompletion {
+	suggestion: NormalizedInlineCompletion;
 	lineNumber: number;
 	/**
 	 * Indicates the length of the prefix of the suggestion that agrees with the text buffer.
@@ -345,7 +345,7 @@ class DelegatingInlineSuggestionsModel extends Disposable {
 		}));
 	}
 
-	getInlineSuggestions(position: Position): NormalizedInlineSuggestions {
+	getInlineSuggestions(position: Position): NormalizedInlineCompletions {
 		return this.currentModel.getInlineSuggestions(position);
 	}
 }
@@ -457,14 +457,14 @@ class SuggestWidgetInlineSuggestionsModel extends Disposable {
 		this.onDidChangeEventEmitter.fire();
 	}
 
-	getInlineSuggestions(position: Position): NormalizedInlineSuggestions {
+	getInlineSuggestions(position: Position): NormalizedInlineCompletions {
 		if (this.currentSuggestion && this.currentSuggestion.lineNumber !== position.lineNumber) {
 			this.currentSuggestion = null;
 		}
 		if (this.currentSuggestion) {
 			return {
 				items: [{
-					replaceRange: Range.fromPositions(position.delta(0, -this.currentSuggestion.overwriteBefore), position.delta(0, this.currentSuggestion.overwriteAfter)),
+					range: Range.fromPositions(position.delta(0, -this.currentSuggestion.overwriteBefore), position.delta(0, this.currentSuggestion.overwriteAfter)),
 					text: this.currentSuggestion.text
 				}]
 			};
@@ -480,8 +480,8 @@ class InlineSuggestionsModel extends Disposable {
 
 	private readonly textModel: ITextModel = this.editor.getModel();
 	private isActive: boolean = false;
-	private updatePromise: CancelablePromise<NormalizedInlineSuggestions | undefined> | undefined = undefined;
-	private cachedList: NormalizedInlineSuggestions | undefined = undefined;
+	private updatePromise: CancelablePromise<NormalizedInlineCompletions | undefined> | undefined = undefined;
+	private cachedList: NormalizedInlineCompletions | undefined = undefined;
 	private cachedPosition: Position | undefined = undefined;
 	private updateSoon = this._register(new RunOnceScheduler(() => this._update(), 50));
 
@@ -509,7 +509,7 @@ class InlineSuggestionsModel extends Disposable {
 		this.updateSoon.cancel();
 	}
 
-	public getInlineSuggestions(position: Position): NormalizedInlineSuggestions {
+	public getInlineSuggestions(position: Position): NormalizedInlineCompletions {
 		if (this.cachedList && this.cachedPosition && position.lineNumber === this.cachedPosition.lineNumber) {
 			return this.cachedList;
 		}
@@ -521,7 +521,7 @@ class InlineSuggestionsModel extends Disposable {
 	private _update(): void {
 		const position = this.editor.getPosition();
 		this.clearGhostTextPromise();
-		this.updatePromise = createCancelablePromise(token => provideInlineSuggestions(position, this.textModel, token));
+		this.updatePromise = createCancelablePromise(token => provideInlineCompletions(position, this.textModel, { triggerKind: InlineCompletionTriggerKind.Automatic }, token));
 		this.updatePromise.then((result) => {
 			this.cachedList = result;
 			this.cachedPosition = position;
@@ -537,19 +537,19 @@ class InlineSuggestionsModel extends Disposable {
 	}
 }
 
-function validateSuggestion(suggestion: NormalizedInlineSuggestion, model: ITextModel): ValidatedInlineSuggestion | undefined {
+function validateSuggestion(suggestion: NormalizedInlineCompletion, model: ITextModel): ValidatedInlineCompletion | undefined {
 	// Multiline replacements are not supported
-	if (suggestion.replaceRange.startLineNumber !== suggestion.replaceRange.endLineNumber) {
+	if (suggestion.range.startLineNumber !== suggestion.range.endLineNumber) {
 		return undefined;
 	}
-	const lineNumber = suggestion.replaceRange.startLineNumber;
+	const lineNumber = suggestion.range.startLineNumber;
 
 	const suggestedLines = strings.splitLines(suggestion.text);
 	const firstSuggestedLine = suggestedLines[0];
 
 	const modelLine = model.getLineContent(lineNumber);
 
-	const suggestionStartIdx = suggestion.replaceRange.startColumn - 1;
+	const suggestionStartIdx = suggestion.range.startColumn - 1;
 	let committedSuggestionLength = 0;
 	while (
 		committedSuggestionLength < firstSuggestedLine.length
@@ -578,26 +578,26 @@ function validateSuggestion(suggestion: NormalizedInlineSuggestion, model: IText
 export class TriggerGhostTextAction extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.triggerInlineSuggestions',
-			label: nls.localize('triggerInlineSuggestionsAction', "Trigger Inline Suggestions"),
-			alias: 'Trigger Inline Suggestions',
+			id: 'editor.action.triggerInlineCompletions',
+			label: nls.localize('triggerInlineCompletionsAction', "Trigger Inline Completions"),
+			alias: 'Trigger Inline Completions',
 			precondition: EditorContextKeys.writable
 		});
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = InlineSuggestionsController.get(editor);
+		const controller = InlineCompletionsController.get(editor);
 		if (controller) {
 			controller.trigger();
 		}
 	}
 }
 
-export interface NormalizedInlineSuggestion extends InlineSuggestion {
-	replaceRange: Range;
+export interface NormalizedInlineCompletion extends InlineCompletion {
+	range: Range;
 }
 
-export interface NormalizedInlineSuggestions extends InlineSuggestions<NormalizedInlineSuggestion> {
+export interface NormalizedInlineCompletions extends InlineCompletions<NormalizedInlineCompletion> {
 }
 
 function getDefaultRange(position: Position, model: ITextModel): Range {
@@ -610,27 +610,28 @@ function getDefaultRange(position: Position, model: ITextModel): Range {
 		: Range.fromPositions(position, position.with(undefined, maxColumn));
 }
 
-async function provideInlineSuggestions(
+async function provideInlineCompletions(
 	position: Position,
 	model: ITextModel,
+	context: InlineCompletionContext,
 	token: CancellationToken = CancellationToken.None
-): Promise<NormalizedInlineSuggestions | undefined> {
+): Promise<NormalizedInlineCompletions | undefined> {
 
-	console.log(`provideInlineSuggestions at ${position}`);
+	console.log(`provideInlineCompletions at ${position}`);
 
 	const defaultReplaceRange = getDefaultRange(position, model);
 
-	const providers = InlineSuggestionsProviderRegistry.all(model);
+	const providers = InlineCompletionsProviderRegistry.all(model);
 	const results = await Promise.all(
-		providers.map(provider => provider.provideInlineSuggestions(model, position, token))
+		providers.map(provider => provider.provideInlineCompletions(model, position, context, token))
 	);
 
-	const items = new Array<NormalizedInlineSuggestion>();
+	const items = new Array<NormalizedInlineCompletion>();
 	for (const result of results) {
 		if (result) {
-			items.push(...result.items.map<NormalizedInlineSuggestion>(item => ({
+			items.push(...result.items.map<NormalizedInlineCompletion>(item => ({
 				text: item.text,
-				replaceRange: item.replaceRange ? Range.lift(item.replaceRange) : defaultReplaceRange
+				range: item.range ? Range.lift(item.range) : defaultReplaceRange
 			})));
 		}
 	}
@@ -638,11 +639,11 @@ async function provideInlineSuggestions(
 	return { items };
 }
 
-const InlineSuggestionCommand = EditorCommand.bindToContribution<InlineSuggestionsController>(InlineSuggestionsController.get);
+const InlineCompletionCommand = EditorCommand.bindToContribution<InlineCompletionsController>(InlineCompletionsController.get);
 
-registerEditorCommand(new InlineSuggestionCommand({
-	id: 'commitInlineSuggestion',
-	precondition: InlineSuggestionsController.inlineSuggestionVisible,
+registerEditorCommand(new InlineCompletionCommand({
+	id: 'commitInlineCompletion',
+	precondition: InlineCompletionsController.inlineCompletionVisible,
 	kbOpts: {
 		weight: 100,
 		primary: KeyCode.Tab,
@@ -651,9 +652,9 @@ registerEditorCommand(new InlineSuggestionCommand({
 		x.commit();
 	}
 }));
-registerEditorCommand(new InlineSuggestionCommand({
-	id: 'hideInlineSuggestion',
-	precondition: InlineSuggestionsController.inlineSuggestionVisible,
+registerEditorCommand(new InlineCompletionCommand({
+	id: 'hideInlineCompletion',
+	precondition: InlineCompletionsController.inlineCompletionVisible,
 	kbOpts: {
 		weight: 100,
 		primary: KeyCode.Escape,
@@ -663,5 +664,5 @@ registerEditorCommand(new InlineSuggestionCommand({
 	}
 }));
 
-registerEditorContribution(InlineSuggestionsController.ID, InlineSuggestionsController);
+registerEditorContribution(InlineCompletionsController.ID, InlineCompletionsController);
 registerEditorAction(TriggerGhostTextAction);

@@ -1038,25 +1038,19 @@ class SuggestAdapter {
 	}
 }
 
-class InlineSuggestionsAdapter {
+class InlineCompletionsAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.InlineSuggestionsProvider,
+		private readonly _provider: vscode.InlineCompletionItemProvider,
 	) { }
 
-	async provideInlineSuggestions(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.InlineSuggestions | undefined> {
+	async provideInlineCompletions(resource: URI, position: IPosition, context: vscode.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		// TODO
-		//const wordRange = doc.getWordRangeAtPosition(pos);
-		//const start = wordRange ? typeConvert.Position.from(wordRange.start) : position;
-		//const end = typeConvert.Position.from(doc.lineAt(pos).range.end);
-		//const defaultReplaceRange = new Range(start, end);
-
-		const result = await asPromise(() => this._provider.provideInlineSuggestions(doc, pos, token));
+		const result = await asPromise(() => this._provider.provideInlineCompletionItems(doc, pos, context, token));
 
 		if (!result) {
 			// undefined and null are valid results
@@ -1072,7 +1066,7 @@ class InlineSuggestionsAdapter {
 		return {
 			items: result.items.map(item => ({
 				text: item.text,
-				replaceRange: item.replaceRange ? typeConvert.Range.from(item.replaceRange) : undefined,
+				replaceRange: item.range ? typeConvert.Range.from(item.range) : undefined,
 			})),
 		};
 	}
@@ -1395,7 +1389,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
-	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineSuggestionsAdapter;
+	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionsAdapter;
 
 class AdapterData {
 	constructor(
@@ -1851,14 +1845,14 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- ghost test
 
-	registerInlineSuggestionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineSuggestionsProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new InlineSuggestionsAdapter(this._documents, provider), extension);
-		this._proxy.$registerInlineSuggestionSupport(handle, this._transformDocumentSelector(selector));
+	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new InlineCompletionsAdapter(this._documents, provider), extension);
+		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideInlineSuggestions(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.InlineSuggestions | undefined> {
-		return this._withAdapter(handle, InlineSuggestionsAdapter, adapter => adapter.provideInlineSuggestions(URI.revive(resource), position, token), undefined);
+	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> {
+		return this._withAdapter(handle, InlineCompletionsAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined);
 	}
 
 

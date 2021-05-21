@@ -111,25 +111,28 @@ export class GhostTextWidget extends Disposable {
 		this.render();
 	}
 
-	private render(): void {
-		let renderData: { tabSize: number; position: Position; lines: string[]; minAdditionalLineCount: number; multiline: boolean; expandCallback: () => void; } | undefined;
-
-		if (this.editor.hasModel() && this.model?.value) {
-			const { position, lines, minAdditionalLineCount, multiline, expandCallback } = this.model?.value;
-
-			const textModel = this.editor.getModel();
-			const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
-			const { tabSize } = textModel.getOptions();
-
-			if (position.column !== maxColumn) {
-				console.warn('Can only show multiline ghost text at the end of a line');
-				renderData = { tabSize, position: new Position(position.lineNumber, maxColumn), lines: [], minAdditionalLineCount, multiline, expandCallback };
-			} else {
-				renderData = { tabSize, position, lines, minAdditionalLineCount, multiline, expandCallback };
-			}
-		} else {
-			renderData = undefined;
+	private getRenderData() {
+		if (!this.editor.hasModel() || !this.model?.value) {
+			return undefined;
 		}
+
+		let { position, lines, minAdditionalLineCount, multiline, expandCallback } = this.model?.value;
+
+		const textModel = this.editor.getModel();
+		const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
+		const { tabSize } = textModel.getOptions();
+
+		if (position.column !== maxColumn) {
+			console.warn('Can only show multiline ghost text at the end of a line');
+			lines = [];
+			position = new Position(position.lineNumber, maxColumn);
+		}
+
+		return { tabSize, position, lines, minAdditionalLineCount, multiline, expandCallback };
+	}
+
+	private render(): void {
+		const renderData = this.getRenderData();
 
 		if (this.hasDecoration) {
 			this.hasDecoration = false;
@@ -178,7 +181,7 @@ export class GhostTextWidget extends Disposable {
 				if (heightInLines > 0) {
 					if (renderData.multiline) {
 						const domNode = document.createElement('div');
-						this._renderLines(domNode, renderData.tabSize, remainingLines);
+						this.renderLines(domNode, renderData.tabSize, remainingLines);
 
 						this.viewZoneId = changeAccessor.addZone({
 							afterLineNumber: renderData.position.lineNumber,
@@ -187,14 +190,14 @@ export class GhostTextWidget extends Disposable {
 							domNode,
 						});
 					} else if (remainingLines.length > 0) {
-						this.viewMoreContentWidget = this._renderViewMoreLines(renderData.position, renderData.lines[0], remainingLines.length, renderData.expandCallback);
+						this.viewMoreContentWidget = this.renderViewMoreLines(renderData.position, renderData.lines[0], remainingLines.length, renderData.expandCallback);
 					}
 				}
 			}
 		});
 	}
 
-	private _renderViewMoreLines(position: Position, firstLineText: string, remainingLinesLength: number, expandCallback: () => void): ViewMoreLinesContentWidget {
+	private renderViewMoreLines(position: Position, firstLineText: string, remainingLinesLength: number, expandCallback: () => void): ViewMoreLinesContentWidget {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		const domNode = document.createElement('div');
 		domNode.className = 'suggest-preview-additional-widget';
@@ -226,7 +229,7 @@ export class GhostTextWidget extends Disposable {
 		return new ViewMoreLinesContentWidget(this.editor, position, domNode, disposableStore);
 	}
 
-	private _renderLines(domNode: HTMLElement, tabSize: number, lines: string[]): void {
+	private renderLines(domNode: HTMLElement, tabSize: number, lines: string[]): void {
 		const opts = this.editor.getOptions();
 		const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 		const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);

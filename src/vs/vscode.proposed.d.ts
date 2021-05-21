@@ -3283,33 +3283,58 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
 
-	export class InlineSuggestion {
+	export class InlineCompletionItem {
+		/**
+		 * The text to insert.
+		 * If the text contains a line break, the range must end at the end of a line.
+		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		*/
 		text: string;
-		replaceRange?: Range;
+
+		/**
+		 * The range to replace.
+		 * Must begin and end on the same line.
+		*/
+		range?: Range;
 
 		constructor(text: string);
 	}
 
-	export class InlineSuggestions {
-		items: InlineSuggestion[];
-		// incomplete: boolean;
+	export class InlineCompletionList {
+		items: InlineCompletionItem[];
 
-		constructor(items: InlineSuggestion[]);
+		constructor(items: InlineCompletionItem[]);
 	}
 
-	export interface InlineSuggestionsContext {
+	/**
+	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+	 */
+	export enum InlineCompletionTriggerKind {
 		/**
-		 * Communicates a preference on how many suggestions should be returned.
-		*/
-		preferredSuggestionCount: number;
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 0,
+
+		/**
+		 * Completion was triggered explicitly by a user gesture.
+		 * Return multiple completion items to enable cycling through them.
+		 */
+		Explicit = 1,
+	}
+	export interface InlineCompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
 	}
 
-	export interface InlineSuggestionsProvider {
-		provideInlineSuggestions(document: TextDocument, position: Position, token: CancellationToken/* , context: InlineSuggestionsContext */): ProviderResult<InlineSuggestions>;
+	export interface InlineCompletionItemProvider {
+		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionList>;
 	}
 
 	export namespace languages {
-		export function registerInlineSuggestionsProvider(selector: DocumentSelector, provider: InlineSuggestionsProvider): Disposable;
+		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
 	}
 
 	//#endregion

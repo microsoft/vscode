@@ -686,25 +686,59 @@ export interface CompletionItemProvider {
 }
 
 /**
- * @internal
+ * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
  */
-export interface InlineSuggestion {
-	text: string;
-	replaceRange?: IRange;
+export enum InlineCompletionTriggerKind {
+	/**
+	 * Completion was triggered automatically while editing.
+	 * It is sufficient to return a single completion item in this case.
+	 */
+	Automatic = 0,
+
+	/**
+	 * Completion was triggered explicitly by a user gesture.
+	 * Return multiple completion items to enable cycling through them.
+	 */
+	Explicit = 1,
+}
+
+export interface InlineCompletionContext {
+	/**
+	 * How the completion was triggered.
+	 */
+	readonly triggerKind: InlineCompletionTriggerKind;
 }
 
 /**
  * @internal
  */
-export interface InlineSuggestions<TItem extends InlineSuggestion = InlineSuggestion> {
+export interface InlineCompletion {
+	/**
+	 * The text to insert.
+	 * If the text contains a line break, the range must end at the end of a line.
+	 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+	*/
+	text: string;
+
+	/**
+	 * The range to replace.
+	 * Must begin and end on the same line.
+	*/
+	range?: IRange;
+}
+
+/**
+ * @internal
+ */
+export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	items: TItem[];
 }
 
 /**
  * @internal
  */
-export interface InlineSuggestionsProvider {
-	provideInlineSuggestions(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<InlineSuggestions>;
+export interface InlineCompletionsProvider {
+	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletions>;
 }
 
 export interface CodeAction {
@@ -1795,7 +1829,7 @@ export const CompletionProviderRegistry = new LanguageFeatureRegistry<Completion
 /**
  * @internal
  */
-export const InlineSuggestionsProviderRegistry = new LanguageFeatureRegistry<InlineSuggestionsProvider>();
+export const InlineSuggestionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
 
 /**
  * @internal

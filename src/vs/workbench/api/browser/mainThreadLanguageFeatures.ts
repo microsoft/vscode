@@ -499,10 +499,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
 	}
 
-	$registerInlineSuggestionSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider: modes.InlineSuggestionsProvider = {
-			provideInlineSuggestions: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.InlineSuggestions | undefined> => {
-				return this._proxy.$provideInlineSuggestions(handle, model.uri, position, token);
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void {
+		const provider: modes.InlineCompletionsProvider = {
+			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> => {
+				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
 			}
 		};
 		this._registrations.set(handle, modes.InlineSuggestionsProviderRegistry.register(selector, provider));
