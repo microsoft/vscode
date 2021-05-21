@@ -578,14 +578,15 @@ type MimeTypeInfo = {
 };
 
 const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
+	['application/javascript', { supportedByCore: true }],
+	['image/png', { alwaysSecure: true, supportedByCore: true }],
+	['image/jpeg', { alwaysSecure: true, supportedByCore: true }],
+	['image/git', { alwaysSecure: true, supportedByCore: true }],
+	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
 	['text/markdown', { alwaysSecure: true, supportedByCore: true }],
-	['image/png', { alwaysSecure: true, supportedByCore: true }],
 	['text/plain', { alwaysSecure: true, supportedByCore: true }],
-	['application/javascript', { supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
-	['image/svg+xml', { supportedByCore: true }],
-	['image/jpeg', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
 	['application/x.notebook.error', { alwaysSecure: true, supportedByCore: true }],
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],

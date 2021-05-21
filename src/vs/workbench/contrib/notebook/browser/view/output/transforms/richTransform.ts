@@ -365,7 +365,7 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 	}
 
 	getMimetypes() {
-		return ['image/png', 'image/jpeg'];
+		return ['image/png', 'image/jpeg', 'image/gif'];
 	}
 
 	constructor(
