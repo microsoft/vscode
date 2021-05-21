@@ -16,7 +16,7 @@ export function setup() {
 		});
 
 		// https://github.com/microsoft/vscode/issues/124146
-		it('has a tooltp with a keybinding', async function () {
+		it.skip /* https://github.com/microsoft/vscode/issues/124335 */('has a tooltp with a keybinding', async function () {
 			const app = this.app as Application;
 			const tooltip: string = await app.workbench.search.getSearchTooltip();
 			if (!/Search \(.+\)/.test(tooltip)) {
