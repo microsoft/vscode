@@ -10,9 +10,9 @@ import { createHash } from 'crypto';
 import { insert } from 'vs/base/common/arrays';
 import { hash } from 'vs/base/common/hash';
 import { isEqual } from 'vs/base/common/resources';
-import { promises, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'vs/base/common/path';
-import { readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
+import { Promises, readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -149,7 +149,7 @@ suite('WorkingCopyBackupService', () => {
 
 		service = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
 
-		await promises.mkdir(backupHome, { recursive: true });
+		await Promises.mkdir(backupHome, { recursive: true });
 
 		return writeFile(workspacesJsonPath, '');
 	});
@@ -990,7 +990,7 @@ suite('WorkingCopyBackupService', () => {
 
 			const sourceDir = getPathFromAmdModule(require, './fixtures');
 
-			const buffer = await promises.readFile(join(sourceDir, 'binary.txt'));
+			const buffer = await Promises.readFile(join(sourceDir, 'binary.txt'));
 			const hash = createHash('md5').update(buffer).digest('base64');
 
 			await service.backup(identifier, bufferToReadable(VSBuffer.wrap(buffer)), undefined, { binaryTest: 'true' });
@@ -1067,7 +1067,7 @@ suite('WorkingCopyBackupService', () => {
 
 		test('create', async () => {
 			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(toUntypedWorkingCopyId(fooFile)));
-			await promises.mkdir(dirname(fooBackupPath), { recursive: true });
+			await Promises.mkdir(dirname(fooBackupPath), { recursive: true });
 			writeFileSync(fooBackupPath, 'foo');
 			const model = await WorkingCopyBackupsModel.create(URI.file(workspaceBackupPath), service.fileService);
 

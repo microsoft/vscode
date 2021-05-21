@@ -54,7 +54,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${this.productService.target}-${process.arch}`);
-		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
+		return pfs.Promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
 	constructor(
@@ -145,7 +145,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
-								.then(() => fs.promises.rename(downloadPath, updatePackagePath))
+								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
@@ -195,7 +195,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		const promises = versions.filter(filter).map(async one => {
 			try {
-				await fs.promises.unlink(path.join(cachePath, one));
+				await pfs.Promises.unlink(path.join(cachePath, one));
 			} catch (err) {
 				// ignore
 			}
