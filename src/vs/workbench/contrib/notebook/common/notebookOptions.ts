@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, ExperimentalCompactView, ExperimentalConsolidatedOutputButton, ExperimentalFocusIndicator, ExperimentalGlobalToolbar, ExperimentalInsertToolbarPosition, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocKey, CellToolbarVisibility, ExperimentalCompactView, ExperimentalConsolidatedOutputButton, ExperimentalFocusIndicator, ExperimentalGlobalToolbar, ExperimentalInsertToolbarPosition, ExperimentalShowFoldingControls, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -51,6 +51,7 @@ export interface NotebookLayoutConfiguration {
 	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
 	globalToolbar: boolean;
 	consolidatedOutputButton: boolean;
+	showFoldingControls: 'always' | 'mouseover';
 }
 
 interface NotebookOptionsChangeEvent {
@@ -62,6 +63,7 @@ interface NotebookOptionsChangeEvent {
 	focusIndicator?: boolean;
 	insertToolbarPosition?: boolean;
 	globalToolbar?: boolean;
+	showFoldingControls?: boolean;
 }
 
 const defaultConfigConstants = {
@@ -95,6 +97,7 @@ export class NotebookOptions {
 		const compactView = this.configurationService.getValue<boolean>(ExperimentalCompactView);
 		const focusIndicator = this.configurationService.getValue<'border' | 'gutter'>(ExperimentalFocusIndicator) ?? 'border';
 		const insertToolbarPosition = this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(ExperimentalInsertToolbarPosition) ?? 'both';
+		const showFoldingControls = this.configurationService.getValue<'always' | 'mouseover'>(ExperimentalShowFoldingControls) ?? 'always';
 		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition);
 
 		this._disposables = [];
@@ -120,7 +123,8 @@ export class NotebookOptions {
 			cellToolbarInteraction,
 			compactView,
 			focusIndicator,
-			insertToolbarPosition
+			insertToolbarPosition,
+			showFoldingControls
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
@@ -132,8 +136,9 @@ export class NotebookOptions {
 			let insertToolbarPosition = e.affectsConfiguration(ExperimentalInsertToolbarPosition);
 			let globalToolbar = e.affectsConfiguration(ExperimentalGlobalToolbar);
 			let consolidatedOutputButton = e.affectsConfiguration(ExperimentalConsolidatedOutputButton);
+			let showFoldingControls = e.affectsConfiguration(ExperimentalShowFoldingControls);
 
-			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction && !compactView && !focusIndicator && !insertToolbarPosition && !globalToolbar && !consolidatedOutputButton) {
+			if (!cellStatusBarVisibility && !cellToolbarLocation && !cellToolbarInteraction && !compactView && !focusIndicator && !insertToolbarPosition && !globalToolbar && !consolidatedOutputButton && !showFoldingControls) {
 				return;
 			}
 
@@ -178,6 +183,10 @@ export class NotebookOptions {
 				configuration.consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ExperimentalConsolidatedOutputButton) ?? true;
 			}
 
+			if (showFoldingControls) {
+				configuration.showFoldingControls = this.configurationService.getValue<'always' | 'mouseover'>(ExperimentalShowFoldingControls) ?? 'always';
+			}
+
 			this._layoutConfiguration = configuration;
 
 			// trigger event
@@ -188,7 +197,8 @@ export class NotebookOptions {
 				compactView: compactView,
 				focusIndicator: focusIndicator,
 				insertToolbarPosition: insertToolbarPosition,
-				globalToolbar: globalToolbar
+				globalToolbar: globalToolbar,
+				showFoldingControls
 			});
 		}));
 
