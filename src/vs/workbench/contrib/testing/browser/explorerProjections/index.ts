@@ -88,6 +88,11 @@ export interface IActionableTestTreeElement {
 	state: TestResultState;
 
 	/**
+	 * Time it took this test/item to run.
+	 */
+	duration: number | undefined;
+
+	/**
 	 * Label for the item.
 	 */
 	label: string;
@@ -117,6 +122,11 @@ export class TestTreeWorkspaceFolder implements IActionableTestTreeElement {
 	 * @inheritdoc
 	 */
 	public readonly depth = 0;
+
+	/**
+	 * Time it took this test/item to run.
+	 */
+	public duration: number | undefined;
 
 	/**
 	 * @inheritdoc
@@ -206,6 +216,16 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	 * Own, non-computed state.
 	 */
 	public ownState = TestResultState.Unset;
+
+	/**
+	 * Own, non-computed duration.
+	 */
+	public ownDuration: number | undefined;
+
+	/**
+	 * Time it took this test/item to run.
+	 */
+	public duration: number | undefined;
 
 	/**
 	 * @inheritdoc
