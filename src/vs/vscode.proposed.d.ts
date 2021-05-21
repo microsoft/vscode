@@ -144,7 +144,24 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteAuthorityResolver {
+		/**
+		 * Resolve the authority part of the current opened `vscode-remote://` URI.
+		 *
+		 * This method will be invoked once during the startup of VS Code and again each time
+		 * VS Code detects a disconnection.
+		 *
+		 * @param authority The authority part of the current opened `vscode-remote://` URI.
+		 * @param context A context indicating if this is the first call or a subsequent call.
+		 */
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+
+		/**
+		 * Get the canonical URI (if applicable) for a `vscode-remote://` URI.
+		 *
+		 * @returns The canonical URI or undefined if the uri is already canonical.
+		 */
+		getCanonicalURI?(uri: Uri): ProviderResult<Uri>;
+
 		/**
 		 * Can be optionally implemented if the extension can forward ports better than the core.
 		 * When not implemented, the core will use its default forwarding logic.

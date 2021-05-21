@@ -1297,6 +1297,7 @@ export type IResolveAuthorityResult = IResolveAuthorityErrorResult | IResolveAut
 
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
+	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$extensionTestsExecute(): Promise<number>;
 	$extensionTestsExit(code: number): Promise<void>;

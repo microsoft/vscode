@@ -343,6 +343,16 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let remoteExtensions: IExtensionDescription[] = [];
 
 		if (remoteAuthority) {
+
+			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => {
+				if (uri.authority !== remoteAuthority) {
+					// The current remote authority resolver cannot give the canonical URI for this URI
+					return uri;
+				}
+				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
+				return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+			});
+
 			let resolverResult: ResolverResult;
 
 			try {
@@ -397,6 +407,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 
 			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
+		} else {
+
+			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => uri);
+
 		}
 
 		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv, remoteExtensions);
