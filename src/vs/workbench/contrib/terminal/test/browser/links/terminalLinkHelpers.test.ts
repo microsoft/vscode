@@ -31,6 +31,17 @@ suite('Workbench - Terminal Link Helpers', () => {
 				end: { x: 7 + 1, y: 2 }
 			});
 		});
+		test('should support links starting with wide characters', () => {
+			const lines = createBufferLineArray([
+				{ text: '文文文文.tx', width: 11 },
+				{ text: 't ...', width: 5 }
+			]);
+			const bufferRange = convertLinkRangeToBuffer(lines, 11, { startColumn: 1, startLineNumber: 1, endColumn: 9, endLineNumber: 1 }, 0);
+			assert.deepStrictEqual(bufferRange, {
+				start: { x: 1, y: 1 },
+				end: { x: 1, y: 2 }
+			});
+		});
 		test('should convert ranges for combining characters before the link', () => {
 			const lines = createBufferLineArray([
 				{ text: 'A🙂 http://', width: 11 },
