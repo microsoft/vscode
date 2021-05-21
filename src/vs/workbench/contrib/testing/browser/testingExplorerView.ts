@@ -63,7 +63,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { GoToTest } from './testExplorerActions';
+import { GoToTest, internalTestActionIds } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -811,7 +811,14 @@ class TestExplorerActionRunner extends ActionRunner {
 		const selection = this.getSelectedTests();
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
-		await action.run(...actualContext.filter(isActionableTestTreeElement));
+		const actionable = actualContext.filter(isActionableTestTreeElement);
+
+		// Is there a better way to do this?
+		if (internalTestActionIds.has(action.id)) {
+			await action.run(...actionable);
+		} else {
+			await action.run(...actionable.map(a => a instanceof TestItemTreeElement ? a.test.item.extId : a.folder.uri));
+		}
 	}
 }
 
