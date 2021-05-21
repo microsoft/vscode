@@ -15,6 +15,7 @@ import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDep
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
+import { webviewResourceAuthority } from 'vs/workbench/api/common/shared/webview';
 import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
@@ -80,31 +81,31 @@ suite('ExtHostWebview', () => {
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			'vscode-webview-test.com/vscode-resource/file//Users/codey/file.html',
+			`${webviewResourceAuthority}/vscode-resource/file//Users/codey/file.html`,
 			'Unix basic'
 		);
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString()),
-			'vscode-webview-test.com/vscode-resource/file//Users/codey/file.html#frag',
+			`${webviewResourceAuthority}/vscode-resource/file//Users/codey/file.html#frag`,
 			'Unix should preserve fragment'
 		);
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
-			'vscode-webview-test.com/vscode-resource/file//Users/codey/f%20ile.html',
+			`${webviewResourceAuthority}/vscode-resource/file//Users/codey/f%20ile.html`,
 			'Unix with encoding'
 		);
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString()),
-			'vscode-webview-test.com/vscode-resource/file/localhost/Users/codey/file.html',
+			`${webviewResourceAuthority}/vscode-resource/file/localhost/Users/codey/file.html`,
 			'Unix should preserve authority'
 		);
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
-			'vscode-webview-test.com/vscode-resource/file//c%3A/codey/file.txt',
+			`${webviewResourceAuthority}/vscode-resource/file//c%3A/codey/file.txt`,
 			'Windows C drive'
 		);
 	});
@@ -114,7 +115,7 @@ suite('ExtHostWebview', () => {
 
 		assert.strictEqual(
 			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			'vscode-webview-test.com/vscode-resource/vscode-remote/remote/Users/codey/file.html',
+			`${webviewResourceAuthority}/vscode-resource/vscode-remote/remote/Users/codey/file.html`,
 			'Unix basic'
 		);
 	});

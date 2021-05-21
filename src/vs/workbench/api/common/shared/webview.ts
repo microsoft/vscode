@@ -15,16 +15,18 @@ export interface WebviewInitData {
 }
 
 /**
- * Location where we load resources from
+ * Root from which resources in webviews are loaded.
  *
- * There endpoints can be hardcoded because we never expect to actually hit them. Instead these requests
+ * This is hardcoded because we never expect to actually hit it. Instead these requests
  * should always go to a service worker.
  */
-export const webviewResourceOrigin = (id: string) => `https://${id}.vscode-webview-test.com`;
+export const webviewResourceAuthority = 'vscode-webview.net';
+
+export const webviewResourceOrigin = (id: string) => `https://${id}.${webviewResourceAuthority}`;
 
 export const webviewResourceRoot = (id: string) => `${webviewResourceOrigin(id)}/vscode-resource/{{resource}}`;
 
-export const webviewGenericCspSource = 'https://*.vscode-webview-test.com';
+export const webviewGenericCspSource = `https://*.${webviewResourceAuthority}`;
 
 /**
  * Construct a uri that can load resources inside a webview
