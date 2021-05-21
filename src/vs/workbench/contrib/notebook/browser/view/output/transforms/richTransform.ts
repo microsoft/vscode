@@ -127,7 +127,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 	}
 
 	getMimetypes() {
-		return ['application/x.notebook.stdout', 'application/x.notebook.stream'];
+		return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream'];
 	}
 
 	constructor(
@@ -160,7 +160,7 @@ class StderrRendererContrib extends StreamRendererContrib {
 	}
 
 	override getMimetypes() {
-		return ['application/x.notebook.stderr'];
+		return ['application/vnd.code.notebook.stderr', 'application/x.notebook.stderr'];
 	}
 
 	override render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
@@ -239,16 +239,18 @@ class JSErrorRendererContrib implements IOutputRendererContribution {
 	}
 
 	getMimetypes() {
-		return ['application/x.notebook.error'];
+		return ['application/vnd.code.notebook.error'];
 	}
 
 	render(_output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, _notebookUri: URI): IRenderOutput {
 		const linkDetector = this._instantiationService.createInstance(LinkDetector);
 
+		type ErrorLike = Partial<Error>;
+
 		for (let item of items) {
-			let err: Error;
+			let err: ErrorLike;
 			try {
-				err = <Error>JSON.parse(getStringValue(item));
+				err = <ErrorLike>JSON.parse(getStringValue(item));
 			} catch (e) {
 				this._logService.warn('INVALID output item (failed to parse)', e);
 				continue;

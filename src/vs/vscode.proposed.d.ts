@@ -1268,7 +1268,7 @@ declare module 'vscode' {
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
-		 * uses the `application/x.notebook.stdout` mime type.
+		 * uses the `application/vnd.code.notebook.stdout` mime type.
 		 *
 		 * @param value A string.
 		 * @returns A new output item object.
@@ -1277,7 +1277,7 @@ declare module 'vscode' {
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
-		 * uses the `application/x.notebook.stderr` mime type.
+		 * uses the `application/vnd.code.notebook.stderr` mime type.
 		 *
 		 * @param value A string.
 		 * @returns A new output item object.
@@ -1286,15 +1286,25 @@ declare module 'vscode' {
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
-		 * uses the `application/x.notebook.error` mime type.
+		 * uses the `application/vnd.code.notebook.error` mime type.
 		 *
 		 * @param value An error object.
 		 * @returns A new output item object.
 		 */
 		static error(value: Error): NotebookCellOutputItem;
 
+		/**
+		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
+		 * is interpreted.
+		 *
+		 * Notebooks have built-in support for certain mime-types, extensions can add support new
+		 * types or refine existing types.
+		 */
 		mime: string;
 
+		/**
+		 * The value of this output item. Must always be an array of unsigned 8-bit integers.
+		 */
 		//todo@API only Unit8Array
 		value: Uint8Array | unknown;
 

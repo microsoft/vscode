@@ -688,9 +688,9 @@ suite('ExtHostTypes', function () {
 		// --- err
 
 		let item = types.NotebookCellOutputItem.error(new Error());
-		assert.strictEqual(item.mime, 'application/x.notebook.error');
+		assert.strictEqual(item.mime, 'application/vnd.code.notebook.error');
 		item = types.NotebookCellOutputItem.error({ name: 'Hello' });
-		assert.strictEqual(item.mime, 'application/x.notebook.error');
+		assert.strictEqual(item.mime, 'application/vnd.code.notebook.error');
 
 		// --- JSON
 

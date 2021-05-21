@@ -3093,15 +3093,15 @@ export class NotebookCellOutputItem {
 			message: err.message,
 			stack: err.stack
 		};
-		return NotebookCellOutputItem.json(obj, 'application/x.notebook.error');
+		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error');
 	}
 
 	static stdout(value: string): NotebookCellOutputItem {
-		return NotebookCellOutputItem.text(value, 'application/x.notebook.stdout');
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout');
 	}
 
 	static stderr(value: string): NotebookCellOutputItem {
-		return NotebookCellOutputItem.text(value, 'application/x.notebook.stderr');
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr');
 	}
 
 	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
