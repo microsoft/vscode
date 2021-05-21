@@ -812,7 +812,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
 		const keytar = await this.withKeytar();
-		const MAX_SET_ATTEMPTS = 5;
+		const MAX_SET_ATTEMPTS = 3;
 
 		// Sometimes Keytar has a problem talking to the keychain on the OS. To be more resilient, we retry a few times.
 		const setPasswordWithRetry = async (service: string, account: string, password: string) => {
@@ -826,7 +826,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					error = e;
 					this.logService.warn('Error attempting to set a password: ', e);
 					attempts++;
-					await new Promise(resolve => setTimeout(resolve, 500));
+					await new Promise(resolve => setTimeout(resolve, 200));
 				}
 			}
 
