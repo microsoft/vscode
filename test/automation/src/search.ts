@@ -44,7 +44,7 @@ export class Search extends Viewlet {
 	}
 
 	async getSearchTooltip(): Promise<any> {
-		const icon = await this.code.waitForElement(`.activitybar .action-label.codicon.codicon-search-view-icon`);
+		const icon = await this.code.waitForElement(`.activitybar .action-label.codicon.codicon-search-view-icon`, (el) => !!el?.attributes?.['title']);
 		return icon.attributes['title'];
 	}
 
