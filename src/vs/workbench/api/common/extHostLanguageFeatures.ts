@@ -1066,7 +1066,7 @@ class InlineCompletionsAdapter {
 		return {
 			items: result.items.map(item => ({
 				text: item.text,
-				replaceRange: item.range ? typeConvert.Range.from(item.range) : undefined,
+				range: item.range ? typeConvert.Range.from(item.range) : undefined,
 			})),
 		};
 	}

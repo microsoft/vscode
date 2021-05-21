@@ -505,7 +505,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
 			}
 		};
-		this._registrations.set(handle, modes.InlineSuggestionsProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, modes.InlineCompletionsProviderRegistry.register(selector, provider));
 	}
 
 	// --- parameter hints

@@ -16,51 +16,46 @@ import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
+export interface GhostTextWidgetModel {
+	readonly onDidChange: Event<void>;
+	readonly ghostText: GhostText | undefined;
+
+	expand(): void;
+	readonly expanded: boolean;
+
+	readonly minReservedLineCount: number;
+}
+
 export interface GhostText {
-	lines: string[];
-	position: Position;
-	minAdditionalLineCount: number;
-	multiline: boolean;
-	expandCallback: () => void;
+	readonly lines: string[];
+	readonly position: Position;
 }
 
-// TODO: use connors interface, maybe move to common?
-export interface IObservableValue<T> {
-	onDidChange: Event<T>;
-	readonly value: T;
-}
+export abstract class BaseGhostTextWidgetModel extends Disposable implements GhostTextWidgetModel {
+	public abstract readonly ghostText: GhostText | undefined;
 
-export class ObservableValue<T> implements IObservableValue<T> {
-	private _value: T;
-	private readonly onDidChangeEmitter = new Emitter<T>();
+	private _expanded = false;
+
+	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	constructor(value: T) {
-		this._value = value;
+	public abstract readonly minReservedLineCount: number;
+
+	public get expanded() {
+		return this._expanded;
 	}
 
-	get value() { return this._value; }
-
-	public setValue(value: T): void {
-		this._value = value;
-		this.onDidChangeEmitter.fire(this._value);
+	public expand(): void {
+		this._expanded = true;
+		this.onDidChangeEmitter.fire();
 	}
-}
-
-export type GhostTextWidgetModel = IObservableValue<GhostText | undefined>;
-
-function createDisposableRef<T>(object: T, disposable: IDisposable): IReference<T> {
-	return {
-		object,
-		dispose: () => disposable.dispose(),
-	};
 }
 
 export class GhostTextWidget extends Disposable {
@@ -112,23 +107,25 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private getRenderData() {
-		if (!this.editor.hasModel() || !this.model?.value) {
+		if (!this.editor.hasModel() || !this.model?.ghostText) {
 			return undefined;
 		}
 
-		let { position, lines, minAdditionalLineCount, multiline, expandCallback } = this.model?.value;
+		const { minReservedLineCount, expanded } = this.model;
+		let { position, lines } = this.model.ghostText;
 
 		const textModel = this.editor.getModel();
 		const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
 		const { tabSize } = textModel.getOptions();
 
-		if (position.column !== maxColumn) {
+		// TODO enable single line decorations that are not at the end of the line
+		if (/*lines.length > 1 &&*/ position.column !== maxColumn) {
 			console.warn('Can only show multiline ghost text at the end of a line');
 			lines = [];
 			position = new Position(position.lineNumber, maxColumn);
 		}
 
-		return { tabSize, position, lines, minAdditionalLineCount, multiline, expandCallback };
+		return { tabSize, position, lines, minReservedLineCount, expanded };
 	}
 
 	private render(): void {
@@ -177,9 +174,9 @@ export class GhostTextWidget extends Disposable {
 
 			if (renderData) {
 				const remainingLines = renderData.lines.slice(1);
-				const heightInLines = Math.max(remainingLines.length, renderData.minAdditionalLineCount);
+				const heightInLines = Math.max(remainingLines.length, renderData.minReservedLineCount);
 				if (heightInLines > 0) {
-					if (renderData.multiline) {
+					if (renderData.expanded) {
 						const domNode = document.createElement('div');
 						this.renderLines(domNode, renderData.tabSize, remainingLines);
 
@@ -190,14 +187,14 @@ export class GhostTextWidget extends Disposable {
 							domNode,
 						});
 					} else if (remainingLines.length > 0) {
-						this.viewMoreContentWidget = this.renderViewMoreLines(renderData.position, renderData.lines[0], remainingLines.length, renderData.expandCallback);
+						this.viewMoreContentWidget = this.renderViewMoreLines(renderData.position, renderData.lines[0], remainingLines.length);
 					}
 				}
 			}
 		});
 	}
 
-	private renderViewMoreLines(position: Position, firstLineText: string, remainingLinesLength: number, expandCallback: () => void): ViewMoreLinesContentWidget {
+	private renderViewMoreLines(position: Position, firstLineText: string, remainingLinesLength: number): ViewMoreLinesContentWidget {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		const domNode = document.createElement('div');
 		domNode.className = 'suggest-preview-additional-widget';
@@ -220,7 +217,7 @@ export class GhostTextWidget extends Disposable {
 		button.append(`+${remainingLinesLength} lines…`);
 
 		disposableStore.add(dom.addStandardDisposableListener(button, 'click', (e) => {
-			expandCallback();
+			this.model?.expand();
 			e.preventDefault();
 			this.editor.focus();
 		}));
@@ -331,3 +328,10 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .suggest-preview-text { border-bottom: 2px dashed ${suggestPreviewBorder}; }`);
 	}
 });
+
+function createDisposableRef<T>(object: T, disposable: IDisposable): IReference<T> {
+	return {
+		object,
+		dispose: () => disposable.dispose(),
+	};
+}

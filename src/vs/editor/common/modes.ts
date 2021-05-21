@@ -1829,7 +1829,7 @@ export const CompletionProviderRegistry = new LanguageFeatureRegistry<Completion
 /**
  * @internal
  */
-export const InlineSuggestionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
+export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
 
 /**
  * @internal
