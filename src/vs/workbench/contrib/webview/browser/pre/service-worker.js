@@ -260,7 +260,7 @@ async function processResourceRequest(event, requestUrl) {
 	parentClient.postMessage({
 		channel: 'load-resource',
 		id: requestId,
-		path: requestUrl.pathname,
+		path: decodeURIComponent(requestUrl.pathname),
 		scheme,
 		authority: decodeURIComponent(authority),
 		query: requestUrl.search.replace(/^\?/, ''),
