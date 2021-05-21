@@ -1247,6 +1247,9 @@ export interface IEditorMoveEvent extends IEditorIdentifier {
 	target: GroupIdentifier;
 }
 
+export interface IEditorOpenEvent extends IEditorIdentifier {
+}
+
 export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {
