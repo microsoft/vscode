@@ -164,7 +164,7 @@ export class NotebookEditorToolbar extends Disposable {
 			this.domNode.style.display = 'none';
 		} else {
 			this._notebookLeftToolbar.setActions([], []);
-			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
+			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true, renderShortTitle: true });
 			this.domNode.style.display = 'flex';
 			const primaryLeftGroups = groups.filter(group => /^navigation/.test(group[0]));
 			let primaryActions: IAction[] = [];
