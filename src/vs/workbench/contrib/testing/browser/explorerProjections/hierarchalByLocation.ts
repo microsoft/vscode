@@ -65,7 +65,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 	constructor(protected readonly listener: TestSubscriptionListener, @ITestResultService private readonly results: ITestResultService) {
 		super();
-		this._register(listener.onDiff(([folder, diff]) => this.applyDiff(folder, diff)));
+		this._register(listener.onDiff(({ folder, diff }) => this.applyDiff(folder.folder, diff)));
 		this._register(listener.onFolderChange(this.applyFolderChange, this));
 
 		// when test results are cleared, recalculate all state
