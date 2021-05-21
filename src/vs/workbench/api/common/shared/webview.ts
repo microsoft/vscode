@@ -57,7 +57,7 @@ export function asWebviewUri(
 
 	return URI.from({
 		scheme: Schemas.https,
-		authority: `${resource.scheme}+${encodeURIComponent(resource.authority)}.${webviewRootResourceAuthority}`,
+		authority: `${resource.scheme}+${resource.authority}.${webviewRootResourceAuthority}`,
 		path: resource.path,
 		fragment: resource.fragment,
 		query: resource.query,
