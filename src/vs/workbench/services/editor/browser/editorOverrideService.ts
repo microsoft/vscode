@@ -390,7 +390,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 
 		// If the user has already made a choice for this editor we don't want to ask them again
-		if (storedChoices[globForResource]?.find(editorID => editorID === currentEditor.viewType)) {
+		if (storedChoices[globForResource] && storedChoices[globForResource].find(editorID => editorID === currentEditor.viewType)) {
 			return;
 		}
 

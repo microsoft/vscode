@@ -10,9 +10,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
@@ -39,6 +39,9 @@ import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/p
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -104,6 +107,7 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
+		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
@@ -296,6 +300,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
 		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .tabs-container { border-color: ${borderColor.toString()}; }`);
 	}
+
+	const dndBackgroundColor = theme.getColor(TERMINAL_DRAG_AND_DROP_BACKGROUND) || theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
+	if (dndBackgroundColor) {
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay { background-color: ${dndBackgroundColor.toString()}; }`);
+	}
 });
 
 
@@ -347,6 +356,8 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectO
 
 class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _color: string | undefined;
+	private _altCommand: string | undefined;
+	private _class: string | undefined;
 	private readonly _elementDisposables: IDisposable[] = [];
 	constructor(
 		action: IAction,
@@ -427,13 +438,33 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			}
 			label.style.color = colorStyle;
 			dom.reset(label, ...renderLabelWithIcons(getSingleTabLabel(instance, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+
+			if (this._altCommand) {
+				label.classList.remove(this._altCommand);
+				this._altCommand = undefined;
+			}
 			if (this._color) {
 				label.classList.remove(this._color);
 				this._color = undefined;
 			}
-			if (instance?.color) {
-				this._color = `terminal-icon-${instance.color}`;
-				label.classList.add(this._color);
+			if (this._class) {
+				label.classList.remove(this._class);
+				label.classList.remove('terminal-uri-icon');
+				this._class = undefined;
+			}
+			const colorClass = getColorClass(instance);
+			if (colorClass) {
+				this._color = colorClass;
+				label.classList.add(colorClass);
+			}
+			const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+			if (uriClasses) {
+				this._class = uriClasses?.[0];
+				label.classList.add(...uriClasses);
+			}
+			if (this._commandAction.item.icon) {
+				this._altCommand = `alt-command`;
+				label.classList.add(this._altCommand);
 			}
 			this.updateTooltip();
 		}
@@ -454,7 +485,9 @@ function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon)
 	if (!instance || !instance.title) {
 		return '';
 	}
-	const label = `$(${icon?.id || instance.icon?.id}) ${getSingleTabTooltip(instance)}`;
+	let iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
+	const label = `$(${icon?.id || iconClass}) ${getSingleTabTooltip(instance)}`;
+
 	const primaryStatus = instance.statusList.primary;
 	if (!primaryStatus?.icon) {
 		return label;
@@ -470,4 +503,49 @@ function getSingleTabTooltip(instance: ITerminalInstance | null): string {
 		return instance.title;
 	}
 	return `${instance.title} ${instance.shellLaunchConfig.description}`;
+}
+
+class TerminalThemeIconStyle extends Themable {
+	private _styleElement: HTMLElement;
+	constructor(
+		container: HTMLElement,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(_themeService);
+		this._registerListeners();
+		this._styleElement = document.createElement('style');
+		container.appendChild(this._styleElement);
+		this._register(toDisposable(() => container.removeChild(this._styleElement)));
+		this.updateStyles();
+	}
+
+	private _registerListeners(): void {
+		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onInstancesChanged(() => this.updateStyles()));
+	}
+
+	override updateStyles(): void {
+		super.updateStyles();
+		let css = '';
+		// TODO add a rule collector to avoid duplication
+		for (const instance of this._terminalService.terminalInstances) {
+			const icon = instance.icon;
+			if (!icon) {
+				return;
+			}
+			let uri = undefined;
+			if (icon instanceof URI) {
+				uri = icon;
+			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+				uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
+			}
+			const iconClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
+				css += `.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon {`;
+				css += `background-image: ${dom.asCSSUrl(uri)};}`;
+			}
+		}
+		this._styleElement.textContent = css;
+	}
 }

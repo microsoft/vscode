@@ -992,10 +992,10 @@ entities@^1.1.1, entities@~1.1.1:
   resolved "https://registry.yarnpkg.com/entities/-/entities-1.1.2.tgz#bdfa735299664dfafd34529ed4f8522a275fea56"
   integrity sha512-f2LZMYl1Fzu7YSBKg+RoROelpOaNrcGmE9AZubeDfrCEia483oW4MI4VyFd5VNHIgQ/7qm1I0wUHK1eJnn2y2w==
 
-esbuild@^0.8.30:
-  version "0.8.30"
-  resolved "https://registry.yarnpkg.com/esbuild/-/esbuild-0.8.30.tgz#3d057ff9ffe6d5d30bccb0afe8cc92a2e69622d3"
-  integrity sha512-gCJQYUMO9QNrfpNOIiCnFoX41nWiPFCvURBQF+qWckyJ7gmw2xCShdKCXvS+RZcQ5krcxEOLIkzujqclePKhfw==
+esbuild@^0.12.1:
+  version "0.12.1"
+  resolved "https://registry.yarnpkg.com/esbuild/-/esbuild-0.12.1.tgz#f652d5b3b9432dbb42fc2c034ddd62360296e03d"
+  integrity sha512-WfQ00MKm/Y4ysz1u9PCUAsV66k5lbrcEvS6aG9jhBIavpB94FBdaWeBkaZXxCZB4w+oqh+j4ozJFWnnFprOXbg==
 
 eslint-scope@^5.0.0:
   version "5.0.0"

@@ -80,16 +80,10 @@ declare module 'vscode' {
 		constructor(host: string, port: number, connectionToken?: string);
 	}
 
-	export enum RemoteTrustOption {
-		Unknown = 0,
-		DisableTrust = 1,
-		MachineTrusted = 2
-	}
-
 	export interface ResolvedOptions {
 		extensionHostEnv?: { [key: string]: string | null; };
 
-		trust?: RemoteTrustOption;
+		isTrusted?: boolean;
 	}
 
 	export interface TunnelOptions {
@@ -150,7 +144,24 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteAuthorityResolver {
+		/**
+		 * Resolve the authority part of the current opened `vscode-remote://` URI.
+		 *
+		 * This method will be invoked once during the startup of VS Code and again each time
+		 * VS Code detects a disconnection.
+		 *
+		 * @param authority The authority part of the current opened `vscode-remote://` URI.
+		 * @param context A context indicating if this is the first call or a subsequent call.
+		 */
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+
+		/**
+		 * Get the canonical URI (if applicable) for a `vscode-remote://` URI.
+		 *
+		 * @returns The canonical URI or undefined if the uri is already canonical.
+		 */
+		getCanonicalURI?(uri: Uri): ProviderResult<Uri>;
+
 		/**
 		 * Can be optionally implemented if the extension can forward ports better than the core.
 		 * When not implemented, the core will use its default forwarding logic.
@@ -891,9 +902,16 @@ declare module 'vscode' {
 
 	export interface TerminalOptions {
 		/**
-		 * A codicon ID to associate with this terminal.
+		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		readonly icon?: string;
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color?: { id: string } };
+	}
+
+	export interface ExtensionTerminalOptions {
+		/**
+		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
+		 */
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color?: { id: string } };
 	}
 
 	//#endregion
@@ -1678,6 +1696,17 @@ declare module 'vscode' {
 		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
 
 		/**
+		 * Open an untitled notebook. The editor will prompt the user for a file
+		 * path when the document is to be saved.
+		 *
+		 * @see {@link openNotebookDocument}
+		 * @param viewType The notebook view type that should be used.
+		 * @param content The initial contents of the notebook.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
+		 */
+		export function openNotebookDocument(viewType: string, content?: NotebookData): Thenable<NotebookDocument>;
+
+		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
 		 */
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
@@ -2090,6 +2119,52 @@ declare module 'vscode' {
 		 * The return-type of a function or type of a property/variable. Rendered rightmost.
 		 */
 		type?: string;
+	}
+
+	//#endregion
+
+	//#region @connor4312 - notebook messaging: https://github.com/microsoft/vscode/issues/123601
+
+	export interface NotebookRendererMessage<T> {
+		/**
+		 * Editor that sent the message.
+		 */
+		editor: NotebookEditor;
+
+		/**
+		 * Message sent from the webview.
+		 */
+		message: T;
+	}
+
+	/**
+	 * Renderer messaging is used to communicate with a single renderer. It's
+	 * returned from {@link notebook.createRendererMessaging}.
+	 */
+	export interface NotebookRendererMessaging<TSend = any, TReceive = TSend> {
+		/**
+		 * Events that fires when a message is received from a renderer.
+		 */
+		onDidReceiveMessage: Event<NotebookRendererMessage<TReceive>>;
+
+		/**
+		 * Sends a message to the renderer.
+		 * @param editor Editor to target with the message
+		 * @param message Message to send
+		 */
+		postMessage(editor: NotebookEditor, message: TSend): void;
+	}
+
+	export namespace notebook {
+		/**
+		 * Creates a new messaging instance used to communicate with a specific
+		 * renderer. The renderer only has access to messaging if `requiresMessaging`
+		 * is set in its contribution.
+		 *
+		 * @see https://github.com/microsoft/vscode/issues/123601
+		 * @param rendererId The renderer ID to communicate with
+		 */
+		export function createRendererMessaging<TSend = any, TReceive = TSend>(rendererId: string): NotebookRendererMessaging<TSend, TReceive>;
 	}
 
 	//#endregion
@@ -3126,6 +3201,69 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region @joaomoreno https://github.com/microsoft/vscode/issues/124263
+	// This API change only affects behavior and documentation, not API surface.
+
+	namespace env {
+
+		/**
+		 * Resolves a uri to form that is accessible externally.
+		 *
+		 * #### `http:` or `https:` scheme
+		 *
+		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
+		 * uri to the same resource on the client machine.
+		 *
+		 * This is a no-op if the extension is running on the client machine.
+		 *
+		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
+		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
+		 * the port forwarding tunnel is managed by VS Code and the tunnel can be closed by the user.
+		 *
+		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
+		 *
+		 * #### `vscode.env.uriScheme`
+		 *
+		 * Creates a uri that - if opened in a browser (e.g. via `openExternal`) - will result in a registered {@link UriHandler}
+		 * to trigger.
+		 *
+		 * Extensions should not make any assumptions about the resulting uri and should not alter it in anyway.
+		 * Rather, extensions can e.g. use this uri in an authentication flow, by adding the uri as callback query
+		 * argument to the server to authenticate to.
+		 *
+		 * *Note* that if the server decides to add additional query parameters to the uri (e.g. a token or secret), it
+		 * will appear in the uri that is passed to the {@link UriHandler}.
+		 *
+		 * **Example** of an authentication flow:
+		 * ```typescript
+		 * vscode.window.registerUriHandler({
+		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
+		 *     if (uri.path === '/did-authenticate') {
+		 *       console.log(uri.toString());
+		 *     }
+		 *   }
+		 * });
+		 *
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
+		 * await vscode.env.openExternal(callableUri);
+		 * ```
+		 *
+		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
+		 * `asExternalUri`.
+		 *
+		 * #### Any other scheme
+		 *
+		 * Any other scheme will be handled as if the provided URI is a workspace URI. In that case, the method will return
+		 * a URI which, when handled, will make VS Code open the workspace.
+		 *
+		 * @return A uri that can be used on the client machine.
+		 */
+		export function asExternalUri(target: Uri): Thenable<Uri>;
+	}
+
+	//#endregion
+
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
 	// TODO@API must be a class
@@ -3259,18 +3397,6 @@ declare module 'vscode' {
 		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
 		 */
 		permissions?: FilePermission;
-	}
-
-	//#endregion
-
-	//#region Expose parent session on DebugSessions - https://github.com/microsoft/vscode/issues/123403#issuecomment-843269200
-
-	export interface DebugSession {
-		/**
-		 * The parent session of this debug session, if it was created as a child.
-		 * @see DebugSessionOptions.parentSession
-		 */
-		readonly parentSession?: DebugSession;
 	}
 
 	//#endregion

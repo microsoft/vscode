@@ -881,10 +881,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
 		templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
-		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - layoutInfo.bottomCellToolbarGap - layoutInfo.cellBottomMargin}px`;
+		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - layoutInfo.bottomToolbarGap - layoutInfo.cellBottomMargin}px`;
 		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
 		templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
-		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - layoutInfo.bottomCellToolbarGap}px`;
+		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - layoutInfo.bottomToolbarGap}px`;
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {

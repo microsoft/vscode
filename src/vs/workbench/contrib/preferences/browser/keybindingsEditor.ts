@@ -7,7 +7,7 @@ import 'vs/css!./media/keybindingsEditor';
 import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import { OS } from 'vs/base/common/platform';
+import { isIOS, OS } from 'vs/base/common/platform';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -174,7 +174,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
 			this.selectEntry(activeKeybindingEntry);
-		} else {
+		} else if (!isIOS) {
 			this.searchWidget.focus();
 		}
 	}

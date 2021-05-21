@@ -216,6 +216,9 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
+		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
+			return vscode.Uri.file(uri.path);
+		},
 		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,

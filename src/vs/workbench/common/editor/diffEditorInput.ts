@@ -32,8 +32,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	constructor(
 		name: string | undefined,
 		description: string | undefined,
-		public readonly originalInput: EditorInput,
-		public readonly modifiedInput: EditorInput,
+		readonly originalInput: EditorInput,
+		readonly modifiedInput: EditorInput,
 		private readonly forceOpenAsBinary: boolean | undefined,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService

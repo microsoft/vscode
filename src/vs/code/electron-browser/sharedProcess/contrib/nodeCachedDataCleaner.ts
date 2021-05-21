@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises } from 'fs';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { readdir, rimraf } from 'vs/base/node/pfs';
+import { Promises, readdir, rimraf } from 'vs/base/node/pfs';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class NodeCachedDataCleaner {
@@ -56,7 +55,7 @@ export class NodeCachedDataCleaner {
 					if (entry !== nodeCachedDataCurrent) {
 
 						const path = join(nodeCachedDataRootDir, entry);
-						deletes.push(promises.stat(path).then(stats => {
+						deletes.push(Promises.stat(path).then(stats => {
 							// stat check
 							// * only directories
 							// * only when old enough

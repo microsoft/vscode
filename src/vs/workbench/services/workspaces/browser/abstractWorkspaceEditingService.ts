@@ -258,7 +258,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
 
 		// Set trust for the workspace file
-		this.trustWorkspaceConfiguration(targetConfigPathURI);
+		await this.trustWorkspaceConfiguration(targetConfigPathURI);
 	}
 
 	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -359,9 +359,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		return this.jsonEditingService.write(toWorkspace.configPath, [{ path: ['settings'], value: targetWorkspaceConfiguration }], true);
 	}
 
-	private trustWorkspaceConfiguration(configPathURI: URI): void {
+	private async trustWorkspaceConfiguration(configPathURI: URI): Promise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkpaceTrusted()) {
-			this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
+			await this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
 		}
 	}
 

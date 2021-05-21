@@ -451,13 +451,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return false;
 		};
 
+		const isRequestFromSafeContext = (details: Electron.OnBeforeRequestListenerDetails | Electron.OnHeadersReceivedListenerDetails): boolean => {
+			return details.resourceType === 'xhr' || isSafeFrame(details.frame);
+		};
+
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
 			if (uri.path.endsWith('.svg')) {
 				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
 				if (!isSafeResourceUrl) {
-					const isSafeContext = isSafeFrame(details.frame);
-					return callback({ cancel: !isSafeContext });
+					return callback({ cancel: !isRequestFromSafeContext(details) });
 				}
 			}
 
@@ -483,8 +486,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
 				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
-					const isSafeContext = isSafeFrame(details.frame);
-					return callback({ cancel: !isSafeContext });
+					return callback({ cancel: !isRequestFromSafeContext(details) });
 				}
 			}
 

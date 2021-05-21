@@ -242,6 +242,12 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const updateStatus = () => {
+			if (activeEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+				// kernel info rendered in the notebook toolbar already
+				this._kernelInfoElement.clear();
+				return;
+			}
+
 			const notebook = activeEditor.viewModel?.notebookDocument;
 			if (notebook) {
 				this._showKernelStatus(notebook);
@@ -254,6 +260,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookKernelBinding(updateStatus));
 		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookAffinity(updateStatus));
 		this._editorDisposables.add(activeEditor.onDidChangeModel(updateStatus));
+		this._editorDisposables.add(activeEditor.notebookOptions.onDidChangeOptions(updateStatus));
 		updateStatus();
 	}
 

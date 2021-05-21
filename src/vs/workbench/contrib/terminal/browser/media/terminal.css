@@ -289,3 +289,39 @@
 	margin-left: 4px;
 	color: inherit;
 }
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .uri-icon {
+	background-repeat: no-repeat;
+	background-size: contain;
+	margin-right: 4px;
+	height: 100%;
+}
+
+.monaco-workbench .terminal-uri-icon .monaco-highlighted-label .codicon,
+.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label .codicon {
+	background-size: 16px;
+}
+.monaco-workbench .terminal-uri-icon .monaco-highlighted-label .codicon::before,
+.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon::before {
+	content: '';
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay {
+	display: block;
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 100%;
+	pointer-events: none;
+	opacity: 0; /* hidden initially */
+	transition: left 70ms ease-out, right 70ms ease-out, opacity 150ms ease-out;
+}
+.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay.drop-left {
+	right: 50%;
+}
+.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay.drop-right {
+	left: 50%
+}

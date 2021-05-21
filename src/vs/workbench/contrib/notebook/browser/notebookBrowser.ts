@@ -49,6 +49,7 @@ export const NOTEBOOK_CELL_LIST_FOCUSED = new RawContextKey<boolean>('notebookCe
 export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutputFocused', false);
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
 export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
+export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
 
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookViewType', undefined);
@@ -170,16 +171,16 @@ export interface ICommonNotebookEditor {
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	getCellById(cellId: string): IGenericCellViewModel | undefined;
-	toggleNotebookCellSelection(cell: IGenericCellViewModel): void;
+	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
-	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
-	markdownCellDrag(cellId: string, position: { clientY: number }): void;
-	markdownCellDrop(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void;
+	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void;
+	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
 	markdownCellDragEnd(cellId: string): void;
 }
 

@@ -10,9 +10,9 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { flakySuite, getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
-import { copy, rimraf, rimrafSync } from 'vs/base/node/pfs';
+import { copy, Promises, rimraf, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream, promises } from 'fs';
+import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions, FilePermission } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -417,7 +417,7 @@ flakySuite('Disk File Service', function () {
 
 	test('resolve - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
-		await promises.symlink(join(testDir, 'deep'), link.fsPath, 'junction');
+		await Promises.symlink(join(testDir, 'deep'), link.fsPath, 'junction');
 
 		const resolved = await service.resolve(link);
 		assert.strictEqual(resolved.children!.length, 4);
@@ -427,7 +427,7 @@ flakySuite('Disk File Service', function () {
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('resolve - file symbolic link', async () => {
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await promises.symlink(join(testDir, 'lorem.txt'), link.fsPath);
+		await Promises.symlink(join(testDir, 'lorem.txt'), link.fsPath);
 
 		const resolved = await service.resolve(link);
 		assert.strictEqual(resolved.isDirectory, false);
@@ -435,7 +435,7 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('resolve - symbolic link pointing to non-existing file does not break', async () => {
-		await promises.symlink(join(testDir, 'foo'), join(testDir, 'bar'), 'junction');
+		await Promises.symlink(join(testDir, 'foo'), join(testDir, 'bar'), 'junction');
 
 		const resolved = await service.resolve(URI.file(testDir));
 		assert.strictEqual(resolved.isDirectory, true);
@@ -486,7 +486,7 @@ flakySuite('Disk File Service', function () {
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('deleteFile - symbolic link (exists)', async () => {
 		const target = URI.file(join(testDir, 'lorem.txt'));
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await promises.symlink(target.fsPath, link.fsPath);
+		await Promises.symlink(target.fsPath, link.fsPath);
 
 		const source = await service.resolve(link);
 
@@ -508,7 +508,7 @@ flakySuite('Disk File Service', function () {
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('deleteFile - symbolic link (pointing to non-existing file)', async () => {
 		const target = URI.file(join(testDir, 'foo'));
 		const link = URI.file(join(testDir, 'bar'));
-		await promises.symlink(target.fsPath, link.fsPath);
+		await Promises.symlink(target.fsPath, link.fsPath);
 
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
@@ -1601,7 +1601,7 @@ flakySuite('Disk File Service', function () {
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('readFile - dangling symbolic link - https://github.com/microsoft/vscode/issues/116049', async () => {
 		const link = URI.file(join(testDir, 'small.js-link'));
-		await promises.symlink(join(testDir, 'small.js'), link.fsPath);
+		await Promises.symlink(join(testDir, 'small.js'), link.fsPath);
 
 		let error: FileOperationError | undefined = undefined;
 		try {
@@ -1937,8 +1937,8 @@ flakySuite('Disk File Service', function () {
 
 		await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
 
-		const stats = await promises.stat(lockedFile.fsPath);
-		await promises.chmod(lockedFile.fsPath, stats.mode & ~0o200);
+		const stats = await Promises.stat(lockedFile.fsPath);
+		await Promises.chmod(lockedFile.fsPath, stats.mode & ~0o200);
 
 		let error;
 		const newContent = 'Updates to locked file';
@@ -2100,7 +2100,7 @@ flakySuite('Disk File Service', function () {
 
 	(runWatchTests && !isWindows /* windows: cannot create file symbolic link without elevated context */ ? test : test.skip)('watch - file symbolic link', async () => {
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
-		await promises.symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
+		await Promises.symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
 
 		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
 		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
@@ -2228,7 +2228,7 @@ flakySuite('Disk File Service', function () {
 
 	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async () => {
 		const watchDir = URI.file(join(testDir, 'deep-link'));
-		await promises.symlink(join(testDir, 'deep'), watchDir.fsPath, 'junction');
+		await Promises.symlink(join(testDir, 'deep'), watchDir.fsPath, 'junction');
 
 		const file = URI.file(join(watchDir.fsPath, 'index.html'));
 		writeFileSync(file.fsPath, 'Init');

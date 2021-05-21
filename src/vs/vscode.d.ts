@@ -2355,7 +2355,7 @@ declare module 'vscode' {
 		 * list of kinds may either be generic, such as `[CodeActionKind.Refactor]`, or list out every kind provided,
 		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
-		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
+		readonly providedCodeActionKinds?: readonly CodeActionKind[];
 
 		/**
 		 * Static documentation for a class of code actions.
@@ -11606,6 +11606,12 @@ declare module 'vscode' {
 		 * The debug session's type from the {@link DebugConfiguration debug configuration}.
 		 */
 		readonly type: string;
+
+		/**
+		 * The parent session of this debug session, if it was created as a child.
+		 * @see DebugSessionOptions.parentSession
+		 */
+		readonly parentSession?: DebugSession;
 
 		/**
 		 * The debug session's name is initially taken from the {@link DebugConfiguration debug configuration}.

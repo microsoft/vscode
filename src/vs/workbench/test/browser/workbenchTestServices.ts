@@ -123,8 +123,8 @@ import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResource
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -283,7 +283,8 @@ export class TestServiceAccessor {
 		@INotificationService public notificationService: INotificationService,
 		@IWorkingCopyEditorService public workingCopyEditorService: IWorkingCopyEditorService,
 		@IInstantiationService public instantiationService: IInstantiationService,
-		@IElevatedFileService public elevatedFileService: IElevatedFileService
+		@IElevatedFileService public elevatedFileService: IElevatedFileService,
+		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService
 	) { }
 }
 
@@ -1612,7 +1613,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async reduceConnectionGraceTime(): Promise<void> { throw new Error('Method not implemented.'); }
 	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
 	updateTitle(id: number, title: string): Promise<void> { throw new Error('Method not implemented.'); }
-	updateIcon(id: number, icon: string, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
+	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {

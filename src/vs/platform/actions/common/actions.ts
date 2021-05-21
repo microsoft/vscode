@@ -41,6 +41,7 @@ export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
 export interface ICommandAction {
 	id: string;
 	title: string | ICommandActionTitle;
+	shortTitle?: string | ICommandActionTitle;
 	category?: string | ILocalizedString;
 	tooltip?: string;
 	icon?: Icon;
@@ -153,6 +154,7 @@ export class MenuId {
 	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
+	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
@@ -179,6 +181,7 @@ export class MenuId {
 export interface IMenuActionOptions {
 	arg?: any;
 	shouldForwardArgs?: boolean;
+	renderShortTitle?: boolean;
 }
 
 export interface IMenu extends IDisposable {
@@ -388,7 +391,9 @@ export class MenuItemAction implements IAction {
 		@ICommandService private _commandService: ICommandService
 	) {
 		this.id = item.id;
-		this.label = typeof item.title === 'string' ? item.title : item.title.value;
+		this.label = options?.renderShortTitle && item.shortTitle
+			? (typeof item.shortTitle === 'string' ? item.shortTitle : item.shortTitle.value)
+			: (typeof item.title === 'string' ? item.title : item.title.value);
 		this.tooltip = item.tooltip ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = false;

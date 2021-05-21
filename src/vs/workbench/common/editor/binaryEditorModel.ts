@@ -12,20 +12,18 @@ import { MIME_BINARY } from 'vs/base/common/mime';
  * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
+
+	private readonly mime = MIME_BINARY;
+
 	private size: number | undefined;
 	private etag: string | undefined;
-	private readonly mime: string;
 
 	constructor(
-		public readonly resource: URI,
+		readonly resource: URI,
 		private readonly name: string,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
-
-		this.resource = resource;
-		this.name = name;
-		this.mime = MIME_BINARY;
 	}
 
 	/**

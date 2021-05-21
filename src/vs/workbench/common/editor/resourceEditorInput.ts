@@ -19,7 +19,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	get preferredResource(): URI { return this._preferredResource; }
 
 	constructor(
-		public readonly resource: URI,
+		readonly resource: URI,
 		preferredResource: URI | undefined,
 		@ILabelService protected readonly labelService: ILabelService,
 		@IFileService protected readonly fileService: IFileService

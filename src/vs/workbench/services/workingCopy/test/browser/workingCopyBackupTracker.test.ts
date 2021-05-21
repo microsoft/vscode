@@ -30,6 +30,8 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 suite('WorkingCopyBackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
@@ -93,6 +95,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		disposables.add(registerTestResourceEditor());
 
 		instantiationService.stub(IEditorGroupsService, part);
+		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
@@ -199,6 +202,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
+		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
