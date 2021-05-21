@@ -64,11 +64,19 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		if (text.length > MAX_LENGTH) {
 			return [];
 		}
+		const words: string[] = [];
+		let startIndex = 0;
+		const textArray = text.split('');
+		for (let i = 0; i < text.length; i++) {
+			if (wordSeparators.split('').includes(textArray[i])) {
+				words.push(text.substring(startIndex, i));
+				startIndex = i + 1;
+			}
+		}
+		if (startIndex < text.length) {
+			words.push(text.substring(startIndex));
+		}
 
-		const regex = new RegExp(`${wordSeparators.split('').join('|')}`, 'g');
-		// const regex = new RegExp(`${ wordSeparators.split('').join('|').replace(/ /g, `[${'\u00A0'} ]`) } `, 'g');
-		console.log(regex);
-		let words = text.split(' ');
 		let stringIndex = -1;
 
 		if (words.length === 0) {
