@@ -24,3 +24,31 @@ export class CodiconActionViewItem extends MenuEntryActionViewItem {
 		}
 	}
 }
+
+export class ActionViewWithLabel extends MenuEntryActionViewItem {
+	private _actionLabel?: HTMLAnchorElement;
+
+	constructor(
+		_action: MenuItemAction,
+		keybindingService: IKeybindingService,
+		notificationService: INotificationService,
+	) {
+		super(_action, keybindingService, notificationService);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('notebook-action-view-item');
+		this._actionLabel = document.createElement('a');
+		container.appendChild(this._actionLabel);
+		this.updateLabel();
+	}
+
+	override updateLabel() {
+		if (this._actionLabel) {
+			this._actionLabel.classList.add('notebook-label');
+			this._actionLabel.innerText = this._action.label;
+			this._actionLabel.title = this._action.tooltip.length ? this._action.tooltip : this._action.label;
+		}
+	}
+}

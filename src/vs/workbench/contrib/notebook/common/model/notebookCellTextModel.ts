@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, TransientOptions, IOutputDto, ICellOutput, CellMetadataChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { hash } from 'vs/base/common/hash';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { hash } from 'vs/base/common/hash';
+import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -24,8 +24,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeContent = new Emitter<'content' | 'language'>();
 	onDidChangeContent: Event<'content' | 'language'> = this._onDidChangeContent.event;
 
-	private _onDidChangeMetadata = new Emitter<CellMetadataChangedEvent>();
-	onDidChangeMetadata: Event<CellMetadataChangedEvent> = this._onDidChangeMetadata.event;
+	private _onDidChangeMetadata = new Emitter<void>();
+	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+
+	private _onDidChangeInternalMetadata = new Emitter<CellInternalMetadataChangedEvent>();
+	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
 
 	private _onDidChangeLanguage = new Emitter<string>();
 	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
@@ -43,14 +46,26 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	set metadata(newMetadata: NotebookCellMetadata) {
-		const runStateChanged = this._metadata.runState !== newMetadata.runState;
-		newMetadata = {
-			...newMetadata,
-			...{ runStartTimeAdjustment: computeRunStartTimeAdjustment(this._metadata, newMetadata) }
-		};
 		this._metadata = newMetadata;
 		this._hash = null;
-		this._onDidChangeMetadata.fire({ runStateChanged });
+		this._onDidChangeMetadata.fire();
+	}
+
+	private _internalMetadata: NotebookCellInternalMetadata;
+
+	get internalMetadata() {
+		return this._internalMetadata;
+	}
+
+	set internalMetadata(newInternalMetadata: NotebookCellInternalMetadata) {
+		const runStateChanged = this._internalMetadata.runState !== newInternalMetadata.runState;
+		newInternalMetadata = {
+			...newInternalMetadata,
+			...{ runStartTimeAdjustment: computeRunStartTimeAdjustment(this._internalMetadata, newInternalMetadata) }
+		};
+		this._internalMetadata = newInternalMetadata;
+		this._hash = null;
+		this._onDidChangeInternalMetadata.fire({ runStateChanged });
 	}
 
 	get language() {
@@ -148,12 +163,14 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		public cellKind: CellKind,
 		outputs: IOutputDto[],
 		metadata: NotebookCellMetadata | undefined,
+		internalMetadata: NotebookCellInternalMetadata | undefined,
 		public readonly transientOptions: TransientOptions,
 		private readonly _modeService: IModeService
 	) {
 		super();
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
-		this._metadata = metadata || {};
+		this._metadata = metadata ?? {};
+		this._internalMetadata = internalMetadata ?? {};
 	}
 
 	getValue(): string {
@@ -211,6 +228,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 	}
 	override dispose() {
+		dispose(this._outputs);
 		// Manually release reference to previous text buffer to avoid large leaks
 		// in case someone leaks a CellTextModel reference
 		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);
@@ -218,12 +236,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._textBuffer = emptyDisposedTextBuffer;
 		super.dispose();
 	}
-}
-
-export function cloneMetadata(cell: NotebookCellTextModel) {
-	return {
-		...cell.metadata
-	};
 }
 
 export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
@@ -235,11 +247,12 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 			outputs: output.outputs,
 			/* paste should generate new outputId */ outputId: UUID.generateUuid()
 		})),
-		metadata: cloneMetadata(cell)
+		metadata: { ...cell.metadata },
+		internalMetadata: { ...cell.internalMetadata },
 	};
 }
 
-function computeRunStartTimeAdjustment(oldMetadata: NotebookCellMetadata, newMetadata: NotebookCellMetadata): number | undefined {
+function computeRunStartTimeAdjustment(oldMetadata: NotebookCellInternalMetadata, newMetadata: NotebookCellInternalMetadata): number | undefined {
 	if (oldMetadata.runStartTime !== newMetadata.runStartTime && typeof newMetadata.runStartTime === 'number') {
 		const offset = Date.now() - newMetadata.runStartTime;
 		return offset < 0 ? Math.abs(offset) : 0;

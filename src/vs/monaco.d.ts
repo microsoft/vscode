@@ -1984,6 +1984,11 @@ declare namespace monaco.editor {
 		 */
 		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+		 * @event
+		 */
+		onDidChangeAttached(listener: () => void): IDisposable;
+		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
@@ -1993,6 +1998,10 @@ declare namespace monaco.editor {
 		 * and make all necessary clean-up to release this object to the GC.
 		 */
 		dispose(): void;
+		/**
+		 * Returns if this model is attached to an editor or not.
+		 */
+		isAttachedToEditor(): boolean;
 	}
 
 	/**
@@ -2965,7 +2974,7 @@ declare namespace monaco.editor {
 		 */
 		suggest?: ISuggestOptions;
 		/**
-		 * Smart select opptions;
+		 * Smart select options.
 		 */
 		smartSelect?: ISmartSelectOptions;
 		/**
@@ -3220,6 +3229,10 @@ declare namespace monaco.editor {
 		 * Control the behavior and rendering of the inline hints.
 		 */
 		inlayHints?: IEditorInlayHintsOptions;
+		/**
+		 * Control if the editor should use shadow DOM.
+		 */
+		useShadowDOM?: boolean;
 	}
 
 	/**
@@ -3832,6 +3845,10 @@ declare namespace monaco.editor {
 		 */
 		showStatusBar?: boolean;
 		/**
+		 * Enable or disable the rendering of the suggestion inline.
+		 */
+		showSuggestionPreview?: boolean;
+		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
 		showInlineDetails?: boolean;
@@ -3847,6 +3864,10 @@ declare namespace monaco.editor {
 		 * Show constructor-suggestions.
 		 */
 		showConstructors?: boolean;
+		/**
+		 * Show deprecated-suggestions.
+		 */
+		showDeprecated?: boolean;
 		/**
 		 * Show field-suggestions.
 		 */
@@ -4094,23 +4115,24 @@ declare namespace monaco.editor {
 		tabCompletion = 108,
 		tabIndex = 109,
 		unusualLineTerminators = 110,
-		useTabStops = 111,
-		wordSeparators = 112,
-		wordWrap = 113,
-		wordWrapBreakAfterCharacters = 114,
-		wordWrapBreakBeforeCharacters = 115,
-		wordWrapColumn = 116,
-		wordWrapOverride1 = 117,
-		wordWrapOverride2 = 118,
-		wrappingIndent = 119,
-		wrappingStrategy = 120,
-		showDeprecated = 121,
-		inlayHints = 122,
-		editorClassName = 123,
-		pixelRatio = 124,
-		tabFocusMode = 125,
-		layoutInfo = 126,
-		wrappingInfo = 127
+		useShadowDOM = 111,
+		useTabStops = 112,
+		wordSeparators = 113,
+		wordWrap = 114,
+		wordWrapBreakAfterCharacters = 115,
+		wordWrapBreakBeforeCharacters = 116,
+		wordWrapColumn = 117,
+		wordWrapOverride1 = 118,
+		wordWrapOverride2 = 119,
+		wrappingIndent = 120,
+		wrappingStrategy = 121,
+		showDeprecated = 122,
+		inlayHints = 123,
+		editorClassName = 124,
+		pixelRatio = 125,
+		tabFocusMode = 126,
+		layoutInfo = 127,
+		wrappingInfo = 128
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4226,6 +4248,7 @@ declare namespace monaco.editor {
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
+		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
@@ -5802,6 +5825,29 @@ declare namespace monaco.languages {
 		 * The editor will only resolve a completion item once.
 		 */
 		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+	}
+
+	/**
+	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+	 */
+	export enum InlineCompletionTriggerKind {
+		/**
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 0,
+		/**
+		 * Completion was triggered explicitly by a user gesture.
+		 * Return multiple completion items to enable cycling through them.
+		 */
+		Explicit = 1
+	}
+
+	export interface InlineCompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
 	}
 
 	export interface CodeAction {

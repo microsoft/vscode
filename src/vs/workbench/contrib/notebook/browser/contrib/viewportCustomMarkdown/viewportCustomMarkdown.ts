@@ -22,7 +22,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 		super();
 
 		this._warmupViewport = new RunOnceScheduler(() => this._warmupViewportNow(), 200);
-
+		this._register(this._warmupViewport);
 		this._register(this._notebookEditor.onDidScroll(() => {
 			this._warmupViewport.schedule();
 		}));
@@ -41,7 +41,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 		cellRangesToIndexes(visibleRanges).forEach(index => {
 			const cell = this._notebookEditor.viewModel?.viewCells[index];
 
-			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata?.inputCollapsed) {
+			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
 				this._notebookEditor.createMarkdownPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
 				const viewCell = (cell as CodeCellViewModel);
@@ -65,7 +65,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 					if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
 						const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
 						if (renderer?.getType() === RenderOutputType.Html) {
-							const renderResult = renderer!.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), this._notebookEditor.viewModel.uri) as IInsetRenderOutput;
+							const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), this._notebookEditor.viewModel.uri) as IInsetRenderOutput;
 							this._notebookEditor.createOutput(viewCell, renderResult, 0);
 						}
 						return;

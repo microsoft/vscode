@@ -44,12 +44,12 @@ interface ISerializedDraggedResource {
 
 export class DraggedEditorIdentifier {
 
-	constructor(public readonly identifier: IEditorIdentifier) { }
+	constructor(readonly identifier: IEditorIdentifier) { }
 }
 
 export class DraggedEditorGroupIdentifier {
 
-	constructor(public readonly identifier: GroupIdentifier) { }
+	constructor(readonly identifier: GroupIdentifier) { }
 }
 
 interface IDraggedEditorProps {
@@ -232,11 +232,11 @@ export class ResourcesDropHandler {
 	private async handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
 		const fileEditorFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
-		// Untitled: always ensure that we open a new untitled editor for each file we drop
+		// Untitled: always ensure that we open a new untitled text editor for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			const untitledEditorResource = this.editorService.createEditorInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
-			if (untitledEditorResource) {
-				droppedDirtyEditor.resource = untitledEditorResource;
+			const untitledTextEditorResource = this.editorService.createEditorInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
+			if (untitledTextEditorResource) {
+				droppedDirtyEditor.resource = untitledTextEditorResource;
 			}
 		}
 

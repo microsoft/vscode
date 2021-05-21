@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
@@ -23,15 +23,12 @@ import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, BuiltinGettin
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
+import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -52,7 +49,9 @@ export interface IGettingStartedStep {
 	category: GettingStartedCategory | string
 	when: ContextKeyExpression
 	order: number
-	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
+	/** @deprecated */
+	doneOn?: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
+	completionEvents: string[]
 	media:
 	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
 	| { type: 'markdown', path: URI, base: URI, root: URI }
@@ -116,8 +115,9 @@ export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStarte
 export interface IGettingStartedService {
 	_serviceBrand: undefined,
 
-	readonly onDidAddCategory: Event<IGettingStartedCategoryWithProgress>
-	readonly onDidRemoveCategory: Event<string>
+	readonly onDidAddCategory: Event<void>
+	readonly onDidRemoveCategory: Event<void>
+
 	readonly onDidChangeStep: Event<IGettingStartedStepWithProgress>
 	readonly onDidChangeCategory: Event<IGettingStartedCategoryWithProgress>
 
@@ -133,11 +133,11 @@ export interface IGettingStartedService {
 export class GettingStartedService extends Disposable implements IGettingStartedService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAddCategory = new Emitter<IGettingStartedCategoryWithProgress>();
-	onDidAddCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidAddCategory.event;
+	private readonly _onDidAddCategory = new Emitter<void>();
+	onDidAddCategory: Event<void> = this._onDidAddCategory.event;
 
-	private readonly _onDidRemoveCategory = new Emitter<string>();
-	onDidRemoveCategory: Event<string> = this._onDidRemoveCategory.event;
+	private readonly _onDidRemoveCategory = new Emitter<void>();
+	onDidRemoveCategory: Event<void> = this._onDidRemoveCategory.event;
 
 	private readonly _onDidChangeCategory = new Emitter<IGettingStartedCategoryWithProgress>();
 	onDidChangeCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidChangeCategory.event;
@@ -151,8 +151,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private memento: Memento;
 	private stepProgress: Record<string, StepProgress>;
 
-	private commandListeners = new Map<string, string[]>();
-	private eventListeners = new Map<string, string[]>();
+	private sessionEvents = new Set<string>();
+	private completionListeners = new Map<string, Set<string>>();
 
 	private gettingStartedContributions = new Map<string, IGettingStartedCategory>();
 	private steps = new Map<string, IGettingStartedStep>();
@@ -160,16 +160,15 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private tasExperimentService?: ITASExperimentService;
 	private sessionInstalledExtensions = new Set<string>();
 
+	private trackedContextKeys = new Set<string>();
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextService: IContextKeyService,
 		@IUserDataAutoSyncEnablementService  readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IProductService private readonly productService: IProductService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
@@ -186,17 +185,26 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			removed.forEach(e => this.unregisterExtensionContributions(e.description));
 		});
 
-		this._register(this.commandService.onDidExecuteCommand(command => this.progressByCommand(command.commandId)));
+		this._register(this.commandService.onDidExecuteCommand(command => this.progressByEvent(`onCommand:${command.commandId}`)));
+
+		this.extensionManagementService.getInstalled().then(installed => {
+			installed.forEach(ext => this.progressByEvent(`extensionInstalled:${ext.identifier.id.toLowerCase()}`));
+		});
 
 		this._register(this.extensionManagementService.onDidInstallExtension(async e => {
 			if (await this.hostService.hadLastFocus()) {
 				this.sessionInstalledExtensions.add(e.identifier.id);
 			}
+			this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 		}));
 
-		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+		this._register(this.contextService.onDidChangeContext(event => {
+			if (event.affectsSome(this.trackedContextKeys)) { this._onDidAddCategory.fire(); }
+		}));
+
+		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
-			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
+			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		}));
 
 		startEntries.forEach(async (entry, index) => {
@@ -221,6 +229,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					this.getStepOverrides(step, category.id);
 					return ({
 						...step,
+						completionEvents: step.completionEvents ?? [],
 						description: parseDescription(step.description),
 						category: category.id,
 						order: index,
@@ -279,7 +288,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidChangeStep.fire(this.getStepProgress(existingStep));
 	}
 
-	private registerExtensionContributions(extension: IExtensionDescription) {
+	private async registerExtensionContributions(extension: IExtensionDescription) {
 		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
 			? URI.parse(path, true)
 			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
@@ -339,17 +348,24 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 
 
-		extension.contributes?.walkthroughs?.forEach(walkthrough => {
-			const categoryID = extension.identifier.value + '#walkthrough#' + walkthrough.id;
+		await Promise.all(extension.contributes?.walkthroughs?.map(async walkthrough => {
+			const categoryID = extension.identifier.value + '#' + walkthrough.id;
+
+			const override = await Promise.race([
+				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryID}.when`),
+				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
+			]);
+
 			if (
 				this.sessionInstalledExtensions.has(extension.identifier.value)
 				&& walkthrough.primary
-				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true())
+				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value);
 				sectionToOpen = categoryID;
 			}
-			this.registerWalkthrough({
+
+			const walkthoughDescriptior = {
 				content: { type: 'steps' },
 				description: walkthrough.description,
 				title: walkthrough.title,
@@ -362,74 +378,48 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						: DefaultIconPath
 				},
 				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
-			},
-				(walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
-					const description = parseDescription(step.description || '');
-					const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
-					if (buttonDescription) {
-						description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
-					}
-					const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
+			} as const;
 
-					let media: IGettingStartedStep['media'];
-					if (typeof step.media.path === 'string' && step.media.path.endsWith('.md')) {
-						media = {
-							type: 'markdown',
-							path: convertExtensionPathToFileURI(step.media.path),
-							base: convertExtensionPathToFileURI(dirname(step.media.path)),
-							root: FileAccess.asFileUri(extension.extensionLocation),
-						};
-					} else {
-						const altText = (step.media as any).altText;
-						if (altText === undefined) {
-							console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
-						}
-						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
-					}
+			const steps = (walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
+				const description = parseDescription(step.description || '');
+				const buttonDescription = (step as any as { button: LegacyButtonConfig }).button;
+				if (buttonDescription) {
+					description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
+				}
+				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 
-					return ({
-						description, media,
-						doneOn: step.doneOn?.command
-							? { commandExecuted: step.doneOn.command }
-							: { eventFired: 'markDone:' + fullyQualifiedID },
-						id: fullyQualifiedID,
-						title: step.title,
-						when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
-						category: categoryID,
-						order: index,
-					});
-				}));
-		});
+				let media: IGettingStartedStep['media'];
+				if (typeof step.media.path === 'string' && step.media.path.endsWith('.md')) {
+					media = {
+						type: 'markdown',
+						path: convertExtensionPathToFileURI(step.media.path),
+						base: convertExtensionPathToFileURI(dirname(step.media.path)),
+						root: FileAccess.asFileUri(extension.extensionLocation),
+					};
+				} else {
+					const altText = (step.media as any).altText;
+					if (altText === undefined) {
+						console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
+					}
+					media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
+				}
+
+				return ({
+					description, media,
+					completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
+					id: fullyQualifiedID,
+					title: step.title,
+					when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
+					category: categoryID,
+					order: index,
+				});
+			});
+
+			this.registerWalkthrough(walkthoughDescriptior, steps);
+		}));
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') !== 'hide') {
-
-			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
-			for (const group of this.editorGroupsService.groups) {
-				if (group.activeEditor instanceof GettingStartedInput) {
-					if (!group.activeEditor.selectedCategory) {
-						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(sectionToOpen);
-						return;
-					}
-				}
-			}
-
-			// Otherwise, try to find a getting started input somewhere with no selected walkthrough, and open it to this one.
-			for (const group of this.editorGroupsService.groups) {
-				for (const editor of group.editors) {
-					if (editor instanceof GettingStartedInput) {
-						if (!editor.selectedCategory) {
-							editor.selectedCategory = sectionToOpen;
-							group.openEditor(editor, { revealIfOpened: true });
-							return;
-						}
-					}
-				}
-			}
-
-			// Otherwise, just make a new one.
-			if (this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
-				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {});
-			}
+			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
 		}
 	}
 
@@ -441,7 +431,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		extension.contributes?.startEntries?.forEach(section => {
 			const categoryID = extension.identifier.value + '#startEntry#' + idForStartEntry(section);
 			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveCategory.fire(categoryID);
+			this._onDidRemoveCategory.fire();
 		});
 
 		extension.contributes?.walkthroughs?.forEach(section => {
@@ -451,25 +441,74 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				this.steps.delete(fullyQualifiedID);
 			});
 			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveCategory.fire(categoryID);
+			this._onDidRemoveCategory.fire();
 		});
 	}
 
 	private registerDoneListeners(step: IGettingStartedStep) {
-		if (step.doneOn.commandExecuted) {
-			const existing = this.commandListeners.get(step.doneOn.commandExecuted);
-			if (existing) { existing.push(step.id); }
-			else {
-				this.commandListeners.set(step.doneOn.commandExecuted, [step.id]);
+		if (step.doneOn) {
+			if (step.doneOn.commandExecuted) { step.completionEvents.push(`onCommand:${step.doneOn.commandExecuted}`); }
+			if (step.doneOn.eventFired) { step.completionEvents.push(`onEvent:${step.doneOn.eventFired}`); }
+		}
+
+		if (!step.completionEvents.length) {
+			step.completionEvents = coalesce(flatten(
+				step.description
+					.filter(linkedText => linkedText.nodes.length === 1) // only buttons
+					.map(linkedText =>
+						linkedText.nodes
+							.filter(((node): node is ILink => typeof node !== 'string'))
+							.map(({ href }) => {
+								if (href.startsWith('command:')) {
+									return 'onCommand:' + href.slice('command:'.length, href.includes('?') ? href.indexOf('?') : undefined);
+								}
+								if (href.startsWith('https://')) {
+									return 'onLink:' + href;
+								}
+								return undefined;
+							}))));
+		}
+
+		if (!step.completionEvents.length) {
+			step.completionEvents.push('stepSelected');
+		}
+
+		for (let event of step.completionEvents) {
+			const [_, eventType, argument] = /^([^:]*):?(.*)$/.exec(event) ?? [];
+
+			if (!eventType) {
+				console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+				continue;
+			}
+
+			switch (eventType) {
+				case 'onLink': case 'onEvent': break;
+				case 'stepSelected':
+					event = eventType + ':' + step.id;
+					break;
+				case 'onCommand':
+					event = eventType + ':' + argument.replace(/^toSide:/, '');
+					break;
+				case 'extensionInstalled':
+					event = eventType + ':' + argument.toLowerCase();
+					break;
+				default:
+					console.error(`Unknown completionEvent ${event} when registering step ${step.id}`);
+					continue;
+			}
+
+			this.registerCompletionListener(event, step);
+			if (this.sessionEvents.has(event)) {
+				this.progressStep(step.id);
 			}
 		}
-		if (step.doneOn.eventFired) {
-			const existing = this.eventListeners.get(step.doneOn.eventFired);
-			if (existing) { existing.push(step.id); }
-			else {
-				this.eventListeners.set(step.doneOn.eventFired, [step.id]);
-			}
+	}
+
+	private registerCompletionListener(event: string, step: IGettingStartedStep) {
+		if (!this.completionListeners.has(event)) {
+			this.completionListeners.set(event, new Set());
 		}
+		this.completionListeners.get(event)?.add(step.id);
 	}
 
 	getCategories(): IGettingStartedCategoryWithProgress[] {
@@ -539,14 +578,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidProgressStep.fire(this.getStepProgress(step));
 	}
 
-	private progressByCommand(command: string) {
-		const listening = this.commandListeners.get(command) ?? [];
-		listening.forEach(id => this.progressStep(id));
-	}
-
 	progressByEvent(event: string): void {
-		const listening = this.eventListeners.get(event) ?? [];
-		listening.forEach(id => this.progressStep(id));
+		this.sessionEvents.add(event);
+		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
 	}
 
 	private registerStartEntry(categoryDescriptor: IGettingStartedStartEntryDescriptor): void {
@@ -559,7 +593,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const category: IGettingStartedCategory = { ...categoryDescriptor };
 
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
-		this._onDidAddCategory.fire(this.getCategoryProgress(category));
+		this._onDidAddCategory.fire();
 	}
 
 	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
@@ -575,8 +609,29 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
 			this.steps.set(step.id, step);
 			this.registerDoneListeners(step);
+			this.trackedContextKeys.add(step.when.serialize());
 		});
-		this._onDidAddCategory.fire(this.getCategoryProgress(category));
+
+		if (this.contextService.contextMatchesRules(category.when)) {
+			this._onDidAddCategory.fire();
+		}
+
+		this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryDescriptor.id}.when`).then(override => {
+			if (override) {
+				const old = category.when;
+				const gnu = ContextKeyExpr.deserialize(override) ?? old;
+				this.trackedContextKeys.add(override);
+				category.when = gnu;
+
+				if (this.contextService.contextMatchesRules(old) && !this.contextService.contextMatchesRules(gnu)) {
+					this._onDidRemoveCategory.fire();
+				} else if (!this.contextService.contextMatchesRules(old) && this.contextService.contextMatchesRules(gnu)) {
+					this._onDidAddCategory.fire();
+				}
+			}
+		});
+
+		this.trackedContextKeys.add(category.when.serialize());
 	}
 
 	private getStep(id: string): IGettingStartedStep {

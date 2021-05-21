@@ -21,7 +21,6 @@ import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminal
 import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteTerminalService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -29,7 +28,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { terminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
+import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { RemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
@@ -37,6 +36,7 @@ import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
+import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -59,8 +59,8 @@ const quickAccessNavigatePreviousInTerminalPickerId = 'workbench.action.quickOpe
 CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPickerId, handler: getQuickNavigateHandler(quickAccessNavigatePreviousInTerminalPickerId, false) });
 
 // Register configurations
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-configurationRegistry.registerConfiguration(terminalConfiguration);
+registerTerminalPlatformConfiguration();
+registerTerminalConfiguration();
 
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
@@ -140,7 +139,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const collectFilesFromDirectory = async (dir: string): Promise<string[]> => {
 			let entries = await pfs.readdir(dir);
 			entries = entries.map(e => path.join(dir, e));
-			const stats = await Promise.all(entries.map(e => fs.promises.stat(e)));
+			const stats = await Promise.all(entries.map(e => pfs.Promises.stat(e)));
 			let promise: Promise<string[]> = Promise.resolve([]);
 			stats.forEach((stat, index) => {
 				const entry = entries[index];
@@ -170,7 +169,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			const manifest = await getManifest(zipPath);
 			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 			let operation: InstallOperation = InstallOperation.Install;
-			if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, product.version)) {
+			if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, product.version, product.date)) {
 				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", identifier.id, product.version));
 			}
 

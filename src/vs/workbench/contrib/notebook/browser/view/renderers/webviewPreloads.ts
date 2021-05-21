@@ -39,7 +39,15 @@ interface PreloadStyles {
 	readonly outputNodeLeftPadding: number;
 }
 
-async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any, markdownDeps: any) {
+export interface PreloadOptions {
+	dragAndDropEnabled: boolean;
+}
+
+declare function __import(path: string): Promise<any>;
+
+async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, rendererData: readonly RendererMetadata[]) {
+	let currentOptions = options;
+
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -109,31 +117,88 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 		}
 	};
 
-	const runScript = async (url: string, originalUri: string, globals: { [name: string]: unknown } = {}): Promise<() => (PreloadResult)> => {
-		let text: string;
-		try {
-			const res = await fetch(url);
-			text = await res.text();
-			if (!res.ok) {
-				throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
-			}
-
-			globals.scriptUrl = url;
-		} catch (e) {
-			return () => ({ state: PreloadState.Error, error: e.message });
+	async function loadScriptSource(url: string, originalUri = url): Promise<string> {
+		const res = await fetch(url);
+		const text = await res.text();
+		if (!res.ok) {
+			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
 		}
 
+		return text;
+	}
+
+	interface RendererContext {
+		getState<T>(): T | undefined;
+		setState<T>(newState: T): void;
+		getRenderer(id: string): any | undefined;
+		postMessage?(message: unknown): void;
+		onDidReceiveMessage?: Event<unknown>;
+	}
+
+	interface ScriptModule {
+		activate: (ctx?: RendererContext) => any;
+	}
+
+	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
 		const args = Object.entries(globals);
-		return () => {
-			try {
-				new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
-				return { state: PreloadState.Ok };
-			} catch (e) {
-				console.error(e);
-				return { state: PreloadState.Error, error: e.message };
+		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
+	};
+
+	const runPreload = async (url: string, originalUri: string): Promise<ScriptModule> => {
+		const text = await loadScriptSource(url, originalUri);
+		return {
+			activate: () => {
+				try {
+					return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
+				} catch (e) {
+					console.error(e);
+					throw e;
+				}
 			}
 		};
 	};
+
+	const runRenderScript = async (url: string, rendererId: string): Promise<ScriptModule> => {
+		const text = await loadScriptSource(url);
+		// TODO: Support both the new module based renderers and the old style global renderers
+		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+		if (isModule) {
+			return __import(url);
+		} else {
+			return createBackCompatModule(rendererId, url, text);
+		}
+	};
+
+	const createBackCompatModule = (rendererId: string, scriptUrl: string, scriptText: string): ScriptModule => ({
+		activate: (): RendererApi => {
+			const onDidCreateOutput = createEmitter<ICreateCellInfo>();
+			const onWillDestroyOutput = createEmitter<undefined | IDestroyCellInfo>();
+
+			const globals = {
+				scriptUrl,
+				acquireNotebookRendererApi: <T>(): GlobalNotebookRendererApi<T> => ({
+					onDidCreateOutput: onDidCreateOutput.event,
+					onWillDestroyOutput: onWillDestroyOutput.event,
+					setState: newState => vscode.setState({ ...vscode.getState(), [rendererId]: newState }),
+					getState: () => {
+						const state = vscode.getState();
+						return typeof state === 'object' && state ? state[rendererId] as T : undefined;
+					},
+				}),
+			};
+
+			invokeSourceWithGlobals(scriptText, globals);
+
+			return {
+				renderCell(id, context) {
+					onDidCreateOutput.fire({ ...context, outputId: id });
+				},
+				destroyCell(id) {
+					onWillDestroyOutput.fire(id ? { outputId: id } : undefined);
+				}
+			};
+		}
+	});
 
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, DimensionUpdate>();
@@ -350,8 +415,6 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 		focusTrackers.set(outputId, new FocusTracker(element, outputId));
 	}
 
-	const dontEmit = Symbol('dontEmit');
-
 	function createEmitter<T>(listenerChange: (listeners: Set<Listener<T>>) => void = () => undefined): EmitterLike<T> {
 		const listeners = new Set<Listener<T>>();
 		return {
@@ -383,100 +446,50 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 		};
 	}
 
-	// Maps the events in the given emitter, invoking mapFn on each one. mapFn can return
-	// the dontEmit symbol to skip emission.
-	function mapEmitter<T, R>(emitter: EmitterLike<T>, mapFn: (data: T) => R | typeof dontEmit) {
-		let listener: IDisposable;
-		const mapped = createEmitter(listeners => {
-			if (listeners.size && !listener) {
-				listener = emitter.event(data => {
-					const v = mapFn(data);
-					if (v !== dontEmit) {
-						mapped.fire(v);
-					}
-				});
-			} else if (listener && !listeners.size) {
-				listener.dispose();
-			}
-		});
-
-		return mapped.event;
+	function showPreloadErrors(outputNode: HTMLElement, ...errors: readonly Error[]) {
+		outputNode.innerText = `Error loading preloads:`;
+		const errList = document.createElement('ul');
+		for (const result of errors) {
+			console.error(result);
+			const item = document.createElement('li');
+			item.innerText = result.message;
+			errList.appendChild(item);
+		}
+		outputNode.appendChild(errList);
 	}
 
 	interface ICreateCellInfo {
 		element: HTMLElement;
-		outputId: string;
+		outputId?: string;
 
 		mime: string;
 		value: unknown;
 		metadata: unknown;
+
+		text(): string;
+		json(): any;
+		bytes(): Uint8Array
+		blob(): Blob;
 	}
 
 	interface IDestroyCellInfo {
 		outputId: string;
 	}
 
-	const onWillDestroyOutput = createEmitter<'all' | { rendererId: string, info: IDestroyCellInfo }>();
-	const onDidCreateOutput = createEmitter<{ rendererId: string, info: ICreateCellInfo }>();
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const acquireNotebookRendererApi = <T>(id: string) => ({
-		setState(newState: T) {
-			vscode.setState({ ...vscode.getState(), [id]: newState });
-		},
-		getState(): T | undefined {
-			const state = vscode.getState();
-			return typeof state === 'object' && state ? state[id] as T : undefined;
-		},
-		onWillDestroyOutput: mapEmitter(onWillDestroyOutput, (evt) => {
-			if (evt === 'all') {
-				return undefined;
-			}
-			return evt.rendererId === id ? evt.info : dontEmit;
-		}),
-		onDidCreateOutput: mapEmitter(onDidCreateOutput, ({ rendererId, info }) => rendererId === id ? info : dontEmit),
-	});
+	/** @deprecated */
+	interface GlobalNotebookRendererApi<T> {
+		setState: (newState: T) => void;
+		getState(): T | undefined;
+		readonly onWillDestroyOutput: Event<undefined | IDestroyCellInfo>;
+		readonly onDidCreateOutput: Event<ICreateCellInfo>;
+	}
 
 	const kernelPreloadGlobals = {
 		acquireVsCodeApi,
 		onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
 		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
-	};
-
-	const enum PreloadState {
-		Ok,
-		Error
-	}
-
-	type PreloadResult = { state: PreloadState.Ok } | { state: PreloadState.Error, error: string };
-
-	/**
-	 * Map of preload resource URIs to promises that resolve one the resource
-	 * loads or errors.
-	 */
-	const preloadPromises = new Map<string, Promise<PreloadResult>>();
-	const queuedOuputActions = new Map<string, Promise<void>>();
-
-	/**
-	 * Enqueues an action that affects a output. This blocks behind renderer load
-	 * requests that affect the same output. This should be called whenever you
-	 * do something that affects output to ensure it runs in
-	 * the correct order.
-	 */
-	const enqueueOutputAction = <T extends { outputId: string; }>(event: T, fn: (event: T) => Promise<void> | void) => {
-		const queued = queuedOuputActions.get(event.outputId);
-		const maybePromise = queued ? queued.then(() => fn(event)) : fn(event);
-		if (typeof maybePromise === 'undefined') {
-			return; // a synchonrously-called function, we're done
-		}
-
-		const promise = maybePromise.then(() => {
-			if (queuedOuputActions.get(event.outputId) === promise) {
-				queuedOuputActions.delete(event.outputId);
-			}
-		});
-
-		queuedOuputActions.set(event.outputId, promise);
 	};
 
 	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
@@ -486,14 +499,16 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 
 	window.addEventListener('wheel', handleWheel);
 
-	window.addEventListener('message', rawEvent => {
+	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: ToWebviewMessage; });
 
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
-				ensureMarkdownPreviewCells(event.data.cells);
-				dimensionUpdater.updateImmediately();
-				postNotebookMessage('initializedMarkdownPreview', {});
+				{
+					await ensureMarkdownPreviewCells(event.data.cells);
+					dimensionUpdater.updateImmediately();
+					postNotebookMessage('initializedMarkdownPreview', {});
+				}
 				break;
 			case 'createMarkdownPreview':
 				ensureMarkdownPreviewCells([event.data.cell]);
@@ -558,10 +573,15 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 					}
 				}
 				break;
-			case 'html':
-				enqueueOutputAction(event.data, async data => {
-					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
-					if (!queuedOuputActions.has(data.outputId)) { // output was cleared while loading
+			case 'html': {
+				const data = event.data;
+				outputs.enqueue(event.data.outputId, async (state) => {
+					const preloadsAndErrors = await Promise.all<unknown>([
+						data.rendererId ? renderers.load(data.rendererId) : undefined,
+						...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
+					].map(p => p?.catch(err => err)));
+
+					if (state.cancelled) {
 						return;
 					}
 
@@ -611,38 +631,44 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 						outputNode.innerHTML = trustedHtml as string;
-						cellOutputContainer.appendChild(outputContainer);
-						outputContainer.appendChild(outputNode);
 						domEval(outputNode);
-					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
-						outputNode.innerText = `Error loading preloads:`;
-						const errList = document.createElement('ul');
-						for (const result of preloadResults) {
-							if (result?.state === PreloadState.Error) {
-								const item = document.createElement('li');
-								item.innerText = result.error;
-								errList.appendChild(item);
-							}
-						}
-						outputNode.appendChild(errList);
-						cellOutputContainer.appendChild(outputContainer);
-						outputContainer.appendChild(outputNode);
+					} else if (preloadsAndErrors.some(e => e instanceof Error)) {
+						const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
+						showPreloadErrors(outputNode, ...errors);
 					} else {
-						onDidCreateOutput.fire({
-							rendererId: data.rendererId!,
-							info: {
+						const rendererApi = preloadsAndErrors[0] as RendererApi;
+						try {
+							rendererApi.renderCell(outputId, {
 								element: outputNode,
-								outputId,
 								mime: content.mimeType,
 								value: content.value,
 								metadata: content.metadata,
-							}
-						});
-						cellOutputContainer.appendChild(outputContainer);
-						outputContainer.appendChild(outputNode);
+								bytes() {
+									return content.valueBytes;
+								},
+								text() {
+									return new TextDecoder().decode(content.valueBytes)
+										|| String(content.value); //todo@jrieken remove this once `value` is gone!
+								},
+								json() {
+									return JSON.parse(this.text());
+								},
+								blob() {
+									return new Blob([content.valueBytes], { type: content.mimeType });
+								}
+							});
+						} catch (e) {
+							showPreloadErrors(outputNode, e);
+						}
 					}
 
+					cellOutputContainer.appendChild(outputContainer);
+					outputContainer.appendChild(outputNode);
 					resizeObserver.observe(outputNode, outputId, true);
+
+					if (content.type === RenderOutputType.Html) {
+						domEval(outputNode);
+					}
 
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
@@ -666,6 +692,7 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 					cellOutputContainer.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 				});
 				break;
+			}
 			case 'view-scroll':
 				{
 					// const date = new Date();
@@ -692,8 +719,7 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 					break;
 				}
 			case 'clear':
-				queuedOuputActions.clear(); // stop all loading outputs
-				onWillDestroyOutput.fire('all');
+				renderers.clearAll();
 				document.getElementById('container')!.innerText = '';
 
 				focusTrackers.forEach(ft => {
@@ -705,26 +731,29 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 				const output = document.getElementById(event.data.outputId);
 				const { rendererId, outputId } = event.data;
 
-				queuedOuputActions.delete(outputId); // stop any in-progress rendering
+				outputs.cancelOutput(outputId);
 				if (output && output.parentNode) {
 					if (rendererId) {
-						onWillDestroyOutput.fire({ rendererId, info: { outputId } });
+						renderers.clearOutput(rendererId, outputId);
 					}
 					output.parentNode.removeChild(output);
 				}
 
 				break;
 			}
-			case 'hideOutput':
-				enqueueOutputAction(event.data, ({ outputId }) => {
+			case 'hideOutput': {
+				const { outputId } = event.data;
+				outputs.enqueue(event.data.outputId, () => {
 					const container = document.getElementById(outputId)?.parentElement?.parentElement;
 					if (container) {
 						container.style.visibility = 'hidden';
 					}
 				});
 				break;
-			case 'showOutput':
-				enqueueOutputAction(event.data, ({ outputId, cellTop: top, }) => {
+			}
+			case 'showOutput': {
+				const { outputId, cellTop: top } = event.data;
+				outputs.enqueue(event.data.outputId, () => {
 					const output = document.getElementById(outputId);
 					if (output) {
 						output.parentElement!.parentElement!.style.visibility = 'visible';
@@ -736,6 +765,7 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 					}
 				});
 				break;
+			}
 			case 'ack-dimension':
 				{
 					const { outputId, height } = event.data;
@@ -748,24 +778,8 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 				}
 			case 'preload':
 				const resources = event.data.resources;
-				let queue: Promise<PreloadResult> = Promise.resolve({ state: PreloadState.Ok });
-				for (const { uri, originalUri, source } of resources) {
-					const globals = source === 'kernel'
-						? kernelPreloadGlobals
-						: { acquireNotebookRendererApi: () => acquireNotebookRendererApi(source.rendererId) };
-
-					// create the promise so that the scripts download in parallel, but
-					// only invoke them in series within the queue
-					const promise = runScript(uri, originalUri, globals);
-					queue = queue.then(() => promise.then(fn => {
-						const result = fn();
-						if (result.state === PreloadState.Error) {
-							console.error(result.error);
-						}
-
-						return result;
-					}));
-					preloadPromises.set(uri, queue);
+				for (const { uri, originalUri } of resources) {
+					kernelPreloads.load(uri, originalUri);
 				}
 				break;
 			case 'focus-output':
@@ -782,19 +796,270 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
+			case 'customRendererMessage':
+				renderers.getRenderer(event.data.rendererId)?.receiveMessage(event.data.message);
+				break;
+			case 'notebookStyles':
+				const documentStyle = document.documentElement.style;
+
+				for (let i = documentStyle.length - 1; i >= 0; i--) {
+					const property = documentStyle[i];
+
+					// Don't remove properties that the webview might have added separately
+					if (property && property.startsWith('--notebook-')) {
+						documentStyle.removeProperty(property);
+					}
+				}
+
+				// Re-add new properties
+				for (const variable of Object.keys(event.data.styles)) {
+					documentStyle.setProperty(`--${variable}`, event.data.styles[variable]);
+				}
+				break;
+			case 'notebookOptions':
+				currentOptions = event.data.options;
+
+				// Update markdown previews
+				for (const markdownContainer of document.querySelectorAll('.preview')) {
+					setMarkdownContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
+				}
+
+
+				break;
 		}
 	});
 
-	const markdownRenderer: {
-		renderMarkup: (context: { element: HTMLElement, content: string }) => void,
-	} = await markdownRendererModule.activate(markdownDeps);
+	interface RendererApi {
+		renderCell: (id: string, context: ICreateCellInfo) => void;
+		destroyCell?: (id?: string) => void;
+	}
+
+	class Renderer {
+		constructor(
+			public readonly data: RendererMetadata,
+			private readonly loadExtension: (id: string) => Promise<void>,
+		) { }
+
+		private _onMessageEvent = createEmitter();
+		private _loadPromise: Promise<RendererApi> | undefined;
+		private _api: RendererApi | undefined;
+
+		public get api() { return this._api; }
+
+		public load(): Promise<RendererApi | undefined> {
+			if (!this._loadPromise) {
+				this._loadPromise = this._load();
+			}
+
+			return this._loadPromise;
+		}
+
+		public receiveMessage(message: unknown) {
+			this._onMessageEvent.fire(message);
+		}
+
+		private createRendererContext(): RendererContext {
+			const { id, messaging } = this.data;
+			const context: RendererContext = {
+				setState: newState => vscode.setState({ ...vscode.getState(), [id]: newState }),
+				getState: <T>() => {
+					const state = vscode.getState();
+					return typeof state === 'object' && state ? state[id] as T : undefined;
+				},
+				getRenderer: (id: string) => renderers.getRenderer(id)?.api,
+			};
+
+			if (messaging) {
+				context.onDidReceiveMessage = this._onMessageEvent.event;
+				context.postMessage = message => postNotebookMessage('customRendererMessage', { rendererId: id, message });
+			}
+
+			return context;
+		}
+
+		/** Inner function cached in the _loadPromise(). */
+		private async _load() {
+			const module = await runRenderScript(this.data.entrypoint, this.data.id);
+			if (!module) {
+				return;
+			}
+
+			const api = module.activate(this.createRendererContext());
+			this._api = api;
+
+			// Squash any errors extends errors. They won't prevent the renderer
+			// itself from working, so just log them.
+			await Promise.all(rendererData
+				.filter(d => d.extends === this.data.id)
+				.map(d => this.loadExtension(d.id).catch(console.error)),
+			);
+
+			return api;
+		}
+	}
+
+	const kernelPreloads = new class {
+		private readonly preloads = new Map<string /* uri */, Promise<ScriptModule>>();
+
+		/**
+		 * Returns a promise that resolves when the given preload is activated.
+		 */
+		public waitFor(uri: string) {
+			return this.preloads.get(uri) || Promise.resolve(new Error(`Preload not ready: ${uri}`));
+		}
+
+		/**
+		 * Loads a preload.
+		 * @param uri URI to load from
+		 * @param originalUri URI to show in an error message if the preload is invalid.
+		 */
+		public load(uri: string, originalUri: string) {
+			const promise = Promise.all([
+				runPreload(uri, originalUri),
+				this.waitForAllCurrent(),
+			]).then(([module]) => module.activate());
+
+			this.preloads.set(uri, promise);
+			return promise;
+		}
+
+		/**
+		 * Returns a promise that waits for all currently-registered preloads to
+		 * activate before resolving.
+		 */
+		private waitForAllCurrent() {
+			return Promise.all([...this.preloads.values()].map(p => p.catch(err => err)));
+		}
+	};
+
+	const outputs = new class {
+		private outputs = new Map<string, { cancelled: boolean; queue: Promise<unknown> }>();
+		/**
+		 * Pushes the action onto the list of actions for the given output ID,
+		 * ensuring that it's run in-order.
+		 */
+		public enqueue(outputId: string, action: (record: { cancelled: boolean }) => unknown) {
+			const record = this.outputs.get(outputId);
+			if (!record) {
+				this.outputs.set(outputId, { cancelled: false, queue: new Promise(r => r(action({ cancelled: false }))) });
+			} else {
+				record.queue = record.queue.then(r => !record.cancelled && action(record));
+			}
+		}
+
+		/**
+		 * Cancells the rendering of all outputs.
+		 */
+		public cancelAll() {
+			for (const record of this.outputs.values()) {
+				record.cancelled = true;
+			}
+			this.outputs.clear();
+		}
+
+		/**
+		 * Cancels any ongoing rendering out an output.
+		 */
+		public cancelOutput(outputId: string) {
+			const output = this.outputs.get(outputId);
+			if (output) {
+				output.cancelled = true;
+				this.outputs.delete(outputId);
+			}
+		}
+	};
+
+	const renderers = new class {
+		private readonly _renderers = new Map</* id */ string, Renderer>();
+
+		constructor() {
+			for (const renderer of rendererData) {
+				this._renderers.set(renderer.id, new Renderer(renderer, async (extensionId) => {
+					const ext = this._renderers.get(extensionId);
+					if (!ext) {
+						throw new Error(`Could not find extending renderer: ${extensionId}`);
+					}
+
+					await ext.load();
+				}));
+			}
+		}
+
+		public getRenderer(id: string) {
+			return this._renderers.get(id);
+		}
+
+		public async load(id: string) {
+			const renderer = this._renderers.get(id);
+			if (!renderer) {
+				throw new Error('Could not find renderer');
+			}
+
+			return renderer.load();
+		}
+
+
+		public clearAll() {
+			outputs.cancelAll();
+			for (const renderer of this._renderers.values()) {
+				renderer.api?.destroyCell?.();
+			}
+		}
+
+		public clearOutput(rendererId: string, outputId: string) {
+			outputs.cancelOutput(outputId);
+			this._renderers.get(rendererId)?.api?.destroyCell?.(outputId);
+		}
+
+		public async renderCustom(rendererId: string, outputId: string, info: ICreateCellInfo) {
+			const api = await this.load(rendererId);
+			if (!api) {
+				throw new Error(`renderer ${rendererId} did not return an API`);
+			}
+
+			api.renderCell(outputId, info);
+		}
+
+		public async renderMarkdown(id: string, element: HTMLElement, content: string): Promise<void> {
+			const markdownRenderers = Array.from(this._renderers.values())
+				.filter(renderer => renderer.data.mimeTypes.includes('text/markdown') && !renderer.data.extends);
+
+			if (!markdownRenderers.length) {
+				throw new Error('Could not find renderer');
+			}
+
+			await Promise.all(markdownRenderers.map(x => x.load()));
+
+			markdownRenderers[0].api?.renderCell(id, {
+				element,
+				value: content,
+				mime: 'text/markdown',
+				metadata: undefined,
+				outputId: undefined,
+				text() { return content; },
+				json() { return undefined; },
+				bytes() { return new Uint8Array(); },
+				blob() { return new Blob(); },
+			});
+		}
+	}();
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
 
-	function createMarkdownPreview(cellId: string, content: string, top: number): HTMLElement {
+	function setMarkdownContainerDraggable(element: Element, isDraggable: boolean) {
+		if (isDraggable) {
+			element.classList.add('draggable');
+			element.setAttribute('draggable', 'true');
+		} else {
+			element.classList.remove('draggable');
+			element.removeAttribute('draggable');
+		}
+	}
+
+	async function createMarkdownPreview(cellId: string, content: string, top: number): Promise<HTMLElement> {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
 
@@ -841,7 +1106,7 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 			postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
 		});
 
-		cellContainer.setAttribute('draggable', 'true');
+		setMarkdownContainerDraggable(cellContainer, currentOptions.dragAndDropEnabled);
 
 		cellContainer.addEventListener('dragstart', e => {
 			markdownPreviewDragManager.startDrag(e, cellId);
@@ -869,24 +1134,24 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 		previewNode.id = 'preview';
 		previewRoot.appendChild(previewNode);
 
-		updateMarkdownPreview(cellContainer, cellId, content);
+		await updateMarkdownPreview(cellContainer, cellId, content);
 
 		resizeObserver.observe(cellContainer, cellId, false);
 
 		return cellContainer;
 	}
 
-	function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]) {
-		for (const cell of update) {
+	async function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]): Promise<void> {
+		await Promise.all(update.map(async cell => {
 			let container = document.getElementById(cell.cellId);
 			if (container) {
-				updateMarkdownPreview(container, cell.cellId, cell.content);
+				await updateMarkdownPreview(container, cell.cellId, cell.content);
 			} else {
-				container = createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+				container = await createMarkdownPreview(cell.cellId, cell.content, cell.offset);
 			}
 
 			container.style.visibility = cell.visible ? 'visible' : 'hidden';
-		}
+		}));
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -901,26 +1166,22 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 	}
 
 	let hasPostedRenderedMathTelemetry = false;
-	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/g;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
 
-	function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
+	async function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
 		const previewRoot = previewContainerNode.shadowRoot;
 		const previewNode = previewRoot?.getElementById('preview');
 		if (!previewNode) {
 			return;
 		}
 
-		// TODO: handle namespace
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');
 				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				markdownRenderer.renderMarkup({
-					element: previewNode,
-					content: content
-				});
+				await renderers.renderMarkdown(cellId, previewNode, content);
 
 				if (!hasPostedRenderedMathTelemetry) {
 					const hasRenderedMath = previewNode.querySelector('.katex');
@@ -967,7 +1228,7 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 					cellId: drag.cellId,
 					ctrlKey: e.ctrlKey,
 					altKey: e.altKey,
-					position: { clientY: e.clientY },
+					dragOffsetY: e.clientY,
 				});
 			});
 		}
@@ -977,13 +1238,17 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 				return;
 			}
 
+			if (!currentOptions.dragAndDropEnabled) {
+				return;
+			}
+
 			this.currentDrag = { cellId, clientY: e.clientY };
 
 			(e.target as HTMLElement).classList.add('dragging');
 
 			postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
 				cellId: cellId,
-				position: { clientY: e.clientY },
+				dragOffsetY: e.clientY,
 			});
 
 			// Continuously send updates while dragging instead of relying on `updateDrag`.
@@ -995,7 +1260,7 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 
 				postNotebookMessage<ICellDragMessage>('cell-drag', {
 					cellId: cellId,
-					position: { clientY: this.currentDrag.clientY },
+					dragOffsetY: this.currentDrag.clientY,
 				});
 				requestAnimationFrame(trySendDragUpdate);
 			};
@@ -1019,18 +1284,22 @@ async function webviewPreloads(style: PreloadStyles, markdownRendererModule: any
 	}();
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, markdownRenderer: {
-	entrypoint: string,
-	dependencies: Array<{ entrypoint: string }>,
-}) {
-	const markdownCtx = {
-		dependencies: markdownRenderer.dependencies,
-	};
+export interface RendererMetadata {
+	readonly id: string;
+	readonly entrypoint: string;
+	readonly mimeTypes: readonly string[];
+	readonly extends: string | undefined;
+	readonly messaging: boolean;
+}
 
-	return `import * as markdownRendererModule from "${markdownRenderer.entrypoint}";
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[]) {
+	// TS will try compiling `import()` in webviePreloads, so use an helper function instead
+	// of using `import(...)` directly
+	return `
+		const __import = (x) => import(x);
 		(${webviewPreloads})(
-			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
-			markdownRendererModule,
-			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(markdownCtx))}"))
-		)\n//# sourceURL=notebookWebviewPreloads.js\n`;
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(options))}")),
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(renderers))}"))
+			)\n//# sourceURL=notebookWebviewPreloads.js\n`;
 }

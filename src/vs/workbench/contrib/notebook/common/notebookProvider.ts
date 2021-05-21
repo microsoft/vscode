@@ -104,4 +104,38 @@ export class NotebookProviderInfo {
 
 		return false;
 	}
+
+	static possibleFileEnding(selectors: NotebookSelector[]): string | undefined {
+		for (let selector of selectors) {
+			const ending = NotebookProviderInfo._possibleFileEnding(selector);
+			if (ending) {
+				return ending;
+			}
+		}
+		return undefined;
+	}
+
+	private static _possibleFileEnding(selector: NotebookSelector): string | undefined {
+
+		const pattern = /^.*(\.[a-zA-Z0-9_-]+)$/;
+
+		let candidate: string | undefined;
+
+		if (typeof selector === 'string') {
+			candidate = selector;
+		} else if (glob.isRelativePattern(selector)) {
+			candidate = selector.pattern;
+		} else if (selector.include) {
+			return NotebookProviderInfo._possibleFileEnding(selector.include);
+		}
+
+		if (candidate) {
+			const match = pattern.exec(candidate);
+			if (match) {
+				return match[1];
+			}
+		}
+
+		return undefined;
+	}
 }

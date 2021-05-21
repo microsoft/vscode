@@ -13,7 +13,7 @@ import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes
 let product: IProductConfiguration;
 
 // Native sandbox environment
-if (typeof globals.vscode !== 'undefined') {
+if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.context !== 'undefined') {
 	const configuration: ISandboxConfiguration | undefined = globals.vscode.context.configuration();
 	if (configuration) {
 		product = configuration.product;
@@ -63,6 +63,7 @@ else {
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
+			webviewContentExternalBaseUrlTemplate: 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/',
 			extensionAllowedProposedApi: [
 				'ms-vscode.vscode-js-profile-flame',
 				'ms-vscode.vscode-js-profile-table',

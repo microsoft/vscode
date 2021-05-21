@@ -106,6 +106,7 @@ export class SuggestWidget implements IDisposable {
 	private _ignoreFocusEvents: boolean = false;
 	private _completionModel?: CompletionModel;
 	private _cappedHeight?: { wanted: number; capped: number; };
+	private _forceRenderingAbove: boolean = false;
 	private _explainMode: boolean = false;
 
 	readonly element: ResizableHTMLElement;
@@ -806,7 +807,7 @@ export class SuggestWidget implements IDisposable {
 				height = maxHeight;
 			}
 
-			if (height > maxHeightBelow) {
+			if (height > maxHeightBelow || this._forceRenderingAbove) {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
 				this.element.enableSashes(true, true, false, false);
 				maxHeight = maxHeightAbove;
@@ -876,6 +877,17 @@ export class SuggestWidget implements IDisposable {
 
 	private _setDetailsVisible(value: boolean) {
 		this._storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
+	}
+
+	forceRenderingAbove() {
+		if (!this._forceRenderingAbove) {
+			this._forceRenderingAbove = true;
+			this._layout(this._persistedSize.restore());
+		}
+	}
+
+	stopForceRenderingAbove() {
+		this._forceRenderingAbove = false;
 	}
 }
 

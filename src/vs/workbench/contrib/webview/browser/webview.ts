@@ -33,6 +33,11 @@ export interface IWebviewService {
 	readonly activeWebview: Webview | undefined;
 
 	/**
+	 * All webviews.
+	 */
+	readonly webviews: Iterable<Webview>;
+
+	/**
 	 * Fired when the currently focused webview changes.
 	 */
 	readonly onDidChangeActiveWebview: Event<Webview | undefined>;
@@ -75,12 +80,10 @@ export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
-	readonly serviceWorkerFetchIgnoreSubdomain?: boolean;
 	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
 }
 
 export interface WebviewContentOptions {
-	readonly useRootAuthority?: boolean;
 	readonly allowMultipleAPIAcquire?: boolean;
 	readonly allowScripts?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
@@ -1443,8 +1444,8 @@ export namespace NotebookDocumentMetadata {
 	}
 }
 
-export namespace NotebookCellPreviousExecutionResult {
-	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellExecutionSummary {
+export namespace NotebookCellExecutionSummary {
+	export function to(data: notebooks.NotebookCellInternalMetadata): vscode.NotebookCellExecutionSummary {
 		return {
 			startTime: data.runStartTime,
 			endTime: data.runEndTime,
@@ -1453,7 +1454,7 @@ export namespace NotebookCellPreviousExecutionResult {
 		};
 	}
 
-	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
+	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellInternalMetadata> {
 		return {
 			lastRunSuccess: data.success,
 			runStartTime: data.startTime,
@@ -1485,6 +1486,28 @@ export namespace NotebookCellKind {
 	}
 }
 
+export namespace NotebookData {
+
+	export function from(data: vscode.NotebookData): notebooks.NotebookDataDto {
+		const res: notebooks.NotebookDataDto = {
+			metadata: NotebookDocumentMetadata.from(data.metadata),
+			cells: [],
+		};
+		for (let cell of data.cells) {
+			types.NotebookCellData.validate(cell);
+			res.cells.push(NotebookCellData.from(cell));
+		}
+		return res;
+	}
+
+	export function to(data: notebooks.NotebookDataDto): vscode.NotebookData {
+		return {
+			metadata: NotebookDocumentMetadata.to(data.metadata),
+			cells: data.cells.map(NotebookCellData.to)
+		};
+	}
+}
+
 export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
@@ -1492,10 +1515,8 @@ export namespace NotebookCellData {
 			cellKind: NotebookCellKind.from(data.kind),
 			language: data.languageId,
 			source: data.value,
-			metadata: {
-				...data.metadata,
-				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
-			},
+			metadata: data.metadata,
+			internalMetadata: NotebookCellExecutionSummary.from(data.executionSummary ?? {}),
 			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
 	}
@@ -1513,15 +1534,32 @@ export namespace NotebookCellData {
 
 export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
+		let value: unknown;
+		let valueBytes: number[] | undefined;
+		if (item.value instanceof Uint8Array) {
+			//todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
+			valueBytes = Array.from(item.value);
+		} else {
+			value = item.value;
+		}
 		return {
+			metadata: item.metadata,
 			mime: item.mime,
-			value: item.value,
-			metadata: item.metadata
+			value,
+			valueBytes,
 		};
 	}
 
 	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(item.mime, item.value, item.metadata);
+
+		let value: Uint8Array | unknown;
+		if (item.value instanceof VSBuffer) {
+			value = item.value.buffer;
+		} else {
+			value = item.value;
+		}
+
+		return new types.NotebookCellOutputItem(item.mime, value, item.metadata);
 	}
 }
 
@@ -1642,15 +1680,7 @@ export namespace NotebookDocumentContentOptions {
 	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
 			transientOutputs: options?.transientOutputs ?? false,
-			transientCellMetadata: {
-				...options?.transientCellMetadata,
-				executionOrder: true,
-				runState: true,
-				runStartTime: true,
-				runStartTimeAdjustment: true,
-				runEndTime: true,
-				lastRunSuccess: true
-			},
+			transientCellMetadata: options?.transientCellMetadata ?? {},
 			transientDocumentMetadata: options?.transientDocumentMetadata ?? {}
 		};
 	}

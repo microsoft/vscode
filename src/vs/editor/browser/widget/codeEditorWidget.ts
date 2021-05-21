@@ -226,7 +226,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	protected readonly _instantiationService: IInstantiationService;
 	protected readonly _contextKeyService: IContextKeyService;
 	private readonly _notificationService: INotificationService;
-	private readonly _codeEditorService: ICodeEditorService;
+	protected readonly _codeEditorService: ICodeEditorService;
 	private readonly _commandService: ICommandService;
 	private readonly _themeService: IThemeService;
 
@@ -1048,6 +1048,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 
+		this._triggerCommand(handlerId, payload);
+	}
+
+	protected _triggerCommand(handlerId: string, payload: any): void {
 		this._commandService.executeCommand(handlerId, payload);
 	}
 

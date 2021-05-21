@@ -9,14 +9,15 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -25,15 +26,26 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/wor
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
+import { disposableTimeout } from 'vs/base/common/async';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { URI } from 'vs/base/common/uri';
+import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { Schemas } from 'vs/base/common/network';
 
 const $ = DOM.$;
-const TAB_HEIGHT = 22;
-export const MIN_TABS_WIDGET_WIDTH = 46;
-export const DEFAULT_TABS_WIDGET_WIDTH = 80;
-export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
-export const THRESHOLD_ACTIONBAR_WIDTH = 105;
+
+export const enum TerminalTabsListSizes {
+	TabHeight = 22,
+	NarrowViewWidth = 46,
+	WideViewMinimumWidth = 80,
+	DefaultWidth = 120,
+	MidpointViewWidth = (TerminalTabsListSizes.NarrowViewWidth + TerminalTabsListSizes.WideViewMinimumWidth) / 2,
+	ActionbarMinimumWidth = 105,
+	MaximumWidth = 500
+}
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
@@ -46,36 +58,43 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IDecorationsService _decorationsService: IDecorationsService
+		@IDecorationsService _decorationsService: IDecorationsService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
-		super('TerminalTabsTree', container,
+		super('TerminalTabsList', container,
 			{
-				getHeight: () => TAB_HEIGHT,
+				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
 			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
+				selectionNavigation: true,
 				identityProvider: {
 					getId: e => e?.instanceId
 				},
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				additionalScrollHeight: TAB_HEIGHT
+				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
+				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop)
 			},
 			contextKeyService,
 			listService,
 			themeService,
 			configurationService,
-			keybindingService
+			keybindingService,
 		);
 		this._terminalService.onInstancesChanged(() => this.render());
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
+		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
+		this._terminalService.onDidChangeConnectionState(() => this.render());
+		this._themeService.onDidColorThemeChange(() => this.render());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
@@ -120,13 +139,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
 
-		this.onDidChangeSelection(e => {
-			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-		});
-
-		this.onDidChangeFocus(e => {
-			this._terminalTabsSingleSelectedContextKey.set(e.elements.length === 1);
-		});
+		this.onDidChangeSelection(e => this._updateContextKey());
+		this.onDidChangeFocus(() => this._updateContextKey());
 
 		this.onDidOpen(async e => {
 			const instance = e.element;
@@ -142,12 +156,15 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
-		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
 		this.render();
 	}
 
 	render(): void {
 		this.splice(0, this.length, this._terminalService.terminalInstances);
+	}
+
+	private _updateContextKey() {
+		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 	}
 }
 
@@ -163,7 +180,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IListService private readonly _listService: IListService
+		@IListService private readonly _listService: IListService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 	}
 
@@ -204,11 +222,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < MIDPOINT_WIDGET_WIDTH : false;
+		return this._container ? this._container.clientWidth < TerminalTabsListSizes.MidpointViewWidth : false;
 	}
 
 	shouldHideActionBar(): boolean {
-		return this._container ? this._container.clientWidth <= THRESHOLD_ACTIONBAR_WIDTH : false;
+		return this._container ? this._container.clientWidth <= TerminalTabsListSizes.ActionbarMinimumWidth : false;
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
@@ -236,30 +254,32 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const statuses = instance.statusList.statuses;
 		template.context.hoverActions = [];
 		for (const status of statuses) {
-			title += `\n\n---\n\n${status.tooltip || status.id}`;
+			title += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
 			if (status.hoverActions) {
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
-
+		const iconId = getIconId(instance);
 		const hasActionbar = !this.shouldHideActionBar();
-		let label: string;
+		let label: string = '';
 		if (!hasText) {
 			const primaryStatus = instance.statusList.primary;
-			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
-				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon?.id})`;
+			// Don't show ignore severity
+			if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
+				label = `${prefix}$(${primaryStatus.icon?.id || iconId})`;
 			} else {
-				label = `${prefix}$(${instance.icon?.id})`;
+				label = `${prefix}$(${iconId})`;
 			}
 		} else {
 			this.fillActionBar(instance, template);
-			label = `${prefix}$(${instance.icon?.id})`;
+			label = `${prefix}$(${iconId})`;
 			// Only add the title if the icon is set, this prevents the title jumping around for
 			// example when launching with a ShellLaunchConfig.name and no icon
 			if (instance.icon) {
 				label += ` ${instance.title}`;
 			}
 		}
+
 		if (!hasActionbar) {
 			template.actionBar.clear();
 		}
@@ -275,6 +295,16 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}));
 
+		const extraClasses: string[] = [];
+		const colorClass = getColorClass(instance);
+		if (colorClass) {
+			extraClasses.push(colorClass);
+		}
+		const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+		if (uriClasses) {
+			extraClasses.push(...uriClasses);
+		}
+
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
@@ -285,9 +315,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(title),
+				markdown: new MarkdownString(title, { supportThemeIcons: true }),
 				markdownNotSupportedFallback: undefined
-			}
+			},
+			extraClasses
 		});
 	}
 
@@ -374,5 +405,128 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 			}, "Terminal {0} {1}", instance.instanceId, instance.title);
 		}
 		return ariaLabel;
+	}
+}
+
+class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
+	private _autoFocusInstance: ITerminalInstance | undefined;
+	private _autoFocusDisposable: IDisposable = Disposable.None;
+
+	constructor(
+		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalInstanceService private _terminalInstanceService: ITerminalInstanceService
+	) { }
+
+	getDragURI(instance: ITerminalInstance): string | null {
+		return URI.from({
+			scheme: Schemas.vscodeTerminal,
+			path: instance.instanceId.toString()
+		}).toString();
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		if (!originalEvent.dataTransfer) {
+			return;
+		}
+		const dndData: unknown = data.getData();
+		if (!Array.isArray(dndData)) {
+			return;
+		}
+		// Attach terminals type to event
+		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
+		if (terminals.length > 0) {
+			originalEvent.dataTransfer.setData('terminals', JSON.stringify(terminals.map(e => e.instanceId)));
+		}
+	}
+
+	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
+		let result = true;
+
+		const didChangeAutoFocusInstance = this._autoFocusInstance !== targetInstance;
+		if (didChangeAutoFocusInstance) {
+			this._autoFocusDisposable.dispose();
+			this._autoFocusInstance = targetInstance;
+		}
+
+		if (!targetInstance) {
+			return result;
+		}
+
+		if (didChangeAutoFocusInstance) {
+			this._autoFocusDisposable = disposableTimeout(() => {
+				this._terminalService.setActiveInstance(targetInstance);
+				this._autoFocusInstance = undefined;
+			}, 500);
+		}
+
+		return {
+			feedback: targetIndex ? [targetIndex] : undefined,
+			accept: true,
+			effect: ListDragOverEffect.Move
+		};
+	}
+
+	drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+		this._autoFocusDisposable.dispose();
+		this._autoFocusInstance = undefined;
+
+		if (!(data instanceof ElementsDragAndDropData)) {
+			this._handleExternalDrop(targetInstance, originalEvent);
+			return;
+		}
+
+		const draggedElement = data.getData();
+		if (!draggedElement || !Array.isArray(draggedElement)) {
+			return;
+		}
+		let focused = false;
+
+		let sourceInstances: ITerminalInstance[] = [];
+		for (const e of draggedElement) {
+			if ('instanceId' in e) {
+				sourceInstances.push(e as ITerminalInstance);
+			}
+		}
+
+		if (!targetInstance) {
+			for (const instance of sourceInstances) {
+				this._terminalService.unsplitInstance(instance);
+			}
+			return;
+		}
+
+		for (const instance of sourceInstances) {
+			this._terminalService.moveGroup(instance, targetInstance);
+			if (!focused) {
+				this._terminalService.setActiveInstance(instance);
+				focused = true;
+			}
+		}
+	}
+
+	private async _handleExternalDrop(instance: ITerminalInstance | undefined, e: DragEvent) {
+		if (!instance || !e.dataTransfer) {
+			return;
+		}
+
+		// Check if files were dragged from the tree explorer
+		let path: string | undefined;
+		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+		if (resources) {
+			path = URI.parse(JSON.parse(resources)[0]).fsPath;
+		} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+			// Check if the file was dragged from the filesystem
+			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+		}
+
+		if (!path) {
+			return;
+		}
+
+		this._terminalService.setActiveInstance(instance);
+
+		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
+		instance.sendText(preparedPath, false);
+		instance.focus();
 	}
 }

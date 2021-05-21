@@ -165,7 +165,7 @@ export class BrowserFileUpload {
 						return;
 					}
 
-					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
+					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true, folder: target.getChild(entry.name)?.isDirectory })], {
 						undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
 						progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
 					});

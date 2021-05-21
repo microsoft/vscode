@@ -419,7 +419,7 @@ suite('Workbench EditorPane', () => {
 				return 'trustRequiredTestInput';
 			}
 
-			override async requiresWorkspaceTrust(): Promise<boolean> {
+			override requiresWorkspaceTrust(): boolean {
 				return true;
 			}
 

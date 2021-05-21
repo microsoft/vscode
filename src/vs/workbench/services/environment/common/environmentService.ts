@@ -36,8 +36,6 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly extensionEnabledProposedApi?: string[];
 
 	readonly webviewExternalEndpoint: string;
-	readonly webviewResourceRoot: string;
-	readonly webviewCspSource: string;
 
 	readonly skipReleaseNotes: boolean;
 

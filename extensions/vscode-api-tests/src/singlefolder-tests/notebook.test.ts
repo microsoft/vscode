@@ -104,8 +104,8 @@ suite('Notebook API tests', function () {
 
 	suiteSetup(function () {
 		suiteDisposables.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
-			openNotebook: async (_resource: vscode.Uri): Promise<vscode.NotebookData> => {
-				if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
+			openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
+				if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
 					return {
 						metadata: new vscode.NotebookDocumentMetadata(),
 						cells: []
@@ -121,7 +121,7 @@ suite('Notebook API tests', function () {
 							kind: vscode.NotebookCellKind.Code,
 							outputs: [],
 							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } }),
-							latestExecutionSummary: { startTime: 10, endTime: 20 }
+							executionSummary: { startTime: 10, endTime: 20 }
 						},
 						{
 							value: 'test2',
@@ -133,7 +133,7 @@ suite('Notebook API tests', function () {
 								],
 									{ testOutputMetadata: true })
 							],
-							latestExecutionSummary: { executionOrder: 5, success: true },
+							executionSummary: { executionOrder: 5, success: true },
 							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 456 } })
 						}
 					]
@@ -440,12 +440,12 @@ suite('Notebook API tests', function () {
 		await cellsChangeEvent;
 		await cellMetadataChangeEvent;
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 3);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata?.inputCollapsed, false);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata.inputCollapsed, false);
 		assert.strictEqual(version + 1, vscode.window.activeNotebookEditor!.document.version);
 
 		await vscode.commands.executeCommand('undo');
 		assert.strictEqual(version + 2, vscode.window.activeNotebookEditor!.document.version);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata?.inputCollapsed, undefined);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata.inputCollapsed, undefined);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 2);
 	});
 
@@ -478,8 +478,8 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].mime, 'text/plain');
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].value, 'Hello World');
 		assert.deepStrictEqual(secondCell!.outputs[0].outputs[0].metadata, { testOutputItemMetadata: true });
-		assert.strictEqual(secondCell!.latestExecutionSummary?.executionOrder, 5);
-		assert.strictEqual(secondCell!.latestExecutionSummary?.success, true);
+		assert.strictEqual(secondCell!.executionSummary?.executionOrder, 5);
+		assert.strictEqual(secondCell!.executionSummary?.success, true);
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
@@ -1205,30 +1205,30 @@ suite('Notebook API tests', function () {
 		verifyOutputSyncKernel.controller.dispose();
 	});
 
-	test('latestExecutionSummary', async () => {
+	test('executionSummary', async () => {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cellAt(0);
 
-		assert.strictEqual(cell.latestExecutionSummary?.success, undefined);
-		assert.strictEqual(cell.latestExecutionSummary?.executionOrder, undefined);
+		assert.strictEqual(cell.executionSummary?.success, undefined);
+		assert.strictEqual(cell.executionSummary?.executionOrder, undefined);
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		assert.strictEqual(cell.outputs.length, 1, 'should execute');
-		assert.ok(cell.latestExecutionSummary);
-		assert.strictEqual(cell.latestExecutionSummary!.success, true);
-		assert.strictEqual(typeof cell.latestExecutionSummary!.executionOrder, 'number');
+		assert.ok(cell.executionSummary);
+		assert.strictEqual(cell.executionSummary!.success, true);
+		assert.strictEqual(typeof cell.executionSummary!.executionOrder, 'number');
 
 	});
 
-	test('initialize latestExecutionSummary', async () => {
+	test('initialize executionSummary', async () => {
 
 		const document = await openRandomNotebookDocument();
 		const cell = document.cellAt(0);
 
-		assert.strictEqual(cell.latestExecutionSummary?.success, undefined);
-		assert.strictEqual(cell.latestExecutionSummary?.startTime, 10);
-		assert.strictEqual(cell.latestExecutionSummary?.endTime, 20);
+		assert.strictEqual(cell.executionSummary?.success, undefined);
+		assert.strictEqual(cell.executionSummary?.startTime, 10);
+		assert.strictEqual(cell.executionSummary?.endTime, 20);
 
 	});
 

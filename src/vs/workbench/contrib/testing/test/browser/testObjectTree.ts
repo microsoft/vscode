@@ -8,8 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspaceFolderData, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { TestItemTreeElement, ITestTreeProjection, TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 
@@ -80,7 +79,7 @@ export const makeTestWorkspaceFolder = (name: string): IWorkspaceFolder => ({
 // names are hard
 export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjection> extends Disposable {
 	private readonly owned = new TestOwnedTestCollection();
-	private readonly onDiff = this._register(new Emitter<[IWorkspaceFolderData, TestsDiff]>());
+	private readonly onDiff = this._register(new Emitter<object>());
 	public readonly onFolderChange = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	public readonly c: TestSingleUseCollection = this._register(this.owned.createForHierarchy(d => this.c.setDiff(d /* don't clear during testing */)));
 	private isProcessingDiff = false;
@@ -94,7 +93,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 				expand: (testId: string, levels: number) => {
 					this.c.expand(testId, levels);
 					if (!this.isProcessingDiff) {
-						this.onDiff.fire([folder, this.c.collectDiff()]);
+						this.onDiff.fire({ folder: { folder }, diff: this.c.collectDiff() });
 					}
 					return Promise.resolve();
 				},
@@ -114,7 +113,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	public flush(folder: IWorkspaceFolderData) {
 		this.isProcessingDiff = true;
 		while (this.c.currentDiff.length) {
-			this.onDiff.fire([folder!, this.c.collectDiff()]);
+			this.onDiff.fire({ folder: { folder }, diff: this.c.collectDiff() });
 		}
 		this.isProcessingDiff = false;
 

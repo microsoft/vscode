@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
-import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ITextModel, PositionNormalizationAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
@@ -221,6 +221,12 @@ export interface ICursorSimpleModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	 */
+	getLineIndentColumn(lineNumber: number): number;
 }
 
 /**

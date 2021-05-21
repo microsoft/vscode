@@ -3028,6 +3028,30 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	//#endregion
+	normalizePosition(position: Position, affinity: model.PositionNormalizationAffinity): Position {
+		return position;
+	}
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	public getLineIndentColumn(lineNumber: number): number {
+		// Columns start with 1.
+		return indentOfLine(this.getLineContent(lineNumber)) + 1;
+	}
+}
+
+function indentOfLine(line: string): number {
+	let indent = 0;
+	for (const c of line) {
+		if (c === ' ' || c === '\t') {
+			indent++;
+		} else {
+			break;
+		}
+	}
+	return indent;
 }
 
 //#region Decorations

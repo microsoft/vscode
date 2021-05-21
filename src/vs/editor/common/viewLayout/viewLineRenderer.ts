@@ -47,6 +47,10 @@ class LinePart {
 	public isWhitespace(): boolean {
 		return (this.metadata & LinePartMetadata.IS_WHITESPACE_MASK ? true : false);
 	}
+
+	public isPseudoAfter(): boolean {
+		return (this.metadata & LinePartMetadata.PSEUDO_AFTER_MASK ? true : false);
+	}
 }
 
 export class LineRange {
@@ -792,14 +796,11 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 
 	const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
 	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
-		let classNames: string[] = [];
-		let metadata = 0;
 		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
-			classNames.push(lineDecorations[lineDecorationIndex].className);
-			metadata |= lineDecorations[lineDecorationIndex].metadata;
+			const lineDecoration = lineDecorations[lineDecorationIndex];
+			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata);
 			lineDecorationIndex++;
 		}
-		result[resultLen++] = new LinePart(lastResultEndIndex, classNames.join(' '), metadata);
 	}
 
 	return result;
@@ -827,6 +828,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	const renderControlCharacters = input.renderControlCharacters;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
+	let lastCharacterMappingDefined = false;
 
 	let charIndex = 0;
 	let visibleColumn = startVisibleColumn;
@@ -999,13 +1001,20 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			partDisplacement = 0;
 		}
 
+		if (charIndex >= len && !lastCharacterMappingDefined && part.isPseudoAfter()) {
+			lastCharacterMappingDefined = true;
+			characterMapping.setPartData(charIndex, partIndex, charOffsetInPart, partAbsoluteOffset);
+		}
+
 		sb.appendASCIIString('</span>');
 
 	}
 
-	// When getting client rects for the last character, we will position the
-	// text range at the end of the span, insteaf of at the beginning of next span
-	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
+	if (!lastCharacterMappingDefined) {
+		// When getting client rects for the last character, we will position the
+		// text range at the end of the span, insteaf of at the beginning of next span
+		characterMapping.setPartData(len, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
+	}
 
 	if (isOverflowing) {
 		sb.appendASCIIString('<span>&hellip;</span>');

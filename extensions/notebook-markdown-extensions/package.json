@@ -21,18 +21,22 @@
     }
   },
   "contributes": {
-    "notebookMarkupRenderers": [
+    "notebookOutputRenderer": [
       {
         "id": "markdownItRenderer-katex",
         "displayName": "Markdown it katex renderer",
-        "entrypoint": "./notebook-out/katex.js",
-        "dependsOn": "markdownItRenderer"
+        "entrypoint": {
+          "extends": "markdownItRenderer",
+          "path": "./notebook-out/katex.js"
+        }
       },
       {
         "id": "markdownItRenderer-emoji",
         "displayName": "Markdown it emoji renderer",
-        "entrypoint": "./notebook-out/emoji.js",
-        "dependsOn": "markdownItRenderer"
+        "entrypoint": {
+          "extends": "markdownItRenderer",
+          "path": "./notebook-out/emoji.js"
+        }
       }
     ]
   },

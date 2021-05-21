@@ -209,10 +209,12 @@ export class ContextMenuController implements IEditorContribution {
 			anchor = { x: posx, y: posy };
 		}
 
+		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
+
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
-			domForShadowRoot: this._editor.getDomNode(),
+			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
 
 			getAnchor: () => anchor!,
 

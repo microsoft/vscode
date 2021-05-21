@@ -278,23 +278,24 @@ export enum EditorOption {
 	tabCompletion = 108,
 	tabIndex = 109,
 	unusualLineTerminators = 110,
-	useTabStops = 111,
-	wordSeparators = 112,
-	wordWrap = 113,
-	wordWrapBreakAfterCharacters = 114,
-	wordWrapBreakBeforeCharacters = 115,
-	wordWrapColumn = 116,
-	wordWrapOverride1 = 117,
-	wordWrapOverride2 = 118,
-	wrappingIndent = 119,
-	wrappingStrategy = 120,
-	showDeprecated = 121,
-	inlayHints = 122,
-	editorClassName = 123,
-	pixelRatio = 124,
-	tabFocusMode = 125,
-	layoutInfo = 126,
-	wrappingInfo = 127
+	useShadowDOM = 111,
+	useTabStops = 112,
+	wordSeparators = 113,
+	wordWrap = 114,
+	wordWrapBreakAfterCharacters = 115,
+	wordWrapBreakBeforeCharacters = 116,
+	wordWrapColumn = 117,
+	wordWrapOverride1 = 118,
+	wordWrapOverride2 = 119,
+	wrappingIndent = 120,
+	wrappingStrategy = 121,
+	showDeprecated = 122,
+	inlayHints = 123,
+	editorClassName = 124,
+	pixelRatio = 125,
+	tabFocusMode = 126,
+	layoutInfo = 127,
+	wrappingInfo = 128
 }
 
 /**
@@ -357,6 +358,22 @@ export enum InlayHintKind {
 	Other = 0,
 	Type = 1,
 	Parameter = 2
+}
+
+/**
+ * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+ */
+export enum InlineCompletionTriggerKind {
+	/**
+	 * Completion was triggered automatically while editing.
+	 * It is sufficient to return a single completion item in this case.
+	 */
+	Automatic = 0,
+	/**
+	 * Completion was triggered explicitly by a user gesture.
+	 * Return multiple completion items to enable cycling through them.
+	 */
+	Explicit = 1
 }
 
 /**
