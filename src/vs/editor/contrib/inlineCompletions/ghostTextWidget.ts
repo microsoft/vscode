@@ -59,12 +59,10 @@ export abstract class BaseGhostTextWidgetModel extends Disposable implements Gho
 }
 
 export class GhostTextWidget extends Disposable {
-	private static instanceCount = 0;
+	private static decorationTypeCount = 0;
 
-	// We add 0 to bring it before any other decoration.
-	private readonly _codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.instanceCount}`;
+	private codeEditorDecorationTypeKey: string | null = null;
 	private readonly modelRef = this._register(new MutableDisposable<IReference<GhostTextWidgetModel>>());
-	private hasDecoration = false;
 	private decorationIds: string[] = [];
 	private viewZoneId: string | null = null;
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
@@ -118,8 +116,7 @@ export class GhostTextWidget extends Disposable {
 		const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
 		const { tabSize } = textModel.getOptions();
 
-		// TODO enable single line decorations that are not at the end of the line
-		if (/*lines.length > 1 &&*/ position.column !== maxColumn) {
+		if (lines.length > 1 && position.column !== maxColumn) {
 			console.warn('Can only show multiline ghost text at the end of a line');
 			lines = [];
 			position = new Position(position.lineNumber, maxColumn);
@@ -131,9 +128,9 @@ export class GhostTextWidget extends Disposable {
 	private render(): void {
 		const renderData = this.getRenderData();
 
-		if (this.hasDecoration) {
-			this.hasDecoration = false;
-			this._codeEditorService.removeDecorationType(this._codeEditorDecorationTypeKey);
+		if (this.codeEditorDecorationTypeKey) {
+			this._codeEditorService.removeDecorationType(this.codeEditorDecorationTypeKey);
+			this.codeEditorDecorationTypeKey = null;
 		}
 
 		if (renderData) {
@@ -142,21 +139,22 @@ export class GhostTextWidget extends Disposable {
 			if (suggestPreviewForeground) {
 				opacity = String(suggestPreviewForeground.rgba.a);
 			}
-			this._codeEditorService.registerDecorationType(this._codeEditorDecorationTypeKey, {
+			// We add 0 to bring it before any other decoration.
+			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
+			this._codeEditorService.registerDecorationType(this.codeEditorDecorationTypeKey, {
 				after: {
 					// TODO: escape?
 					contentText: renderData.lines[0],
 					opacity,
 				}
 			});
-			this.hasDecoration = true;
 		}
 
 		const newDecorations = new Array<IModelDeltaDecoration>();
-		if (renderData) {
+		if (renderData && this.codeEditorDecorationTypeKey) {
 			newDecorations.push({
 				range: Range.fromPositions(renderData.position, renderData.position),
-				options: this._codeEditorService.resolveDecorationOptions(this._codeEditorDecorationTypeKey, true)
+				options: this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true)
 			});
 		}
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, newDecorations);
