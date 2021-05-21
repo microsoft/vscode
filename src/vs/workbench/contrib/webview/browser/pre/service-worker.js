@@ -17,15 +17,11 @@ const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
 
 const searchParams = new URL(location.toString()).searchParams;
+
 /**
  * Origin used for resources
  */
-const resourceOrigin = searchParams.get('vscode-resource-origin') ?? sw.origin;
-
-/**
- * Root path for resources
- */
-const resourceRoot = '/vscode-resource';
+const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
 const serviceWorkerFetchIgnoreSubdomain = searchParams.get('serviceWorkerFetchIgnoreSubdomain') ?? false;
 
@@ -175,17 +171,21 @@ sw.addEventListener('message', async (event) => {
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
-	if (serviceWorkerFetchIgnoreSubdomain && requestUrl.pathname.startsWith(resourceRoot + '/')) {
-		// #121981
-		const ignoreFirstSubdomainRegex = /(.*):\/\/.*?\.(.*)/;
-		const match1 = resourceOrigin.match(ignoreFirstSubdomainRegex);
-		const match2 = requestUrl.origin.match(ignoreFirstSubdomainRegex);
-		if (match1 && match2 && match1[1] === match2[1] && match1[2] === match2[2]) {
+	if (requestUrl.protocol === 'https:') {
+		if (serviceWorkerFetchIgnoreSubdomain) {
+			// #121981
+			const requestHostParts = requestUrl.hostname.split('.'); // $scheme, vscode-resource, $uuid, $...authority
+			const baseAuthorityPaths = resourceBaseAuthority.split('.').slice(2); // $...authority
+
+			// Make sure the all the parts except the uuid and scheme match
+			if (requestHostParts.length === 3 + baseAuthorityPaths.length) {
+				if (requestHostParts[1] === 'vscode-resource' && baseAuthorityPaths.every((part, i) => requestHostParts[3 + i] === part)) {
+					return event.respondWith(processResourceRequest(event, requestUrl));
+				}
+			}
+		} else if (requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
 			return event.respondWith(processResourceRequest(event, requestUrl));
 		}
-	} else if (requestUrl.origin === resourceOrigin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
-		// See if it's a resource request
-		return event.respondWith(processResourceRequest(event, requestUrl));
 	}
 
 	// See if it's a localhost request
@@ -218,8 +218,6 @@ async function processResourceRequest(event, requestUrl) {
 		console.error('Could not resolve webview id');
 		return notFound();
 	}
-
-	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) : requestUrl.pathname;
 
 	/**
 	 * @param {ResourceResponse} entry
@@ -270,10 +268,16 @@ async function processResourceRequest(event, requestUrl) {
 	const cached = await cache.match(event.request);
 
 	const { requestId, promise } = resourceRequestStore.create();
+
+	const firstHostSegment = requestUrl.hostname.split('.')[0];
+	const [_, scheme, authority] = firstHostSegment.match(/^(\w+)\+(.*)$/);
+
 	parentClient.postMessage({
 		channel: 'load-resource',
 		id: requestId,
-		path: resourcePath,
+		path: requestUrl.pathname,
+		scheme,
+		authority: decodeURIComponent(authority),
 		query: requestUrl.search.replace(/^\?/, ''),
 		ifNoneMatch: cached?.headers.get('ETag'),
 	});

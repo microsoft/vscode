@@ -97,15 +97,22 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		this.element?.contentWindow?.focus();
 	}
 
-	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions, extraParams?: object) {
-		const params = {
+	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions, extraParams?: { [key: string]: string }) {
+		const params: { [key: string]: string } = {
 			id: this.id,
 			extensionId: extension?.id.value ?? '', // The extensionId and purpose in the URL are used for filtering in js-debug:
-			purpose: options.purpose,
-			serviceWorkerFetchIgnoreSubdomain: options.serviceWorkerFetchIgnoreSubdomain,
 			...extraParams,
-			'vscode-resource-origin': this.webviewResourceOrigin,
-		} as const;
+			'vscode-resource-base-authority': this.webviewRootResourceAuthority,
+		};
+
+		if (options.purpose) {
+			params.purpose = options.purpose;
+		}
+
+		if (options.serviceWorkerFetchIgnoreSubdomain) {
+			params.serviceWorkerFetchIgnoreSubdomain = 'true';
+		}
+
 
 		const queryString = (Object.keys(params) as Array<keyof typeof params>)
 			.map((key) => `${key}=${encodeURIComponent(params[key]!)}`)

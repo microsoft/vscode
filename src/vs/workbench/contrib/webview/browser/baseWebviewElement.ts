@@ -25,7 +25,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
-import { asWebviewUri, webviewResourceOrigin } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/api/common/shared/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -239,21 +239,22 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			});
 		}));
 
-		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, ifNoneMatch?: string }) => {
-			const rawPath = entry.path;
-			// scheme / path-authority / ...path
-			const match = rawPath.match(/^\/([^\/]*)\/([^\/]*)(\/.+)$/);
-			if (!match) {
-				throw new Error('Could not parse resource url');
+		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, scheme: string, authority: string, ifNoneMatch?: string }) => {
+			try {
+				const uri = URI.from({
+					scheme: entry.scheme,
+					authority: entry.authority,
+					path: entry.path,
+					query: entry.query,
+				});
+				this.loadResource(entry.id, uri, entry.ifNoneMatch);
+			} catch (e) {
+				this._send('did-load-resource', {
+					id,
+					status: 404,
+					path: entry.path,
+				});
 			}
-
-			const [_, scheme, pathAuthority, paths] = match;
-
-			const uri = URI.parse(`${scheme}://${decodeURIComponent(pathAuthority)}${paths}`).with({
-				query: decodeURIComponent(entry.query),
-			});
-
-			this.loadResource(entry.id, rawPath, uri, entry.ifNoneMatch);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
@@ -374,8 +375,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		});
 	}
 
-	protected get webviewResourceOrigin(): string {
-		return webviewResourceOrigin(this.id);
+	protected get webviewRootResourceAuthority(): string {
+		return webviewRootResourceAuthority(this.id);
 	}
 
 	private rewriteVsCodeResourceUrls(value: string): string {
@@ -443,7 +444,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			contents: this.content.html,
 			options: this.content.options,
 			state: this.content.state,
-			resourceEndpoint: this.webviewResourceOrigin,
+			cspSource: webviewGenericCspSource,
 			...this.extraContentOptions
 		});
 	}
@@ -522,7 +523,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}
 	}
 
-	private async loadResource(id: number, requestPath: string, uri: URI, ifNoneMatch: string | undefined) {
+	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined) {
 		try {
 			const result = await loadLocalResource(uri, {
 				ifNoneMatch,
@@ -536,7 +537,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 						return this._send('did-load-resource', {
 							id,
 							status: 200,
-							path: requestPath,
+							path: uri.path,
 							mime: result.mimeType,
 							data: buffer,
 							etag: result.etag,
@@ -547,7 +548,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 						return this._send('did-load-resource', {
 							id,
 							status: 304, // not modified
-							path: requestPath,
+							path: uri.path,
 							mime: result.mimeType,
 						});
 					}
@@ -556,7 +557,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 						return this._send('did-load-resource', {
 							id,
 							status: 401, // unauthorized
-							path: requestPath,
+							path: uri.path,
 						});
 					}
 			}
@@ -567,7 +568,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		return this._send('did-load-resource', {
 			id,
 			status: 404,
-			path: requestPath
+			path: uri.path,
 		});
 	}
 
