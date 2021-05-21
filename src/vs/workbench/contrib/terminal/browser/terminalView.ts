@@ -47,7 +47,6 @@ export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
-	private _tabsViewWrapper: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
@@ -160,10 +159,7 @@ export class TerminalViewPane extends ViewPane {
 		if (!this._parentDomElement) {
 			return;
 		}
-		this._tabsViewWrapper = document.createElement('div');
-		this._tabsViewWrapper.classList.add('tabs-view-wrapper');
 		this._terminalTabbedView = this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement);
-		this._parentDomElement.append(this._tabsViewWrapper);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
