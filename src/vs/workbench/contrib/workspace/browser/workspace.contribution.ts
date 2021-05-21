@@ -469,10 +469,10 @@ class WorkspaceTrustEditorInputSerializer implements IEditorInputSerializer {
 	}
 
 	serialize(input: WorkspaceTrustEditorInput): string {
-		return '{}';
+		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): WorkspaceTrustEditorInput {
+	deserialize(instantiationService: IInstantiationService): WorkspaceTrustEditorInput {
 		return instantiationService.createInstance(WorkspaceTrustEditorInput);
 	}
 }

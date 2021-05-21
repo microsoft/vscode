@@ -36,7 +36,7 @@ class RuntimeExtensionsInputSerializer implements IEditorInputSerializer {
 	serialize(editorInput: EditorInput): string {
 		return '';
 	}
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService): EditorInput {
 		return RuntimeExtensionsInput.instance;
 	}
 }

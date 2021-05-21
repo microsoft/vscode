@@ -110,14 +110,10 @@ class KeybindingsEditorInputSerializer implements IEditorInputSerializer {
 	}
 
 	serialize(editorInput: EditorInput): string {
-		const input = <KeybindingsEditorInput>editorInput;
-		return JSON.stringify({
-			name: input.getName(),
-			typeId: input.typeId
-		});
+		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService): EditorInput {
 		return instantiationService.createInstance(KeybindingsEditorInput);
 	}
 }
@@ -129,10 +125,10 @@ class SettingsEditor2InputSerializer implements IEditorInputSerializer {
 	}
 
 	serialize(input: SettingsEditor2Input): string {
-		return '{}';
+		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
+	deserialize(instantiationService: IInstantiationService): SettingsEditor2Input {
 		return instantiationService.createInstance(SettingsEditor2Input);
 	}
 }
