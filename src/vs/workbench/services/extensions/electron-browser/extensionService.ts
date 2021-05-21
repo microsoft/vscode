@@ -345,7 +345,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		if (remoteAuthority) {
 
 			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => {
-				if (uri.authority !== remoteAuthority) {
+				if (uri.scheme !== Schemas.vscodeRemote || uri.authority !== remoteAuthority) {
 					// The current remote authority resolver cannot give the canonical URI for this URI
 					return uri;
 				}
