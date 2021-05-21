@@ -270,10 +270,9 @@ export class MarkdownEngine {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
 						if (root) {
 							uri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
+								scheme: 'markdown-link',
 								fragment: uri.fragment,
 								query: uri.query,
-							}).with({
-								scheme: 'markdown-link'
 							});
 						}
 					}
