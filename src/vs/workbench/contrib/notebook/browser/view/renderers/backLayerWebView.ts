@@ -652,10 +652,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						width: 100%;
 					}
 
-					#container .output_container .output div {
-						overflow-x: auto;
-					}
-
 					#container > div > div > div.output {
 						width: var(--notebook-output-width);
 						margin-left: var(--notebook-output-left-margin);
