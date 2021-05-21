@@ -23,7 +23,6 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 	private readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
 
-	private readonly textModel = this.editor.getModel();
 	private active: boolean = false;
 
 	constructor(private readonly editor: IActiveCodeEditor) {
