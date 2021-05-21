@@ -229,7 +229,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get webviewExternalEndpoint(): string {
 		const endpoint = this.options.webviewEndpoint || this.productService.webviewContentExternalBaseUrlTemplate;
-		console.log(endpoint);
 		return endpoint
 			.replace('{{commit}}', this.productService.commit || '97740a7d253650f9f186c211de5247e2577ce9f7')
 			.replace('{{quality}}', this.productService.quality || 'insider');
