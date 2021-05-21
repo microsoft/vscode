@@ -43,7 +43,7 @@ class SplitPaneContainer extends Disposable {
 		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 	}
 
-	split(instance: ITerminalInstance, index: number = this._children.length): void {
+	split(instance: ITerminalInstance, index: number): void {
 		this._addChild(instance, index);
 	}
 
@@ -283,7 +283,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		this._initInstanceListeners(instance);
 
 		if (this._splitPaneContainer) {
-			this._splitPaneContainer!.split(instance);
+			this._splitPaneContainer!.split(instance, this._activeInstanceIndex + 1);
 		}
 
 		instance.setVisible(this._isVisible);
@@ -440,7 +440,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			const orientation = this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._groupElement, orientation);
 			this._splitPaneContainer = newLocal;
-			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
+			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance, this._activeInstanceIndex + 1));
 		}
 		this.setVisible(this._isVisible);
 	}
