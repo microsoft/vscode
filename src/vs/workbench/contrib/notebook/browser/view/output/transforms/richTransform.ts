@@ -26,55 +26,6 @@ import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCom
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 
-class JSONRendererContrib extends Disposable implements IOutputRendererContribution {
-	getType() {
-		return RenderOutputType.Mainframe;
-	}
-
-	getMimetypes() {
-		return ['application/json'];
-	}
-
-	constructor(
-		public notebookEditor: ICommonNotebookEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement): IRenderOutput {
-		const str = items.map(item => {
-			if (isArray(item.valueBytes)) {
-				return getStringValue(item);
-			} else {
-				return JSON.stringify(item.value, null, '\t');
-			}
-		}).join('');
-
-		const disposable = new DisposableStore();
-
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true });
-
-		const mode = this.modeService.create('json');
-		const textModel = this.modelService.createModel(str, mode, undefined, true);
-		editor.setModel(textModel);
-
-		const width = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
-		const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
-		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
-
-		editor.layout({ height, width });
-
-		container.style.height = `${height + 8}px`;
-		disposable.add(editor);
-		disposable.add(textModel);
-
-		return { type: RenderOutputType.Mainframe, initHeight: height, disposable };
-	}
-}
-
 class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
 	getType() {
 		return RenderOutputType.Html;
@@ -124,12 +75,16 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement): IRenderOutput {
+		const value = items.map(getStringValue).join('');
+		return this._render(output, container, value, 'javascript');
+	}
+
+	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, modeId: string): IRenderOutput {
 		const disposable = new DisposableStore();
-		const str = items.map(getStringValue).join('');
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true });
 
-		const mode = this.modeService.create('javascript');
-		const textModel = this.modelService.createModel(str, mode, undefined, false);
+		const mode = this.modeService.create(modeId);
+		const textModel = this.modelService.createModel(value, mode, undefined, false);
 		editor.setModel(textModel);
 
 		const width = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
@@ -143,7 +98,26 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 
 		container.style.height = `${height + 8}px`;
 
-		return { type: RenderOutputType.Mainframe, disposable };
+		return { type: RenderOutputType.Mainframe, initHeight: height, disposable };
+	}
+}
+
+class JSONRendererContrib extends CodeRendererContrib {
+
+	override getMimetypes() {
+		return ['application/json'];
+	}
+
+	override render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement): IRenderOutput {
+		const str = items.map(item => {
+			if (isArray(item.valueBytes)) {
+				return getStringValue(item);
+			} else {
+				return JSON.stringify(item.value, null, '\t');
+			}
+		}).join('');
+
+		return this._render(output, container, str, 'jsonc');
 	}
 }
 
