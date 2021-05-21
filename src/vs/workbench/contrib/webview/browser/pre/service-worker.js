@@ -254,15 +254,16 @@ async function processResourceRequest(event, requestUrl) {
 
 	const { requestId, promise } = resourceRequestStore.create();
 
-	const firstHostSegment = requestUrl.hostname.split('.')[0];
-	const [_, scheme, authority] = firstHostSegment.match(/^(\w+)\+(.*)$/);
+	const firstHostSegment = requestUrl.hostname.slice(0, resourceBaseAuthority.length);
+	const scheme = firstHostSegment.split('+', 1)[0];
+	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
 
 	parentClient.postMessage({
 		channel: 'load-resource',
 		id: requestId,
 		path: decodeURIComponent(requestUrl.pathname),
 		scheme,
-		authority: decodeURIComponent(authority),
+		authority,
 		query: requestUrl.search.replace(/^\?/, ''),
 		ifNoneMatch: cached?.headers.get('ETag'),
 	});
