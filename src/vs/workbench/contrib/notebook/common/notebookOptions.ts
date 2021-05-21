@@ -99,9 +99,9 @@ export class NotebookOptions {
 		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
 		const compactView = this.configurationService.getValue<boolean>(ExperimentalCompactView);
-		const focusIndicator = this.configurationService.getValue<'border' | 'gutter'>(ExperimentalFocusIndicator) ?? 'border';
-		const insertToolbarPosition = this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(ExperimentalInsertToolbarPosition) ?? 'both';
-		const showFoldingControls = this.configurationService.getValue<'always' | 'mouseover'>(ExperimentalShowFoldingControls) ?? 'always';
+		const focusIndicator = this._computeFocusIndicatorOption();
+		const insertToolbarPosition = this._computeInsertToolbarPositionOption();
+		const showFoldingControls = this._computeShowFoldingControlsOption();
 		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition);
 
 		this._disposables = [];
@@ -175,7 +175,7 @@ export class NotebookOptions {
 		}
 
 		if (focusIndicator) {
-			configuration.focusIndicator = this.configurationService.getValue<'border' | 'gutter'>(ExperimentalFocusIndicator) ?? 'border';
+			configuration.focusIndicator = this._computeFocusIndicatorOption();
 		}
 
 		if (compactView) {
@@ -187,7 +187,7 @@ export class NotebookOptions {
 		}
 
 		if (insertToolbarPosition) {
-			configuration.insertToolbarPosition = this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(ExperimentalInsertToolbarPosition) ?? 'both';
+			configuration.insertToolbarPosition = this._computeInsertToolbarPositionOption();
 			const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarPosition);
 			configuration.bottomToolbarHeight = bottomToolbarHeight;
 			configuration.bottomToolbarGap = bottomToolbarGap;
@@ -202,7 +202,7 @@ export class NotebookOptions {
 		}
 
 		if (showFoldingControls) {
-			configuration.showFoldingControls = this.configurationService.getValue<'always' | 'mouseover'>(ExperimentalShowFoldingControls) ?? 'always';
+			configuration.showFoldingControls = this._computeShowFoldingControlsOption();
 		}
 
 		if (dragAndDropEnabled) {
@@ -224,6 +224,18 @@ export class NotebookOptions {
 			consolidatedOutputButton,
 			dragAndDropEnabled
 		});
+	}
+
+	private _computeInsertToolbarPositionOption() {
+		return this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(ExperimentalInsertToolbarPosition) ?? 'both';
+	}
+
+	private _computeShowFoldingControlsOption() {
+		return this.configurationService.getValue<'always' | 'mouseover'>(ExperimentalShowFoldingControls) ?? 'always';
+	}
+
+	private _computeFocusIndicatorOption() {
+		return this.configurationService.getValue<'border' | 'gutter'>(ExperimentalFocusIndicator) ?? 'border';
 	}
 
 	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'): { bottomToolbarGap: number, bottomToolbarHeight: number } {
