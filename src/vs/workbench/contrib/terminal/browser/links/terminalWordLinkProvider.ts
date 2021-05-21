@@ -65,13 +65,14 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			return [];
 		}
 
-		const regex = new RegExp(`${wordSeparators.split('').join('|').replace(/ /g, `[${'\u00A0'} ]`)}`, 'g');
-
+		const regex = new RegExp(`${wordSeparators.split('').join('|')}`, 'g');
+		// const regex = new RegExp(`${ wordSeparators.split('').join('|').replace(/ /g, `[${'\u00A0'} ]`) } `, 'g');
+		console.log(regex);
 		let words = text.split(' ');
 		let stringIndex = -1;
 
 		if (words.length === 0) {
-			// no separators, word wrapping several lines
+			// no separators, use the whole word
 			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
 				startColumn: 1,
 				startLineNumber: 1,
@@ -86,8 +87,6 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 					continue;
 				}
 				stringIndex = text.indexOf(word, stringIndex + 1);
-
-				// Convert the word's string index into a wrapped buffer range
 				const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
 					startColumn: stringIndex + 1,
 					startLineNumber: 1,
