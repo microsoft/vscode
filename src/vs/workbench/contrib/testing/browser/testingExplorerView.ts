@@ -417,8 +417,15 @@ export class TestingExplorerViewModel extends Disposable {
 			this.revealByIdPath(getPathForTestInResult(evt.item, evt.result), false, false);
 		}));
 
-		this._register(testResults.onResultsChanged(() => {
+		this._register(testResults.onResultsChanged(evt => {
 			this.tree.resort(null);
+
+			if (followRunningTests && 'completed' in evt) {
+				const selected = this.tree.getSelection()[0];
+				if (selected) {
+					this.tree.reveal(selected, 0.5);
+				}
+			}
 		}));
 	}
 
