@@ -3087,7 +3087,7 @@ export class NotebookCellOutputItem {
 		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
 	}
 
-	static error(err: Error): NotebookCellOutputItem {
+	static error(err: Error | { name: string, message?: string, stack?: string }): NotebookCellOutputItem {
 		const obj = {
 			name: err.name,
 			message: err.message,
@@ -3104,18 +3104,20 @@ export class NotebookCellOutputItem {
 		return NotebookCellOutputItem.text(value, 'application/x.notebook.stderr');
 	}
 
-	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
-		const rawStr = JSON.stringify(value, undefined, '\t');
-		return NotebookCellOutputItem.text(rawStr, mime);
+	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(mime, value);
 	}
 
+	static #encoder = new TextEncoder();
+
 	static text(value: string, mime: string = 'text/plain'): NotebookCellOutputItem {
-		const bytes = new TextEncoder().encode(String(value));
+		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
 		return new NotebookCellOutputItem(mime, bytes);
 	}
 
-	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
-		return new NotebookCellOutputItem(mime, value);
+	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return NotebookCellOutputItem.text(rawStr, mime);
 	}
 
 	constructor(

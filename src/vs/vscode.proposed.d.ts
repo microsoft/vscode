@@ -1229,19 +1229,18 @@ declare module 'vscode' {
 
 	// todo@API document which mime types are supported out of the box and
 	// which are considered secure
-
-	// code specific mime types
-	// application/x.notebook.error-traceback
-	// application/x.notebook.stdout
-	// application/x.notebook.stderr
-	// application/x.notebook.stream
 	export class NotebookCellOutputItem {
 
-		static error(err: Error): NotebookCellOutputItem;
-
-		static stdout(value: string): NotebookCellOutputItem;
-
-		static stderr(value: string): NotebookCellOutputItem;
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` from a string.
+		 *
+		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
+		 *
+		 * @param value A string/
+		 * @param mime Optional MIME type, defaults to `text/plain`.
+		 * @returns A new output item object.
+		 */
+		static text(value: string, mime?: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` from
@@ -1253,31 +1252,50 @@ declare module 'vscode' {
 		 *
 		 * @param value A JSON-stringifyable value.
 		 * @param mime Optional MIME type, defaults to `application/json`
+		 * @returns A new output item object.
 		 */
 		static json(value: any, mime?: string): NotebookCellOutputItem;
 
 		/**
-		 * Factory function to create a `NotebookCellOutputItem` from a string.
+		 * Factory function to create a `NotebookCellOutputItem` from bytes.
 		 *
-		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
-		 *
-		 * @param value A string/
-		 * @param mime Optional MIME type, defaults to `text/plain`.
-		 */
-		static text(value: string, mime?: string): NotebookCellOutputItem;
-
-		/**
-		 *
-		 * @param value
+		 * @param value An array of unsigned 8-bit integers.
 		 * @param mime Optional MIME type, defaults to `application/octet-stream`.
+		 * @returns A new output item object.
 		 */
 		//todo@API bytes, raw, buffer?
 		static bytes(value: Uint8Array, mime?: string): NotebookCellOutputItem;
 
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/x.notebook.stdout` mime type.
+		 *
+		 * @param value A string.
+		 * @returns A new output item object.
+		 */
+		static stdout(value: string): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/x.notebook.stderr` mime type.
+		 *
+		 * @param value A string.
+		 * @returns A new output item object.
+		 */
+		static stderr(value: string): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/x.notebook.error` mime type.
+		 *
+		 * @param value An error object.
+		 * @returns A new output item object.
+		 */
+		static error(value: Error): NotebookCellOutputItem;
+
 		mime: string;
 
-		//todo@API string or Unit8Array?
-		// value: string | Uint8Array | unknown;
+		//todo@API only Unit8Array
 		value: Uint8Array | unknown;
 
 		metadata?: { [key: string]: any };
