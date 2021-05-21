@@ -5,8 +5,7 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
-import { promises } from 'fs';
-import { rimraf } from 'vs/base/node/pfs';
+import { Promises, rimraf } from 'vs/base/node/pfs';
 import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
@@ -16,7 +15,7 @@ flakySuite('Extpath', () => {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'extpath');
 
-		return promises.mkdir(testDir, { recursive: true });
+		return Promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {

@@ -26,7 +26,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 	private modelResolve: Promise<void> | undefined = undefined;
 
 	constructor(
-		public readonly model: IUntitledTextEditorModel,
+		readonly model: IUntitledTextEditorModel,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IEditorService editorService: IEditorService,

@@ -343,7 +343,7 @@ class DropOverlay extends Themable {
 									targetGroup = ensureTargetGroup();
 								}
 
-								await targetGroup.openEditor(untitledTextEditor);
+								await this.editorService.openEditor(untitledTextEditor, undefined, targetGroup.id);
 							}
 						};
 					}

@@ -269,14 +269,12 @@ export class MarkdownEngine {
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
 						if (root) {
-							const fileUri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
+							uri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
 								fragment: uri.fragment,
 								query: uri.query,
+							}).with({
+								scheme: 'markdown-link'
 							});
-
-							// Ensure fileUri is relative by prepending `/` so that it uses the <base> element URI
-							// when resolving the absolute URL
-							uri = vscode.Uri.parse('markdown-link:' + '/' + fileUri.toString(true).replace(/^\S+?:/, fileUri.scheme));
 						}
 					}
 

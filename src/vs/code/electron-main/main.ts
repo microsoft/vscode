@@ -5,7 +5,8 @@
 
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
-import { promises, unlinkSync } from 'fs';
+import { unlinkSync } from 'fs';
+import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { mark } from 'vs/base/common/performance';
@@ -213,7 +214,7 @@ class CodeMain {
 				environmentMainService.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,
 				environmentMainService.backupHome
-			].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined)),
+			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
 			// Configuration service
 			configurationService.initialize(),

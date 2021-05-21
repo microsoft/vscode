@@ -56,7 +56,6 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { Schemas } from 'vs/base/common/network';
@@ -132,7 +131,6 @@ export class GettingStartedPage extends EditorPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IQuickInputService private quickInputService: IQuickInputService,
@@ -494,12 +492,7 @@ export class GettingStartedPage extends EditorPane {
 			if (src.startsWith('https://')) { return `src="${src}"`; }
 
 			const path = joinPath(base, src);
-			const transformed = asWebviewUri({
-				isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
-				webviewResourceRoot: this.environmentService.webviewResourceRoot,
-				webviewCspSource: this.environmentService.webviewCspSource,
-				remote: { authority: undefined },
-			}, this.webviewID, path).toString();
+			const transformed = asWebviewUri(path).toString();
 			return `src="${transformed}"`;
 		});
 
@@ -825,14 +818,17 @@ export class GettingStartedPage extends EditorPane {
 			bar.setAttribute('aria-valuemin', '0');
 			bar.setAttribute('aria-valuenow', '' + numDone);
 			bar.setAttribute('aria-valuemax', '' + numTotal);
-			const progress = Math.max((numDone / numTotal) * 100, 3);
+			const progress = (numDone / numTotal) * 100;
 			bar.style.width = `${progress}%`;
 
+
+			(element.parentElement as HTMLElement).classList[numDone === 0 ? 'add' : 'remove']('no-progress');
+
 			if (numTotal === numDone) {
-				bar.title = `All steps complete!`;
+				bar.title = localize('gettingStarted.allStepsComplete', "All {0} steps complete!", numTotal);
 			}
 			else {
-				bar.title = `${numDone} of ${numTotal} steps complete`;
+				bar.title = localize('gettingStarted.someStepsComplete', "{0} of {1} steps complete", numDone, numTotal);
 			}
 		});
 	}

@@ -37,7 +37,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
-import { ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionUntrustedWorkpaceSupportType, ExtensionVirtualWorkpaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
@@ -49,7 +49,8 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -129,6 +130,7 @@ export class ExtensionsListView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super({
 			...(viewletViewOptions as IViewPaneOptions),
@@ -551,45 +553,43 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterWorkspaceUnsupportedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		let value = query.value;
-		const untrustedPartiallySupportedOnly = /@workspaceUnsupported:untrustedPartial/i.test(value);
-		if (untrustedPartiallySupportedOnly) {
-			value = value.replace(/@workspaceUnsupported:untrustedPartial/g, '');
-		}
-		const untrustedUnsupportedOnly = /@workspaceUnsupported:untrusted/i.test(value);
-		if (untrustedUnsupportedOnly) {
-			value = value.replace(/@workspaceUnsupported:untrusted/g, '');
-		}
-		const virtualUnsupportedOnly = /@workspaceUnsupported:virtual/i.test(value);
-		if (virtualUnsupportedOnly) {
-			value = value.replace(/@workspaceUnsupported:virtual/g, '');
+
+		// shows local extensions which are restricted or disabled in the current workspace because of the extension's capability
+
+		const inVirtualWorkspace = isVirtualWorkspace(this.workspaceService.getWorkspace());
+		const inRestrictedWorkspace = !this.workspaceTrustManagementService.isWorkpaceTrusted();
+		if (!inVirtualWorkspace && !inRestrictedWorkspace) {
+			return [];
 		}
 
-		value = value.replace(/@workspaceUnsupported/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+		let queryString = query.value; // @sortby is already filtered out
 
-		const isVirtualWorkspace = getVirtualWorkspaceScheme(this.workspaceService.getWorkspace()) !== undefined;
-		const virtualUnsupportedExtensions = local.filter(extension => extension.local && !this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.local.manifest) && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+		const match = queryString.match(/^\s*@workspaceUnsupported(?::(untrusted|virtual)(Partial)?)?(?:\s+([^\s]*))?/i);
+		if (!match) {
+			return [];
+		}
+		const type = match[1]?.toLowerCase();
+		const partial = !!match[2];
+		const nameFilter = match[3]?.toLowerCase();
 
-		let trustRequiringExtensions = local.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) !== true && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
-		if (isVirtualWorkspace) {
-			trustRequiringExtensions = trustRequiringExtensions.filter(extension => extension.local && this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.local.manifest));
+		if (nameFilter) {
+			local = local.filter(extension => extension.name.toLowerCase().indexOf(nameFilter) > -1 || extension.displayName.toLowerCase().indexOf(nameFilter) > -1);
 		}
 
-		if (untrustedUnsupportedOnly) {
-			const untrustedUnsupportedExtensions = trustRequiringExtensions.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) === false);
-			return this.sortExtensions(untrustedUnsupportedExtensions, options);
-		}
+		const hasVirtualSupportType = (extension: IExtension, supportType: ExtensionVirtualWorkpaceSupportType) => extension.local && this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.local.manifest) === supportType;
+		const hasRestrictedSupportType = (extension: IExtension, supportType: ExtensionUntrustedWorkpaceSupportType) => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) === supportType;
 
-		if (untrustedPartiallySupportedOnly) {
-			const untrustedPartiallySupportedExtensions = trustRequiringExtensions.filter(extension => extension.local && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest) === 'limited');
-			return this.sortExtensions(untrustedPartiallySupportedExtensions, options);
+		if (type === 'virtual') {
+			// show limited and disabled extensions unless disabled because of a untrusted workspace
+			local = local.filter(extension => inVirtualWorkspace && hasVirtualSupportType(extension, partial ? 'limited' : false) && !(inRestrictedWorkspace && hasRestrictedSupportType(extension, false)));
+		} else if (type === 'untrusted') {
+			// show limited and disabled extensions unless disabled because of a virtual workspace
+			local = local.filter(extension => inRestrictedWorkspace && hasRestrictedSupportType(extension, partial ? 'limited' : false) && !(inVirtualWorkspace && hasVirtualSupportType(extension, false)));
+		} else {
+			// show extensions that are restricted or disabled in the current workspace
+			local = local.filter(extension => inVirtualWorkspace && !hasVirtualSupportType(extension, true) || inRestrictedWorkspace && !hasRestrictedSupportType(extension, true));
 		}
-
-		if (virtualUnsupportedOnly) {
-			return this.sortExtensions(virtualUnsupportedExtensions, options);
-		}
-
-		return this.sortExtensions(trustRequiringExtensions, options);
+		return this.sortExtensions(local, options);
 	}
 
 
@@ -980,9 +980,7 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isBuiltInExtensionsQuery(query)
 			|| this.isSearchBuiltInExtensionsQuery(query)
 			|| this.isBuiltInGroupExtensionsQuery(query)
-			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
-			|| this.isWorkspaceUnsupportedExtensionsQuery(query)
-			|| this.isWorkspaceUnsupportedGroupExtensionsQuery(query);
+			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -998,15 +996,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	static isSearchWorkspaceUnsupportedExtensionsQuery(query: string): boolean {
-		return /@workspaceUnsupported\s.+/i.test(query);
-	}
-
-	static isWorkspaceUnsupportedExtensionsQuery(query: string): boolean {
-		return /^\s*@workspaceUnsupported$/i.test(query.trim());
-	}
-
-	static isWorkspaceUnsupportedGroupExtensionsQuery(query: string): boolean {
-		return /^\s*@workspaceUnsupported:.+$/i.test(query.trim());
+		return /^\s*@workspaceUnsupported(:(untrusted|virtual)(Partial)?)?(\s|$)/i.test(query);
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -1104,21 +1094,46 @@ export class BuiltInProgrammingLanguageExtensionsView extends ExtensionsListView
 	}
 }
 
+function toSpecificWorkspaceUnsupportedQuery(query: string, qualifier: string): string | undefined {
+	if (!query) {
+		return '@workspaceUnsupported:' + qualifier;
+	}
+	const match = query.match(new RegExp(`@workspaceUnsupported(:${qualifier})?(\\s|$)`, 'i'));
+	if (match) {
+		if (!match[1]) {
+			return query.replace(/@workspaceUnsupported/gi, '@workspaceUnsupported:' + qualifier);
+		}
+		return query;
+	}
+	return undefined;
+}
+
+
 export class UntrustedWorkspaceUnsupportedExtensionsView extends ExtensionsListView {
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@workspaceUnsupported') ? this.showEmptyModel() : super.show('@workspaceUnsupported:untrusted');
+		const updatedQuery = toSpecificWorkspaceUnsupportedQuery(query, 'untrusted');
+		return updatedQuery ? super.show(updatedQuery) : this.showEmptyModel();
 	}
 }
 
 export class UntrustedWorkspacePartiallySupportedExtensionsView extends ExtensionsListView {
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@workspaceUnsupported') ? this.showEmptyModel() : super.show('@workspaceUnsupported:untrustedPartial');
+		const updatedQuery = toSpecificWorkspaceUnsupportedQuery(query, 'untrustedPartial');
+		return updatedQuery ? super.show(updatedQuery) : this.showEmptyModel();
 	}
 }
 
 export class VirtualWorkspaceUnsupportedExtensionsView extends ExtensionsListView {
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@workspaceUnsupported') ? this.showEmptyModel() : super.show('@workspaceUnsupported:virtual');
+		const updatedQuery = toSpecificWorkspaceUnsupportedQuery(query, 'virtual');
+		return updatedQuery ? super.show(updatedQuery) : this.showEmptyModel();
+	}
+}
+
+export class VirtualWorkspacePartiallySupportedExtensionsView extends ExtensionsListView {
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		const updatedQuery = toSpecificWorkspaceUnsupportedQuery(query, 'virtualPartial');
+		return updatedQuery ? super.show(updatedQuery) : this.showEmptyModel();
 	}
 }
 

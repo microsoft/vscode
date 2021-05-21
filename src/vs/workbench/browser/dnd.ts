@@ -44,12 +44,12 @@ interface ISerializedDraggedResource {
 
 export class DraggedEditorIdentifier {
 
-	constructor(public readonly identifier: IEditorIdentifier) { }
+	constructor(readonly identifier: IEditorIdentifier) { }
 }
 
 export class DraggedEditorGroupIdentifier {
 
-	constructor(public readonly identifier: GroupIdentifier) { }
+	constructor(readonly identifier: GroupIdentifier) { }
 }
 
 interface IDraggedEditorProps {

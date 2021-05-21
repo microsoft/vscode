@@ -17,17 +17,11 @@ const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
 
 const searchParams = new URL(location.toString()).searchParams;
+
 /**
  * Origin used for resources
  */
-const resourceOrigin = searchParams.get('vscode-resource-origin') ?? sw.origin;
-
-/**
- * Root path for resources
- */
-const resourceRoot = rootPath + '/vscode-resource';
-
-const serviceWorkerFetchIgnoreSubdomain = searchParams.get('serviceWorkerFetchIgnoreSubdomain') ?? false;
+const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
 const resolveTimeout = 30000;
 
@@ -66,9 +60,15 @@ class RequestStore {
 	create() {
 		const requestId = ++this.requestPool;
 
+		/** @type {undefined | ((x: T) => void)} */
 		let resolve;
+
+		/** @type {Promise<T>} */
 		const promise = new Promise(r => resolve = r);
-		const entry = { resolve, promise };
+
+		/** @type {RequestStoreEntry<T>} */
+		const entry = { resolve: /** @type {(x: T) => void} */ (resolve), promise };
+
 		this.map.set(requestId, entry);
 
 		const dispose = () => {
@@ -156,7 +156,6 @@ sw.addEventListener('message', async (event) => {
 			}
 		case 'did-load-localhost':
 			{
-				const webviewId = getWebviewIdForClient(event.source);
 				const data = event.data.data;
 				if (!localhostRequestStore.resolve(data.id, data.location)) {
 					console.log('Could not resolve unknown localhost', data.origin);
@@ -170,17 +169,7 @@ sw.addEventListener('message', async (event) => {
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
-
-	if (serviceWorkerFetchIgnoreSubdomain && requestUrl.pathname.startsWith(resourceRoot + '/')) {
-		// #121981
-		const ignoreFirstSubdomainRegex = /(.*):\/\/.*?\.(.*)/;
-		const match1 = resourceOrigin.match(ignoreFirstSubdomainRegex);
-		const match2 = requestUrl.origin.match(ignoreFirstSubdomainRegex);
-		if (match1 && match2 && match1[1] === match2[1] && match1[2] === match2[2]) {
-			return event.respondWith(processResourceRequest(event, requestUrl));
-		}
-	} else if (requestUrl.origin === resourceOrigin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
-		// See if it's a resource request
+	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
 		return event.respondWith(processResourceRequest(event, requestUrl));
 	}
 
@@ -205,12 +194,15 @@ sw.addEventListener('activate', (event) => {
 async function processResourceRequest(event, requestUrl) {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
-		console.log('Could not find inner client for request');
+		console.error('Could not find inner client for request');
 		return notFound();
 	}
 
 	const webviewId = getWebviewIdForClient(client);
-	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) : requestUrl.pathname;
+	if (!webviewId) {
+		console.error('Could not resolve webview id');
+		return notFound();
+	}
 
 	/**
 	 * @param {ResourceResponse} entry
@@ -229,18 +221,18 @@ async function processResourceRequest(event, requestUrl) {
 			}
 		}
 
-		const cacheHeaders = entry.etag ? {
-			'ETag': entry.etag,
-			'Cache-Control': 'no-cache'
-		} : {};
-
+		/** @type {Record<String, string>} */
+		const headers = {
+			'Content-Type': entry.mime,
+			'Access-Control-Allow-Origin': '*',
+		};
+		if (entry.etag) {
+			headers['ETag'] = entry.etag;
+			headers['Cache-Control'] = 'no-cache';
+		}
 		const response = new Response(entry.body, {
 			status: 200,
-			headers: {
-				'Content-Type': entry.mime,
-				'Access-Control-Allow-Origin': '*',
-				...cacheHeaders
-			}
+			headers
 		});
 
 		if (entry.etag) {
@@ -261,10 +253,16 @@ async function processResourceRequest(event, requestUrl) {
 	const cached = await cache.match(event.request);
 
 	const { requestId, promise } = resourceRequestStore.create();
+
+	const firstHostSegment = requestUrl.hostname.split('.')[0];
+	const [_, scheme, authority] = firstHostSegment.match(/^(\w+)\+(.*)$/);
+
 	parentClient.postMessage({
 		channel: 'load-resource',
 		id: requestId,
-		path: resourcePath,
+		path: requestUrl.pathname,
+		scheme,
+		authority: decodeURIComponent(authority),
 		query: requestUrl.search.replace(/^\?/, ''),
 		ifNoneMatch: cached?.headers.get('ETag'),
 	});
@@ -273,23 +271,30 @@ async function processResourceRequest(event, requestUrl) {
 }
 
 /**
- * @param {*} event
+ * @param {FetchEvent} event
  * @param {URL} requestUrl
+ * @return {Promise<Response>}
  */
 async function processLocalhostRequest(event, requestUrl) {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
 		// that are not spawned by vs code
-		return undefined;
+		return fetch(event.request);
 	}
 	const webviewId = getWebviewIdForClient(client);
+	if (!webviewId) {
+		console.error('Could not resolve webview id');
+		return fetch(event.request);
+	}
+
 	const origin = requestUrl.origin;
 
 	/**
-	 * @param {string} redirectOrigin
+	 * @param {string | undefined} redirectOrigin
+	 * @return {Promise<Response>}
 	 */
-	const resolveRedirect = (redirectOrigin) => {
+	const resolveRedirect = async (redirectOrigin) => {
 		if (!redirectOrigin) {
 			return fetch(event.request);
 		}
@@ -318,16 +323,24 @@ async function processLocalhostRequest(event, requestUrl) {
 	return promise.then(resolveRedirect);
 }
 
+/**
+ * @param {Client} client
+ * @returns {string | null}
+ */
 function getWebviewIdForClient(client) {
 	const requesterClientUrl = new URL(client.url);
-	return requesterClientUrl.search.match(/\bid=([a-z0-9-]+)/i)[1];
+	return requesterClientUrl.searchParams.get('id');
 }
 
+/**
+ * @param {string} webviewId
+ * @returns {Promise<Client | undefined>}
+ */
 async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.find(client => {
 		const clientUrl = new URL(client.url);
 		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/electron-browser-index.html`);
-		return hasExpectedPathName && clientUrl.search.match(new RegExp('\\bid=' + webviewId));
+		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
 	});
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -13,6 +12,8 @@ import * as pfs from 'vs/base/node/pfs';
 import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { URI } from 'vs/base/common/uri';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
@@ -26,14 +27,14 @@ export function detectAvailableProfiles(
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
-		readFile: fs.promises.readFile
+		readFile: pfs.Promises.readFile
 	};
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			safeConfigProvider(TerminalSettingId.UseWslProfiles) || true,
+			safeConfigProvider<boolean>(TerminalSettingId.UseWslProfiles) !== false,
 			safeConfigProvider(TerminalSettingId.ProfilesWindows),
 			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
 			variableResolver
@@ -80,12 +81,12 @@ async function detectAvailableWindowsProfiles(
 	if (includeDetectedProfiles) {
 		detectedProfiles.set('PowerShell', {
 			source: ProfileSource.Pwsh,
-			icon: Codicon.terminalPowershell.id,
+			icon: Codicon.terminalPowershell,
 			isAutoDetected: true
 		});
 		detectedProfiles.set('Windows PowerShell', {
 			path: `${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`,
-			icon: Codicon.terminalPowershell.id,
+			icon: Codicon.terminalPowershell,
 			isAutoDetected: true
 		});
 		detectedProfiles.set('Git Bash', {
@@ -102,7 +103,7 @@ async function detectAvailableWindowsProfiles(
 		});
 		detectedProfiles.set('Command Prompt', {
 			path: `${system32Path}\\cmd.exe`,
-			icon: Codicon.terminalCmd.id,
+			icon: Codicon.terminalCmd,
 			isAutoDetected: true
 		});
 	}
@@ -137,7 +138,7 @@ async function transformToTerminalProfiles(
 		if (profile === null) { continue; }
 		let originalPaths: string[];
 		let args: string[] | string | undefined;
-		let icon: string | undefined;
+		let icon: ThemeIcon | URI | { light: URI, dark: URI } | undefined = undefined;
 		if ('source' in profile) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
@@ -147,11 +148,15 @@ async function transformToTerminalProfiles(
 
 			// if there are configured args, override the default ones
 			args = profile.args || source.args;
-			icon = profile.icon || source.icon;
+			if (profile.icon) {
+				icon = profile.icon;
+			} else if (source.icon) {
+				icon = source.icon;
+			}
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
-			icon = profile.icon;
+			icon = profile.icon || undefined;
 		}
 
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
@@ -190,7 +195,7 @@ async function initializeWindowsProfiles(): Promise<void> {
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
 		paths: await getPowershellPaths(),
-		icon: 'terminal-powershell'
+		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
 	});
 }
 
@@ -240,12 +245,12 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			isDefault: profileName === defaultProfileName
 		};
 		if (distroName.includes('Ubuntu')) {
-			profile.icon = 'terminal-ubuntu';
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
 		}
 		else if (distroName.includes('Debian')) {
-			profile.icon = 'terminal-debian';
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalDebian);
 		} else {
-			profile.icon = 'terminal-linux';
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalLinux);
 		}
 
 		// Add the profile
@@ -267,7 +272,7 @@ async function detectAvailableUnixProfiles(
 
 	// Add non-quick launch profiles
 	if (includeDetectedProfiles) {
-		const contents = await fsProvider.readFile('/etc/shells', 'utf8');
+		const contents = (await fsProvider.readFile('/etc/shells')).toString();
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
@@ -332,7 +337,7 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 
 export interface IFsProvider {
 	existsFile(path: string): Promise<boolean>,
-	readFile(path: string, options: { encoding: BufferEncoding, flag?: string | number } | BufferEncoding): Promise<string>;
+	readFile(path: string): Promise<Buffer>;
 }
 
 export interface IProfileVariableResolver {
@@ -343,5 +348,5 @@ interface IPotentialTerminalProfile {
 	profileName: string;
 	paths: string[];
 	args?: string[];
-	icon?: string;
+	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }

@@ -18,7 +18,7 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -34,6 +34,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Iterable } from 'vs/base/common/iterator';
 import { flatten } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = 'notebook.selectKernel';
@@ -684,7 +685,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 				{
 					id: MenuId.NotebookToolbar,
 					order: -1,
-					group: 'navigation',
+					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
@@ -755,7 +756,7 @@ registerAction2(class CancelNotebook extends NotebookAction {
 				{
 					id: MenuId.NotebookToolbar,
 					order: -1,
-					group: 'navigation',
+					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_RUNNING_CELL,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
@@ -916,7 +917,13 @@ abstract class InsertCellCommand extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
+		if (context.cell) {
+			context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
+		} else {
+			const focusRange = context.notebookEditor.getFocus();
+			const next = focusRange.end - 1;
+			context.notebookEditor.insertNotebookCell(context.notebookEditor.viewModel.viewCells[next], this.kind, this.direction, undefined, true);
+		}
 	}
 }
 
@@ -1023,6 +1030,22 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+		icon: Codicon.add,
+		title: localize('notebookActions.menu.insertCode.ontoolbar', "Code"),
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+	},
+	order: -5,
+	group: 'navigation/add',
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'hidden')
+	)
+});
+
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	command: {
 		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
@@ -1075,6 +1098,22 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	order: 1,
 	group: 'inline',
 	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+		icon: Codicon.add,
+		title: localize('notebookActions.menu.insertMarkdown.ontoolbar', "Markdown"),
+		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
+	},
+	order: -5,
+	group: 'navigation/add',
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'hidden')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
@@ -1147,7 +1186,9 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
 					},
 					{
-						when: quitEditCondition,
+						when: ContextKeyExpr.and(
+							quitEditCondition,
+							NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 						win: {
 							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
@@ -1267,12 +1308,18 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 		super({
 			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
 			title: localize('clearCellOutputs', 'Clear Cell Outputs'),
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), executeNotebookCondition, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-				order: CellToolbarOrder.ClearCellOutput,
-				group: CELL_TITLE_OUTPUT_GROUP_ID
-			},
+			menu: [
+				{
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), executeNotebookCondition, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON.toNegated()),
+					order: CellToolbarOrder.ClearCellOutput,
+					group: CELL_TITLE_OUTPUT_GROUP_ID
+				},
+				{
+					id: MenuId.NotebookOutputToolbar,
+					when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE)
+				},
+			],
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 				primary: KeyMod.Alt | KeyCode.Delete,
@@ -1501,7 +1548,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 				{
 					id: MenuId.NotebookToolbar,
 					when: ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true),
-					group: 'navigation',
+					group: 'navigation/execute',
 					order: 0
 				}
 			],
