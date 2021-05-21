@@ -35,22 +35,19 @@ class WebviewPanelContribution extends Disposable implements IWorkbenchContribut
 		super();
 		// Add all the initial groups to be listened to
 		this.editorGroupService.whenReady.then(() => this.editorGroupService.groups.forEach(group => {
-			const listener = group.onWillOpenEditor(e => this.onEditorOpening(e.editor, group));
-			this._disposables.add(listener);
+			this.registerGroupListener(group);
 		}));
 
 		// Additional groups added should also be listened to
-		this._register(this.editorGroupService.onDidAddGroup((group) => {
-			const listener = group.onWillOpenEditor(e => this.onEditorOpening(e.editor, group));
-			this._disposables.add(listener);
-		}));
+		this._register(this.editorGroupService.onDidAddGroup((group) => this.registerGroupListener(group)));
+
+		this._register(this._disposables);
 	}
 
-	override dispose() {
-		this._disposables.dispose();
-		super.dispose();
+	private registerGroupListener(group: IEditorGroup): void {
+		const listener = group.onWillOpenEditor(e => this.onEditorOpening(e.editor, group));
+		this._disposables.add(listener);
 	}
-
 	private onEditorOpening(
 		editor: IEditorInput,
 		group: IEditorGroup
