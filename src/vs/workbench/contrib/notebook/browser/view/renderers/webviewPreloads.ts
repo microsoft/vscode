@@ -460,10 +460,10 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 		value: unknown;
 		metadata: unknown;
 
-		asText(): string;
-		asJSON(): any;
-		asBytes(): Uint8Array
-		asBlob(): Blob;
+		text(): string;
+		json(): any;
+		bytes(): Uint8Array
+		blob(): Blob;
 	}
 
 	interface IDestroyCellInfo {
@@ -637,17 +637,17 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 								mime: content.mimeType,
 								value: content.value,
 								metadata: content.metadata,
-								asBytes() {
+								bytes() {
 									return content.valueBytes;
 								},
-								asText() {
+								text() {
 									return new TextDecoder().decode(content.valueBytes)
 										|| String(content.value); //todo@jrieken remove this once `value` is gone!
 								},
-								asJSON() {
-									return JSON.parse(this.asText());
+								json() {
+									return JSON.parse(this.text());
 								},
-								asBlob() {
+								blob() {
 									return new Blob([content.valueBytes], { type: content.mimeType });
 								}
 							});
@@ -1020,10 +1020,10 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 				mime: 'text/markdown',
 				metadata: undefined,
 				outputId: undefined,
-				asText() { return content; },
-				asJSON() { return undefined; },
-				asBytes() { return new Uint8Array(); },
-				asBlob() { return new Blob(); },
+				text() { return content; },
+				json() { return undefined; },
+				bytes() { return new Uint8Array(); },
+				blob() { return new Blob(); },
 			});
 		}
 	}();
