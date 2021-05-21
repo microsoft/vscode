@@ -80,32 +80,32 @@ suite('ExtHostWebview', () => {
 		const webview = createWebview(rpcProtocol, /* remoteAuthority */undefined);
 
 		assert.strictEqual(
-			replaceUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			`https://file%2B.vscode-resource.UUID.${webviewResourceBaseHost}/Users/codey/file.html`,
+			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
 			'Unix basic'
 		);
 
 		assert.strictEqual(
-			replaceUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString()),
-			`https://file%2B.vscode-resource.UUID.${webviewResourceBaseHost}/Users/codey/file.html#frag`,
+			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString()),
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html#frag`,
 			'Unix should preserve fragment'
 		);
 
 		assert.strictEqual(
-			replaceUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
-			`https://file%2B.vscode-resource.UUID.${webviewResourceBaseHost}/Users/codey/f%20ile.html`,
+			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/f%20ile.html`,
 			'Unix with encoding'
 		);
 
 		assert.strictEqual(
-			replaceUuid(webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString()),
-			`https://file%2Blocalhost.vscode-resource.UUID.${webviewResourceBaseHost}/Users/codey/file.html`,
+			(webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString()),
+			`https://file%2Blocalhost.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
 			'Unix should preserve authority'
 		);
 
 		assert.strictEqual(
-			replaceUuid(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
-			`https://file%2B.vscode-resource.UUID.${webviewResourceBaseHost}/c%3A/codey/file.txt`,
+			(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/c%3A/codey/file.txt`,
 			'Windows C drive'
 		);
 	});
@@ -114,8 +114,8 @@ suite('ExtHostWebview', () => {
 		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'remote');
 
 		assert.strictEqual(
-			replaceUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			`https://vscode-remote%2Bremote.vscode-resource.UUID.${webviewResourceBaseHost}/Users/codey/file.html`,
+			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
+			`https://vscode-remote%2Bremote.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
 			'Unix basic'
 		);
 	});
@@ -139,10 +139,6 @@ function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | und
 		})
 	} as IExtensionDescription, 'type', 'title', 1, {});
 	return webview;
-}
-
-function replaceUuid(input: string) {
-	return input.replace(/\.vscode-resource\.[^\.]+?\./, '.vscode-resource.UUID.');
 }
 
 

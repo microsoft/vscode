@@ -787,7 +787,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 
 	private asWebviewUri(uri: URI, fromExtension: URI | undefined) {
-		return asWebviewUri(this.id, uri, fromExtension?.scheme === Schemas.vscodeRemote ? { isRemote: true, authority: fromExtension.authority } : undefined);
+		return asWebviewUri(uri, fromExtension?.scheme === Schemas.vscodeRemote ? { isRemote: true, authority: fromExtension.authority } : undefined);
 	}
 
 	postKernelMessage(message: any) {
@@ -1188,7 +1188,6 @@ var requirejs = (function() {
 			purpose: WebviewContentPurpose.NotebookRenderer,
 			enableFindWidget: false,
 			transformCssVariables: transformWebviewThemeVars,
-			serviceWorkerFetchIgnoreSubdomain: true
 		}, {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,

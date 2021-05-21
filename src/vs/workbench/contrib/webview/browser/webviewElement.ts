@@ -109,11 +109,6 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			params.purpose = options.purpose;
 		}
 
-		if (options.serviceWorkerFetchIgnoreSubdomain) {
-			params.serviceWorkerFetchIgnoreSubdomain = 'true';
-		}
-
-
 		const queryString = (Object.keys(params) as Array<keyof typeof params>)
 			.map((key) => `${key}=${encodeURIComponent(params[key]!)}`)
 			.join('&');

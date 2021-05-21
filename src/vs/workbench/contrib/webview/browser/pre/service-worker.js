@@ -23,8 +23,6 @@ const searchParams = new URL(location.toString()).searchParams;
  */
 const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
-const serviceWorkerFetchIgnoreSubdomain = searchParams.get('serviceWorkerFetchIgnoreSubdomain') ?? false;
-
 const resolveTimeout = 30000;
 
 /**
@@ -171,21 +169,8 @@ sw.addEventListener('message', async (event) => {
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
-	if (requestUrl.protocol === 'https:') {
-		if (serviceWorkerFetchIgnoreSubdomain) {
-			// #121981
-			const requestHostParts = requestUrl.hostname.split('.'); // $scheme, vscode-resource, $uuid, $...authority
-			const baseAuthorityPaths = resourceBaseAuthority.split('.').slice(2); // $...authority
-
-			// Make sure the all the parts except the uuid and scheme match
-			if (requestHostParts.length === 3 + baseAuthorityPaths.length) {
-				if (requestHostParts[1] === 'vscode-resource' && baseAuthorityPaths.every((part, i) => requestHostParts[3 + i] === part)) {
-					return event.respondWith(processResourceRequest(event, requestUrl));
-				}
-			}
-		} else if (requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
-			return event.respondWith(processResourceRequest(event, requestUrl));
-		}
+	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
+		return event.respondWith(processResourceRequest(event, requestUrl));
 	}
 
 	// See if it's a localhost request

@@ -376,7 +376,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	protected get webviewRootResourceAuthority(): string {
-		return webviewRootResourceAuthority(this.id);
+		return webviewRootResourceAuthority;
 	}
 
 	private rewriteVsCodeResourceUrls(value: string): string {
@@ -388,7 +388,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 					scheme: scheme || 'file',
 					path: path,
 				});
-				const webviewUri = asWebviewUri(this.id, uri, { isRemote, authority: remoteAuthority }).toString();
+				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
 				return `${startQuote}${webviewUri}${endQuote}`;
 			})
 			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
@@ -396,7 +396,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 					scheme: scheme || 'file',
 					path: path,
 				});
-				const webviewUri = asWebviewUri(this.id, uri, { isRemote, authority: remoteAuthority }).toString();
+				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
 				return `${startQuote}${webviewUri}${endQuote}`;
 			});
 	}

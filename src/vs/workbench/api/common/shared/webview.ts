@@ -22,7 +22,7 @@ export interface WebviewInitData {
  */
 export const webviewResourceBaseHost = 'vscode-webview.net';
 
-export const webviewRootResourceAuthority = (id: string) => `vscode-resource.${id}.${webviewResourceBaseHost}`;
+export const webviewRootResourceAuthority = `vscode-resource.${webviewResourceBaseHost}`;
 
 export const webviewGenericCspSource = `https://*.${webviewResourceBaseHost}`;
 
@@ -33,15 +33,13 @@ export const webviewGenericCspSource = `https://*.${webviewResourceBaseHost}`;
  * we know where to load the resource from (remote or truly local):
  *
  * ```txt
- * ${scheme}+${resource-authority}.vscode-resource.${id}.vscode-webview.net/${path}
+ * ${scheme}+${resource-authority}.vscode-resource.vscode-webview.net/${path}
  * ```
  *
- * @param uuid Unique id of the webview.
  * @param resource Uri of the resource to load.
  * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
  */
 export function asWebviewUri(
-	uuid: string,
 	resource: vscode.Uri,
 	remoteInfo?: { authority: string | undefined, isRemote: boolean }
 ): vscode.Uri {
@@ -59,7 +57,7 @@ export function asWebviewUri(
 
 	return URI.from({
 		scheme: Schemas.https,
-		authority: `${resource.scheme}+${encodeURIComponent(resource.authority)}.${webviewRootResourceAuthority(uuid)}`,
+		authority: `${resource.scheme}+${encodeURIComponent(resource.authority)}.${webviewRootResourceAuthority}`,
 		path: resource.path,
 		fragment: resource.fragment,
 		query: resource.query,
