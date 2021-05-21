@@ -521,10 +521,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Override handling: request override from override service
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
 				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
-				// If we didn't override try the legacy overrides
-				if (!resolvedInputWithOptionsAndGroup || resolvedEditor.matches(resolvedInputWithOptionsAndGroup.editor)) {
-					return;
-				} else {
+				// If we get an override open it
+				if (resolvedInputWithOptionsAndGroup) {
 					return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(
 						resolvedInputWithOptionsAndGroup.editor,
 						this.toOptions(resolvedInputWithOptionsAndGroup.options) ?? resolvedOptions
