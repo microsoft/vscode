@@ -168,6 +168,7 @@ export interface IOrderedMimeType {
 export interface IOutputItemDto {
 	readonly mime: string;
 	readonly value: unknown;
+	readonly valueBytes?: number[];
 	readonly metadata?: Record<string, unknown>;
 }
 
@@ -577,20 +578,25 @@ type MimeTypeInfo = {
 };
 
 const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
+	['application/javascript', { supportedByCore: true }],
+	['image/png', { alwaysSecure: true, supportedByCore: true }],
+	['image/jpeg', { alwaysSecure: true, supportedByCore: true }],
+	['image/git', { alwaysSecure: true, supportedByCore: true }],
+	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
 	['text/markdown', { alwaysSecure: true, supportedByCore: true }],
-	['image/png', { alwaysSecure: true, supportedByCore: true }],
 	['text/plain', { alwaysSecure: true, supportedByCore: true }],
-	['application/javascript', { supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
-	['image/svg+xml', { supportedByCore: true }],
-	['image/jpeg', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
-	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],
+	['application/vnd.code.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/vnd.code.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	// old, todo@jrieken remove these...
 	['application/x.notebook.error', { alwaysSecure: true, supportedByCore: true }],
-	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }], // deprecated
+	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }], // deprecated
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
@@ -905,6 +911,8 @@ export const ExperimentalInsertToolbarPosition = 'notebook.experimental.insertTo
 export const ExperimentalGlobalToolbar = 'notebook.experimental.globalToolbar';
 export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
 export const ExperimentalConsolidatedOutputButton = 'notebook.experimental.consolidatedOutputButton';
+export const ExperimentalShowFoldingControls = 'notebook.experimental.showFoldingControls';
+export const ExperimentalDragAndDropEnabled = 'notebook.experimental.dragAndDropEnabled';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

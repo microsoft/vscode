@@ -369,7 +369,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._updateForNotebookConfiguration();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation) {
+			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
@@ -563,10 +563,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			collapsedIndicatorHeight,
 			compactView,
 			focusIndicator,
-			insertToolbarPosition
+			insertToolbarPosition,
+			fontSize
 		} = this._notebookOptions.getLayoutConfiguration();
 
 		const styleSheets: string[] = [];
+
+		styleSheets.push(`
+		:root {
+			--notebook-cell-output-font-size: ${fontSize}px;
+		}
+		`);
 
 		if (compactView) {
 			styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);

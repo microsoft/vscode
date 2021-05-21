@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { Range } from 'vs/editor/common/core/range';
@@ -228,6 +228,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 	}
 	override dispose() {
+		dispose(this._outputs);
 		// Manually release reference to previous text buffer to avoid large leaks
 		// in case someone leaks a CellTextModel reference
 		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);

@@ -301,6 +301,10 @@ export class CellDragAndDropController extends Disposable {
 		dragHandle.setAttribute('draggable', 'true');
 
 		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
+			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
+				return;
+			}
+
 			// Note, templateData may have a different element rendered into it by now
 			container.classList.remove(DRAGGING_CLASS);
 			this.dragCleanup();
@@ -308,6 +312,10 @@ export class CellDragAndDropController extends Disposable {
 
 		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_START)(event => {
 			if (!event.dataTransfer) {
+				return;
+			}
+
+			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
 				return;
 			}
 
@@ -324,11 +332,19 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	public startExplicitDrag(cell: ICellViewModel, _dragOffsetY: number) {
+		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
+			return;
+		}
+
 		this.currentDraggedCell = cell;
 		this.setInsertIndicatorVisibility(true);
 	}
 
 	public explicitDrag(cell: ICellViewModel, dragOffsetY: number) {
+		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
+			return;
+		}
+
 		const target = this.list.elementAt(dragOffsetY);
 		if (target && target !== cell) {
 			const cellTop = this.list.getAbsoluteTopOfElement(target);

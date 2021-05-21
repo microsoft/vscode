@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
@@ -1533,15 +1534,32 @@ export namespace NotebookCellData {
 
 export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
+		let value: unknown;
+		let valueBytes: number[] | undefined;
+		if (item.value instanceof Uint8Array) {
+			//todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
+			valueBytes = Array.from(item.value);
+		} else {
+			value = item.value;
+		}
 		return {
+			metadata: item.metadata,
 			mime: item.mime,
-			value: item.value,
-			metadata: item.metadata
+			value,
+			valueBytes,
 		};
 	}
 
 	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(item.mime, item.value, item.metadata);
+
+		let value: Uint8Array | unknown;
+		if (item.value instanceof VSBuffer) {
+			value = item.value.buffer;
+		} else {
+			value = item.value;
+		}
+
+		return new types.NotebookCellOutputItem(item.mime, value, item.metadata);
 	}
 }
 

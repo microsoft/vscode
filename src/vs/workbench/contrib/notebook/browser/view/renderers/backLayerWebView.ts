@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import { PreloadOptions, preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { INotebookKernel, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -192,7 +192,7 @@ export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; outputId: string; value: unknown; metadata: unknown; mimeType: string };
+	| { type: RenderOutputType.Extension; outputId: string; value: unknown; valueBytes: Uint8Array, metadata: unknown; mimeType: string };
 	cellId: string;
 	outputId: string;
 	cellTop: number;
@@ -339,6 +339,11 @@ export interface INotebookStylesMessage {
 	};
 }
 
+export interface INotebookOptionsMessage {
+	type: 'notebookOptions';
+	options: PreloadOptions;
+}
+
 export type FromWebviewMessage =
 	| WebviewIntialized
 	| IDimensionMessage
@@ -387,7 +392,8 @@ export type ToWebviewMessage =
 	| IUnhideMarkdownMessage
 	| IUpdateSelectedMarkdownPreviews
 	| IInitializeMarkdownMessage
-	| INotebookStylesMessage;
+	| INotebookStylesMessage
+	| INotebookOptionsMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
@@ -434,7 +440,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public readonly notebookEditor: ICommonNotebookEditor,
 		public readonly id: string,
 		public readonly documentUri: URI,
-		public options: {
+		private options: {
 			outputNodePadding: number,
 			outputNodeLeftPadding: number,
 			previewNodePadding: number,
@@ -442,6 +448,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			leftMargin: number,
 			rightMargin: number,
 			runGutter: number,
+			dragAndDropEnabled: boolean,
+			fontSize: number
 		},
 		private readonly rendererMessaging: IScopedRendererMessaging | undefined,
 		@IWebviewService readonly webviewService: IWebviewService,
@@ -483,15 +491,27 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		leftMargin: number,
 		rightMargin: number,
 		runGutter: number,
+		dragAndDropEnabled: boolean,
+		fontSize: number
 	}) {
 		this.options = options;
 		this._updateStyles();
+		this._updateOptions();
 	}
 
 	private _updateStyles() {
 		this._sendMessageToWebview({
 			type: 'notebookStyles',
 			styles: this._generateStyles()
+		});
+	}
+
+	private _updateOptions() {
+		this._sendMessageToWebview({
+			type: 'notebookOptions',
+			options: {
+				dragAndDropEnabled: this.options.dragAndDropEnabled
+			}
 		});
 	}
 
@@ -505,6 +525,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
+			'notebook-cell-output-font-size': `${this.options.fontSize}px`
 		};
 	}
 
@@ -652,11 +673,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						width: 100%;
 					}
 
-					#container .output_container .output div {
-						overflow-x: auto;
-					}
-
 					#container > div > div > div.output {
+						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
 						margin-left: var(--notebook-output-left-margin);
 						padding-top: var(--notebook-output-node-padding);
@@ -678,13 +696,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
+						white-space: initial;
+						color: var(--vscode-foreground);
+					}
+
+					#container > div.preview.draggable {
 						user-select: none;
 						-webkit-user-select: none;
 						-ms-user-select: none;
-						white-space: initial;
 						cursor: grab;
-
-						color: var(--vscode-foreground);
 					}
 
 					#container > div.preview.emptyMarkdownCell::before {
@@ -768,7 +788,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script type="module">${preloadsScriptStr(this.options, renderersData)}</script>
+				<script type="module">${preloadsScriptStr(this.options, { dragAndDropEnabled: this.options.dragAndDropEnabled }, renderersData)}</script>
 			</body>
 		</html>`;
 	}
@@ -1219,6 +1239,7 @@ var requirejs = (function() {
 		this.markdownPreviewMapping.clear();
 		this.initializeMarkdown(mdCells);
 		this._updateStyles();
+		this._updateOptions();
 	}
 
 	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
@@ -1480,6 +1501,10 @@ var requirejs = (function() {
 			const output = content.source.model;
 			renderer = content.renderer;
 			const outputDto = output.outputs.find(op => op.mime === content.mimeType);
+
+			// TODO@notebook - the message can contain "bytes" and those are transferable
+			// which improves IPC performance and therefore should be used. However, it does
+			// means that the bytes cannot be used here anymore
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -1489,6 +1514,7 @@ var requirejs = (function() {
 					outputId: output.outputId,
 					mimeType: content.mimeType,
 					value: outputDto?.value,
+					valueBytes: new Uint8Array(outputDto?.valueBytes ?? []),
 					metadata: outputDto?.metadata,
 				},
 			};

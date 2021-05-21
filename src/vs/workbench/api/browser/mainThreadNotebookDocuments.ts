@@ -17,6 +17,7 @@ import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainThreadNotebo
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 
@@ -121,10 +122,16 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 
 	async $tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents> {
 
+		const info = this._notebookService.getContributedNotebookType(options.viewType);
+		if (!info) {
+			throw new Error('UNKNOWN view type: ' + options.viewType);
+		}
+
 		// find a free URI for the untitled case
+		const suffix = NotebookProviderInfo.possibleFileEnding(info.selectors) ?? '';
 		let uri: URI;
 		for (let counter = 1; ; counter++) {
-			let candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}`, query: options.viewType });
+			let candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}${suffix}`, query: options.viewType });
 			if (!this._notebookService.getNotebookTextModel(candidate)) {
 				uri = candidate;
 				break;

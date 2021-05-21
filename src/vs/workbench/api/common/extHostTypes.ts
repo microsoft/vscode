@@ -3112,21 +3112,48 @@ export class NotebookCellOutputItem {
 		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
 	}
 
-	static error(err: Error): NotebookCellOutputItem {
-		return new NotebookCellOutputItem(
-			'application/x.notebook.error',
-			JSON.stringify({ name: err.name, message: err.message, stack: err.stack })
-		);
+	static error(err: Error | { name: string, message?: string, stack?: string }): NotebookCellOutputItem {
+		const obj = {
+			name: err.name,
+			message: err.message,
+			stack: err.stack
+		};
+		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error');
+	}
+
+	static stdout(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout');
+	}
+
+	static stderr(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr');
+	}
+
+	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(mime, value);
+	}
+
+	static #encoder = new TextEncoder();
+
+	static text(value: string, mime: string = 'text/plain'): NotebookCellOutputItem {
+		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
+		return new NotebookCellOutputItem(mime, bytes);
+	}
+
+	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return NotebookCellOutputItem.text(rawStr, mime);
 	}
 
 	constructor(
 		public mime: string,
-		public value: unknown, // JSON'able
+		public value: Uint8Array | unknown, // JSON'able
 		public metadata?: Record<string, any>
 	) {
 		if (isFalsyOrWhitespace(this.mime)) {
 			throw new Error('INVALID mime type, must not be empty or falsy');
 		}
+		// todo@joh stringify and check metadata and throw when not JSONable
 	}
 }
 

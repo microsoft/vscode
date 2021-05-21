@@ -11,8 +11,8 @@ export function activate() {
 	});
 
 	return {
-		renderCell: (_id: string, context: { element: HTMLElement, value: string }) => {
-			const rendered = markdownIt.render(context.value);
+		renderCell: (_id: string, context: { element: HTMLElement, value: string, text(): string }) => {
+			const rendered = markdownIt.render(context.value || context.text()); // todo@jrieken remove .value-usage
 			context.element.innerHTML = rendered;
 
 			// Insert styles into markdown preview shadow dom so that they are applied

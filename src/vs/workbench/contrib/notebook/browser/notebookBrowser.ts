@@ -90,6 +90,7 @@ export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
 	supportAppend?: boolean;
 	initHeight?: number;
+	disposable?: IDisposable;
 }
 
 export interface IRenderPlainHtmlOutput {
