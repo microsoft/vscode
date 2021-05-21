@@ -193,12 +193,12 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addLineNumberRenderer(md: any, ruleName: string): void {
+	private addLineNumberRenderer(md: MarkdownIt, ruleName: string): void {
 		const original = md.renderer.rules[ruleName];
-		md.renderer.rules[ruleName] = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules[ruleName] = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
 			if (token.map && token.map.length) {
-				token.attrSet('data-line', token.map[0]);
+				token.attrSet('data-line', token.map[0] + '');
 				token.attrJoin('class', 'code-line');
 			}
 
@@ -210,9 +210,9 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addImageStabilizer(md: any): void {
+	private addImageStabilizer(md: MarkdownIt): void {
 		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: RenderEnv, self: any) => {
+		md.renderer.rules.image = (tokens: Token[], idx: number, options: any, env: RenderEnv, self: any) => {
 			const token = tokens[idx];
 			token.attrJoin('class', 'loading');
 
@@ -231,9 +231,9 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addFencedRenderer(md: any): void {
+	private addFencedRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules['fenced'];
-		md.renderer.rules['fenced'] = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules['fenced'] = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
 			if (token.map && token.map.length) {
 				token.attrJoin('class', 'hljs');
@@ -243,7 +243,7 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addLinkNormalizer(md: any): void {
+	private addLinkNormalizer(md: MarkdownIt): void {
 		const normalizeLink = md.normalizeLink;
 		md.normalizeLink = (link: string) => {
 			try {
@@ -293,7 +293,7 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addLinkValidator(md: any): void {
+	private addLinkValidator(md: MarkdownIt): void {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
 			return validateLink(link)
@@ -303,9 +303,9 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addNamedHeaders(md: any): void {
+	private addNamedHeaders(md: MarkdownIt): void {
 		const original = md.renderer.rules.heading_open;
-		md.renderer.rules.heading_open = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
 			const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
 			let slug = this.slugifier.fromHeading(title);
 
@@ -328,12 +328,12 @@ export class MarkdownEngine {
 		};
 	}
 
-	private addLinkRenderer(md: any): void {
-		const old_render = md.renderer.rules.link_open || ((tokens: any, idx: number, options: any, _env: any, self: any) => {
+	private addLinkRenderer(md: MarkdownIt): void {
+		const old_render = md.renderer.rules.link_open || ((tokens: Token[], idx: number, options: any, _env: any, self: any) => {
 			return self.renderToken(tokens, idx, options);
 		});
 
-		md.renderer.rules.link_open = (tokens: any, idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules.link_open = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
 			const token = tokens[idx];
 			const hrefIndex = token.attrIndex('href');
 			if (hrefIndex >= 0) {
