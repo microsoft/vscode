@@ -230,8 +230,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		this._onDidRejectEdit.fire(item);
 	}
 
-	delete(item: ITrustedUriItem) {
-		this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
+	async delete(item: ITrustedUriItem) {
+		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
 		this._onDelete.fire(item);
 	}
 
@@ -316,8 +316,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 			enabled: true,
 			id: 'deleteTrustedUri',
 			tooltip: localize('deleteTrustedUri', "Delete Path"),
-			run: () => {
-				this.table.delete(item);
+			run: async () => {
+				await this.table.delete(item);
 			}
 		};
 	}

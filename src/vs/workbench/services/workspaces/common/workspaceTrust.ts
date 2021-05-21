@@ -290,12 +290,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return this._trustState.isTrusted ?? false;
 	}
 
-	setParentFolderTrust(trusted: boolean): void {
+	async setParentFolderTrust(trusted: boolean): Promise<void> {
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
 			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
 
-			this.setUrisTrust([URI.file(parentPath)], trusted);
+			await this.setUrisTrust([URI.file(parentPath)], trusted);
 		}
 	}
 
