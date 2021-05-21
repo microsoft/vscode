@@ -9,8 +9,8 @@ import { dirname } from 'vs/base/common/resources';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -55,16 +55,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 
 		const disposable = new DisposableStore();
 
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
-			...getOutputSimpleEditorOptions(),
-			dimension: {
-				width: 0,
-				height: 0
-			},
-			automaticLayout: true,
-		}, {
-			isSimpleWidget: true
-		});
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true });
 
 		const mode = this.modeService.create('json');
 		const textModel = this.modelService.createModel(str, mode, undefined, true);
@@ -74,10 +65,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 		const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
 		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
 
-		editor.layout({
-			height,
-			width
-		});
+		editor.layout({ height, width });
 
 		container.style.height = `${height + 8}px`;
 		disposable.add(editor);
@@ -138,29 +126,17 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement): IRenderOutput {
 		const disposable = new DisposableStore();
 		const str = items.map(getStringValue).join('');
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
-			...getOutputSimpleEditorOptions(),
-			dimension: {
-				width: 0,
-				height: 0
-			}
-		}, {
-			isSimpleWidget: true
-		});
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true });
 
 		const mode = this.modeService.create('javascript');
-		const resource = URI.parse(`notebook-output-${Date.now()}.js`);
-		const textModel = this.modelService.createModel(str, mode, resource, false);
+		const textModel = this.modelService.createModel(str, mode, undefined, false);
 		editor.setModel(textModel);
 
 		const width = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
 		const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
 		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
 
-		editor.layout({
-			height,
-			width
-		});
+		editor.layout({ height, width });
 
 		disposable.add(editor);
 		disposable.add(textModel);
@@ -502,8 +478,9 @@ function getStringValue(item: IOutputItemDto): string {
 	}
 }
 
-function getOutputSimpleEditorOptions(): IEditorOptions {
+function getOutputSimpleEditorOptions(): IEditorConstructionOptions {
 	return {
+		dimension: { height: 0, width: 0 },
 		readOnly: true,
 		wordWrap: 'on',
 		overviewRulerLanes: 0,
@@ -521,6 +498,7 @@ function getOutputSimpleEditorOptions(): IEditorOptions {
 		lineNumbers: 'off',
 		scrollbar: {
 			alwaysConsumeMouseWheel: false
-		}
+		},
+		automaticLayout: true,
 	};
 }
