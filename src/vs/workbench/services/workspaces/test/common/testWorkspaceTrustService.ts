@@ -24,11 +24,11 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		this.trusted = trusted;
 	}
 
-	get acceptsNonWorkspaceFiles(): boolean {
+	get acceptsOutOfWorkspaceFiles(): boolean {
 		throw new Error('Method not implemented.');
 	}
 
-	set acceptsNonWorkspaceFiles(value: boolean) {
+	set acceptsOutOfWorkspaceFiles(value: boolean) {
 		throw new Error('Method not implemented.');
 	}
 

@@ -11608,6 +11608,12 @@ declare module 'vscode' {
 		readonly type: string;
 
 		/**
+		 * The parent session of this debug session, if it was created as a child.
+		 * @see DebugSessionOptions.parentSession
+		 */
+		readonly parentSession?: DebugSession;
+
+		/**
 		 * The debug session's name is initially taken from the {@link DebugConfiguration debug configuration}.
 		 * Any changes will be properly reflected in the UI.
 		 */

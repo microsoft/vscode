@@ -28,7 +28,7 @@ export interface INotebookRendererMessagingService {
 	/**
 	 * Called when the main thread gets a message for a renderer.
 	 */
-	fireDidReceiveMessage(rendererId: string, message: unknown): void;
+	fireDidReceiveMessage(editorId: string, rendererId: string, message: unknown): void;
 }
 
 export interface IScopedRendererMessaging {

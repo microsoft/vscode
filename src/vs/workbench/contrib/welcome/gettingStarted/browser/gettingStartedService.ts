@@ -33,6 +33,7 @@ import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/getting
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -438,14 +439,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 
 			// Otherwise, try to find a getting started input somewhere with no selected walkthrough, and open it to this one.
-			for (const group of this.editorGroupsService.groups) {
-				for (const editor of group.editors) {
-					if (editor instanceof GettingStartedInput) {
-						if (!editor.selectedCategory) {
-							editor.selectedCategory = sectionToOpen;
-							group.openEditor(editor, { revealIfOpened: true });
-							return;
-						}
+			const result = this.editorService.findEditors({ typeId: GettingStartedInput.ID, resource: GettingStartedInput.RESOURCE });
+			for (const { editor, groupId } of result) {
+				if (editor instanceof GettingStartedInput) {
+					if (!editor.selectedCategory) {
+						editor.selectedCategory = sectionToOpen;
+						this.editorService.openEditor(editor, { revealIfOpened: true, override: EditorOverride.DISABLED }, groupId);
+						return;
 					}
 				}
 			}

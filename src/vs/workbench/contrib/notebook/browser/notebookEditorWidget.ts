@@ -369,7 +369,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._updateForNotebookConfiguration();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition) {
+			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
@@ -663,7 +663,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		// top insert toolbar
-		const topInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight();
+		const topInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
 		styleSheets.push(`.notebookOverlay .cell-list-top-cell-toolbar-container { top: -${topInsertToolbarHeight}px }`);
 		styleSheets.push(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
 		.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
@@ -919,9 +919,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined): Promise<void> {
 		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
+			const oldTopInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
+			const newTopInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
 
+			if (oldTopInsertToolbarHeight !== newTopInsertToolbarHeight) {
+				this._styleElement?.remove();
+				this._createLayoutStyles();
+				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
+			}
 			type WorkbenchNotebookOpenClassification = {
 				scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 				ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
@@ -1219,7 +1226,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		if (this._dimension) {
-			const topInserToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight();
+			const topInserToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
 			this._list.layout(this._dimension.height - topInserToolbarHeight, this._dimension.width);
 		} else {
 			this._list.layout();
@@ -1448,7 +1455,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			};
 		}
 
-		const topInserToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight();
+		const topInserToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
 		DOM.size(this._body, dimension.width, dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0));

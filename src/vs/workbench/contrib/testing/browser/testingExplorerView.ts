@@ -821,11 +821,20 @@ const getLabelForTestTreeElement = (element: IActionableTestTreeElement) => {
 		comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
 	}, '{0} ({1})', element.label, testStateNames[element.state]);
 
-	if (element instanceof TestItemTreeElement && element.retired) {
-		label = localize({
-			key: 'testing.treeElementLabelOutdated',
-			comment: ['{0} is the original label in testing.treeElementLabel'],
-		}, '{0}, outdated result', label, testStateNames[element.state]);
+	if (element instanceof TestItemTreeElement) {
+		if (element.duration !== undefined) {
+			label = localize({
+				key: 'testing.treeElementLabelDuration',
+				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
+			}, '{0}, in {1}', label, formatDuration(element.duration));
+		}
+
+		if (element.retired) {
+			label = localize({
+				key: 'testing.treeElementLabelOutdated',
+				comment: ['{0} is the original label in testing.treeElementLabel'],
+			}, '{0}, outdated result', label, testStateNames[element.state]);
+		}
 	}
 
 	return label;
@@ -1036,9 +1045,26 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		options.title = getLabelForTestTreeElement(node.element);
 		options.fileKind = FileKind.FILE;
 		label.description = node.element.description || undefined;
+
+		if (node.element.duration) {
+			label.description = label.description
+				? `${label.description}: ${formatDuration(node.element.duration)}`
+				: formatDuration(node.element.duration);
+		}
+
 		data.label.setResource(label, options);
 	}
 }
+
+const formatDuration = (ms: number) => {
+	if (ms < 10) {
+		return `${ms.toPrecision(2)}ms`;
+	} else if (ms < 1000) {
+		return `${ms.toPrecision(3)}ms`;
+	} else {
+		return `${(ms / 1000).toPrecision(3)}s`;
+	}
+};
 
 class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspaceFolder> {
 	public static readonly ID = 'workspaceFolder';

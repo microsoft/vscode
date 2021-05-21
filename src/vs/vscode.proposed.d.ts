@@ -891,9 +891,16 @@ declare module 'vscode' {
 
 	export interface TerminalOptions {
 		/**
-		 * A codicon ID to associate with this terminal.
+		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		readonly icon?: string;
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color?: { id: string } };
+	}
+
+	export interface ExtensionTerminalOptions {
+		/**
+		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
+		 */
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color?: { id: string } };
 	}
 
 	//#endregion
@@ -2135,6 +2142,18 @@ declare module 'vscode' {
 
 	//#region @connor4312 - notebook messaging: https://github.com/microsoft/vscode/issues/123601
 
+	export interface NotebookRendererMessage<T> {
+		/**
+		 * Editor that sent the message.
+		 */
+		editor: NotebookEditor;
+
+		/**
+		 * Message sent from the webview.
+		 */
+		message: T;
+	}
+
 	/**
 	 * Renderer messaging is used to communicate with a single renderer. It's
 	 * returned from {@link notebook.createRendererMessaging}.
@@ -2143,18 +2162,14 @@ declare module 'vscode' {
 		/**
 		 * Events that fires when a message is received from a renderer.
 		 */
-		messageHandler?: (editor: NotebookEditor, message: TReceive) => void;
+		onDidReceiveMessage: Event<NotebookRendererMessage<TReceive>>;
 
 		/**
 		 * Sends a message to the renderer.
+		 * @param editor Editor to target with the message
 		 * @param message Message to send
 		 */
-		postMessage(message: TSend): void;
-
-		/**
-		 * Disposes of the messaging instance and unsubscribes from messages.
-		 */
-		dispose(): void;
+		postMessage(editor: NotebookEditor, message: TSend): void;
 	}
 
 	export namespace notebook {
@@ -3336,18 +3351,6 @@ declare module 'vscode' {
 		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
 		 */
 		permissions?: FilePermission;
-	}
-
-	//#endregion
-
-	//#region Expose parent session on DebugSessions - https://github.com/microsoft/vscode/issues/123403#issuecomment-843269200
-
-	export interface DebugSession {
-		/**
-		 * The parent session of this debug session, if it was created as a child.
-		 * @see DebugSessionOptions.parentSession
-		 */
-		readonly parentSession?: DebugSession;
 	}
 
 	//#endregion

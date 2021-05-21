@@ -16,12 +16,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon } from 'vs/platform/terminal/common/terminal';
+import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -195,18 +196,20 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	async listProcesses(): Promise<IRemoteTerminalAttachTarget[]> {
+	async listProcesses(): Promise<IProcessDetails[]> {
 		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
 		return terms.map(termDto => {
-			return <IRemoteTerminalAttachTarget>{
+			return <IProcessDetails>{
 				id: termDto.id,
 				pid: termDto.pid,
 				title: termDto.title,
+				titleSource: termDto.titleSource,
 				cwd: termDto.cwd,
 				workspaceId: termDto.workspaceId,
 				workspaceName: termDto.workspaceName,
 				icon: termDto.icon,
-				color: termDto.color
+				color: termDto.color,
+				isOrphan: termDto.isOrphan
 			};
 		});
 	}
@@ -215,7 +218,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		await this._remoteTerminalChannel?.updateTitle(id, title);
 	}
 
-	async updateIcon(id: number, icon: string, color?: string): Promise<void> {
+	async updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
 		await this._remoteTerminalChannel?.updateIcon(id, icon, color);
 	}
 

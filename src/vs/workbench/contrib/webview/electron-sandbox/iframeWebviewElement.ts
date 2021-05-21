@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -69,7 +70,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 	}
 
 	protected override get webviewContentEndpoint(): string {
-		const endpoint = this._environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
+		const endpoint = `${Schemas.vscodeWebview}://${this.id}`;
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
@@ -79,5 +80,4 @@ export class ElectronIframeWebview extends IFrameWebview {
 	protected override async doPostMessage(channel: string, data?: any): Promise<void> {
 		this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
 	}
-
 }

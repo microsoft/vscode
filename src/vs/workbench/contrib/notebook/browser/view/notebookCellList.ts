@@ -904,7 +904,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	getViewScrollBottom() {
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight();
+		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
 		return this.getViewScrollTop() + this.view.renderHeight - topInsertToolbarHeight;
 	}
 

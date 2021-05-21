@@ -8,20 +8,25 @@ import { URI } from 'vs/base/common/uri';
 import type * as vscode from 'vscode';
 
 export interface WebviewInitData {
-	readonly remote: { readonly authority: string | undefined };
+	readonly remote: {
+		readonly isRemote: boolean;
+		readonly authority: string | undefined
+	};
 }
 
 /**
- * Location where we load resources from
+ * Root from which resources in webviews are loaded.
  *
- * There endpoints can be hardcoded because we never expect to actually hit them. Instead these requests
+ * This is hardcoded because we never expect to actually hit it. Instead these requests
  * should always go to a service worker.
  */
-export const webviewResourceOrigin = (id: string) => `https://${id}.vscode-webview-test.com`;
+export const webviewResourceAuthority = 'vscode-webview.net';
+
+export const webviewResourceOrigin = (id: string) => `https://${id}.${webviewResourceAuthority}`;
 
 export const webviewResourceRoot = (id: string) => `${webviewResourceOrigin(id)}/vscode-resource/{{resource}}`;
 
-export const webviewGenericCspSource = 'https://*.vscode-webview-test.com';
+export const webviewGenericCspSource = `https://*.${webviewResourceAuthority}`;
 
 /**
  * Construct a uri that can load resources inside a webview
@@ -35,21 +40,21 @@ export const webviewGenericCspSource = 'https://*.vscode-webview-test.com';
  *
  * @param uuid Unique id of the webview.
  * @param resource Uri of the resource to load.
- * @param fromAuthority Optional remote authority that specifies where `resource` should be resolved from.
+ * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
  */
 export function asWebviewUri(
 	uuid: string,
 	resource: vscode.Uri,
-	fromAuthority: string | undefined
+	remoteInfo?: { authority: string | undefined, isRemote: boolean }
 ): vscode.Uri {
 	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
 		return resource;
 	}
 
-	if (fromAuthority && resource.scheme === Schemas.file) {
+	if (remoteInfo && remoteInfo.authority && remoteInfo.isRemote && resource.scheme === Schemas.file) {
 		resource = URI.from({
 			scheme: Schemas.vscodeRemote,
-			authority: fromAuthority,
+			authority: remoteInfo.authority,
 			path: resource.path,
 		});
 	}

@@ -330,12 +330,18 @@ export class NotebookOptions {
 		};
 	}
 
-	computeTopInserToolbarHeight(): number {
+	computeTopInserToolbarHeight(viewType?: string): number {
 		if (this._layoutConfiguration.insertToolbarPosition === 'betweenCells' || this._layoutConfiguration.insertToolbarPosition === 'both') {
 			return SCROLLABLE_ELEMENT_PADDING_TOP;
-		} else {
-			return 0;
 		}
+
+		const cellToolbarLocation = this.computeCellToolbarLocation(viewType);
+
+		if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right') {
+			return SCROLLABLE_ELEMENT_PADDING_TOP;
+		}
+
+		return 0;
 	}
 
 	dispose() {

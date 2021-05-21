@@ -15,12 +15,12 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceMap } from 'vs/base/common/map';
-import { FileWorkingCopyManager2, IFileWorkingCopyManager2 } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager2';
+import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager2<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>>();
+	private readonly _workingCopyManagers = new Map<string, IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>>();
 	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
 
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
@@ -71,8 +71,8 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 			if (!workingCopyManager) {
 				const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
-				workingCopyManager = <IFileWorkingCopyManager2<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
-					FileWorkingCopyManager2,
+				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
+					FileWorkingCopyManager,
 					workingCopyTypeId,
 					factory,
 					factory,

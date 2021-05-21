@@ -14,13 +14,14 @@ export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput'
 export class GettingStartedInput extends EditorInput {
 
 	static readonly ID = gettingStartedInputTypeId;
+	static readonly RESOURCE = URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
 
 	override get typeId(): string {
 		return GettingStartedInput.ID;
 	}
 
 	get resource(): URI | undefined {
-		return URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
+		return GettingStartedInput.RESOURCE;
 	}
 
 	override matches(other: unknown) {

@@ -17,7 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, SidebySideURI } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
@@ -793,11 +793,63 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#endregion
 
 	//#region Workspace Trust
+
+	/**
+	 * Given an array of typed or untyped editor inputs converts them to an array of resources
+	 * @param editors The editor inputs
+	 * @returns The array of resources
+	 */
+	private convertToResourceArray(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): Array<URI | SidebySideURI> {
+		const resources: Array<URI | SidebySideURI> = [];
+		editors.forEach(editor => {
+			if (isEditorInputWithOptions(editor)) {
+				if (editor.editor instanceof SideBySideEditorInput) {
+					if (!editor.editor.primary.resource || !editor.editor.secondary.resource) {
+						return;
+					}
+					resources.push({
+						primary: editor.editor.primary.resource,
+						secondary: editor.editor.secondary.resource
+					});
+				}
+			}
+			const resourceDiffEditor = editor as IResourceDiffEditorInput;
+			if (resourceDiffEditor.leftResource && resourceDiffEditor.rightResource) {
+				resources.push({
+					primary: resourceDiffEditor.leftResource,
+					secondary: resourceDiffEditor.rightResource
+				});
+			}
+			const otherEditors = editor as IResourceEditorInput | IUntitledTextResourceEditorInput;
+			if (otherEditors.resource) {
+				resources.push(otherEditors.resource);
+			}
+		});
+		return resources;
+	}
+
+	private isSideBySideURI(obj: unknown): obj is SidebySideURI {
+		const sideBySideURI: SidebySideURI = obj as SidebySideURI;
+		if (sideBySideURI.primary && sideBySideURI.secondary) {
+			return true;
+		}
+		return false;
+	}
 	/**
 	 * Given a set of resources returns a boolean to indicate whether or not to proceed with opening
 	 */
-	private async handleWorkspaceTrust(resources: Array<URI | undefined>): Promise<boolean> {
-		const filteredResources = coalesce(resources);
+	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): Promise<boolean> {
+		const resources = this.convertToResourceArray(editors);
+		const filteredResources: URI[] = [];
+		// Convert the array into a flat resource array
+		resources.forEach(r => {
+			if (this.isSideBySideURI(r)) {
+				filteredResources.push(r.primary);
+				filteredResources.push(r.secondary);
+			} else {
+				filteredResources.push(r);
+			}
+		});
 		const trustResult = await this.workspaceTrustRequestService.requestOpenUris(filteredResources);
 		if (trustResult === WorkspaceTrustUriResponse.OpenInNewWindow) {
 			const filesToOpen: IFileToOpen[] = [];
@@ -807,6 +859,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 		return trustResult === WorkspaceTrustUriResponse.Open;
 	}
+
 	//#endregion
 
 	//#region openEditors()
@@ -814,6 +867,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
+
+		if (!(await this.handleWorkspaceTrust(editors))) {
+			return [];
+		}
+
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = editors.map(editor => {
 			if (isEditorInputWithOptions(editor)) {
@@ -825,12 +883,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				options: TextEditorOptions.from(editor)
 			};
 		});
-
-		const editorResources = typedEditors.map(e => e.editor.resource);
-		if (!(await this.handleWorkspaceTrust(editorResources))) {
-			typedEditors.forEach(editor => editor.editor.dispose());
-			return [];
-		}
 
 		// Find target groups to open
 		const mapGroupToEditorsCandidates = new Map<IEditorGroup, IEditorInputWithOptions[]>();
