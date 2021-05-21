@@ -912,6 +912,7 @@ export const ExperimentalGlobalToolbar = 'notebook.experimental.globalToolbar';
 export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
 export const ExperimentalConsolidatedOutputButton = 'notebook.experimental.consolidatedOutputButton';
 export const ExperimentalShowFoldingControls = 'notebook.experimental.showFoldingControls';
+export const ExperimentalDragAndDropEnabled = 'notebook.experimental.dragAndDropEnabled';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

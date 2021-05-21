@@ -39,9 +39,15 @@ interface PreloadStyles {
 	readonly outputNodeLeftPadding: number;
 }
 
+export interface PreloadOptions {
+	dragAndDropEnabled: boolean;
+}
+
 declare function __import(path: string): Promise<any>;
 
-async function webviewPreloads(style: PreloadStyles, rendererData: readonly RendererMetadata[]) {
+async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, rendererData: readonly RendererMetadata[]) {
+	let currentOptions = options;
+
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -810,6 +816,16 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 					documentStyle.setProperty(`--${variable}`, event.data.styles[variable]);
 				}
 				break;
+			case 'notebookOptions':
+				currentOptions = event.data.options;
+
+				// Update markdown previews
+				for (const markdownContainer of document.querySelectorAll('.preview')) {
+					setMarkdownContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
+				}
+
+
+				break;
 		}
 	});
 
@@ -1033,6 +1049,16 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 		type: 'initialized'
 	});
 
+	function setMarkdownContainerDraggable(element: Element, isDraggable: boolean) {
+		if (isDraggable) {
+			element.classList.add('draggable');
+			element.setAttribute('draggable', 'true');
+		} else {
+			element.classList.remove('draggable');
+			element.removeAttribute('draggable');
+		}
+	}
+
 	async function createMarkdownPreview(cellId: string, content: string, top: number): Promise<HTMLElement> {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
@@ -1080,7 +1106,7 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 			postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
 		});
 
-		cellContainer.setAttribute('draggable', 'true');
+		setMarkdownContainerDraggable(cellContainer, currentOptions.dragAndDropEnabled);
 
 		cellContainer.addEventListener('dragstart', e => {
 			markdownPreviewDragManager.startDrag(e, cellId);
@@ -1212,6 +1238,10 @@ async function webviewPreloads(style: PreloadStyles, rendererData: readonly Rend
 				return;
 			}
 
+			if (!currentOptions.dragAndDropEnabled) {
+				return;
+			}
+
 			this.currentDrag = { cellId, clientY: e.clientY };
 
 			(e.target as HTMLElement).classList.add('dragging');
@@ -1262,13 +1292,14 @@ export interface RendererMetadata {
 	readonly messaging: boolean;
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, renderers: readonly RendererMetadata[]) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[]) {
 	// TS will try compiling `import()` in webviePreloads, so use an helper function instead
 	// of using `import(...)` directly
 	return `
 		const __import = (x) => import(x);
 		(${webviewPreloads})(
 				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(options))}")),
 				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(renderers))}"))
 			)\n//# sourceURL=notebookWebviewPreloads.js\n`;
 }
