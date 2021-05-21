@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -28,7 +27,7 @@ export function detectAvailableProfiles(
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
-		readFile: fs.promises.readFile
+		readFile: pfs.Promises.readFile
 	};
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
@@ -273,7 +272,7 @@ async function detectAvailableUnixProfiles(
 
 	// Add non-quick launch profiles
 	if (includeDetectedProfiles) {
-		const contents = await fsProvider.readFile('/etc/shells', 'utf8');
+		const contents = (await fsProvider.readFile('/etc/shells')).toString();
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
@@ -338,7 +337,7 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 
 export interface IFsProvider {
 	existsFile(path: string): Promise<boolean>,
-	readFile(path: string, options: { encoding: BufferEncoding, flag?: string | number } | BufferEncoding): Promise<string>;
+	readFile(path: string): Promise<Buffer>;
 }
 
 export interface IProfileVariableResolver {

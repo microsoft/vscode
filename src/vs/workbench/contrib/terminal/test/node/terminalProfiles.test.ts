@@ -226,11 +226,11 @@ suite('Workbench - TerminalProfiles', () => {
 			async existsFile(path: string): Promise<boolean> {
 				return expectedPaths.includes(path);
 			},
-			async readFile(path: string, options: { encoding: BufferEncoding, flag?: string | number } | BufferEncoding): Promise<string> {
+			async readFile(path: string): Promise<Buffer> {
 				if (path !== '/etc/shells') {
 					fail('Unexected path');
 				}
-				return etcShellsContent;
+				return Buffer.from(etcShellsContent);
 			}
 		};
 		return provider;
