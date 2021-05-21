@@ -15,15 +15,9 @@ export interface ResolvedAuthority {
 	readonly connectionToken: string | undefined;
 }
 
-export enum RemoteTrustOption {
-	Unknown = 0,
-	DisableTrust = 1,
-	MachineTrusted = 2
-}
-
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
-	readonly trust?: RemoteTrustOption;
+	readonly isTrusted?: boolean;
 }
 
 export interface TunnelDescription {

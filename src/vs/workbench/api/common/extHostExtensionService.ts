@@ -668,7 +668,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			};
 			const options: ResolvedOptions = {
 				extensionHostEnv: result.extensionHostEnv,
-				trust: result.trust
+				isTrusted: result.isTrusted
 			};
 
 			return {

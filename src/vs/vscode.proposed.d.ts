@@ -80,16 +80,10 @@ declare module 'vscode' {
 		constructor(host: string, port: number, connectionToken?: string);
 	}
 
-	export enum RemoteTrustOption {
-		Unknown = 0,
-		DisableTrust = 1,
-		MachineTrusted = 2
-	}
-
 	export interface ResolvedOptions {
 		extensionHostEnv?: { [key: string]: string | null; };
 
-		trust?: RemoteTrustOption;
+		isTrusted?: boolean;
 	}
 
 	export interface TunnelOptions {
