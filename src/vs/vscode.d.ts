@@ -7782,7 +7782,7 @@ declare module 'vscode' {
 	/**
 	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an {@link CustomDocument `CustomDocument`}.
 	 *
-	 * @see {@link CustomDocumentProvider.onDidChangeCustomDocument `CustomDocumentProvider.onDidChangeCustomDocument`}.
+	 * @see {@link CustomEditorProvider.onDidChangeCustomDocument `CustomEditorProvider.onDidChangeCustomDocument`}.
 	 */
 	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
 
@@ -7821,7 +7821,7 @@ declare module 'vscode' {
 	 * Event triggered by extensions to signal to VS Code that the content of a {@link CustomDocument `CustomDocument`}
 	 * has changed.
 	 *
-	 * @see {@link CustomDocumentProvider.onDidChangeCustomDocument `CustomDocumentProvider.onDidChangeCustomDocument`}.
+	 * @see {@link CustomEditorProvider.onDidChangeCustomDocument `CustomEditorProvider.onDidChangeCustomDocument`}.
 	 */
 	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
 		/**
