@@ -1069,19 +1069,8 @@
       "explorer/context": [
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascript"
-        },
-        {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
-        },
-        {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescript"
-        },
-        {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
+          "when": "tsSupportsFileReferences && (resourceLangId == javascript || resourceLangId == javascriptreact || resourceLangId == typescript || resourceLangId == typescriptreact)",
+          "group": "4_search"
         }
       ],
       "editor/title/context": [
