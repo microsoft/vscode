@@ -23,14 +23,14 @@ import { TaskSequentializer } from 'vs/base/common/async';
 import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { FileWorkingCopyState, IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory, IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { FileWorkingCopy, FileWorkingCopyState, IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { filter } from 'vs/base/common/objects';
 import { IFileWorkingCopyManager2 } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager2';
-import { IResolvedUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
+import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
 
 //#region --- complex content provider
 
@@ -426,7 +426,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	readonly onDidChangeOrphaned: Event<void> = this._onDidChangeOrphaned.event;
 	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
 
-	private _workingCopy?: IResolvedUntitledFileWorkingCopy<NotebookFileWorkingCopyModel> | IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>;
+	private _workingCopy?: IFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = new DisposableStore();
 
 	constructor(
@@ -450,7 +450,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	get notebook(): NotebookTextModel | undefined {
-		return this._workingCopy?.model.notebookModel;
+		return this._workingCopy?.model?.notebookModel;
 	}
 
 	override isResolved(): this is IResolvedNotebookEditorModel {
@@ -462,14 +462,14 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	isOrphaned(): boolean {
-		return !!this._workingCopy && SimpleNotebookEditorModel._isFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(FileWorkingCopyState.ORPHAN);
+		return SimpleNotebookEditorModel._isFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(FileWorkingCopyState.ORPHAN);
 	}
 
 	isReadonly(): boolean {
-		if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+		if (SimpleNotebookEditorModel._isFileWorkingCopy(this._workingCopy)) {
+			return this._workingCopy.isReadonly();
+		} else if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
 			return true;
-		} else if (this._workingCopy && SimpleNotebookEditorModel._isFileWorkingCopy(this._workingCopy)) {
-			return this._workingCopy?.isReadonly();
 		} else {
 			return false;
 		}
@@ -489,20 +489,18 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 		if (!this._workingCopy) {
 			if (this.resource.scheme === Schemas.untitled) {
-				const workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
-				this._workingCopy = <IResolvedUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy;
+				this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
 			} else {
-				const workingCopy = await this._workingCopyManager.resolve(this.resource, { forceReadFromFile: options?.forceReadFromFile });
-				this._workingCopyListeners.add(workingCopy.onDidSave(() => this._onDidSave.fire()));
-				this._workingCopyListeners.add(workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
-				this._workingCopyListeners.add(workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
-				this._workingCopy = <IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy;
+				this._workingCopy = await this._workingCopyManager.resolve(this.resource, { forceReadFromFile: options?.forceReadFromFile });
+				this._workingCopyListeners.add(this._workingCopy.onDidSave(() => this._onDidSave.fire()));
+				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
+				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
 			}
 			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined, this._workingCopyListeners);
 
 			this._workingCopyListeners.add(this._workingCopy.onWillDispose(() => {
 				this._workingCopyListeners.clear();
-				this._workingCopy?.model.dispose();
+				this._workingCopy?.model?.dispose();
 			}));
 		}
 
@@ -515,14 +513,13 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		if (!newWorkingCopy) {
 			return undefined;
 		}
-		assertType(newWorkingCopy.isResolved());
 		// this is a little hacky because we leave the new working copy alone. BUT
 		// the newly created editor input will pick it up and claim ownership of it.
 		return this._instantiationService.createInstance(NotebookEditorInput, newWorkingCopy.resource, this.viewType, {});
 	}
 
-	private static _isFileWorkingCopy(candidate: IResolvedUntitledFileWorkingCopy<NotebookFileWorkingCopyModel> | IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>): candidate is IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel> {
-		return typeof (<IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>candidate).hasState === 'function';
+	private static _isFileWorkingCopy(candidate?: unknown): candidate is IFileWorkingCopy<NotebookFileWorkingCopyModel> {
+		return candidate instanceof FileWorkingCopy;
 	}
 }
 
@@ -617,7 +614,7 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel, IUnt
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+export class NotebookFileWorkingCopyModelFactory implements IFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
 
 	constructor(
 		private readonly _viewType: string,

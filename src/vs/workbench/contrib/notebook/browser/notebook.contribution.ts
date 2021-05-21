@@ -53,6 +53,11 @@ import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/notebookRendererMessagingServiceImpl';
+import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
@@ -73,17 +78,11 @@ import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperati
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 
-
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/notebookRendererMessagingServiceImpl';
-import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 
 /*--------------------------------------------------------------------------------------------- */
 
