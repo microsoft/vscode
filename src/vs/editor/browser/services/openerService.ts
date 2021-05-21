@@ -191,31 +191,41 @@ export class OpenerService implements IOpenerService {
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
 		for (const resolver of this._resolvers) {
-			const result = await resolver.resolveExternalUri(resource, options);
-			if (result) {
-				if (!this._resolvedUriTargets.has(result.resolved)) {
-					this._resolvedUriTargets.set(result.resolved, resource);
+			try {
+				const result = await resolver.resolveExternalUri(resource, options);
+				if (result) {
+					if (!this._resolvedUriTargets.has(result.resolved)) {
+						this._resolvedUriTargets.set(result.resolved, resource);
+					}
+					return result;
 				}
-				return result;
+			} catch {
+				// noop
 			}
 		}
 
-		return { resolved: resource, dispose: () => { } };
+		throw new Error('Could not resolve external URI: ' + resource.toString());
 	}
 
 	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
 
 		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
-		const { resolved } = await this.resolveExternalUri(uri, options);
+		let externalUri: URI;
+
+		try {
+			externalUri = (await this.resolveExternalUri(uri, options)).resolved;
+		} catch {
+			externalUri = uri;
+		}
 
 		let href: string;
-		if (typeof resource === 'string' && uri.toString() === resolved.toString()) {
+		if (typeof resource === 'string' && uri.toString() === externalUri.toString()) {
 			// open the url-string AS IS
 			href = resource;
 		} else {
 			// open URI using the toString(noEncode)+encodeURI-trick
-			href = encodeURI(resolved.toString(true));
+			href = encodeURI(externalUri.toString(true));
 		}
 
 		if (options?.allowContributedOpeners) {

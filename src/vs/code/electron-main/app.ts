@@ -717,8 +717,16 @@ export class CodeApplication extends Disposable {
 		// protocol invocations outside of VSCode.
 		const app = this;
 		const environmentService = this.environmentMainService;
+		const productService = this.productService;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+				if (uri.scheme === productService.urlProtocol && uri.path === 'workspace') {
+					uri = uri.with({
+						authority: 'file',
+						path: URI.parse(uri.query).path,
+						query: ''
+					});
+				}
 
 				// If URI should be blocked, behave as if it's handled
 				if (app.shouldBlockURI(uri)) {
