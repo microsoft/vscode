@@ -581,7 +581,7 @@ export class ExtensionsListView extends ViewPane {
 
 		if (type === 'virtual') {
 			// show limited and disabled extensions unless disabled because of a untrusted workspace
-			local = local.filter(extension => inVirtualWorkspace && hasVirtualSupportType(extension, partial ? 'partial' : false) && !(inRestrictedWorkspace && hasRestrictedSupportType(extension, false)));
+			local = local.filter(extension => inVirtualWorkspace && hasVirtualSupportType(extension, partial ? 'limited' : false) && !(inRestrictedWorkspace && hasRestrictedSupportType(extension, false)));
 		} else if (type === 'untrusted') {
 			// show limited and disabled extensions unless disabled because of a virtual workspace
 			local = local.filter(extension => inRestrictedWorkspace && hasRestrictedSupportType(extension, partial ? 'limited' : false) && !(inVirtualWorkspace && hasVirtualSupportType(extension, false)));

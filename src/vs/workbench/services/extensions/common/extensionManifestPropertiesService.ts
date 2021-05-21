@@ -14,6 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionUntrustedWorkspaceSupport } from 'vs/base/common/product';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isBoolean } from 'vs/base/common/types';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
@@ -171,8 +172,14 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 
 		// check the manifest
-		if (manifest.capabilities?.virtualWorkspaces !== undefined) {
-			return manifest.capabilities?.virtualWorkspaces;
+		const virtualWorkspaces = manifest.capabilities?.virtualWorkspaces;
+		if (isBoolean(virtualWorkspaces)) {
+			return virtualWorkspaces;
+		} else if (virtualWorkspaces) {
+			const supported = virtualWorkspaces.supported;
+			if (isBoolean(supported) || supported === 'limited') {
+				return supported;
+			}
 		}
 
 		// check default from product
