@@ -209,7 +209,7 @@ export class NotebookOptions {
 			configuration.dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(ExperimentalDragAndDropEnabled) ?? true;
 		}
 
-		this._layoutConfiguration = configuration;
+		this._layoutConfiguration = Object.freeze(configuration);
 
 		// trigger event
 		this._onDidChangeOptions.fire({
