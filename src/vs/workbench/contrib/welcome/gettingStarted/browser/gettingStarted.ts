@@ -290,10 +290,7 @@ export class GettingStartedPage extends EditorPane {
 								break;
 							}
 							case 'hideCategory': {
-								const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
-								if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
-								this.setHiddenCategories([...this.getHiddenCategories().add(argument)]);
-								this.gettingStartedList?.rerender();
+								this.hideCategory(argument);
 								break;
 							}
 							// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
@@ -303,6 +300,19 @@ export class GettingStartedPage extends EditorPane {
 							}
 							case 'toggleStepCompletion': {
 								this.toggleStepCompletion(argument);
+								break;
+							}
+							case 'allDone': {
+								this.markAllStepsComplete();
+								break;
+							}
+							case 'nextSection': {
+								const next = this.currentCategory?.next;
+								if (next) {
+									this.scrollToCategory(next);
+								} else {
+									console.error('Error scrolling to next section of', this.currentCategory);
+								}
 								break;
 							}
 							default: {
@@ -315,6 +325,27 @@ export class GettingStartedPage extends EditorPane {
 				}));
 			}
 		});
+	}
+
+	private hideCategory(categoryId: string) {
+		const selectedCategory = this.gettingStartedCategories.find(category => category.id === categoryId);
+		if (!selectedCategory) { throw Error('Could not find category with ID ' + categoryId); }
+		this.setHiddenCategories([...this.getHiddenCategories().add(categoryId)]);
+		this.gettingStartedList?.rerender();
+	}
+
+	private markAllStepsComplete() {
+		if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
+			throw Error('cannot run step action for category of non steps type' + this.currentCategory?.id);
+		}
+
+		this.currentCategory.content.steps.forEach(step => {
+			if (!step.done) {
+				this.gettingStartedService.progressStep(step.id);
+			}
+		});
+		this.hideCategory(this.currentCategory.id);
+		this.scrollPrev();
 	}
 
 	private toggleStepCompletion(argument: string) {
@@ -989,7 +1020,19 @@ export class GettingStartedPage extends EditorPane {
 					stepDescription);
 			});
 
-		const stepsContainer = $('.getting-started-detail-container', { 'role': 'list' }, ...categoryElements);
+		const showNextCategory =
+			this.gettingStartedCategories.find(_category => _category.id === category.next && _category.content.type === 'steps' && !_category.content.done);
+
+		const stepsContainer = $(
+			'.getting-started-detail-container', { 'role': 'list' },
+			...categoryElements,
+			$('.done-next-container', {},
+				$('button.button-link.all-done', { 'x-dispatch': 'allDone' }, $('span.codicon.codicon-check-all'), localize('allDone', "Mark Done")),
+				...(showNextCategory
+					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "Next Section"), $('span.codicon.codicon-arrow-small-right'))]
+					: []),
+			)
+		);
 		this.detailsScrollbar = this._register(new DomScrollableElement(stepsContainer, { className: 'steps-container' }));
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
@@ -1249,7 +1292,7 @@ registerThemingParticipant((theme, collector) => {
 	if (link) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close) { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .scroll-button { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {

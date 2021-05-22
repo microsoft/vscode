@@ -556,6 +556,17 @@
 	left: -4px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon-arrow-small-right {
+	position: relative;
+	top: 3px;
+	left: 2px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon-check-all {
+	position: relative;
+	top: 3px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .skip {
 	display: block;
 	margin: 2px auto;
@@ -603,6 +614,11 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	max-width: 100%;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link.next {
+	position: absolute;
+	right: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link:hover {

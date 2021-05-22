@@ -62,6 +62,7 @@ export interface IGettingStartedWalkthroughDescriptor {
 	title: string
 	description: string
 	order: number
+	next?: string
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
 	| { type: 'image', path: string }
@@ -88,6 +89,7 @@ export interface IGettingStartedCategory {
 	title: string
 	description: string
 	order: number
+	next?: string
 	icon:
 	| { type: 'icon', icon: ThemeIcon }
 	| { type: 'image', path: string }
