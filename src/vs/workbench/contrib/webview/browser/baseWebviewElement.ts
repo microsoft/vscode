@@ -105,7 +105,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected readonly _environmentService: IWorkbenchEnvironmentService;
 	private _contextKeyService: IContextKeyService | undefined;
 
-	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
+	private readonly _focusDelayer = this._register(new ThrottledDelayer(50));
 
 	constructor(
 		public readonly id: string,
