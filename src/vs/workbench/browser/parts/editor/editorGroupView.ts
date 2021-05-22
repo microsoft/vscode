@@ -103,7 +103,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly _onWillOpenEditor = this._register(new Emitter<IEditorOpenEvent>());
 	readonly onWillOpenEditor = this._onWillOpenEditor.event;
 
-
 	//#endregion
 
 	private readonly model: EditorGroupModel;

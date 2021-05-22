@@ -414,6 +414,7 @@ export interface IEditorGroup {
 
 	/**
 	 * An event that is fired when an editor is about to be opened
+	 * in the group.
 	 */
 	readonly onWillOpenEditor: Event<IEditorOpenEvent>;
 

@@ -1927,12 +1927,12 @@ export class ReopenResourcesAction extends Action {
 	}
 }
 
-export class ShowTextEditorAction extends Action {
+export class ReOpenInTextEditorAction extends Action {
 
 	static readonly ID = 'workbench.action.reopenTextEditor';
 	static readonly LABEL = localize('workbench.action.reopenTextEditor', "Reopen Editor With Text Editor");
-	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
+	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	constructor(
 		id: string,

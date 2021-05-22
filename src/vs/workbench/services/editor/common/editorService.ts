@@ -26,27 +26,6 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
-export interface IOpenEditorOverrideEntry {
-	readonly id: string;
-	readonly label: string;
-	readonly active: boolean;
-	readonly detail?: string;
-}
-
-export interface IOpenEditorOverrideHandler {
-	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined;
-	getEditorOverrides?(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
-}
-
-export interface IOpenEditorOverride {
-
-	/**
-	 * If defined, will prevent the opening of an editor and replace the resulting
-	 * promise with the provided promise for the openEditor() call.
-	 */
-	override?: Promise<IEditorPane | undefined>;
-}
-
 export interface ISaveEditorsOptions extends ISaveOptions {
 
 	/**
