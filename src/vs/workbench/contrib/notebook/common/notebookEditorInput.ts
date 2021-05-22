@@ -60,7 +60,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override get editorId(): string {
-		return this.editorId;
+		return this.viewType;
 	}
 
 	override isDirty() {
