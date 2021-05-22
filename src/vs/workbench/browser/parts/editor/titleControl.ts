@@ -290,7 +290,8 @@ export abstract class TitleControl extends Themable {
 			return false;
 		}
 
-		let editorOptions: ITextEditorOptions = {
+		const editorOptions: ITextEditorOptions = {
+			override: editor.editorId,
 			viewState: (() => {
 				if (this.group.activeEditor === editor) {
 					const activeControl = this.group.activeEditorPane?.getControl();
@@ -303,11 +304,6 @@ export abstract class TitleControl extends Themable {
 			})(),
 			sticky: this.group.isSticky(editor)
 		};
-
-		// If it's a custom editor or a notebook add the viewtype
-		if (editor.editorId) {
-			editorOptions = { ...editorOptions, override: editor.editorId };
-		}
 
 		this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], () => editorOptions, e);
 

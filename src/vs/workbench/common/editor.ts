@@ -543,7 +543,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	abstract get typeId(): string;
 
-	get editorId(): string | undefined { return; }
+	get editorId(): string | undefined { return undefined; }
 
 	abstract get resource(): URI | undefined;
 
