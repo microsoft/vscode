@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IColorScheme, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
+ { Schemas }  'vs/base/common/network';
+ { joinPath } 'vs/base/common/resources';
+ { URI }  'vs/base/common/uri';
+ { generateUuid }  'vs/base/common/uuid';
+ { IExtensionHostDebugParams }  'vs/platform/environment/common/environment';
+ { IColorScheme, IPath, IWindowConfiguration } 'vs/platform/windows/common/windows' { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+ { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
