@@ -132,6 +132,9 @@ p {
 }
 
 ul,
+ul{
+	margin-bottom: 0;
+}
 ol {
 	margin-bottom: 0.7em;
 }
