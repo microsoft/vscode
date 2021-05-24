@@ -273,10 +273,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		} else {
 			this.fillActionBar(instance, template);
-			label = `${prefix}$(${iconId})`;
 			// Only add the title if the icon is set, this prevents the title jumping around for
 			// example when launching with a ShellLaunchConfig.name and no icon
 			if (instance.icon) {
+				label = `${prefix}$(${iconId})`;
 				label += ` ${instance.title}`;
 			}
 		}
