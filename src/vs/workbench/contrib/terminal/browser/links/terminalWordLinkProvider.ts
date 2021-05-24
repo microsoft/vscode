@@ -97,7 +97,6 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 				endLineNumber: 1
 			}, startLine);
 			links.push(this._createTerminalLink(word, activateCallback, bufferRange));
-			// }
 		}
 		return links;
 	}
