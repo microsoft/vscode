@@ -54,6 +54,13 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 6,
+	openCommandActionDescriptor: {
+		id: Testing.ViewletId,
+		mnemonicTitle: localize({ key: 'miViewTesting', comment: ['&& denotes a mnemonic'] }, "T&&esting"),
+		// todo: coordinate with joh whether this is available
+		// keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON },
+		order: 4,
+	},
 	hideIfEmpty: true,
 }, ViewContainerLocation.Sidebar);
 

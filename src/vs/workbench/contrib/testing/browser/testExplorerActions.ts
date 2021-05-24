@@ -6,12 +6,13 @@
 import { flatten } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -263,13 +264,14 @@ const showDiscoveringWhile = <R>(progress: IProgressService, task: Promise<R>): 
 };
 
 abstract class RunOrDebugAllAllAction extends Action2 {
-	constructor(id: string, title: string, icon: ThemeIcon, private readonly debug: boolean, private noTestsFoundError: string) {
+	constructor(id: string, title: string, icon: ThemeIcon, private readonly debug: boolean, private noTestsFoundError: string, keybinding: IAction2Options['keybinding']) {
 		super({
 			id,
 			title,
 			icon,
 			f1: true,
 			category,
+			keybinding,
 			menu: {
 				id: MenuId.ViewTitle,
 				order: debug ? ActionOrder.Debug : ActionOrder.Run,
@@ -327,6 +329,10 @@ export class RunAllAction extends RunOrDebugAllAllAction {
 			icons.testingRunAllIcon,
 			false,
 			localize('noTestProvider', 'No tests found in this workspace. You may need to install a test provider extension'),
+			{
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_A),
+			}
 		);
 	}
 }
@@ -340,6 +346,10 @@ export class DebugAllAction extends RunOrDebugAllAllAction {
 			icons.testingDebugIcon,
 			true,
 			localize('noDebugTestProvider', 'No debuggable tests found in this workspace. You may need to install a test provider extension'),
+			{
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_A),
+			}
 		);
 	}
 }
@@ -351,6 +361,10 @@ export class CancelTestRunAction extends Action2 {
 			id: CancelTestRunAction.ID,
 			title: localize('testing.cancelRun', "Cancel Test Run"),
 			icon: icons.testingCancelIcon,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_X),
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Run,
@@ -488,6 +502,10 @@ export class ShowMostRecentOutputAction extends Action2 {
 			f1: true,
 			category,
 			icon: Codicon.terminal,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_O),
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Collapse,
@@ -793,6 +811,11 @@ export class RunAtCursor extends RunOrDebugAtCursor {
 			title: localize('testing.runAtCursor', "Run Test at Cursor"),
 			f1: true,
 			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_C),
+			},
 		});
 	}
 
@@ -816,6 +839,11 @@ export class DebugAtCursor extends RunOrDebugAtCursor {
 			title: localize('testing.debugAtCursor', "Debug Test at Cursor"),
 			f1: true,
 			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_C),
+			},
 		});
 	}
 
@@ -875,6 +903,11 @@ export class RunCurrentFile extends RunOrDebugCurrentFile {
 			title: localize('testing.runCurrentFile', "Run Tests in Current File"),
 			f1: true,
 			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_F),
+			},
 		});
 	}
 
@@ -898,6 +931,11 @@ export class DebugCurrentFile extends RunOrDebugCurrentFile {
 			title: localize('testing.debugCurrentFile', "Debug Tests in Current File"),
 			f1: true,
 			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_F),
+			},
 		});
 	}
 
@@ -953,21 +991,21 @@ abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
 	 */
 	protected getTestExtIdsToRun(accessor: ServicesAccessor): Iterable<TestIdPath> {
 		const { results } = accessor.get(ITestResultService);
-		const paths = new Set<string>();
+		const paths = new Map<string /* id */, string /* path */>();
 		const sep = '$$TEST SEP$$';
 		for (let i = results.length - 1; i >= 0; i--) {
 			const resultSet = results[i];
 			for (const test of resultSet.tests) {
 				const path = getPathForTestInResult(test, resultSet).join(sep);
 				if (isFailedState(test.ownComputedState)) {
-					paths.add(path);
+					paths.set(test.item.extId, path);
 				} else {
-					paths.delete(path);
+					paths.delete(test.item.extId);
 				}
 			}
 		}
 
-		return Iterable.map(paths, p => p.split(sep));
+		return Iterable.map(paths.values(), p => p.split(sep));
 	}
 }
 
@@ -997,6 +1035,10 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 			title: localize('testing.reRunFailTests', "Rerun Failed Tests"),
 			f1: true,
 			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_E),
+			},
 		});
 	}
 
@@ -1020,6 +1062,10 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 			title: localize('testing.debugFailTests', "Debug Failed Tests"),
 			f1: true,
 			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_E),
+			},
 		});
 	}
 
@@ -1043,6 +1089,10 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 			title: localize('testing.reRunLastRun', "Rerun Last Run"),
 			f1: true,
 			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_L),
+			},
 		});
 	}
 
@@ -1066,6 +1116,10 @@ export class DebugLastRun extends RunOrDebugLastRun {
 			title: localize('testing.debugLastRun', "Debug Last Run"),
 			f1: true,
 			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_L),
+			},
 		});
 	}
 
