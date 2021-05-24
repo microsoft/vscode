@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, ExperimentalCompactView, ExperimentalConsolidatedOutputButton, ExperimentalDragAndDropEnabled, ExperimentalFocusIndicator, ExperimentalGlobalToolbar, ExperimentalInsertToolbarPosition, ExperimentalShowFoldingControls, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocKey, CellToolbarVisibility, ExperimentalCompactView, ExperimentalConsolidatedOutputButton, ExperimentalDragAndDropEnabled, ExperimentalFocusIndicator, ExperimentalGlobalToolbar, ExperimentalInsertToolbarAlignment, ExperimentalInsertToolbarPosition, ExperimentalShowFoldingControls, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -49,6 +49,7 @@ export interface NotebookLayoutConfiguration {
 	compactView: boolean;
 	focusIndicator: 'border' | 'gutter';
 	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
+	insertToolbarAlignment: 'left' | 'center';
 	globalToolbar: boolean;
 	consolidatedOutputButton: boolean;
 	showFoldingControls: 'always' | 'mouseover';
@@ -64,6 +65,7 @@ interface NotebookOptionsChangeEvent {
 	compactView?: boolean;
 	focusIndicator?: boolean;
 	insertToolbarPosition?: boolean;
+	insertToolbarAlignment?: boolean;
 	globalToolbar?: boolean;
 	showFoldingControls?: boolean;
 	consolidatedOutputButton?: boolean;
@@ -103,8 +105,9 @@ export class NotebookOptions {
 		const compactView = this.configurationService.getValue<boolean>(ExperimentalCompactView);
 		const focusIndicator = this._computeFocusIndicatorOption();
 		const insertToolbarPosition = this._computeInsertToolbarPositionOption();
+		const insertToolbarAlignment = this._computeInsertToolbarAlignmentOption();
 		const showFoldingControls = this._computeShowFoldingControlsOption();
-		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition);
+		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
 
 		this._disposables = [];
@@ -132,6 +135,7 @@ export class NotebookOptions {
 			compactView,
 			focusIndicator,
 			insertToolbarPosition,
+			insertToolbarAlignment,
 			showFoldingControls,
 			fontSize
 		};
@@ -155,6 +159,7 @@ export class NotebookOptions {
 		const compactView = e.affectsConfiguration(ExperimentalCompactView);
 		const focusIndicator = e.affectsConfiguration(ExperimentalFocusIndicator);
 		const insertToolbarPosition = e.affectsConfiguration(ExperimentalInsertToolbarPosition);
+		const insertToolbarAlignment = e.affectsConfiguration(ExperimentalInsertToolbarAlignment);
 		const globalToolbar = e.affectsConfiguration(ExperimentalGlobalToolbar);
 		const consolidatedOutputButton = e.affectsConfiguration(ExperimentalConsolidatedOutputButton);
 		const showFoldingControls = e.affectsConfiguration(ExperimentalShowFoldingControls);
@@ -168,6 +173,7 @@ export class NotebookOptions {
 			&& !compactView
 			&& !focusIndicator
 			&& !insertToolbarPosition
+			&& !insertToolbarAlignment
 			&& !globalToolbar
 			&& !consolidatedOutputButton
 			&& !showFoldingControls
@@ -202,9 +208,13 @@ export class NotebookOptions {
 			configuration.compactView = compactViewValue;
 		}
 
+		if (insertToolbarAlignment) {
+			configuration.insertToolbarAlignment = this._computeInsertToolbarAlignmentOption();
+		}
+
 		if (insertToolbarPosition) {
 			configuration.insertToolbarPosition = this._computeInsertToolbarPositionOption();
-			const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarPosition);
+			const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarPosition, configuration.insertToolbarAlignment);
 			configuration.bottomToolbarHeight = bottomToolbarHeight;
 			configuration.bottomToolbarGap = bottomToolbarGap;
 		}
@@ -239,6 +249,7 @@ export class NotebookOptions {
 			compactView,
 			focusIndicator,
 			insertToolbarPosition,
+			insertToolbarAlignment,
 			globalToolbar,
 			showFoldingControls,
 			consolidatedOutputButton,
@@ -251,6 +262,10 @@ export class NotebookOptions {
 		return this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(ExperimentalInsertToolbarPosition) ?? 'both';
 	}
 
+	private _computeInsertToolbarAlignmentOption() {
+		return this.configurationService.getValue<'left' | 'center'>(ExperimentalInsertToolbarAlignment) ?? 'center';
+	}
+
 	private _computeShowFoldingControlsOption() {
 		return this.configurationService.getValue<'always' | 'mouseover'>(ExperimentalShowFoldingControls) ?? 'always';
 	}
@@ -259,7 +274,13 @@ export class NotebookOptions {
 		return this.configurationService.getValue<'border' | 'gutter'>(ExperimentalFocusIndicator) ?? 'border';
 	}
 
-	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'): { bottomToolbarGap: number, bottomToolbarHeight: number } {
+	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center'): { bottomToolbarGap: number, bottomToolbarHeight: number } {
+		if (insertToolbarAlignment === 'left') {
+			return {
+				bottomToolbarGap: 18,
+				bottomToolbarHeight: 22
+			};
+		}
 		if (insertToolbarPosition === 'betweenCells' || insertToolbarPosition === 'both') {
 			return compactView ? {
 				bottomToolbarGap: 12,
