@@ -74,12 +74,18 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 				continue;
 			}
 			stringIndex = text.indexOf(word, stringIndex + 1);
-			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
-				startColumn: stringIndex + 1,
-				startLineNumber: 1,
-				endColumn: stringIndex + word.length + 1,
-				endLineNumber: 1
-			}, startLine);
+			const bufferRange = convertLinkRangeToBuffer
+				(
+					lines,
+					this._xterm.cols,
+					{
+						startColumn: stringIndex + 1,
+						startLineNumber: 1,
+						endColumn: stringIndex + word.length + 1,
+						endLineNumber: 1
+					},
+					startLine
+				);
 			links.push(this._createTerminalLink(word, activateCallback, bufferRange));
 		}
 		return links;
