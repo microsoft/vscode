@@ -42,7 +42,6 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					NOTEBOOK_IS_ACTIVE_EDITOR,
 					NOTEBOOK_KERNEL_COUNT.notEqualsTo(0),
-					ContextKeyExpr.equals('config.notebook.showKernelInEditorTitle', true),
 					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 				),
 				group: 'navigation',
@@ -51,7 +50,6 @@ registerAction2(class extends Action2 {
 				id: MenuId.NotebookToolbar,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_KERNEL_COUNT.notEqualsTo(0),
-					ContextKeyExpr.equals('config.notebook.showKernelInEditorTitle', true),
 					ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 				),
 				group: 'status',
