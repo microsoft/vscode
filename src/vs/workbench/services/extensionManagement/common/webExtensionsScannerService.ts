@@ -25,7 +25,7 @@ import { Event } from 'vs/base/common/event';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
-import { isArray } from 'vs/base/common/types';
+import { isArray, isFunction } from 'vs/base/common/types';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
@@ -76,8 +76,16 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async readSystemExtensions(): Promise<IScannedExtension[]> {
-		const extensions = await this.builtinExtensionsScannerService.scanBuiltinExtensions();
-		return extensions.concat(this.getStaticExtensions(true));
+		let [builtinExtensions, staticExtensions] = await Promise.all([
+			this.builtinExtensionsScannerService.scanBuiltinExtensions(),
+			this.getStaticExtensions(true)
+		]);
+
+		if (isFunction(this.environmentService.options?.builtinExtensionsFilter)) {
+			builtinExtensions = builtinExtensions.filter(e => this.environmentService.options!.builtinExtensionsFilter!(e.identifier.id));
+		}
+
+		return [...builtinExtensions, ...staticExtensions];
 	}
 
 	/**
@@ -88,7 +96,24 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const result: IScannedExtension[] = [];
 		for (const e of staticExtensions) {
 			if (Boolean(e.isBuiltin) === builtin) {
-				const scannedExtension = this.parseStaticExtension(e, builtin);
+				const scannedExtension = this.parseStaticExtension(e, builtin, false);
+				if (scannedExtension) {
+					result.push(scannedExtension);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * All dev extensions
+	 */
+	private getDevExtensions(): IScannedExtension[] {
+		const devExtensions = this.environmentService.options?.developmentOptions?.extensions;
+		const result: IScannedExtension[] = [];
+		if (Array.isArray(devExtensions)) {
+			for (const e of devExtensions) {
+				const scannedExtension = this.parseStaticExtension(e, false, true);
 				if (scannedExtension) {
 					result.push(scannedExtension);
 				}
@@ -101,24 +126,26 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const defaultUserWebExtensions = await this.readDefaultUserWebExtensions();
 		const extensions: IScannedExtension[] = [];
 		for (const e of defaultUserWebExtensions) {
-			const scannedExtension = this.parseStaticExtension(e, false);
+			const scannedExtension = this.parseStaticExtension(e, false, false);
 			if (scannedExtension) {
 				extensions.push(scannedExtension);
 			}
 		}
-		return extensions.concat(this.getStaticExtensions(false));
+		return extensions.concat(this.getStaticExtensions(false), this.getDevExtensions());
 	}
 
-	private parseStaticExtension(e: IStaticExtension, builtin: boolean): IScannedExtension | null {
+	private parseStaticExtension(e: IStaticExtension, builtin: boolean, isUnderDevelopment: boolean): IScannedExtension | null {
+		const extensionLocation = URI.revive(e.extensionLocation);
 		try {
 			return {
 				identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
-				location: e.extensionLocation,
+				location: extensionLocation,
 				type: builtin ? ExtensionType.System : ExtensionType.User,
 				packageJSON: e.packageJSON,
+				isUnderDevelopment
 			};
 		} catch (error) {
-			this.logService.error(`Error while parsing extension ${e.extensionLocation.toString()}`);
+			this.logService.error(`Error while parsing extension ${extensionLocation.toString()}`);
 			this.logService.error(error);
 		}
 		return null;
@@ -234,7 +261,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			type: scannedExtension.type,
 			packageJSON: manifest,
 			readmeUrl: scannedExtension.readmeUrl,
-			changelogUrl: scannedExtension.changelogUrl
+			changelogUrl: scannedExtension.changelogUrl,
+			isUnderDevelopment: scannedExtension.isUnderDevelopment
 		};
 	}
 
@@ -309,6 +337,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					readmeUrl: userExtension.readmeUri,
 					changelogUrl: userExtension.changelogUri,
 					packageNLSUrl: userExtension.packageNLSUri,
+					isUnderDevelopment: false
 				};
 			}
 		}

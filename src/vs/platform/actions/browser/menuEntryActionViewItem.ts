@@ -24,14 +24,16 @@ export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuAct
 	const groups = menu.getActions(options);
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
-	fillInActions(groups, target, useAlternativeActions, primaryGroup);
+	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string, primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): IDisposable {
 	const groups = menu.getActions(options);
+	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
+
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, primaryGroup, primaryMaxCount, shouldInlineSubmenu);
+	fillInActions(groups, target, false, isPrimaryAction, primaryMaxCount, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
 	return asDisposable(groups);
 }
 
@@ -49,9 +51,10 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 function fillInActions(
 	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; },
 	useAlternativeActions: boolean,
-	primaryGroup = 'navigation',
+	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
 	primaryMaxCount: number = Number.MAX_SAFE_INTEGER,
-	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false
+	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false,
+	useSeparatorsInPrimaryActions: boolean = false
 ): void {
 
 	let primaryBucket: IAction[];
@@ -69,8 +72,11 @@ function fillInActions(
 	for (const [group, actions] of groups) {
 
 		let target: IAction[];
-		if (group === primaryGroup) {
+		if (isPrimaryAction(group)) {
 			target = primaryBucket;
+			if (target.length > 0 && useSeparatorsInPrimaryActions) {
+				target.push(new Separator());
+			}
 		} else {
 			target = secondaryBucket;
 			if (target.length > 0) {
@@ -93,7 +99,7 @@ function fillInActions(
 	// ask the outside if submenu should be inlined or not. only ask when
 	// there would be enough space
 	for (const { group, action, index } of submenuInfo) {
-		const target = group === primaryGroup ? primaryBucket : secondaryBucket;
+		const target = isPrimaryAction(group) ? primaryBucket : secondaryBucket;
 
 		// inlining submenus with length 0 or 1 is easy,
 		// larger submenus need to be checked with the overall limit
@@ -117,7 +123,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	private readonly _altKey: ModifierKeyEmitter;
 
 	constructor(
-		readonly _action: MenuItemAction,
+		_action: MenuItemAction,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService
 	) {
@@ -125,24 +131,30 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
-	protected get _commandAction(): MenuItemAction {
-		return this._wantsAltCommand && (<MenuItemAction>this._action).alt || this._action;
+	protected get _menuItemAction(): MenuItemAction {
+		return <MenuItemAction>this._action;
 	}
 
-	onClick(event: MouseEvent): void {
+	protected get _commandAction(): MenuItemAction {
+		return this._wantsAltCommand && this._menuItemAction.alt || this._menuItemAction;
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.actionRunner
-			.run(this._commandAction, this._context)
-			.catch(err => this._notificationService.error(err));
+		try {
+			await this.actionRunner.run(this._commandAction, this._context);
+		} catch (err) {
+			this._notificationService.error(err);
+		}
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('menu-entry');
 
-		this._updateItemClass(this._action.item);
+		this._updateItemClass(this._menuItemAction.item);
 
 		let mouseOver = false;
 
@@ -158,7 +170,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			}
 		};
 
-		if (this._action.alt) {
+		if (this._menuItemAction.alt) {
 			this._register(this._altKey.event(value => {
 				alternativeKeyDown = value.altKey || ((isWindows || isLinux) && value.shiftKey);
 				updateAltState();
@@ -176,13 +188,13 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}));
 	}
 
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	updateTooltip(): void {
+	override updateTooltip(): void {
 		if (this.label) {
 			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 			const keybindingLabel = keybinding && keybinding.getLabel();
@@ -191,9 +203,9 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			let title = keybindingLabel
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
-			if (!this._wantsAltCommand && this._action.alt) {
-				const altTooltip = this._action.alt.tooltip || this._action.alt.label;
-				const altKeybinding = this._keybindingService.lookupKeybinding(this._action.alt.id);
+			if (!this._wantsAltCommand && this._menuItemAction.alt) {
+				const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
+				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id);
 				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
 				const altTitleSection = altKeybindingLabel
 					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
@@ -204,14 +216,14 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}
 	}
 
-	updateClass(): void {
+	override updateClass(): void {
 		if (this.options.icon) {
-			if (this._commandAction !== this._action) {
-				if (this._action.alt) {
-					this._updateItemClass(this._action.alt.item);
+			if (this._commandAction !== this._menuItemAction) {
+				if (this._menuItemAction.alt) {
+					this._updateItemClass(this._menuItemAction.alt.item);
 				}
-			} else if ((<MenuItemAction>this._action).alt) {
-				this._updateItemClass(this._action.item);
+			} else if (this._menuItemAction.alt) {
+				this._updateItemClass(this._menuItemAction.item);
 			}
 		}
 	}
@@ -268,7 +280,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		});
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		if (this.element) {
 			container.classList.add('menu-entry');

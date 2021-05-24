@@ -9,7 +9,7 @@ import { DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecyc
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdPath, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
@@ -157,7 +157,7 @@ export interface ITestService {
 	/**
 	 * Set of test IDs the user asked to exclude.
 	 */
-	readonly excludeTests: ObservableValue<ReadonlySet<string>>;
+	readonly excludeTests: MutableObservableValue<ReadonlySet<string>>;
 
 	/**
 	 * Sets whether a test is excluded.

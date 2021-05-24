@@ -5,15 +5,11 @@
 
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileStatWithMetadata, IFileService, ByteSize, getPlatformLimits, Arch } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
+import { IFileService, ByteSize, getPlatformLimits, Arch } from 'vs/platform/files/common/files';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { UTF8, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
-import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,11 +23,13 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
 
 export class NativeTextFileService extends AbstractTextFileService {
+
+	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -39,7 +37,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
-		@INativeWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -50,14 +48,17 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IModeService modeService: IModeService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IElevatedFileService elevatedFileService: IElevatedFileService,
 		@ILogService logService: ILogService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService, elevatedFileService);
+
+		this.environmentService = environmentService;
+
+		this.registerListeners();
 	}
 
-	protected registerListeners(): void {
-		super.registerListeners();
+	private registerListeners(): void {
 
 		// Lifecycle
 		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.textFiles'));
@@ -75,7 +76,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 	}
 
-	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+	override async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 
 		// ensure size & memory limits
 		options = this.ensureLimits(options);
@@ -83,7 +84,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		return super.read(resource, options);
 	}
 
-	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 
 		// ensure size & memory limits
 		options = this.ensureLimits(options);
@@ -117,35 +118,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		return ensuredOptions;
-	}
-
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-
-		// check for `writeElevated property` to write elevated
-		// (file:// only: https://github.com/microsoft/vscode/issues/48659)
-		if (options?.writeElevated && resource.scheme === Schemas.file) {
-			return this.writeElevated(resource, value, options);
-		}
-
-		return super.write(resource, value, options);
-	}
-
-	private async writeElevated(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		const source = URI.file(join(this.environmentService.userDataPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`));
-		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
-		try {
-			// write into a tmp file first
-			await this.write(source, value, { encoding: encoding === UTF8 && addBOM ? UTF8_with_bom : encoding });
-
-			// then sudo prompt copy
-			await this.nativeHostService.writeElevated(source, resource, options);
-		} finally {
-
-			// clean up
-			await this.fileService.del(source);
-		}
-
-		return this.fileService.resolve(resource, { resolveMetadata: true });
 	}
 }
 

@@ -4,25 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as markdownIt from 'markdown-it';
 
-declare const extendMarkdownIt: undefined | (
-	(f: (md: markdownIt.MarkdownIt) => void) => void
-);
+const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
-const styleHref = (document.currentScript as any).src.replace(/katex.js$/, 'katex.min.css');
+export function activate(ctx: {
+	getRenderer: (id: string) => any
+}) {
+	const markdownItRenderer = ctx.getRenderer('markdownItRenderer');
 
-const link = document.createElement('link');
-link.rel = 'stylesheet';
-link.classList.add('markdown-style');
-link.href = styleHref;
+	const link = document.createElement('link');
+	link.rel = 'stylesheet';
+	link.classList.add('markdown-style');
+	link.href = styleHref;
+	document.head.append(link);
 
-document.head.append(link);
+	const style = document.createElement('style');
+	style.classList.add('markdown-style');
+	style.textContent = `
+		.katex-error {
+			color: var(--vscode-editorError-foreground);
+		}
+	`;
+	document.head.append(style);
 
-(function () {
 	const katex = require('@iktakahiro/markdown-it-katex');
-	if (typeof extendMarkdownIt !== 'undefined') {
-
-		extendMarkdownIt((md: markdownIt.MarkdownIt) => {
-			md.use(katex);
-		});
-	}
-}());
+	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
+		return md.use(katex);
+	});
+}

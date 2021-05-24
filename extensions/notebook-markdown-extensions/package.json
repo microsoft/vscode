@@ -14,24 +14,36 @@
   "categories": [
     "Other"
   ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
-    "notebookMarkdownRenderer": [
+    "notebookOutputRenderer": [
       {
         "id": "markdownItRenderer-katex",
         "displayName": "Markdown it katex renderer",
-        "entrypoint": "./notebook-out/katex.js"
+        "entrypoint": {
+          "extends": "markdownItRenderer",
+          "path": "./notebook-out/katex.js"
+        }
       },
       {
         "id": "markdownItRenderer-emoji",
         "displayName": "Markdown it emoji renderer",
-        "entrypoint": "./notebook-out/emoji.js"
+        "entrypoint": {
+          "extends": "markdownItRenderer",
+          "path": "./notebook-out/emoji.js"
+        }
       }
     ]
   },
   "scripts": {
     "compile": "npm run build-notebook",
     "watch": "npm run build-notebook",
-    "build-notebook": "npx webpack-cli --config webpack.notebook.js --mode production"
+    "build-notebook": "node ./esbuild"
   },
   "devDependencies": {
     "@iktakahiro/markdown-it-katex": "https://github.com/mjbvz/markdown-it-katex.git",

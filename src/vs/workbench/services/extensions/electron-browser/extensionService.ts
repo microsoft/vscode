@@ -40,6 +40,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -50,7 +54,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
@@ -67,6 +71,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly _logService: ILogService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
@@ -83,6 +89,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManagementService,
 			contextService,
 			configurationService,
+			extensionManifestPropertiesService
 		);
 
 		this._enableLocalWebWorker = this._isLocalWebWorkerEnabled();
@@ -225,7 +232,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return result;
 	}
 
-	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
+	protected override _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
 		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values());
 		super._onExtensionHostCrashed(extensionHost, code, signal);
 
@@ -257,7 +264,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				},
 				{
 					label: nls.localize('restart', "Restart Extension Host"),
-					run: () => this.startExtensionHost()
+					run: () => this.startExtensionHosts()
 				}]
 			);
 
@@ -336,6 +343,16 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let remoteExtensions: IExtensionDescription[] = [];
 
 		if (remoteAuthority) {
+
+			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => {
+				if (uri.scheme !== Schemas.vscodeRemote || uri.authority !== remoteAuthority) {
+					// The current remote authority resolver cannot give the canonical URI for this URI
+					return uri;
+				}
+				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
+				return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+			});
+
 			let resolverResult: ResolverResult;
 
 			try {
@@ -354,6 +371,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				// Proceed with the local extension host
 				await this._startLocalExtensionHost(localExtensions);
 				return;
+			}
+
+			if (resolverResult.options?.isTrusted) {
+				await this._workspaceTrustManagementService.setWorkspaceTrust(true);
 			}
 
 			// set the resolved authority
@@ -384,6 +405,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				await this._startLocalExtensionHost(localExtensions);
 				return;
 			}
+
+			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
+		} else {
+
+			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => uri);
+
 		}
 
 		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv, remoteExtensions);
@@ -429,7 +456,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
+	public override async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
 		if (localProcessExtensionHost) {
 			return localProcessExtensionHost.getInspectPort(tryEnableInspector);
@@ -439,7 +466,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	public _onExtensionHostExit(code: number): void {
 		// Dispose everything associated with the extension host
-		this._stopExtensionHosts();
+		this.stopExtensionHosts();
 
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code

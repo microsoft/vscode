@@ -60,7 +60,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 		this.#webview = webview;
 	}
 
-	public dispose() {
+	public override dispose() {
 		if (this.#isDisposed) {
 			return;
 		}

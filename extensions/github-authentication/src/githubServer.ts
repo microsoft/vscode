@@ -9,12 +9,14 @@ import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import { ExperimentationTelemetry } from './experimentationService';
+import { AuthProviderType } from './github';
 
 const localize = nls.loadMessageBundle();
 
 export const NETWORK_ERROR = 'network error';
 const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
+// const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
@@ -23,10 +25,6 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 }
 
 export const uriHandler = new UriEventHandler;
-
-const onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
-
-
 
 function parseQuery(uri: vscode.Uri) {
 	return uri.query.split('&').reduce((prev: any, current) => {
@@ -38,14 +36,21 @@ function parseQuery(uri: vscode.Uri) {
 
 export class GitHubServer {
 	private _statusBarItem: vscode.StatusBarItem | undefined;
+	private _onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
 
 	private _pendingStates = new Map<string, string[]>();
 	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
 
-	constructor(private readonly telemetryReporter: TelemetryReporter) { }
+	constructor(private type: AuthProviderType, private readonly telemetryReporter: ExperimentationTelemetry) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
-		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
+		return this.type === AuthProviderType['github-enterprise'] || /\.azurewebsites\.net$/.test(url.authority) || url.authority.startsWith('localhost:');
+	}
+
+	// TODO@joaomoreno TODO@RMacfarlane
+	private async isNoCorsEnvironment(): Promise<boolean> {
+		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/dummy`));
+		return uri.scheme === 'https' && /^vscode\./.test(uri.authority);
 	}
 
 	public async login(scopes: string): Promise<string> {
@@ -53,7 +58,10 @@ export class GitHubServer {
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+
+		// TODO@joaomoreno TODO@RMacfarlane
+		const nocors = await this.isNoCorsEnvironment();
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate${nocors ? '?nocors=true' : ''}`));
 
 		if (this.isTestEnvironment(callbackUri)) {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
@@ -80,7 +88,7 @@ export class GitHubServer {
 			const existingStates = this._pendingStates.get(scopes) || [];
 			this._pendingStates.set(scopes, [...existingStates, state]);
 
-			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
+			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com${nocors ? '&nocors=true' : ''}`);
 			await vscode.env.openExternal(uri);
 		}
 
@@ -94,7 +102,7 @@ export class GitHubServer {
 
 		return Promise.race([
 			codeExchangePromise.promise,
-			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined, resolve, reject): void => {
+			promiseFromEvent<string | undefined, string>(this._onDidManuallyProvideToken.event, (token: string | undefined, resolve, reject): void => {
 				if (!token) {
 					reject('Cancelled');
 				} else {
@@ -121,31 +129,64 @@ export class GitHubServer {
 				return;
 			}
 
-			try {
-				const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`, {
-					method: 'POST',
-					headers: {
-						Accept: 'application/json'
-					}
-				});
+			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
 
-				if (result.ok) {
-					const json = await result.json();
+			// TODO@joao: remove
+			if (query.nocors) {
+				try {
+					const json: any = await vscode.commands.executeCommand('_workbench.fetchJSON', url, 'POST');
 					Logger.info('Token exchange success!');
 					resolve(json.access_token);
-				} else {
-					reject(result.statusText);
+				} catch (err) {
+					reject(err);
 				}
-			} catch (ex) {
-				reject(ex);
+			} else {
+				try {
+					const result = await fetch(url, {
+						method: 'POST',
+						headers: {
+							Accept: 'application/json'
+						}
+					});
+
+					if (result.ok) {
+						const json = await result.json();
+						Logger.info('Token exchange success!');
+						resolve(json.access_token);
+					} else {
+						reject(result.statusText);
+					}
+				} catch (ex) {
+					reject(ex);
+				}
 			}
 		};
 
+	private getServerUri(path?: string) {
+		const apiUri = this.type === AuthProviderType['github-enterprise']
+			? vscode.Uri.parse(vscode.workspace.getConfiguration('github-enterprise').get<string>('uri') || '', true)
+			: vscode.Uri.parse('https://api.github.com');
+
+		if (!path) {
+			path = '';
+		}
+		if (this.type === AuthProviderType['github-enterprise']) {
+			path = '/api/v3' + path;
+		}
+
+		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}${path}`);
+	}
+
 	private updateStatusBarItem(isStart?: boolean) {
 		if (isStart && !this._statusBarItem) {
-			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-			this._statusBarItem.text = localize('signingIn', "$(mark-github) Signing in to github.com...");
-			this._statusBarItem.command = 'github.provide-token';
+			this._statusBarItem = vscode.window.createStatusBarItem('status.git.signIn', vscode.StatusBarAlignment.Left);
+			this._statusBarItem.name = localize('status.git.signIn.name', "GitHub Sign-in");
+			this._statusBarItem.text = this.type === AuthProviderType.github
+				? localize('signingIn', "$(mark-github) Signing in to github.com...")
+				: localize('signingInEnterprise', "$(mark-github) Signing in to {0}...", this.getServerUri().authority);
+			this._statusBarItem.command = this.type === AuthProviderType.github
+				? 'github.provide-token'
+				: 'github-enterprise.provide-token';
 			this._statusBarItem.show();
 		}
 
@@ -158,7 +199,7 @@ export class GitHubServer {
 	public async manuallyProvideToken() {
 		const uriOrToken = await vscode.window.showInputBox({ prompt: 'Token', ignoreFocusOut: true });
 		if (!uriOrToken) {
-			onDidManuallyProvideToken.fire(undefined);
+			this._onDidManuallyProvideToken.fire(undefined);
 			return;
 		}
 
@@ -169,14 +210,14 @@ export class GitHubServer {
 		} catch (e) {
 			// If it doesn't look like a URI, treat it as a token.
 			Logger.info('Treating input as token');
-			onDidManuallyProvideToken.fire(uriOrToken);
+			this._onDidManuallyProvideToken.fire(uriOrToken);
 		}
 	}
 
 	private async getScopes(token: string): Promise<string[]> {
 		try {
 			Logger.info('Getting token scopes...');
-			const result = await fetch('https://api.github.com', {
+			const result = await fetch(this.getServerUri('/').toString(), {
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': 'Visual-Studio-Code'
@@ -200,7 +241,7 @@ export class GitHubServer {
 		let result: Response;
 		try {
 			Logger.info('Getting user info...');
-			result = await fetch('https://api.github.com/user', {
+			result = await fetch(this.getServerUri('/user').toString(), {
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': 'Visual-Studio-Code'
@@ -222,6 +263,12 @@ export class GitHubServer {
 	}
 
 	public async checkIsEdu(token: string): Promise<void> {
+		const nocors = await this.isNoCorsEnvironment();
+
+		if (nocors) {
+			return;
+		}
+
 		try {
 			const result = await fetch('https://education.github.com/api/user', {
 				headers: {
@@ -250,6 +297,34 @@ export class GitHubServer {
 		} catch (e) {
 			// No-op
 		}
+	}
 
+	public async checkEnterpriseVersion(token: string): Promise<void> {
+		try {
+
+			const result = await fetch(this.getServerUri('/meta').toString(), {
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (!result.ok) {
+				return;
+			}
+
+			const json: { verifiable_password_authentication: boolean, installed_version: string } = await result.json();
+
+			/* __GDPR__
+				"ghe-session" : {
+					"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('ghe-session', {
+				version: json.installed_version
+			});
+		} catch {
+			// No-op
+		}
 	}
 }

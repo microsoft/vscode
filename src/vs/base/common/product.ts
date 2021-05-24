@@ -20,6 +20,16 @@ export type ConfigurationSyncStore = {
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>
 };
 
+export type ExtensionUntrustedWorkspaceSupport = {
+	readonly default?: boolean | 'limited',
+	readonly override?: boolean | 'limited'
+};
+
+export type ExtensionVirtualWorkspaceSupport = {
+	readonly default?: boolean,
+	readonly override?: boolean
+};
+
 export interface IProductConfiguration {
 	readonly version: string;
 	readonly date?: string;
@@ -116,6 +126,8 @@ export interface IProductConfiguration {
 	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
+	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
+	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -123,6 +135,8 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly darwinUniversalAssetId?: string;
+
+	readonly webviewContentExternalBaseUrlTemplate?: string;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };

@@ -7,6 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { AnchorAlignment, AnchorAxisAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { Event } from 'vs/base/common/event';
 
 export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
 
@@ -39,6 +40,8 @@ export const IContextMenuService = createDecorator<IContextMenuService>('context
 export interface IContextMenuService {
 
 	readonly _serviceBrand: undefined;
+
+	readonly onDidShowContextMenu: Event<void>;
 
 	showContextMenu(delegate: IContextMenuDelegate): void;
 }

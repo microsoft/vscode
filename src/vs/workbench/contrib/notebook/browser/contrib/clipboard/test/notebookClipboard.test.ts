@@ -18,16 +18,16 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 suite('Notebook Clipboard', () => {
 	const createEditorService = (editor: IActiveNotebookEditor) => {
 		const visibleEditorPane = new class extends mock<IVisibleEditorPane>() {
-			getId(): string {
+			override getId(): string {
 				return NOTEBOOK_EDITOR_ID;
 			}
-			getControl(): INotebookEditor {
+			override getControl(): INotebookEditor {
 				return editor;
 			}
 		};
 
 		const editorService: IEditorService = new class extends mock<IEditorService>() {
-			get activeEditorPane(): IVisibleEditorPane | undefined {
+			override get activeEditorPane(): IVisibleEditorPane | undefined {
 				return visibleEditorPane;
 			}
 		};
@@ -38,12 +38,12 @@ suite('Notebook Clipboard', () => {
 	test('Cut multiple selected cells', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
@@ -59,12 +59,12 @@ suite('Notebook Clipboard', () => {
 	test('Cut should take folding info into account', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3', 'javascript', CellKind.Markdown, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['var c = 3', 'javascript', CellKind.Markup, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
 			async (editor, accessor) => {
@@ -78,7 +78,7 @@ suite('Notebook Clipboard', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
 
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 				clipboardContrib.runCutAction(accessor);
@@ -91,12 +91,12 @@ suite('Notebook Clipboard', () => {
 	test('Copy should take folding info into account', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3', 'javascript', CellKind.Markdown, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['var c = 3', 'javascript', CellKind.Markup, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
 			async (editor, accessor) => {
@@ -112,8 +112,8 @@ suite('Notebook Clipboard', () => {
 
 				let _cells: NotebookCellTextModel[] = [];
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy(cells: NotebookCellTextModel[]) { _cells = cells; }
-					getToCopy() { return { items: _cells, isCopy: true }; }
+					override setToCopy(cells: NotebookCellTextModel[]) { _cells = cells; }
+					override getToCopy() { return { items: _cells, isCopy: true }; }
 				});
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
@@ -129,12 +129,12 @@ suite('Notebook Clipboard', () => {
 	test('#119773, cut last item should not focus on the top first cell', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
 				const viewModel = editor.viewModel;
@@ -148,14 +148,14 @@ suite('Notebook Clipboard', () => {
 	test('#119771, undo paste should restore selections', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return {
 							items: [
 								editor.viewModel.cellAt(0)!.model
@@ -183,15 +183,15 @@ suite('Notebook Clipboard', () => {
 	test('copy cell from ui still works if the target cell is not part of a selection', async () => {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				let _toCopy: NotebookCellTextModel[] = [];
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
-					getToCopy() {
+					override setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
+					override getToCopy() {
 						return {
 							items: _toCopy,
 							isCopy: true
@@ -213,15 +213,15 @@ suite('Notebook Clipboard', () => {
 	test('cut cell from ui still works if the target cell is not part of a selection', async () => {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 3', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return { items: [], isCopy: true };
 					}
 				});
@@ -255,15 +255,15 @@ suite('Notebook Clipboard', () => {
 	test('cut focus cell still works if the focus is not part of any selection', async () => {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 3', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return { items: [], isCopy: true };
 					}
 				});
@@ -280,15 +280,15 @@ suite('Notebook Clipboard', () => {
 	test('cut focus cell still works if the focus is not part of any selection 2', async () => {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 3', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-					getToCopy() {
+					override setToCopy() { }
+					override getToCopy() {
 						return { items: [], isCopy: true };
 					}
 				});

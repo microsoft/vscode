@@ -63,7 +63,9 @@ import './mainThreadWebviewManager';
 import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadNotebook';
+import './mainThreadNotebookKernels';
 import './mainThreadNotebookDocumentsAndEditors';
+import './mainThreadNotebookRenderers';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
@@ -72,6 +74,7 @@ import './mainThreadTimeline';
 import './mainThreadTesting';
 import './mainThreadSecretState';
 import 'vs/workbench/api/common/apiCommands';
+import 'vs/workbench/api/browser/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

@@ -893,6 +893,17 @@ suite('Event utils', () => {
 
 		listener.dispose();
 	});
+  
+  test('dispose is reentrant', () => {
+		const emitter = new Emitter<number>({
+			onLastListenerRemove: () => {
+				emitter.dispose();
+			}
+		});
+
+		const listener = emitter.event(() => undefined);
+		listener.dispose(); // should not crash
+	});
 
 	suite('Relay', () => {
 		test('should input work', () => {
@@ -948,5 +959,4 @@ suite('Event utils', () => {
 			e2.fire(6);
 			assert.deepStrictEqual(result, [2, 4]);
 		});
-	});
 });

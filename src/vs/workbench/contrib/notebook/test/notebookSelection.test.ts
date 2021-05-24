@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -22,7 +22,7 @@ suite('NotebookSelection', () => {
 
 suite('NotebookCellList focus/selection', () => {
 	const instantiationService = setupInstantiationService();
-	const textModelService = instantiationService.get(ITextModelService);
+	const modeService = instantiationService.get(IModeService);
 
 	test('notebook cell list setFocus', async function () {
 		await withTestNotebook(
@@ -94,11 +94,11 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection from UI', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -130,11 +130,11 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection with folding regions', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -175,12 +175,12 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list focus/selection with folding regions and applyEdits', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3', 'javascript', CellKind.Markdown, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['var c = 3', 'javascript', CellKind.Markup, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
@@ -212,8 +212,8 @@ suite('NotebookCellList focus/selection', () => {
 				// mimic undo
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], textModelService),
-						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], textModelService)
+						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], modeService),
+						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], modeService)
 					]
 				}], true, undefined, () => undefined, undefined, false);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -229,11 +229,11 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell list getModelIndex', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markdown, [], {}]
+				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -259,7 +259,7 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook validate range', async () => {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
@@ -279,7 +279,7 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook updateSelectionState', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
@@ -292,7 +292,7 @@ suite('NotebookCellList focus/selection', () => {
 	test('notebook cell selection w/ cell deletion', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {

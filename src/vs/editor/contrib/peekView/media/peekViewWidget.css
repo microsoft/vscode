@@ -33,6 +33,7 @@
 .monaco-editor .peekview-widget .head .peekview-title .filename {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .meta:not(:empty)::before {

@@ -7,7 +7,7 @@ import { IWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbe
 import { INativeWindowConfiguration, IOSConfiguration } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractNativeEnvironmentService, INativeEnvironmentPaths } from 'vs/platform/environment/common/environmentService';
+import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -51,16 +51,13 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get machineId() { return this.configuration.machineId; }
 
 	@memoize
-	get sessionId() { return this.configuration.sessionId; }
-
-	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize
 	get execPath() { return this.configuration.execPath; }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
@@ -70,12 +67,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }
-
-	@memoize
-	get webviewResourceRoot(): string { return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`; }
-
-	@memoize
-	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
 
 	@memoize
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
@@ -102,9 +93,8 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	constructor(
 		readonly configuration: INativeWorkbenchConfiguration,
-		paths: INativeEnvironmentPaths,
 		productService: IProductService
 	) {
-		super(configuration, paths, productService);
+		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);
 	}
 }

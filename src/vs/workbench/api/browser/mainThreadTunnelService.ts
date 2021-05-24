@@ -12,10 +12,12 @@ import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderF
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
@@ -39,7 +41,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 	}
 
 	private processFindingEnabled(): boolean {
-		return (!!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) && (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
+		return (!!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING) || this.tunnelService.hasTunnelProvider)
+			&& (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
 	}
 
 	async $setRemoteTunnelService(processId: number): Promise<void> {
@@ -80,7 +83,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			const portRange = selector.portRange;
 			const portInRange = portRange ? ports.some(port => portRange[0] <= port && port < portRange[1]) : true;
 			const pidMatches = !selector.pid || (selector.pid === pid);
-			return portInRange || pidMatches;
+			const commandMatches = !selector.commandMatcher || (commandLine && (commandLine.match(selector.commandMatcher)));
+			return portInRange && pidMatches && commandMatches;
 		}).map(entry => entry[0]);
 
 		if (appropriateHandles.length === 0) {
@@ -174,19 +178,13 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this.remoteAgentService.getEnvironment().then(() => {
 			switch (source) {
 				case CandidatePortSource.None: {
-					const autoDetectionEnablement = this.configurationService.inspect(PORT_AUTO_FORWARD_SETTING);
-					if (autoDetectionEnablement.userRemote === undefined) {
-						// Only update the remote setting if the user hasn't already set it.
-						this.configurationService.updateValue(PORT_AUTO_FORWARD_SETTING, false, ConfigurationTarget.USER_REMOTE);
-					}
+					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+						.registerDefaultConfigurations([{ 'remote.autoForwardPorts': false }]);
 					break;
 				}
 				case CandidatePortSource.Output: {
-					const candidatePortSourceSetting = this.configurationService.inspect(PORT_AUTO_SOURCE_SETTING);
-					if (candidatePortSourceSetting.userRemote === undefined) {
-						// Only update the remote setting if the user hasn't already set it.
-						this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, ConfigurationTarget.USER_REMOTE);
-					}
+					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+						.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
 					break;
 				}
 				default: // Do nothing, the defaults for these settings should be used.
@@ -194,9 +192,5 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		}).catch(() => {
 			// The remote failed to get setup. Errors from that area will already be surfaced to the user.
 		});
-	}
-
-	dispose(): void {
-
 	}
 }

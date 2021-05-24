@@ -13,7 +13,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 // --- service instances
 
 const contextKeyService = new class extends MockContextKeyService {
-	contextMatchesRules() {
+	override contextMatchesRules() {
 		return true;
 	}
 };

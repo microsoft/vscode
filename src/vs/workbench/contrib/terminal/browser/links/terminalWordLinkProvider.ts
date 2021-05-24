@@ -16,6 +16,7 @@ import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
+import { normalize } from 'vs/base/common/path';
 
 export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -95,6 +96,9 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	}
 
 	private async _activate(link: string) {
+		// Normalize the link and remove any leading ./ or ../ since quick access doesn't understand
+		// that format
+		link = normalize(link).replace(/^(\.+\/)+/, '');
 		const results = await this._searchService.fileSearch(
 			this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
 				filePattern: link,

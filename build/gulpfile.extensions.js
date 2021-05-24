@@ -8,6 +8,7 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
 const path = require('path');
+const child_process = require('child_process');
 const nodeUtil = require('util');
 const es = require('event-stream');
 const filter = require('gulp-filter');
@@ -39,7 +40,6 @@ const compilations = [
 	'debug-server-ready/tsconfig.json',
 	'emmet/tsconfig.json',
 	'extension-editing/tsconfig.json',
-	'git-ui/tsconfig.json',
 	'git/tsconfig.json',
 	'github-authentication/tsconfig.json',
 	'github/tsconfig.json',
@@ -202,11 +202,15 @@ gulp.task(compileExtensionsBuildLegacyTask);
 //#region Extension media
 
 // Additional projects to webpack. These typically build code for webviews
-const mediaCompilations = [
+const webpackMediaConfigFiles = [
 	'markdown-language-features/webpack.config.js',
-	'markdown-language-features/webpack.notebook.js',
-	'notebook-markdown-extensions/webpack.notebook.js',
 	'simple-browser/webpack.config.js',
+];
+
+// Additional projects to run esbuild on. These typically build code for webviews
+const esbuildMediaScripts = [
+	'markdown-language-features/esbuild.js',
+	'notebook-markdown-extensions/esbuild.js',
 ];
 
 const compileExtensionMediaTask = task.define('compile-extension-media', () => buildExtensionMedia(false));
@@ -217,17 +221,24 @@ const watchExtensionMedia = task.define('watch-extension-media', () => buildExte
 gulp.task(watchExtensionMedia);
 exports.watchExtensionMedia = watchExtensionMedia;
 
-function buildExtensionMedia(isWatch, outputRoot) {
-	const webpackConfigLocations = mediaCompilations.map(p => {
+const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => buildExtensionMedia(false, '.build/extensions'));
+gulp.task(compileExtensionMediaBuildTask);
+
+async function buildExtensionMedia(isWatch, outputRoot) {
+	const webpackConfigLocations = webpackMediaConfigFiles.map(p => {
 		return {
 			configPath: path.join(extensionsPath, p),
 			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
 		};
 	});
-	return webpackExtensions('packaging extension media', isWatch, webpackConfigLocations);
+	return Promise.all([
+		webpackExtensions('webpacking extension media', isWatch, webpackConfigLocations),
+		esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
+			script: path.join(extensionsPath, p),
+			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+		}))),
+	]);
 }
-const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => buildExtensionMedia(false, '.build/extensions'));
-gulp.task(compileExtensionMediaBuildTask);
 
 //#endregion
 
@@ -337,4 +348,44 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
 	});
 }
 
+/**
+ * @param {string} taskName
+ * @param {boolean} isWatch
+ * @param {{ script: string, outputRoot?: string }}} scripts
+ */
+async function esbuildExtensions(taskName, isWatch, scripts) {
+	function reporter(/** @type {string} */ stdError, /** @type {string} */script) {
+		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
+		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
+		for (const match of matches || []) {
+			fancyLog.error(match);
+		}
+	}
 
+	const tasks = scripts.map(({ script, outputRoot }) => {
+		return new Promise((resolve, reject) => {
+			const args = [script];
+			if (isWatch) {
+				args.push('--watch');
+			}
+			if (outputRoot) {
+				args.push('--outputRoot', outputRoot);
+			}
+			const proc = child_process.execFile(process.argv[0], args, {}, (error, _stdout, stderr) => {
+				if (error) {
+					return reject(error);
+				}
+				reporter(stderr, script);
+				if (stderr) {
+					return reject();
+				}
+				return resolve();
+			});
+
+			proc.stdout.on('data', (data) => {
+				fancyLog(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
+			});
+		});
+	});
+	return Promise.all(tasks);
+}

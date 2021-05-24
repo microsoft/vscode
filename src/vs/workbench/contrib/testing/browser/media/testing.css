@@ -42,6 +42,10 @@
 	display: none;
 }
 
+.test-explorer .monaco-list-row .error p {
+	margin: 0;
+}
+
 .test-explorer .name {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -65,6 +69,7 @@
 
 .test-explorer .test-explorer-messages {
 	padding: 0 12px 8px;
+	font-variant-numeric: tabular-nums;
 }
 
 .monaco-workbench
@@ -72,10 +77,8 @@
 	.monaco-action-bar
 	.action-item
 	> .action-label {
-	width: 16px;
-	height: 100%;
-	line-height: 22px;
-	margin-right: 8px;
+	padding: 2px;
+	margin-right: 2px;
 }
 
 .monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::after {
@@ -123,6 +126,7 @@
 .testing-filter-action-bar {
 	flex-shrink: 0;
 	margin: 4px 12px;
+	height: auto;
 }
 
 .testing-filter-action-item {
@@ -151,14 +155,6 @@
 	right: 0;
 	display: flex;
 	align-items: center;
-}
-
-.testing-filter-action-item > .monaco-action-bar .action-item .action-label.codicon.testing-filter-button {
-	line-height: 20px;
-	height: 20px;
-	min-width: 22px;
-	margin-left: 4px;
-	justify-content: center;
 }
 
 /** -- decorations  */

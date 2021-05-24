@@ -81,21 +81,33 @@ suite('OpenerService', function () {
 		const id = `aCommand${Math.random()}`;
 		CommandsRegistry.registerCommand(id, function () { });
 
+		assert.strictEqual(lastCommand, undefined);
 		await openerService.open(URI.parse('command:' + id));
-		assert.strictEqual(lastCommand!.id, id);
-		assert.strictEqual(lastCommand!.args.length, 0);
+		assert.strictEqual(lastCommand, undefined);
+	});
 
-		await openerService.open(URI.parse('command:' + id).with({ query: '\"123\"' }));
+
+	test('delegate to commandsService, command:someid', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+
+		const id = `aCommand${Math.random()}`;
+		CommandsRegistry.registerCommand(id, function () { });
+
+		await openerService.open(URI.parse('command:' + id).with({ query: '\"123\"' }), { allowCommands: true });
 		assert.strictEqual(lastCommand!.id, id);
 		assert.strictEqual(lastCommand!.args.length, 1);
 		assert.strictEqual(lastCommand!.args[0], '123');
 
-		await openerService.open(URI.parse('command:' + id).with({ query: '123' }));
+		await openerService.open(URI.parse('command:' + id), { allowCommands: true });
+		assert.strictEqual(lastCommand!.id, id);
+		assert.strictEqual(lastCommand!.args.length, 0);
+
+		await openerService.open(URI.parse('command:' + id).with({ query: '123' }), { allowCommands: true });
 		assert.strictEqual(lastCommand!.id, id);
 		assert.strictEqual(lastCommand!.args.length, 1);
 		assert.strictEqual(lastCommand!.args[0], 123);
 
-		await openerService.open(URI.parse('command:' + id).with({ query: JSON.stringify([12, true]) }));
+		await openerService.open(URI.parse('command:' + id).with({ query: JSON.stringify([12, true]) }), { allowCommands: true });
 		assert.strictEqual(lastCommand!.id, id);
 		assert.strictEqual(lastCommand!.args.length, 2);
 		assert.strictEqual(lastCommand!.args[0], 12);
@@ -232,5 +244,26 @@ suite('OpenerService', function () {
 		assert.ok(!matchesScheme(URI.parse('https://microsoft.com'), 'http'));
 		assert.ok(!matchesScheme(URI.parse('htt://microsoft.com'), 'http'));
 		assert.ok(!matchesScheme(URI.parse('z://microsoft.com'), 'http'));
+	});
+
+	test('resolveExternalUri', async function () {
+		const openerService = new OpenerService(editorService, NullCommandService);
+
+		try {
+			await openerService.resolveExternalUri(URI.parse('file:///Users/user/folder'));
+			assert.fail('Should not reach here');
+		} catch {
+			// OK
+		}
+
+		const disposable = openerService.registerExternalUriResolver({
+			async resolveExternalUri(uri) {
+				return { resolved: uri, dispose() { } };
+			}
+		});
+
+		const result = await openerService.resolveExternalUri(URI.parse('file:///Users/user/folder'));
+		assert.deepStrictEqual(result.resolved.toString(), 'file:///Users/user/folder');
+		disposable.dispose();
 	});
 });

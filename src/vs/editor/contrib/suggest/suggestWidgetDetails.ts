@@ -320,6 +320,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	dispose(): void {
+		this._resizable.dispose();
 		this._disposables.dispose();
 		this.hide();
 	}
@@ -345,6 +346,8 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	hide(sessionEnded: boolean = false): void {
+		this._resizable.clearSashHoverState();
+
 		if (this._added) {
 			this._editor.removeOverlayWidget(this);
 			this._added = false;

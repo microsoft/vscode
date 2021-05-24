@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 
 export class BrowserPathService extends AbstractPathService {
 
@@ -29,6 +30,11 @@ function defaultUriScheme(environmentService: IWorkbenchEnvironmentService, cont
 		return Schemas.vscodeRemote;
 	}
 
+	const virtualWorkspace = getVirtualWorkspaceScheme(contextService.getWorkspace());
+	if (virtualWorkspace) {
+		return virtualWorkspace;
+	}
+
 	const firstFolder = contextService.getWorkspace().folders[0];
 	if (firstFolder) {
 		return firstFolder.uri.scheme;
@@ -39,7 +45,7 @@ function defaultUriScheme(environmentService: IWorkbenchEnvironmentService, cont
 		return configuration.scheme;
 	}
 
-	throw new Error('Empty workspace is not supported in browser when there is no remote connection.');
+	return Schemas.file;
 }
 
 registerSingleton(IPathService, BrowserPathService, true);

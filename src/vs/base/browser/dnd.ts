@@ -42,7 +42,7 @@ export class DelayedDragHandler extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.clearDragTimeout();

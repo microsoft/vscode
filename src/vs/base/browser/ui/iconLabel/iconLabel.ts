@@ -11,12 +11,12 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 import { equals } from 'vs/base/common/objects';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isFunction, isString } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -260,7 +260,7 @@ export class IconLabel extends Disposable {
 						hoverOptions = {
 							text: localize('iconLabel.loading', "Loading..."),
 							target,
-							anchorPosition: AnchorPosition.BELOW
+							hoverPosition: HoverPosition.BELOW
 						};
 						hoverDisposable = IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 
@@ -269,7 +269,7 @@ export class IconLabel extends Disposable {
 							hoverOptions = {
 								text: resolvedTooltip,
 								target,
-								anchorPosition: AnchorPosition.BELOW
+								hoverPosition: HoverPosition.BELOW
 							};
 							// awaiting the tooltip could take a while. Make sure we're still hovering.
 							hoverDisposable = IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);

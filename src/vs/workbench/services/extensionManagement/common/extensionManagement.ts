@@ -36,6 +36,7 @@ export const enum EnablementState {
 	DisabledByTrustRequirement,
 	DisabledByExtensionKind,
 	DisabledByEnvironment,
+	DisabledByVirtualWorkspace,
 	DisabledGlobally,
 	DisabledWorkspace,
 	EnabledGlobally,
@@ -90,6 +91,12 @@ export interface IWorkbenchExtensionEnablementService {
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
 	setEnablement(extensions: IExtension[], state: EnablementState): Promise<boolean[]>;
+
+	/**
+	 * Updates the enablement state of the extensions that require workspace trust when
+	 * workspace trust changes.
+	 */
+	updateEnablementByWorkspaceTrustRequirement(): Promise<void>;
 }
 
 export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');

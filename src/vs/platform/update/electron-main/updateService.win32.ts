@@ -49,14 +49,12 @@ function getUpdateType(): UpdateType {
 
 export class Win32UpdateService extends AbstractUpdateService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private availableUpdate: IAvailableUpdate | undefined;
 
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${this.productService.target}-${process.arch}`);
-		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
+		return pfs.Promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
 	constructor(
@@ -73,7 +71,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	initialize(): void {
+	override initialize(): void {
 		super.initialize();
 
 		if (getUpdateType() === UpdateType.Setup) {
@@ -147,7 +145,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
-								.then(() => fs.promises.rename(downloadPath, updatePackagePath))
+								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
@@ -177,7 +175,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			});
 	}
 
-	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		if (state.update.url) {
 			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
@@ -197,7 +195,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		const promises = versions.filter(filter).map(async one => {
 			try {
-				await fs.promises.unlink(path.join(cachePath, one));
+				await pfs.Promises.unlink(path.join(cachePath, one));
 			} catch (err) {
 				// ignore
 			}
@@ -206,7 +204,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		await Promise.all(promises);
 	}
 
-	protected async doApplyUpdate(): Promise<void> {
+	protected override async doApplyUpdate(): Promise<void> {
 		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
 			return Promise.resolve(undefined);
 		}
@@ -242,7 +240,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			.then(() => this.setState(State.Ready(update)));
 	}
 
-	protected doQuitAndInstall(): void {
+	protected override doQuitAndInstall(): void {
 		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
 			return;
 		}
@@ -259,7 +257,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		}
 	}
 
-	protected getUpdateType(): UpdateType {
+	protected override getUpdateType(): UpdateType {
 		return getUpdateType();
 	}
 }

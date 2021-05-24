@@ -203,7 +203,8 @@ export function activate(context: vscode.ExtensionContext) {
 				proxyServer.listen(0, () => {
 					const port = (<net.AddressInfo>proxyServer.address()).port;
 					outputChannel.appendLine(`Going through proxy at port ${port}`);
-					res(new vscode.ResolvedAuthority('127.0.0.1', port));
+					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port);
+					res(r);
 				});
 				context.subscriptions.push({
 					dispose: () => {
@@ -215,6 +216,9 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
+		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
+			return vscode.Uri.file(uri.path);
+		},
 		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,

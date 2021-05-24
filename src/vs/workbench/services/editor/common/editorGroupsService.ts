@@ -11,6 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -181,7 +182,7 @@ export interface IEditorGroupsService {
 	 * All groups that are currently visible in the editor area in the
 	 * order of their creation (oldest first).
 	 */
-	readonly groups: ReadonlyArray<IEditorGroup>;
+	readonly groups: readonly IEditorGroup[];
 
 	/**
 	 * The number of editor groups that are currently opened.
@@ -194,21 +195,40 @@ export interface IEditorGroupsService {
 	readonly orientation: GroupOrientation;
 
 	/**
+	 * A promise that resolves when groups have been created
+	 * and are ready to be used.
+	 *
+	 * Await this promise to safely work on the editor groups model
+	 * (for example, install editor group listeners).
+	 *
+	 * Use the `whenRestored` property to await visible editors
+	 * having fully resolved.
+	 */
+	readonly whenReady: Promise<void>;
+
+	/**
 	 * A promise that resolves when groups have been restored.
+	 *
+	 * For groups with active editor, the promise will resolve
+	 * when the visible editor has finished to resolve.
+	 *
+	 * Use the `whenReady` property to not await editors to
+	 * resolve.
 	 */
 	readonly whenRestored: Promise<void>;
 
 	/**
-	 * Find out if the editor group service has editors to restore from a previous session.
+	 * Find out if the editor group service has UI state to restore
+	 * from a previous session.
 	 */
-	readonly willRestoreEditors: boolean;
+	readonly hasRestorableState: boolean;
 
 	/**
 	 * Get all groups that are currently visible in the editor area.
 	 *
 	 * @param order the order of the editors to use
 	 */
-	getGroups(order: GroupsOrder): ReadonlyArray<IEditorGroup>;
+	getGroups(order: GroupsOrder): readonly IEditorGroup[];
 
 	/**
 	 * Allows to convert a group identifier to a group.
@@ -441,6 +461,11 @@ export interface IEditorGroup {
 	readonly count: number;
 
 	/**
+	 * Whether the group has editors or not.
+	 */
+	readonly isEmpty: boolean;
+
+	/**
 	 * The number of sticky editors in this group.
 	 */
 	readonly stickyCount: number;
@@ -448,7 +473,7 @@ export interface IEditorGroup {
 	/**
 	 * All opened editors in the group in sequential order of their appearance.
 	 */
-	readonly editors: ReadonlyArray<IEditorInput>;
+	readonly editors: readonly IEditorInput[];
 
 	/**
 	 * The scoped context key service for this group.
@@ -461,7 +486,17 @@ export interface IEditorGroup {
 	 * @param order the order of the editors to use
 	 * @param options options to select only specific editors as instructed
 	 */
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorInput>;
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorInput[];
+
+	/**
+	 * Finds all editors for the given resource that are currently
+	 * opened in the group. This method will return an entry for
+	 * each editor that reports a `resource` that matches the
+	 * provided one.
+	 *
+	 * @param resource The resource of the editor to find
+	 */
+	findEditors(resource: URI): readonly IEditorInput[];
 
 	/**
 	 * Returns the editor at a specific index of the group.
@@ -492,13 +527,6 @@ export interface IEditorGroup {
 	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditorPane | null>;
 
 	/**
-	 * Find out if the provided editor is opened in the group.
-	 *
-	 * Note: An editor can be opened but not actively visible.
-	 */
-	isOpened(editor: IEditorInput): boolean;
-
-	/**
 	 * Find out if the provided editor is pinned in the group.
 	 */
 	isPinned(editor: IEditorInput): boolean;
@@ -512,6 +540,13 @@ export interface IEditorGroup {
 	 * Find out if the provided editor is active in the group.
 	 */
 	isActive(editor: IEditorInput): boolean;
+
+	/**
+	 * Find out if a certain editor is included in the group.
+	 *
+	 * @param candidate the editor to find
+	 */
+	contains(candidate: IEditorInput): boolean;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.

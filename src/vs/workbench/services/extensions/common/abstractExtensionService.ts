@@ -29,10 +29,10 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -42,7 +42,7 @@ export function parseScannedExtension(extension: ITranslatedScannedExtension): I
 		identifier: new ExtensionIdentifier(`${extension.packageJSON.publisher}.${extension.packageJSON.name}`),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: false,
-		isUnderDevelopment: false,
+		isUnderDevelopment: extension.isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.packageJSON,
 	};
@@ -95,8 +95,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _proposedApiController: ProposedApiController;
 	private readonly _isExtensionDevHost: boolean;
 	protected readonly _isExtensionDevTestFromCli: boolean;
+
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 	private _inHandleDeltaExtensions: boolean;
+	private readonly _onDidFinishHandleDeltaExtensions = this._register(new Emitter<void>());
+
 	protected _runningLocation: Map<string, ExtensionRunningLocation>;
 
 	// --- Members used per extension host process
@@ -104,8 +107,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _extensionHostActiveExtensions: Map<string, ExtensionIdentifier>;
 	private _extensionHostActivationTimes: Map<string, ActivationTimes>;
 	private _extensionHostExtensionRuntimeErrors: Map<string, Error[]>;
-
-	private readonly _extensionKindController: ExtensionKindController;
 
 	constructor(
 		protected readonly _runningLocationClassifier: ExtensionRunningLocationClassifier,
@@ -119,6 +120,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IExtensionManagementService protected readonly _extensionManagementService: IExtensionManagementService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super();
 
@@ -144,9 +146,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._deltaExtensionsQueue = [];
 		this._inHandleDeltaExtensions = false;
-		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
-		this._extensionKindController = new ExtensionKindController(this._productService, this._configurationService);
+		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
 		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
 			let toAdd: IExtension[] = [];
@@ -185,7 +186,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return this._environmentService.extensionDevelopmentKind;
 		}
 
-		return this._extensionKindController.getExtensionKind(extensionDescription);
+		return this._extensionManifestPropertiesService.getExtensionKind(extensionDescription);
 	}
 
 	protected _getExtensionHostManager(kind: ExtensionHostKind): ExtensionHostManager | null {
@@ -215,6 +216,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				this._inHandleDeltaExtensions = false;
 			}
 		}
+
+		this._onDidFinishHandleDeltaExtensions.fire();
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[]): Promise<void> {
@@ -431,7 +434,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _handleExtensionTests(): Promise<void> {
-		if (!this._environmentService.extensionDevelopmentLocationURI || !this._environmentService.extensionTestsLocationURI) {
+		if (!this._environmentService.isExtensionDevelopment || !this._environmentService.extensionTestsLocationURI) {
 			return;
 		}
 
@@ -496,7 +499,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
-	protected _stopExtensionHosts(): void {
+	//#region Stopping / Starting / Restarting
+
+	public stopExtensionHosts(): void {
 		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {
 			previouslyActivatedExtensionIds.push(value);
@@ -516,8 +521,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
-		this._stopExtensionHosts();
-
 		const extensionHosts = this._createExtensionHosts(isInitialStart);
 		extensionHosts.forEach((extensionHost) => {
 			const processManager = this._instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents);
@@ -541,7 +544,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
-			this._stopExtensionHosts();
+			this.stopExtensionHosts();
 		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
 			for (let i = 0; i < this._extensionHostManagers.length; i++) {
 				if (this._extensionHostManagers[i] === extensionHost) {
@@ -553,16 +556,24 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
+	public async startExtensionHosts(): Promise<void> {
+		this.stopExtensionHosts();
+
+		if (this._inHandleDeltaExtensions) {
+			await Event.toPromise(this._onDidFinishHandleDeltaExtensions.event);
+		}
+
+		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
+	}
+
+	public async restartExtensionHost(): Promise<void> {
+		this.stopExtensionHosts();
+		await this.startExtensionHosts();
+	}
+
+	//#endregion
+
 	//#region IExtensionService
-
-	public restartExtensionHost(): void {
-		this._stopExtensionHosts();
-		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
-	}
-
-	protected startExtensionHost(): void {
-		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
-	}
 
 	public activateByEvent(activationEvent: string, activationKind: ActivationKind = ActivationKind.Normal): Promise<void> {
 		if (this._installedExtensionsReady.isOpen()) {
@@ -677,23 +688,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return extensions.filter(extension => this._isEnabled(extension));
 	}
 
-	private _isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
-		if (this._environmentService.isExtensionDevelopment) {
-			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
-			if (extDevLocs) {
-				const extLocation = extension.extensionLocation;
-				for (let p of extDevLocs) {
-					if (isEqualOrParent(extLocation, p)) {
-						return true;
-					}
-				}
-			}
-		}
-		return false;
-	}
-
 	protected _isEnabled(extension: IExtensionDescription): boolean {
-		if (this._isExtensionUnderDevelopment(extension)) {
+		if (extension.isUnderDevelopment) {
 			// Never disable extensions under development
 			return true;
 		}
@@ -809,7 +805,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Called by extension host
 
-	public _logOrShowMessage(severity: Severity, msg: string): void {
+	protected _logOrShowMessage(severity: Severity, msg: string): void {
 		if (this._isDev) {
 			this._showMessageToUser(severity, msg);
 		} else {
@@ -834,6 +830,21 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
 		this._extensionHostActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
+	}
+
+	public _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
+		type ExtensionActivationErrorClassification = {
+			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			error: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+		};
+		type ExtensionActivationErrorEvent = {
+			extensionId: string;
+			error: string;
+		};
+		this._telemetryService.publicLog2<ExtensionActivationErrorEvent, ExtensionActivationErrorClassification>('extensionActivationError', {
+			extensionId: extensionId.value,
+			error: error.message
+		});
 	}
 
 	public _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {
@@ -925,7 +936,7 @@ class ProposedApiController {
 
 		this.enableProposedApiForAll =
 			!_environmentService.isBuilt || // always allow proposed API when running out of sources
-			(!!_environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
+			(_environmentService.isExtensionDevelopment && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
 			(this.enableProposedApiFor.length === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this.productAllowProposedApi = new Set<string>();

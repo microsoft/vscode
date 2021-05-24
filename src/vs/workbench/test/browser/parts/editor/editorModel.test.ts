@@ -31,11 +31,11 @@ suite('Workbench editor model', () => {
 
 	class MyEditorModel extends EditorModel { }
 	class MyTextEditorModel extends BaseTextEditorModel {
-		createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
+		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
 			return super.createTextEditorModel(value, resource, preferredMode);
 		}
 
-		isReadonly(): boolean {
+		override isReadonly(): boolean {
 			return false;
 		}
 	}

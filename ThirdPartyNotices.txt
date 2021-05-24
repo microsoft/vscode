@@ -10,7 +10,7 @@ This project incorporates components from the projects listed below. The origina
 3.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
 4.	atom/language-css version 0.44.4 (https://github.com/atom/language-css)
 5.	atom/language-java version 0.32.1 (https://github.com/atom/language-java)
-6.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
+6.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
 7.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
 8.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
 9.	better-go-syntax version 1.0.0 (https://github.com/jeff-hykin/better-go-syntax/ )
@@ -44,30 +44,31 @@ This project incorporates components from the projects listed below. The origina
 37.	microsoft/vscode-markdown-tm-grammar version 1.0.0 (https://github.com/microsoft/vscode-markdown-tm-grammar)
 38.	microsoft/vscode-mssql version 1.9.0 (https://github.com/microsoft/vscode-mssql)
 39.	mmims/language-batchfile version 0.7.5 (https://github.com/mmims/language-batchfile)
-40.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
-41.	rust-syntax version 0.4.3 (https://github.com/dustypomerleau/rust-syntax)
-42.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-43.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-44.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-45.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-46.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-47.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-48.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-49.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-50.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-51.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-52.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-53.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-54.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-55.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-56.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-57.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
-58.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
-59.	Unicode version 12.0.0 (https://home.unicode.org/)
-60.	vscode-codicons version 0.0.14 (https://github.com/microsoft/vscode-codicons)
-61.	vscode-logfile-highlighter version 2.11.0 (https://github.com/emilast/vscode-logfile-highlighter)
-62.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
-63.	Web Background Synchronization (https://github.com/WICG/background-sync)
+40.	NVIDIA/cuda-cpp-grammar (https://github.com/NVIDIA/cuda-cpp-grammar)
+41.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
+42.	rust-syntax version 0.4.3 (https://github.com/dustypomerleau/rust-syntax)
+43.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+44.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
+45.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+46.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+47.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+48.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+49.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+50.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+51.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+52.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+53.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+54.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+55.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+56.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+57.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+58.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
+59.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
+60.	Unicode version 12.0.0 (https://home.unicode.org/)
+61.	vscode-codicons version 0.0.14 (https://github.com/microsoft/vscode-codicons)
+62.	vscode-logfile-highlighter version 2.11.0 (https://github.com/emilast/vscode-logfile-highlighter)
+63.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+64.	Web Background Synchronization (https://github.com/WICG/background-sync)
 
 
 %%  JuliaEditorSupport/atom-language-julia NOTICES AND INFORMATION BEGIN HERE
@@ -1718,7 +1719,7 @@ END OF microsoft/vscode-mssql NOTICES AND INFORMATION
 =========================================
 The MIT License (MIT)
 
-Copyright (c) 2017 Michael Mims
+Copyright (c) 2021 Michael Mims
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -1739,6 +1740,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
 END OF mmims/language-batchfile NOTICES AND INFORMATION
+
+%% NVIDIA/cuda-cpp-grammar NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright 2021 NVIDIA Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF NVIDIA/cuda-cpp-grammar NOTICES AND INFORMATION
 
 %% PowerShell/EditorSyntax NOTICES AND INFORMATION BEGIN HERE
 =========================================

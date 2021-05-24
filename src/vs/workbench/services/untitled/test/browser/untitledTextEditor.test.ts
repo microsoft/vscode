@@ -15,6 +15,7 @@ import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('Untitled text editors', () => {
 
@@ -101,22 +102,6 @@ suite('Untitled text editors', () => {
 		});
 	}
 
-	test('setValue()', async () => {
-		const service = accessor.untitledTextEditorService;
-		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-
-		const model = await untitled.resolve();
-
-		model.setValue('not dirty', true);
-		assert.ok(!model.isDirty());
-
-		model.setValue('dirty');
-		assert.ok(model.isDirty());
-
-		untitled.dispose();
-		model.dispose();
-	});
-
 	test('associated resource is dirty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
@@ -149,10 +134,10 @@ suite('Untitled text editors', () => {
 		const model = await input.resolve();
 		model.textEditorModel?.setValue('foo bar');
 		assert.ok(model.isDirty());
-		assert.ok(workingCopyService.isDirty(model.resource));
+		assert.ok(workingCopyService.isDirty(model.resource, model.typeId));
 		model.textEditorModel?.setValue('');
 		assert.ok(!model.isDirty());
-		assert.ok(!workingCopyService.isDirty(model.resource));
+		assert.ok(!workingCopyService.isDirty(model.resource, model.typeId));
 		input.dispose();
 		model.dispose();
 	});
@@ -326,7 +311,7 @@ suite('Untitled text editors', () => {
 
 		// encoding
 		const model = await input.resolve();
-		model.setEncoding('utf16');
+		await model.setEncoding('utf16');
 		assert.strictEqual(counter, 1);
 		input.dispose();
 		model.dispose();
@@ -533,14 +518,46 @@ suite('Untitled text editors', () => {
 		const model = await input.resolve();
 		model.onDidChangeEncoding(() => counter++);
 
-		model.setEncoding('utf16');
+		await model.setEncoding('utf16');
 
 		assert.strictEqual(counter, 1, 'Dirty model should trigger event');
-		model.setEncoding('utf16');
+		await model.setEncoding('utf16');
 
 		assert.strictEqual(counter, 1, 'Another change to same encoding does not fire event');
 
 		input.dispose();
 		model.dispose();
 	});
+
+	test('backup and restore (simple)', async function () {
+		return testBackupAndRestore('Some very small file text content.');
+	});
+
+	test('backup and restore (large, #121347)', async function () {
+		const largeContent = '국어한\n'.repeat(100000);
+		return testBackupAndRestore(largeContent);
+	});
+
+	async function testBackupAndRestore(content: string) {
+		const service = accessor.untitledTextEditorService;
+		const originalInput = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+		const restoredInput = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+
+		const originalModel = await originalInput.resolve();
+		originalModel.textEditorModel?.setValue(content);
+
+		const backup = await originalModel.backup(CancellationToken.None);
+		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: restoredInput.resource };
+		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
+
+		const restoredModel = await restoredInput.resolve();
+
+		assert.strictEqual(restoredModel.textEditorModel?.getValue(), content);
+		assert.strictEqual(restoredModel.isDirty(), true);
+
+		originalInput.dispose();
+		originalModel.dispose();
+		restoredInput.dispose();
+		restoredModel.dispose();
+	}
 });

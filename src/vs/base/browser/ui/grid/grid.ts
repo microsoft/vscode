@@ -551,7 +551,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		};
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		super.layout(width, height);
 
 		if (this.initialLayoutContext) {

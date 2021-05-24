@@ -72,7 +72,7 @@ export class SimpleBrowserView extends Disposable {
 		this.show(url);
 	}
 
-	public dispose() {
+	public override dispose() {
 		this._onDidDispose.fire();
 		super.dispose();
 	}

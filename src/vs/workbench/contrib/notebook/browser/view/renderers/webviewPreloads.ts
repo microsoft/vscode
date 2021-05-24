@@ -6,10 +6,10 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath, IMarkdownCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
-// function. Imports are not allowed. This is stringifies and injected into
+// function. Imports are not allowed. This is stringified and injected into
 // the webview.
 
 declare module globalThis {
@@ -26,10 +26,6 @@ declare class ResizeObserver {
 	disconnect(): void;
 }
 
-declare const __outputNodePadding__: number;
-declare const __outputNodeLeftPadding__: number;
-declare const __previewNodePadding__: number;
-declare const __leftMargin__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -38,7 +34,20 @@ interface EmitterLike<T> {
 	event: Event<T>;
 }
 
-function webviewPreloads() {
+interface PreloadStyles {
+	readonly outputNodePadding: number;
+	readonly outputNodeLeftPadding: number;
+}
+
+export interface PreloadOptions {
+	dragAndDropEnabled: boolean;
+}
+
+declare function __import(path: string): Promise<any>;
+
+async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, rendererData: readonly RendererMetadata[]) {
+	let currentOptions = options;
+
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -108,31 +117,88 @@ function webviewPreloads() {
 		}
 	};
 
-	const runScript = async (url: string, originalUri: string, globals: { [name: string]: unknown } = {}): Promise<() => (PreloadResult)> => {
-		let text: string;
-		try {
-			const res = await fetch(url);
-			text = await res.text();
-			if (!res.ok) {
-				throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
-			}
-
-			globals.scriptUrl = url;
-		} catch (e) {
-			return () => ({ state: PreloadState.Error, error: e.message });
+	async function loadScriptSource(url: string, originalUri = url): Promise<string> {
+		const res = await fetch(url);
+		const text = await res.text();
+		if (!res.ok) {
+			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
 		}
 
+		return text;
+	}
+
+	interface RendererContext {
+		getState<T>(): T | undefined;
+		setState<T>(newState: T): void;
+		getRenderer(id: string): any | undefined;
+		postMessage?(message: unknown): void;
+		onDidReceiveMessage?: Event<unknown>;
+	}
+
+	interface ScriptModule {
+		activate: (ctx?: RendererContext) => any;
+	}
+
+	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
 		const args = Object.entries(globals);
-		return () => {
-			try {
-				new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
-				return { state: PreloadState.Ok };
-			} catch (e) {
-				console.error(e);
-				return { state: PreloadState.Error, error: e.message };
+		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
+	};
+
+	const runPreload = async (url: string, originalUri: string): Promise<ScriptModule> => {
+		const text = await loadScriptSource(url, originalUri);
+		return {
+			activate: () => {
+				try {
+					return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
+				} catch (e) {
+					console.error(e);
+					throw e;
+				}
 			}
 		};
 	};
+
+	const runRenderScript = async (url: string, rendererId: string): Promise<ScriptModule> => {
+		const text = await loadScriptSource(url);
+		// TODO: Support both the new module based renderers and the old style global renderers
+		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+		if (isModule) {
+			return __import(url);
+		} else {
+			return createBackCompatModule(rendererId, url, text);
+		}
+	};
+
+	const createBackCompatModule = (rendererId: string, scriptUrl: string, scriptText: string): ScriptModule => ({
+		activate: (): RendererApi => {
+			const onDidCreateOutput = createEmitter<ICreateCellInfo>();
+			const onWillDestroyOutput = createEmitter<undefined | IDestroyCellInfo>();
+
+			const globals = {
+				scriptUrl,
+				acquireNotebookRendererApi: <T>(): GlobalNotebookRendererApi<T> => ({
+					onDidCreateOutput: onDidCreateOutput.event,
+					onWillDestroyOutput: onWillDestroyOutput.event,
+					setState: newState => vscode.setState({ ...vscode.getState(), [rendererId]: newState }),
+					getState: () => {
+						const state = vscode.getState();
+						return typeof state === 'object' && state ? state[rendererId] as T : undefined;
+					},
+				}),
+			};
+
+			invokeSourceWithGlobals(scriptText, globals);
+
+			return {
+				renderCell(id, context) {
+					onDidCreateOutput.fire({ ...context, outputId: id });
+				},
+				destroyCell(id) {
+					onWillDestroyOutput.fire(id ? { outputId: id } : undefined);
+				}
+			};
+		}
+	});
 
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, DimensionUpdate>();
@@ -140,14 +206,7 @@ function webviewPreloads() {
 		update(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
 			if (!this.pending.size) {
 				setTimeout(() => {
-					if (!this.pending.size) {
-						return;
-					}
-
-					postNotebookMessage<IDimensionMessage>('dimension', {
-						updates: Array.from(this.pending.values())
-					});
-					this.pending.clear();
+					this.updateImmediately();
 				}, 0);
 			}
 			this.pending.set(id, {
@@ -191,8 +250,8 @@ function webviewPreloads() {
 						if (observedElementInfo.output) {
 							let height = 0;
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${observedElementInfo.output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-								height = entry.contentRect.height + __outputNodePadding__ * 2;
+								entry.target.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+								height = entry.contentRect.height + style.outputNodePadding * 2;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -200,8 +259,7 @@ function webviewPreloads() {
 								isOutput: true
 							});
 						} else {
-							// entry.contentRect does not include padding
-							dimensionUpdater.update(observedElementInfo.id, entry.contentRect.height + __previewNodePadding__ * 2, {
+							dimensionUpdater.update(observedElementInfo.id, entry.target.clientHeight, {
 								isOutput: false
 							});
 						}
@@ -222,7 +280,7 @@ function webviewPreloads() {
 
 	function scrollWillGoToParent(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
-			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('output_container')) {
+			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('output_container')) {
 				return false;
 			}
 
@@ -270,11 +328,6 @@ function webviewPreloads() {
 				id: outputId,
 				focusNext
 			});
-
-			setTimeout(() => { // Wait a tick to prevent the focus indicator blinking before webview blurs
-				// Move focus off the focus sink - single use
-				focusFirstFocusableInCell(cellId);
-			}, 50);
 		});
 
 		return element;
@@ -362,8 +415,6 @@ function webviewPreloads() {
 		focusTrackers.set(outputId, new FocusTracker(element, outputId));
 	}
 
-	const dontEmit = Symbol('dontEmit');
-
 	function createEmitter<T>(listenerChange: (listeners: Set<Listener<T>>) => void = () => undefined): EmitterLike<T> {
 		const listeners = new Set<Listener<T>>();
 		return {
@@ -395,111 +446,50 @@ function webviewPreloads() {
 		};
 	}
 
-	// Maps the events in the given emitter, invoking mapFn on each one. mapFn can return
-	// the dontEmit symbol to skip emission.
-	function mapEmitter<T, R>(emitter: EmitterLike<T>, mapFn: (data: T) => R | typeof dontEmit) {
-		let listener: IDisposable;
-		const mapped = createEmitter(listeners => {
-			if (listeners.size && !listener) {
-				listener = emitter.event(data => {
-					const v = mapFn(data);
-					if (v !== dontEmit) {
-						mapped.fire(v);
-					}
-				});
-			} else if (listener && !listeners.size) {
-				listener.dispose();
-			}
-		});
-
-		return mapped.event;
+	function showPreloadErrors(outputNode: HTMLElement, ...errors: readonly Error[]) {
+		outputNode.innerText = `Error loading preloads:`;
+		const errList = document.createElement('ul');
+		for (const result of errors) {
+			console.error(result);
+			const item = document.createElement('li');
+			item.innerText = result.message;
+			errList.appendChild(item);
+		}
+		outputNode.appendChild(errList);
 	}
 
 	interface ICreateCellInfo {
 		element: HTMLElement;
-		outputId: string;
+		outputId?: string;
 
 		mime: string;
 		value: unknown;
 		metadata: unknown;
-	}
 
-	interface ICreateMarkdownInfo {
-		readonly content: string;
-		readonly element: HTMLElement;
+		text(): string;
+		json(): any;
+		bytes(): Uint8Array
+		blob(): Blob;
 	}
 
 	interface IDestroyCellInfo {
 		outputId: string;
 	}
 
-	const onWillDestroyOutput = createEmitter<[string | undefined /* namespace */, IDestroyCellInfo | undefined /* cell uri */]>();
-	const onDidCreateOutput = createEmitter<[string | undefined /* namespace */, ICreateCellInfo]>();
-	const onDidCreateMarkdown = createEmitter<[string | undefined /* namespace */, ICreateMarkdownInfo]>();
-	const onDidReceiveMessage = createEmitter<[string, unknown]>();
+	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const matchesNs = (namespace: string, query: string | undefined) => namespace === '*' || query === namespace || query === 'undefined';
-
-	(window as any).acquireNotebookRendererApi = <T>(namespace: string) => {
-		if (!namespace || typeof namespace !== 'string') {
-			throw new Error(`acquireNotebookRendererApi should be called your renderer type as a string, got: ${namespace}.`);
-		}
-
-		return {
-			postMessage(message: unknown) {
-				postNotebookMessage<ICustomRendererMessage>('customRendererMessage', {
-					rendererId: namespace,
-					message,
-				});
-			},
-			setState(newState: T) {
-				vscode.setState({ ...vscode.getState(), [namespace]: newState });
-			},
-			getState(): T | undefined {
-				const state = vscode.getState();
-				return typeof state === 'object' && state ? state[namespace] as T : undefined;
-			},
-			onDidReceiveMessage: mapEmitter(onDidReceiveMessage, ([ns, data]) => ns === namespace ? data : dontEmit),
-			onWillDestroyOutput: mapEmitter(onWillDestroyOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
-			onDidCreateOutput: mapEmitter(onDidCreateOutput, ([ns, data]) => matchesNs(namespace, ns) ? data : dontEmit),
-			onDidCreateMarkdown: mapEmitter(onDidCreateMarkdown, ([ns, data]) => data),
-		};
-	};
-
-	const enum PreloadState {
-		Ok,
-		Error
+	/** @deprecated */
+	interface GlobalNotebookRendererApi<T> {
+		setState: (newState: T) => void;
+		getState(): T | undefined;
+		readonly onWillDestroyOutput: Event<undefined | IDestroyCellInfo>;
+		readonly onDidCreateOutput: Event<ICreateCellInfo>;
 	}
 
-	type PreloadResult = { state: PreloadState.Ok } | { state: PreloadState.Error, error: string };
-
-	/**
-	 * Map of preload resource URIs to promises that resolve one the resource
-	 * loads or errors.
-	 */
-	const preloadPromises = new Map<string, Promise<PreloadResult>>();
-	const queuedOuputActions = new Map<string, Promise<void>>();
-
-	/**
-	 * Enqueues an action that affects a output. This blocks behind renderer load
-	 * requests that affect the same output. This should be called whenever you
-	 * do something that affects output to ensure it runs in
-	 * the correct order.
-	 */
-	const enqueueOutputAction = <T extends { outputId: string; }>(event: T, fn: (event: T) => Promise<void> | void) => {
-		const queued = queuedOuputActions.get(event.outputId);
-		const maybePromise = queued ? queued.then(() => fn(event)) : fn(event);
-		if (typeof maybePromise === 'undefined') {
-			return; // a synchonrously-called function, we're done
-		}
-
-		const promise = maybePromise.then(() => {
-			if (queuedOuputActions.get(event.outputId) === promise) {
-				queuedOuputActions.delete(event.outputId);
-			}
-		});
-
-		queuedOuputActions.set(event.outputId, promise);
+	const kernelPreloadGlobals = {
+		acquireVsCodeApi,
+		onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
+		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
 	};
 
 	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
@@ -509,25 +499,19 @@ function webviewPreloads() {
 
 	window.addEventListener('wheel', handleWheel);
 
-	window.addEventListener('message', rawEvent => {
+	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: ToWebviewMessage; });
 
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
-				for (const cell of event.data.cells) {
-					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
-
-					const cellContainer = document.getElementById(cell.cellId);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'hidden';
-					}
+				{
+					await ensureMarkdownPreviewCells(event.data.cells);
+					dimensionUpdater.updateImmediately();
+					postNotebookMessage('initializedMarkdownPreview', {});
 				}
-
-				dimensionUpdater.updateImmediately();
-				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
-				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
+				ensureMarkdownPreviewCells([event.data.cell]);
 				break;
 			case 'showMarkdownPreview':
 				{
@@ -537,9 +521,8 @@ function webviewPreloads() {
 					if (cellContainer) {
 						cellContainer.style.visibility = 'visible';
 						cellContainer.style.top = `${data.top}px`;
+						updateMarkdownPreview(cellContainer, data.id, data.content);
 					}
-
-					updateMarkdownPreview(data.id, data.content);
 				}
 				break;
 			case 'hideMarkdownPreviews':
@@ -558,8 +541,8 @@ function webviewPreloads() {
 						const cellContainer = document.getElementById(id);
 						if (cellContainer) {
 							cellContainer.style.visibility = 'visible';
+							updateMarkdownPreview(cellContainer, id, undefined);
 						}
-						updateMarkdownPreview(id, undefined);
 					}
 				}
 				break;
@@ -590,10 +573,15 @@ function webviewPreloads() {
 					}
 				}
 				break;
-			case 'html':
-				enqueueOutputAction(event.data, async data => {
-					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
-					if (!queuedOuputActions.has(data.outputId)) { // output was cleared while loading
+			case 'html': {
+				const data = event.data;
+				outputs.enqueue(event.data.outputId, async (state) => {
+					const preloadsAndErrors = await Promise.all<unknown>([
+						data.rendererId ? renderers.load(data.rendererId) : undefined,
+						...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
+					].map(p => p?.catch(err => err)));
+
+					if (state.cancelled) {
 						return;
 					}
 
@@ -608,7 +596,7 @@ function webviewPreloads() {
 						const newElement = document.createElement('div');
 
 						newElement.id = data.cellId;
-						newElement.classList.add('output_container');
+						newElement.classList.add('cell_container');
 
 						container.appendChild(newElement);
 						cellOutputContainer = newElement;
@@ -620,10 +608,17 @@ function webviewPreloads() {
 					cellOutputContainer.style.position = 'absolute';
 					cellOutputContainer.style.top = data.cellTop + 'px';
 
+					const outputContainer = document.createElement('div');
+					outputContainer.classList.add('output_container');
+					outputContainer.style.position = 'absolute';
+					outputContainer.style.overflow = 'hidden';
+					outputContainer.style.maxHeight = '0px';
+					outputContainer.style.top = `${data.outputOffset}px`;
+
 					const outputNode = document.createElement('div');
 					outputNode.classList.add('output');
 					outputNode.style.position = 'absolute';
-					outputNode.style.top = `${data.outputOffset}px`;
+					outputNode.style.top = `0px`;
 					outputNode.style.left = data.left + 'px';
 					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
 					// outputNode.style.minHeight = '32px';
@@ -636,59 +631,56 @@ function webviewPreloads() {
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 						outputNode.innerHTML = trustedHtml as string;
-						cellOutputContainer.appendChild(outputNode);
 						domEval(outputNode);
-					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
-						outputNode.innerText = `Error loading preloads:`;
-						const errList = document.createElement('ul');
-						for (const result of preloadResults) {
-							if (result?.state === PreloadState.Error) {
-								const item = document.createElement('li');
-								item.innerText = result.error;
-								errList.appendChild(item);
-							}
-						}
-						outputNode.appendChild(errList);
-						cellOutputContainer.appendChild(outputNode);
+					} else if (preloadsAndErrors.some(e => e instanceof Error)) {
+						const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
+						showPreloadErrors(outputNode, ...errors);
 					} else {
-						const { metadata, mimeType, value } = content;
-						onDidCreateOutput.fire([data.apiNamespace, {
-							element: outputNode,
-							outputId,
-							mime: content.mimeType,
-							value: content.value,
-							metadata: content.metadata,
-
-							get mimeType() {
-								console.warn(`event.mimeType is deprecated, use 'mime' instead`);
-								return mimeType;
-							},
-
-							get output() {
-								console.warn(`event.output is deprecated, use properties directly instead`);
-								return {
-									metadata: { [mimeType]: metadata },
-									data: { [mimeType]: value },
-									outputId,
-								};
-							},
-						} as ICreateCellInfo]);
-						cellOutputContainer.appendChild(outputNode);
+						const rendererApi = preloadsAndErrors[0] as RendererApi;
+						try {
+							rendererApi.renderCell(outputId, {
+								element: outputNode,
+								mime: content.mimeType,
+								value: content.value,
+								metadata: content.metadata,
+								bytes() {
+									return content.valueBytes;
+								},
+								text() {
+									return new TextDecoder().decode(content.valueBytes)
+										|| String(content.value); //todo@jrieken remove this once `value` is gone!
+								},
+								json() {
+									return JSON.parse(this.text());
+								},
+								blob() {
+									return new Blob([content.valueBytes], { type: content.mimeType });
+								}
+							});
+						} catch (e) {
+							showPreloadErrors(outputNode, e);
+						}
 					}
 
+					cellOutputContainer.appendChild(outputContainer);
+					outputContainer.appendChild(outputNode);
 					resizeObserver.observe(outputNode, outputId, true);
+
+					if (content.type === RenderOutputType.Html) {
+						domEval(outputNode);
+					}
 
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.update(outputId, clientHeight + __outputNodePadding__ * 2, {
+						dimensionUpdater.update(outputId, clientHeight + style.outputNodePadding * 2, {
 							isOutput: true,
 							init: true,
 						});
 
-						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
+						outputNode.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
 					} else {
 						dimensionUpdater.update(outputId, outputNode.clientHeight, {
 							isOutput: true,
@@ -700,6 +692,7 @@ function webviewPreloads() {
 					cellOutputContainer.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 				});
 				break;
+			}
 			case 'view-scroll':
 				{
 					// const date = new Date();
@@ -708,10 +701,10 @@ function webviewPreloads() {
 					for (const request of event.data.widgets) {
 						const widget = document.getElementById(request.outputId);
 						if (widget) {
-							widget.parentElement!.style.top = `${request.cellTop}px`;
-							widget.style.top = `${request.outputOffset}px`;
+							widget.parentElement!.parentElement!.style.top = `${request.cellTop}px`;
+							widget.parentElement!.style.top = `${request.outputOffset}px`;
 							if (request.forceDisplay) {
-								widget.parentElement!.style.visibility = 'visible';
+								widget.parentElement!.parentElement!.style.visibility = 'visible';
 							}
 						}
 					}
@@ -726,8 +719,7 @@ function webviewPreloads() {
 					break;
 				}
 			case 'clear':
-				queuedOuputActions.clear(); // stop all loading outputs
-				onWillDestroyOutput.fire([undefined, undefined]);
+				renderers.clearAll();
 				document.getElementById('container')!.innerText = '';
 
 				focusTrackers.forEach(ft => {
@@ -735,28 +727,37 @@ function webviewPreloads() {
 				});
 				focusTrackers.clear();
 				break;
-			case 'clearOutput':
+			case 'clearOutput': {
 				const output = document.getElementById(event.data.outputId);
-				queuedOuputActions.delete(event.data.outputId); // stop any in-progress rendering
+				const { rendererId, outputId } = event.data;
+
+				outputs.cancelOutput(outputId);
 				if (output && output.parentNode) {
-					onWillDestroyOutput.fire([event.data.apiNamespace, { outputId: event.data.outputId }]);
+					if (rendererId) {
+						renderers.clearOutput(rendererId, outputId);
+					}
 					output.parentNode.removeChild(output);
 				}
+
 				break;
-			case 'hideOutput':
-				enqueueOutputAction(event.data, ({ outputId }) => {
-					const container = document.getElementById(outputId)?.parentElement;
+			}
+			case 'hideOutput': {
+				const { outputId } = event.data;
+				outputs.enqueue(event.data.outputId, () => {
+					const container = document.getElementById(outputId)?.parentElement?.parentElement;
 					if (container) {
 						container.style.visibility = 'hidden';
 					}
 				});
 				break;
-			case 'showOutput':
-				enqueueOutputAction(event.data, ({ outputId, cellTop: top, }) => {
+			}
+			case 'showOutput': {
+				const { outputId, cellTop: top } = event.data;
+				outputs.enqueue(event.data.outputId, () => {
 					const output = document.getElementById(outputId);
 					if (output) {
-						output.parentElement!.style.visibility = 'visible';
-						output.parentElement!.style.top = top + 'px';
+						output.parentElement!.parentElement!.style.visibility = 'visible';
+						output.parentElement!.parentElement!.style.top = top + 'px';
 
 						dimensionUpdater.update(outputId, output.clientHeight, {
 							isOutput: true,
@@ -764,23 +765,21 @@ function webviewPreloads() {
 					}
 				});
 				break;
+			}
+			case 'ack-dimension':
+				{
+					const { outputId, height } = event.data;
+					const output = document.getElementById(outputId);
+					if (output) {
+						output.parentElement!.style.maxHeight = `${height}px`;
+						output.parentElement!.style.height = `${height}px`;
+					}
+					break;
+				}
 			case 'preload':
 				const resources = event.data.resources;
-				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
-				let queue: Promise<PreloadResult> = Promise.resolve({ state: PreloadState.Ok });
 				for (const { uri, originalUri } of resources) {
-					// create the promise so that the scripts download in parallel, but
-					// only invoke them in series within the queue
-					const promise = runScript(uri, originalUri, globals);
-					queue = queue.then(() => promise.then(fn => {
-						const result = fn();
-						if (result.state === PreloadState.Error) {
-							console.error(result.error);
-						}
-
-						return result;
-					}));
-					preloadPromises.set(uri, queue);
+					kernelPreloads.load(uri, originalUri);
 				}
 				break;
 			case 'focus-output':
@@ -794,20 +793,282 @@ function webviewPreloads() {
 				}
 
 				break;
+			case 'customKernelMessage':
+				onDidReceiveKernelMessage.fire(event.data.message);
+				break;
 			case 'customRendererMessage':
-				onDidReceiveMessage.fire([event.data.rendererId, event.data.message]);
+				renderers.getRenderer(event.data.rendererId)?.receiveMessage(event.data.message);
+				break;
+			case 'notebookStyles':
+				const documentStyle = document.documentElement.style;
+
+				for (let i = documentStyle.length - 1; i >= 0; i--) {
+					const property = documentStyle[i];
+
+					// Don't remove properties that the webview might have added separately
+					if (property && property.startsWith('--notebook-')) {
+						documentStyle.removeProperty(property);
+					}
+				}
+
+				// Re-add new properties
+				for (const variable of Object.keys(event.data.styles)) {
+					documentStyle.setProperty(`--${variable}`, event.data.styles[variable]);
+				}
+				break;
+			case 'notebookOptions':
+				currentOptions = event.data.options;
+
+				// Update markdown previews
+				for (const markdownContainer of document.querySelectorAll('.preview')) {
+					setMarkdownContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
+				}
+
+
 				break;
 		}
 	});
+
+	interface RendererApi {
+		renderCell: (id: string, context: ICreateCellInfo) => void;
+		destroyCell?: (id?: string) => void;
+	}
+
+	class Renderer {
+		constructor(
+			public readonly data: RendererMetadata,
+			private readonly loadExtension: (id: string) => Promise<void>,
+		) { }
+
+		private _onMessageEvent = createEmitter();
+		private _loadPromise: Promise<RendererApi> | undefined;
+		private _api: RendererApi | undefined;
+
+		public get api() { return this._api; }
+
+		public load(): Promise<RendererApi | undefined> {
+			if (!this._loadPromise) {
+				this._loadPromise = this._load();
+			}
+
+			return this._loadPromise;
+		}
+
+		public receiveMessage(message: unknown) {
+			this._onMessageEvent.fire(message);
+		}
+
+		private createRendererContext(): RendererContext {
+			const { id, messaging } = this.data;
+			const context: RendererContext = {
+				setState: newState => vscode.setState({ ...vscode.getState(), [id]: newState }),
+				getState: <T>() => {
+					const state = vscode.getState();
+					return typeof state === 'object' && state ? state[id] as T : undefined;
+				},
+				getRenderer: (id: string) => renderers.getRenderer(id)?.api,
+			};
+
+			if (messaging) {
+				context.onDidReceiveMessage = this._onMessageEvent.event;
+				context.postMessage = message => postNotebookMessage('customRendererMessage', { rendererId: id, message });
+			}
+
+			return context;
+		}
+
+		/** Inner function cached in the _loadPromise(). */
+		private async _load() {
+			const module = await runRenderScript(this.data.entrypoint, this.data.id);
+			if (!module) {
+				return;
+			}
+
+			const api = module.activate(this.createRendererContext());
+			this._api = api;
+
+			// Squash any errors extends errors. They won't prevent the renderer
+			// itself from working, so just log them.
+			await Promise.all(rendererData
+				.filter(d => d.extends === this.data.id)
+				.map(d => this.loadExtension(d.id).catch(console.error)),
+			);
+
+			return api;
+		}
+	}
+
+	const kernelPreloads = new class {
+		private readonly preloads = new Map<string /* uri */, Promise<ScriptModule>>();
+
+		/**
+		 * Returns a promise that resolves when the given preload is activated.
+		 */
+		public waitFor(uri: string) {
+			return this.preloads.get(uri) || Promise.resolve(new Error(`Preload not ready: ${uri}`));
+		}
+
+		/**
+		 * Loads a preload.
+		 * @param uri URI to load from
+		 * @param originalUri URI to show in an error message if the preload is invalid.
+		 */
+		public load(uri: string, originalUri: string) {
+			const promise = Promise.all([
+				runPreload(uri, originalUri),
+				this.waitForAllCurrent(),
+			]).then(([module]) => module.activate());
+
+			this.preloads.set(uri, promise);
+			return promise;
+		}
+
+		/**
+		 * Returns a promise that waits for all currently-registered preloads to
+		 * activate before resolving.
+		 */
+		private waitForAllCurrent() {
+			return Promise.all([...this.preloads.values()].map(p => p.catch(err => err)));
+		}
+	};
+
+	const outputs = new class {
+		private outputs = new Map<string, { cancelled: boolean; queue: Promise<unknown> }>();
+		/**
+		 * Pushes the action onto the list of actions for the given output ID,
+		 * ensuring that it's run in-order.
+		 */
+		public enqueue(outputId: string, action: (record: { cancelled: boolean }) => unknown) {
+			const record = this.outputs.get(outputId);
+			if (!record) {
+				this.outputs.set(outputId, { cancelled: false, queue: new Promise(r => r(action({ cancelled: false }))) });
+			} else {
+				record.queue = record.queue.then(r => !record.cancelled && action(record));
+			}
+		}
+
+		/**
+		 * Cancells the rendering of all outputs.
+		 */
+		public cancelAll() {
+			for (const record of this.outputs.values()) {
+				record.cancelled = true;
+			}
+			this.outputs.clear();
+		}
+
+		/**
+		 * Cancels any ongoing rendering out an output.
+		 */
+		public cancelOutput(outputId: string) {
+			const output = this.outputs.get(outputId);
+			if (output) {
+				output.cancelled = true;
+				this.outputs.delete(outputId);
+			}
+		}
+	};
+
+	const renderers = new class {
+		private readonly _renderers = new Map</* id */ string, Renderer>();
+
+		constructor() {
+			for (const renderer of rendererData) {
+				this._renderers.set(renderer.id, new Renderer(renderer, async (extensionId) => {
+					const ext = this._renderers.get(extensionId);
+					if (!ext) {
+						throw new Error(`Could not find extending renderer: ${extensionId}`);
+					}
+
+					await ext.load();
+				}));
+			}
+		}
+
+		public getRenderer(id: string) {
+			return this._renderers.get(id);
+		}
+
+		public async load(id: string) {
+			const renderer = this._renderers.get(id);
+			if (!renderer) {
+				throw new Error('Could not find renderer');
+			}
+
+			return renderer.load();
+		}
+
+
+		public clearAll() {
+			outputs.cancelAll();
+			for (const renderer of this._renderers.values()) {
+				renderer.api?.destroyCell?.();
+			}
+		}
+
+		public clearOutput(rendererId: string, outputId: string) {
+			outputs.cancelOutput(outputId);
+			this._renderers.get(rendererId)?.api?.destroyCell?.(outputId);
+		}
+
+		public async renderCustom(rendererId: string, outputId: string, info: ICreateCellInfo) {
+			const api = await this.load(rendererId);
+			if (!api) {
+				throw new Error(`renderer ${rendererId} did not return an API`);
+			}
+
+			api.renderCell(outputId, info);
+		}
+
+		public async renderMarkdown(id: string, element: HTMLElement, content: string): Promise<void> {
+			const markdownRenderers = Array.from(this._renderers.values())
+				.filter(renderer => renderer.data.mimeTypes.includes('text/markdown') && !renderer.data.extends);
+
+			if (!markdownRenderers.length) {
+				throw new Error('Could not find renderer');
+			}
+
+			await Promise.all(markdownRenderers.map(x => x.load()));
+
+			markdownRenderers[0].api?.renderCell(id, {
+				element,
+				value: content,
+				mime: 'text/markdown',
+				metadata: undefined,
+				outputId: undefined,
+				text() { return content; },
+				json() { return undefined; },
+				bytes() { return new Uint8Array(); },
+				blob() { return new Blob(); },
+			});
+		}
+	}();
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
 
-	function createMarkdownPreview(cellId: string, content: string, top: number) {
+	function setMarkdownContainerDraggable(element: Element, isDraggable: boolean) {
+		if (isDraggable) {
+			element.classList.add('draggable');
+			element.setAttribute('draggable', 'true');
+		} else {
+			element.classList.remove('draggable');
+			element.removeAttribute('draggable');
+		}
+	}
+
+	async function createMarkdownPreview(cellId: string, content: string, top: number): Promise<HTMLElement> {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
+
+		const existing = document.getElementById(cellId);
+		if (existing) {
+			console.error(`Trying to create markdown preview that already exists: ${cellId}`);
+			return existing;
+		}
+
 		cellContainer.id = cellId;
 		cellContainer.classList.add('preview');
 
@@ -829,6 +1090,14 @@ function webviewPreloads() {
 			});
 		});
 
+		cellContainer.addEventListener('contextmenu', e => {
+			postNotebookMessage<IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
+				cellId,
+				clientX: e.clientX,
+				clientY: e.clientY,
+			});
+		});
+
 		cellContainer.addEventListener('mouseenter', () => {
 			postNotebookMessage<IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
 		});
@@ -837,7 +1106,7 @@ function webviewPreloads() {
 			postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
 		});
 
-		cellContainer.setAttribute('draggable', 'true');
+		setMarkdownContainerDraggable(cellContainer, currentOptions.dragAndDropEnabled);
 
 		cellContainer.addEventListener('dragstart', e => {
 			markdownPreviewDragManager.startDrag(e, cellId);
@@ -865,9 +1134,24 @@ function webviewPreloads() {
 		previewNode.id = 'preview';
 		previewRoot.appendChild(previewNode);
 
-		updateMarkdownPreview(cellId, content);
+		await updateMarkdownPreview(cellContainer, cellId, content);
 
 		resizeObserver.observe(cellContainer, cellId, false);
+
+		return cellContainer;
+	}
+
+	async function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]): Promise<void> {
+		await Promise.all(update.map(async cell => {
+			let container = document.getElementById(cell.cellId);
+			if (container) {
+				await updateMarkdownPreview(container, cell.cellId, cell.content);
+			} else {
+				container = await createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+			}
+
+			container.style.visibility = cell.visible ? 'visible' : 'hidden';
+		}));
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -881,26 +1165,38 @@ function webviewPreloads() {
 		});
 	}
 
-	function updateMarkdownPreview(cellId: string, content: string | undefined) {
-		const previewContainerNode = document.getElementById(cellId);
-		if (!previewContainerNode) {
+	let hasPostedRenderedMathTelemetry = false;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
+
+	async function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
+		const previewRoot = previewContainerNode.shadowRoot;
+		const previewNode = previewRoot?.getElementById('preview');
+		if (!previewNode) {
 			return;
 		}
 
-		const previewRoot = previewContainerNode.shadowRoot;
-		const previewNode = previewRoot?.getElementById('preview') as HTMLElement;
-
-		// TODO: handle namespace
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');
-				previewContainerNode.innerText = '';
+				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-					element: previewNode,
-					content: content
-				}]);
+				await renderers.renderMarkdown(cellId, previewNode, content);
+
+				if (!hasPostedRenderedMathTelemetry) {
+					const hasRenderedMath = previewNode.querySelector('.katex');
+					if (hasRenderedMath) {
+						hasPostedRenderedMathTelemetry = true;
+						postNotebookMessage<ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+					}
+				}
+
+				const matches = previewNode.innerText.match(unsupportedKatexTermsRegex);
+				if (matches) {
+					postNotebookMessage<ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+						latexDirective: matches[0],
+					});
+				}
 			}
 		}
 
@@ -932,7 +1228,7 @@ function webviewPreloads() {
 					cellId: drag.cellId,
 					ctrlKey: e.ctrlKey,
 					altKey: e.altKey,
-					position: { clientY: e.clientY },
+					dragOffsetY: e.clientY,
 				});
 			});
 		}
@@ -942,13 +1238,17 @@ function webviewPreloads() {
 				return;
 			}
 
+			if (!currentOptions.dragAndDropEnabled) {
+				return;
+			}
+
 			this.currentDrag = { cellId, clientY: e.clientY };
 
 			(e.target as HTMLElement).classList.add('dragging');
 
 			postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
 				cellId: cellId,
-				position: { clientY: e.clientY },
+				dragOffsetY: e.clientY,
 			});
 
 			// Continuously send updates while dragging instead of relying on `updateDrag`.
@@ -960,7 +1260,7 @@ function webviewPreloads() {
 
 				postNotebookMessage<ICellDragMessage>('cell-drag', {
 					cellId: cellId,
-					position: { clientY: this.currentDrag.clientY },
+					dragOffsetY: this.currentDrag.clientY,
 				});
 				requestAnimationFrame(trySendDragUpdate);
 			};
@@ -984,15 +1284,22 @@ function webviewPreloads() {
 	}();
 }
 
-export function preloadsScriptStr(values: {
-	outputNodePadding: number;
-	outputNodeLeftPadding: number;
-	previewNodePadding: number;
-	leftMargin: number;
-}) {
-	return `(${webviewPreloads})()`
-		.replace(/__outputNodePadding__/g, `${values.outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`)
-		.replace(/__previewNodePadding__/g, `${values.previewNodePadding}`)
-		.replace(/__leftMargin__/g, `${values.leftMargin}`);
+export interface RendererMetadata {
+	readonly id: string;
+	readonly entrypoint: string;
+	readonly mimeTypes: readonly string[];
+	readonly extends: string | undefined;
+	readonly messaging: boolean;
+}
+
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[]) {
+	// TS will try compiling `import()` in webviePreloads, so use an helper function instead
+	// of using `import(...)` directly
+	return `
+		const __import = (x) => import(x);
+		(${webviewPreloads})(
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(styleValues))}")),
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(options))}")),
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(renderers))}"))
+			)\n//# sourceURL=notebookWebviewPreloads.js\n`;
 }

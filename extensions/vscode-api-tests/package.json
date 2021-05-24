@@ -11,6 +11,7 @@
   "engines": {
     "vscode": "^1.55.0"
   },
+  "icon": "media/icon.png",
   "contributes": {
     "configuration": {
       "type": "object",
@@ -116,7 +117,7 @@
         ]
       }
     ],
-    "notebookProvider": [
+    "notebooks": [
       {
         "viewType": "notebookCoreTest",
         "displayName": "Notebook Core Test",
@@ -153,7 +154,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "repository": {
     "type": "git",

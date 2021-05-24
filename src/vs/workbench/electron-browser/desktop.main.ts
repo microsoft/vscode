@@ -4,38 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as os from 'os';
 import { gracefulify } from 'graceful-fs';
-import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import { INativeWorkbenchConfiguration, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { productService, SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
+import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
 
 class DesktopMain extends SharedDesktopMain {
 
 	constructor(configuration: INativeWorkbenchConfiguration) {
-		super(configuration, new NativeWorkbenchEnvironmentService(configuration, { homeDir: os.homedir(), tmpDir: os.tmpdir(), userDataDir: getUserDataPath(configuration) }, productService));
+		super(configuration);
 
 		// Enable gracefulFs
 		gracefulify(fs);
 	}
 
-	protected joinOpen(instantiationService: IInstantiationService): void {
-
-		// Driver
-		if (this.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
-		}
-	}
-
-	protected registerFileSystemProviders(fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {
+	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {
 
 		// Local Files
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService));

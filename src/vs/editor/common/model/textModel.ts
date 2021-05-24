@@ -57,9 +57,9 @@ interface ITextStream {
 	on(event: string, callback: any): void;
 }
 
-export function createTextBufferFactoryFromStream(stream: ITextStream, filter?: (chunk: string) => string, validator?: (chunk: string) => Error | undefined): Promise<model.ITextBufferFactory>;
-export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream, filter?: (chunk: VSBuffer) => VSBuffer, validator?: (chunk: VSBuffer) => Error | undefined): Promise<model.ITextBufferFactory>;
-export function createTextBufferFactoryFromStream(stream: ITextStream | VSBufferReadableStream, filter?: (chunk: any) => string | VSBuffer, validator?: (chunk: any) => Error | undefined): Promise<model.ITextBufferFactory> {
+export function createTextBufferFactoryFromStream(stream: ITextStream): Promise<model.ITextBufferFactory>;
+export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream): Promise<model.ITextBufferFactory>;
+export function createTextBufferFactoryFromStream(stream: ITextStream | VSBufferReadableStream): Promise<model.ITextBufferFactory> {
 	return new Promise<model.ITextBufferFactory>((resolve, reject) => {
 		const builder = createTextBufferBuilder();
 
@@ -67,18 +67,6 @@ export function createTextBufferFactoryFromStream(stream: ITextStream | VSBuffer
 
 		listenStream<string | VSBuffer>(stream, {
 			onData: chunk => {
-				if (validator) {
-					const error = validator(chunk);
-					if (error) {
-						done = true;
-						reject(error);
-					}
-				}
-
-				if (filter) {
-					chunk = filter(chunk);
-				}
-
 				builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
 			},
 			onError: error => {
@@ -384,7 +372,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._tokenization = new TextModelTokenization(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposing = true;
 		this._onWillDispose.fire();
 		this._languageRegistryListener.dispose();
@@ -3040,6 +3028,30 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	//#endregion
+	normalizePosition(position: Position, affinity: model.PositionNormalizationAffinity): Position {
+		return position;
+	}
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	public getLineIndentColumn(lineNumber: number): number {
+		// Columns start with 1.
+		return indentOfLine(this.getLineContent(lineNumber)) + 1;
+	}
+}
+
+function indentOfLine(line: string): number {
+	let indent = 0;
+	for (const c of line) {
+		if (c === ' ' || c === '\t') {
+			indent++;
+		} else {
+			break;
+		}
+	}
+	return indent;
 }
 
 //#region Decorations

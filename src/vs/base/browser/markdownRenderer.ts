@@ -313,6 +313,14 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 }
 
 /**
+ * Strips all markdown from `string`, if it's an IMarkdownString. For example
+ * `# Header` would be output as `Header`. If it's not, the string is returned.
+ */
+export function renderStringAsPlaintext(string: IMarkdownString | string) {
+	return typeof string === 'string' ? string : renderMarkdownAsPlaintext(string);
+}
+
+/**
  * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
  */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {

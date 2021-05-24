@@ -12,17 +12,19 @@ import { Schemas } from 'vs/base/common/network';
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
 export class GettingStartedInput extends EditorInput {
+
 	static readonly ID = gettingStartedInputTypeId;
+	static readonly RESOURCE = URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
 
-	get resource(): URI | undefined {
-		return URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
-	}
-
-	getTypeId(): string {
+	override get typeId(): string {
 		return GettingStartedInput.ID;
 	}
 
-	matches(other: unknown) {
+	get resource(): URI | undefined {
+		return GettingStartedInput.RESOURCE;
+	}
+
+	override matches(other: unknown) {
 		if (other instanceof GettingStartedInput) {
 			return other.selectedCategory === this.selectedCategory;
 		}
@@ -30,17 +32,17 @@ export class GettingStartedInput extends EditorInput {
 	}
 
 	constructor(
-		options: { selectedCategory?: string, selectedTask?: string }
+		options: { selectedCategory?: string, selectedStep?: string }
 	) {
 		super();
 		this.selectedCategory = options.selectedCategory;
-		this.selectedTask = options.selectedTask;
+		this.selectedStep = options.selectedStep;
 	}
 
-	getName() {
+	override getName() {
 		return localize('gettingStarted', "Getting Started");
 	}
 
 	selectedCategory: string | undefined;
-	selectedTask: string | undefined;
+	selectedStep: string | undefined;
 }

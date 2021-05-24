@@ -9,10 +9,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellKind, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
-class NotebookClipboardContribution extends Disposable implements INotebookEditorContribution {
+class NotebookViewportContribution extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.viewportCustomMarkdown';
 	private readonly _warmupViewport: RunOnceScheduler;
 
@@ -21,24 +22,32 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 		super();
 
 		this._warmupViewport = new RunOnceScheduler(() => this._warmupViewportNow(), 200);
-
+		this._register(this._warmupViewport);
 		this._register(this._notebookEditor.onDidScroll(() => {
 			this._warmupViewport.schedule();
 		}));
 	}
 
 	private _warmupViewportNow() {
+		if (this._notebookEditor.isDisposed) {
+			return;
+		}
+
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
+
 		const visibleRanges = this._notebookEditor.getVisibleRangesPlusViewportAboveBelow();
 		cellRangesToIndexes(visibleRanges).forEach(index => {
 			const cell = this._notebookEditor.viewModel?.viewCells[index];
 
-			if (cell?.cellKind === CellKind.Markdown && cell?.editState === CellEditState.Preview) {
+			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
 				this._notebookEditor.createMarkdownPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
 				const viewCell = (cell as CodeCellViewModel);
 				const outputs = viewCell.outputsViewModels;
 				for (let output of outputs) {
-					const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!);
+					const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!, undefined);
 					if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 						continue;
 					}
@@ -49,10 +58,14 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 						return;
 					}
 
+					if (!this._notebookEditor.hasModel()) {
+						return;
+					}
+
 					if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
 						const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
 						if (renderer?.getType() === RenderOutputType.Html) {
-							const renderResult = renderer!.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), undefined) as IInsetRenderOutput;
+							const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), this._notebookEditor.viewModel.uri) as IInsetRenderOutput;
 							this._notebookEditor.createOutput(viewCell, renderResult, 0);
 						}
 						return;
@@ -71,4 +84,4 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 	}
 }
 
-registerNotebookContribution(NotebookClipboardContribution.id, NotebookClipboardContribution);
+registerNotebookContribution(NotebookViewportContribution.id, NotebookViewportContribution);

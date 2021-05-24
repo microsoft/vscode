@@ -266,7 +266,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		this._register(this.socket.onClose(() => this._onClose.fire()));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._zlibDeflateFlushWaitingCount > 0) {
 			// Wait for any outstanding writes to finish before disposing
 			this._register(this._onDidZlibFlush.event(() => {
@@ -581,7 +581,7 @@ export class Server extends IPCServer {
 		this.server = server;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		if (this.server) {
 			this.server.close();

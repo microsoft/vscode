@@ -3,31 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as MarkdownIt from 'markdown-it';
+const MarkdownIt = require('markdown-it');
 
-declare const acquireNotebookRendererApi: any;
-type extendMarkdownItFnType = (
-	(f: (md: MarkdownIt.MarkdownIt) => void) => void
-);
-
-(function () {
-	const markdownIt = new MarkdownIt({
+export function activate() {
+	let markdownIt = new MarkdownIt({
 		html: true
 	});
 
-	(globalThis as any).extendMarkdownIt = ((f: (md: MarkdownIt.MarkdownIt) => void) => {
-		f(markdownIt);
-	}) as extendMarkdownItFnType;
+	return {
+		renderCell: (_id: string, context: { element: HTMLElement, value: string, text(): string }) => {
+			const rendered = markdownIt.render(context.value || context.text()); // todo@jrieken remove .value-usage
+			context.element.innerHTML = rendered;
 
-	const notebook = acquireNotebookRendererApi('notebookCoreTestRenderer');
-
-	notebook.onDidCreateMarkdown(({ element, content }: any) => {
-		const rendered = markdownIt.render(content);
-		element.innerHTML = rendered;
-
-		// Insert styles into markdown preview shadow dom so that they are applied
-		for (const markdownStyleNode of document.getElementsByClassName('markdown-style')) {
-			element.appendChild(markdownStyleNode.cloneNode(true));
+			// Insert styles into markdown preview shadow dom so that they are applied
+			for (const markdownStyleNode of document.getElementsByClassName('markdown-style')) {
+				context.element.insertAdjacentElement('beforebegin', markdownStyleNode.cloneNode(true) as Element);
+			}
+		},
+		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
+			f(markdownIt);
 		}
-	});
-}());
+	};
+}

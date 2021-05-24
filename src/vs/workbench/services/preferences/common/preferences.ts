@@ -15,7 +15,7 @@ import { ConfigurationScope, IConfigurationExtensionInfo } from 'vs/platform/con
 import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IMatch } from 'vs/base/common/filters';
@@ -77,6 +77,7 @@ export interface ISetting {
 	enumDescriptionsAreMarkdown?: boolean;
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
+	restricted?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
@@ -183,7 +184,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	};
 	focusSearch?: boolean;
 
-	static create(options: ISettingsEditorOptions): SettingsEditorOptions {
+	static override create(options: ISettingsEditorOptions): SettingsEditorOptions {
 		const newOptions = new SettingsEditorOptions();
 		options = {
 			...<IEditorOptions>{
@@ -234,6 +235,8 @@ export interface IPreferencesService {
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
+
+	getCurrentOrNewSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI | undefined, group: IEditorGroup): IEditorInput;
 }
 
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {

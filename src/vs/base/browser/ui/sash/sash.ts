@@ -430,6 +430,10 @@ export class Sash extends Disposable {
 		}
 	}
 
+	clearSashHoverState(): void {
+		Sash.onMouseLeave(this);
+	}
+
 	layout(): void {
 		if (this.orientation === Orientation.VERTICAL) {
 			const verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
@@ -484,7 +488,7 @@ export class Sash extends Disposable {
 		return undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.el.remove();
 	}

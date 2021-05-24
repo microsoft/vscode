@@ -23,6 +23,7 @@ export const statePriority: { [K in TestResultState]: number } = {
 };
 
 export const isFailedState = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed;
+export const isStateWithResult = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed || s === TestResultState.Passed;
 
 export const stateNodes = Object.entries(statePriority).reduce(
 	(acc, [stateStr, priority]) => {
@@ -34,7 +35,25 @@ export const stateNodes = Object.entries(statePriority).reduce(
 
 export const cmpPriority = (a: TestResultState, b: TestResultState) => statePriority[b] - statePriority[a];
 
-export const maxPriority = (a: TestResultState, b: TestResultState) => statePriority[a] > statePriority[b] ? a : b;
+export const maxPriority = (...states: TestResultState[]) => {
+	switch (states.length) {
+		case 0:
+			return TestResultState.Unset;
+		case 1:
+			return states[0];
+		case 2:
+			return statePriority[states[0]] > statePriority[states[1]] ? states[0] : states[1];
+		default:
+			let max = states[0];
+			for (let i = 1; i < states.length; i++) {
+				if (statePriority[max] < statePriority[states[i]]) {
+					max = states[i];
+				}
+			}
+
+			return max;
+	}
+};
 
 export const statesInOrder = Object.keys(statePriority).map(s => Number(s) as TestResultState).sort(cmpPriority);
 

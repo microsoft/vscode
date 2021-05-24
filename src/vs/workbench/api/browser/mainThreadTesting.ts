@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
@@ -10,8 +11,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { getTestSubscriptionKey, ISerializedTestResults, ITestMessage, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { HydratedTestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ExtensionRunTestsRequest, getTestSubscriptionKey, ITestItem, ITestMessage, ITestRunTask, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
@@ -46,7 +47,6 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this._register(this.testService.onShouldSubscribe(args => this.proxy.$subscribeToTests(args.resource, args.uri)));
 		this._register(this.testService.onShouldUnsubscribe(args => this.proxy.$unsubscribeFromTests(args.resource, args.uri)));
 
-
 		const prevResults = resultService.results.map(r => r.toJSON()).filter(isDefined);
 		if (prevResults.length) {
 			this.proxy.$publishTestResults(prevResults);
@@ -70,24 +70,64 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
-		this.resultService.push(new HydratedTestResult(results, persist));
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public $updateTestStateInRun(runId: string, testId: string, state: TestResultState, duration?: number): void {
-		const r = this.resultService.getResult(runId);
-		if (r && r instanceof LiveTestResult) {
-			r.updateState(testId, state, duration);
+	$addTestsToRun(runId: string, tests: ITestItem[]): void {
+		for (const test of tests) {
+			test.uri = URI.revive(test.uri);
+			if (test.range) {
+				test.range = Range.lift(test.range);
+			}
 		}
+
+		this.withLiveRun(runId, r => r.addTestChainToRun(tests));
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public $appendTestMessageInRun(runId: string, testId: string, message: ITestMessage): void {
+	$startedExtensionTestRun(req: ExtensionRunTestsRequest): void {
+		this.resultService.createLiveResult(req);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$startedTestRunTask(runId: string, task: ITestRunTask): void {
+		this.withLiveRun(runId, r => r.addTask(task));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$finishedTestRunTask(runId: string, taskId: string): void {
+		this.withLiveRun(runId, r => r.markTaskComplete(taskId));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$finishedExtensionTestRun(runId: string): void {
+		this.withLiveRun(runId, r => r.markComplete());
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void {
+		this.withLiveRun(runId, r => r.updateState(testId, taskId, state, duration));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $appendOutputToRun(runId: string, _taskId: string, output: VSBuffer): void {
+		this.withLiveRun(runId, r => r.output.append(output));
+	}
+
+
+	/**
+	 * @inheritdoc
+	 */
+	public $appendTestMessageInRun(runId: string, taskId: string, testId: string, message: ITestMessage): void {
 		const r = this.resultService.getResult(runId);
 		if (r && r instanceof LiveTestResult) {
 			if (message.location) {
@@ -95,14 +135,14 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 				message.location.range = Range.lift(message.location.range);
 			}
 
-			r.appendMessage(testId, message);
+			r.appendMessage(testId, taskId, message);
 		}
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public $registerTestProvider(id: string) {
+	public $registerTestController(id: string) {
 		const disposable = this.testService.registerTestController(id, {
 			runTests: (req, token) => this.proxy.$runTestsForProvider(req, token),
 			lookupTest: test => this.proxy.$lookupTest(test),
@@ -115,7 +155,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $unregisterTestProvider(id: string) {
+	public $unregisterTestController(id: string) {
 		this.testProviderRegistrations.get(id)?.dispose();
 		this.testProviderRegistrations.delete(id);
 	}
@@ -152,11 +192,16 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		return result.id;
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 		for (const subscription of this.testSubscriptions.values()) {
 			subscription.dispose();
 		}
 		this.testSubscriptions.clear();
+	}
+
+	private withLiveRun<T>(runId: string, fn: (run: LiveTestResult) => T): T | undefined {
+		const r = this.resultService.getResult(runId);
+		return r && r instanceof LiveTestResult ? fn(r) : undefined;
 	}
 }

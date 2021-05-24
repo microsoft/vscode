@@ -226,7 +226,7 @@ class OpenExtensionAction extends Action {
 		this._extension = extension;
 	}
 
-	run(sideByside: boolean): Promise<any> {
+	override run(sideByside: boolean): Promise<any> {
 		if (this._extension) {
 			return this.extensionsWorkdbenchService.open(this._extension, { sideByside });
 		}

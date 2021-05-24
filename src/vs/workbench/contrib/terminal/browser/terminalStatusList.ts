@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put
@@ -25,6 +28,19 @@ export interface ITerminalStatus {
 	 * the "primary status".
 	 */
 	severity: Severity;
+	/**
+	 * An icon representing the status, if this is not specified it will not show up on the terminal
+	 * tab and will use the generic `info` icon when hovering.
+	 */
+	icon?: Codicon;
+	/**
+	 * What to show for this status in the terminal's hover.
+	 */
+	tooltip?: string | undefined;
+	/**
+	 * Actions to expose on hover.
+	 */
+	hoverActions?: IHoverAction[];
 }
 
 export interface ITerminalStatusList {
@@ -98,7 +114,7 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		const status = typeof statusOrId === 'string' ? this._statuses.get(statusOrId) : statusOrId;
 		// Verify the status is the same as the one passed in
 		if (status && this._statuses.get(status.id)) {
-			const wasPrimary = this.primary === status;
+			const wasPrimary = this.primary?.id === status.id;
 			this._statuses.delete(status.id);
 			this._onDidRemoveStatus.fire(status);
 			if (wasPrimary) {
@@ -113,5 +129,16 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		} else {
 			this.remove(status);
 		}
+	}
+}
+
+export function getColorForSeverity(severity: Severity): string {
+	switch (severity) {
+		case Severity.Error:
+			return listErrorForeground;
+		case Severity.Warning:
+			return listWarningForeground;
+		default:
+			return '';
 	}
 }

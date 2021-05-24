@@ -135,7 +135,8 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Find actions available for menu
-		const menuActions = this._getMenuActions(this._editor.getModel(), MenuId.EditorContext);
+		const menuActions = this._getMenuActions(this._editor.getModel(),
+			this._editor.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext);
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -208,10 +209,12 @@ export class ContextMenuController implements IEditorContribution {
 			anchor = { x: posx, y: posy };
 		}
 
+		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
+
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
-			domForShadowRoot: this._editor.getDomNode(),
+			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
 
 			getAnchor: () => anchor!,
 

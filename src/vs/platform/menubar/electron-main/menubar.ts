@@ -19,7 +19,7 @@ import { IWindowsMainService, IWindowsCountChangedEvent, OpenContext } from 'vs/
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemRecentAction, IMenubarMenuRecentItemAction } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
@@ -70,7 +70,7 @@ export class Menubar {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
@@ -100,7 +100,7 @@ export class Menubar {
 	}
 
 	private restoreCachedMenubarData() {
-		const menubarData = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
+		const menubarData = this.stateMainService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
 		if (menubarData) {
 			if (menubarData.menus) {
 				this.menubarMenus = menubarData.menus;
@@ -200,7 +200,7 @@ export class Menubar {
 		this.keybindings = menubarData.keybindings;
 
 		// Save off new menu and keybindings
-		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
+		this.stateMainService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
 
 		this.scheduleUpdateMenu();
 	}
@@ -569,10 +569,7 @@ export class Menubar {
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miCheckForUpdates', "Check for &&Updates...")), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
-
-						const window = this.windowsMainService.getLastActiveWindow();
-						const context = window && `window:${window.id}`; // sessionId
-						this.updateService.checkForUpdates(context);
+						this.updateService.checkForUpdates(true);
 					}, 0)
 				})];
 

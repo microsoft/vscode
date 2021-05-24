@@ -17,7 +17,7 @@ import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncAct
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyRegexExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -608,7 +608,7 @@ class ShowAllSymbolsAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.quickInputService.quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
 }
@@ -636,6 +636,8 @@ const viewDescriptor: IViewDescriptor = {
 		mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+			// Yes, this is weird. See #116188, #115556, #115511, and now #124146, for examples of what can go wrong here.
+			when: ContextKeyRegexExpr.create('neverMatch', /doesNotMatch/)
 		},
 		order: 1
 	}
@@ -709,8 +711,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		]
 	},
 	id: Constants.FindInFilesActionId,
-	// Give more weightage to this keybinding than of `View: Show Search` keybinding. See #116188, #115556, #115511
-	weight: KeybindingWeight.WorkbenchContrib + 1,
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
 	handler: FindInFilesCommand
@@ -920,7 +921,7 @@ configurationRegistry.registerConfiguration({
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
-			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. Please use drag and drop instead by dragging the search icon.")
+			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. You can drag the search icon to a new location instead.")
 		},
 		'search.collapseResults': {
 			type: 'string',

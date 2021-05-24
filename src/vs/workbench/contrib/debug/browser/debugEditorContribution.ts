@@ -30,7 +30,7 @@ import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWid
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { memoize, createMemoizer } from 'vs/base/common/decorators';
+import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { ITextModel } from 'vs/editor/common/model';
@@ -45,12 +45,26 @@ import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
+
+export const debugInlineForeground = registerColor('editor.inlineValuesForeground', {
+	dark: '#ffffff80',
+	light: '#00000080',
+	hc: '#ffffff80'
+}, nls.localize('editor.inlineValuesForeground', "Color for the debug inline value text."));
+
+export const debugInlineBackground = registerColor('editor.inlineValuesBackground', {
+	dark: '#ffc80033',
+	light: '#ffc80033',
+	hc: '#ffc80033'
+}, nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
 
 class InlineSegment {
 	constructor(public column: number, public text: string) {
@@ -73,18 +87,9 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 		renderOptions: {
 			after: {
 				contentText,
-				backgroundColor: 'rgba(255, 200, 0, 0.2)',
-				margin: '10px'
-			},
-			dark: {
-				after: {
-					color: 'rgba(255, 255, 255, 0.5)',
-				}
-			},
-			light: {
-				after: {
-					color: 'rgba(0, 0, 0, 0.5)',
-				}
+				backgroundColor: themeColorFromId(debugInlineBackground),
+				margin: '10px',
+				color: themeColorFromId(debugInlineForeground)
 			}
 		}
 	};
@@ -185,7 +190,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverRange: Range | null = null;
 	private mouseDown = false;
 	private exceptionWidgetVisible: IContextKey<boolean>;
-	private static readonly MEMOIZER = createMemoizer();
 
 	private exceptionWidget: ExceptionWidget | undefined;
 	private configurationWidget: FloatingClickWidget | undefined;
@@ -234,7 +238,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}));
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => {
-			DebugEditorContribution.MEMOIZER.clear();
+			this._wordToLineNumbersMap = undefined;
 			this.updateInlineValuesScheduler.schedule();
 		}));
 		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
@@ -247,7 +251,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
-			DebugEditorContribution.MEMOIZER.clear();
+			this._wordToLineNumbersMap = undefined;
 			await this.updateInlineValueDecorations(stackFrame);
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => {
@@ -266,9 +270,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}));
 	}
 
-	@DebugEditorContribution.MEMOIZER
+	private _wordToLineNumbersMap: Map<string, number[]> | undefined = undefined;
 	private get wordToLineNumbersMap(): Map<string, number[]> {
-		return getWordToLineNumbersMap(this.editor.getModel());
+		if (!this._wordToLineNumbersMap) {
+			this._wordToLineNumbersMap = getWordToLineNumbersMap(this.editor.getModel());
+		}
+		return this._wordToLineNumbersMap;
 	}
 
 	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {

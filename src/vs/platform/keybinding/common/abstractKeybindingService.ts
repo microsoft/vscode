@@ -61,7 +61,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._logging = false;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
@@ -107,8 +107,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		);
 	}
 
-	public lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
-		const result = this._getResolver().lookupPrimaryKeybinding(commandId);
+	public lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined {
+		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context);
 		if (!result) {
 			return undefined;
 		}

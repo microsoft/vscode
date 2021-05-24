@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import { mapArrayOrNot } from 'vs/base/common/arrays';
+import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as resources from 'vs/base/common/resources';
@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { TextSearchProvider, TextSearchResult, TextSearchMatch, TextSearchComplete, Range, TextSearchOptions, TextSearchQuery } from 'vs/workbench/services/search/common/searchExtTypes';
 import { Schemas } from 'vs/base/common/network';
+import { isArray } from 'vs/base/common/types';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -70,6 +71,11 @@ export class TextSearchManager {
 				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
 					limitHit: this.isLimitHit || someFolderHitLImit,
+					messages: flatten(results.map(result => {
+						if (!result?.message) { return []; }
+						if (isArray(result.message)) { return result.message; }
+						else { return [result.message]; }
+					})),
 					stats: {
 						type: 'textSearchProvider'
 					}

@@ -20,12 +20,13 @@ import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteB
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { getExtensionWorkspaceTrustRequestType, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { localize } from 'vs/nls';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
@@ -66,6 +67,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
@@ -203,14 +205,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
 
-		if (extension.local?.manifest.workspaceTrust?.request) {
-			const trustRequirement = extension.local.manifest.workspaceTrust;
-			const requestType = getExtensionWorkspaceTrustRequestType(extension.local.manifest);
-			if (requestType !== 'never' && trustRequirement.request !== 'never') {
-				data.workspaceTrustDescription.textContent = trustRequirement.description;
-			} else if (requestType === 'onStart') {
+		if (extension.local?.manifest.capabilities?.untrustedWorkspaces?.supported) {
+			const untrustedWorkspaceCapability = extension.local.manifest.capabilities.untrustedWorkspaces;
+			const untrustedWorkspaceSupported = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.local.manifest);
+			if (untrustedWorkspaceSupported !== true && untrustedWorkspaceCapability.supported !== true) {
+				data.workspaceTrustDescription.textContent = untrustedWorkspaceCapability.description;
+			} else if (untrustedWorkspaceSupported === false) {
 				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
-			} else if (requestType === 'onDemand') {
+			} else if (untrustedWorkspaceSupported === 'limited') {
 				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
 			}
 		}

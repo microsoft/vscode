@@ -10,8 +10,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-
-export class ExtensionKindController {
+export class ExtensionKindController2 {
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,

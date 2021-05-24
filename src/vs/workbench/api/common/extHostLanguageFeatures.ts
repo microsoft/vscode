@@ -1038,6 +1038,40 @@ class SuggestAdapter {
 	}
 }
 
+class InlineCompletionsAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.InlineCompletionItemProvider,
+	) { }
+
+	async provideInlineCompletions(resource: URI, position: IPosition, context: vscode.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+
+		const result = await asPromise(() => this._provider.provideInlineCompletionItems(doc, pos, context, token));
+
+		if (!result) {
+			// undefined and null are valid results
+			return undefined;
+		}
+
+		if (token.isCancellationRequested) {
+			// cancelled -> return without further ado, esp no caching
+			// of results as they will leak
+			return undefined;
+		}
+
+		return {
+			items: result.items.map(item => ({
+				text: item.text,
+				range: item.range ? typeConvert.Range.from(item.range) : undefined,
+			})),
+		};
+	}
+}
+
 class SignatureHelpAdapter {
 
 	private readonly _cache = new Cache<vscode.SignatureHelp>('SignatureHelp');
@@ -1082,16 +1116,16 @@ class SignatureHelpAdapter {
 	}
 }
 
-class InlineHintsAdapter {
+class InlayHintsAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.InlineHintsProvider,
+		private readonly _provider: vscode.InlayHintsProvider,
 	) { }
 
-	provideInlineHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
+	provideInlayHints(resource: URI, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
 		const doc = this._documents.getDocument(resource);
-		return asPromise(() => this._provider.provideInlineHints(doc, typeConvert.Range.to(range), token)).then(value => {
-			return value ? { hints: value.map(typeConvert.InlineHint.from) } : undefined;
+		return asPromise(() => this._provider.provideInlayHints(doc, typeConvert.Range.to(range), token)).then(value => {
+			return value ? { hints: value.map(typeConvert.InlayHint.from) } : undefined;
 		});
 	}
 }
@@ -1355,7 +1389,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
-	| LinkedEditingRangeAdapter | InlineHintsAdapter;
+	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionsAdapter;
 
 class AdapterData {
 	constructor(
@@ -1809,6 +1843,19 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._withAdapter(handle, SuggestAdapter, adapter => adapter.releaseCompletionItems(id), undefined);
 	}
 
+	// --- ghost test
+
+	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new InlineCompletionsAdapter(this._documents, provider), extension);
+		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> {
+		return this._withAdapter(handle, InlineCompletionsAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined);
+	}
+
+
 	// --- parameter hints
 
 	registerSignatureHelpProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, metadataOrTriggerChars: string[] | vscode.SignatureHelpProviderMetadata): vscode.Disposable {
@@ -1831,23 +1878,23 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- inline hints
 
-	registerInlineHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineHintsProvider): vscode.Disposable {
+	registerInlayHintsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
 
-		const eventHandle = typeof provider.onDidChangeInlineHints === 'function' ? this._nextHandle() : undefined;
-		const handle = this._addNewAdapter(new InlineHintsAdapter(this._documents, provider), extension);
+		const eventHandle = typeof provider.onDidChangeInlayHints === 'function' ? this._nextHandle() : undefined;
+		const handle = this._addNewAdapter(new InlayHintsAdapter(this._documents, provider), extension);
 
-		this._proxy.$registerInlineHintsProvider(handle, this._transformDocumentSelector(selector), eventHandle);
+		this._proxy.$registerInlayHintsProvider(handle, this._transformDocumentSelector(selector), eventHandle);
 		let result = this._createDisposable(handle);
 
 		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChangeInlineHints!(_ => this._proxy.$emitInlineHintsEvent(eventHandle));
+			const subscription = provider.onDidChangeInlayHints!(_ => this._proxy.$emitInlayHintsEvent(eventHandle));
 			result = Disposable.from(result, subscription);
 		}
 		return result;
 	}
 
-	$provideInlineHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlineHintsDto | undefined> {
-		return this._withAdapter(handle, InlineHintsAdapter, adapter => adapter.provideInlineHints(URI.revive(resource), range, token), undefined);
+	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
+		return this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.provideInlayHints(URI.revive(resource), range, token), undefined);
 	}
 
 	// --- links

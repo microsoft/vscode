@@ -42,7 +42,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		harness.c.addRoot(testStubs.nested(), 'a');
 		harness.flush(folder1);
 		harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
-		assert.deepStrictEqual(harness.flush(), [
+		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }
 		]);
 	});
@@ -58,7 +58,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		]);
 
 		harness.tree.expand(harness.projection.getElementByTestId('id1-a')!);
-		assert.deepStrictEqual(harness.flush(), [
+		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'f1', children: [{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }] },
 			{ e: 'f2', children: [{ e: 'a' }, { e: 'b' }] },
 		]);
@@ -96,7 +96,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			{ e: 'b' }
 		]);
 
-		tests.children.get('id-a')!.children.add(testStubs.test('ac'));
+		tests.children.get('id-a')!.addChild(testStubs.test('ac'));
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'ac' }] },
@@ -110,7 +110,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		harness.flush(folder1);
 		harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
 
-		tests.children.get('id-a')!.children.delete('id-ab');
+		tests.children.get('id-a')!.children.get('id-ab')!.dispose();
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'a', children: [{ e: 'aa' }] },

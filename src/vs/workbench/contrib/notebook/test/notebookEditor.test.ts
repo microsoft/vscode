@@ -17,9 +17,9 @@ suite('ListViewInfoAccessor', () => {
 	test('basics', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
@@ -57,8 +57,8 @@ suite('ListViewInfoAccessor', () => {
 				assert.deepStrictEqual(listViewInfoAccessor.getCellsFromViewRange(1, 2), viewModel.getCells({ start: 2, end: 5 }));
 
 				const notebookEditor = new class extends mock<INotebookEditor>() {
-					getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
-					getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
+					override getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
+					override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
 				};
 
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, viewModel, [{ start: 0, end: 1 }]), [{ start: 0, end: 2 }]);

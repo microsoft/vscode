@@ -15,6 +15,7 @@ const mocha = require('mocha');
 const events = require('events');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
+const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const FullJsonStreamReporter = require('../fullJsonStreamReporter');
 
@@ -31,6 +32,8 @@ const optimist = require('optimist')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', 'spec')
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
+	.describe('wait-server', 'port to connect to and wait before running tests')
+	.describe('timeout', 'timeout for tests')
 	.describe('tfs').string('tfs')
 	.describe('help', 'show the help').alias('help', 'h');
 
@@ -85,6 +88,12 @@ function importMochaReporter(name) {
 function deserializeError(err) {
 	const inspect = err.inspect;
 	err.inspect = () => inspect;
+	if (err.actual) {
+		err.actual = JSON.parse(err.actual).value;
+	}
+	if (err.expected) {
+		err.expected = JSON.parse(err.expected).value;
+	}
 	return err;
 }
 
@@ -146,6 +155,9 @@ app.on('ready', () => {
 		};
 	});
 
+	// No-op since invoke the IPC as part of IIFE in the preload.
+	ipcMain.handle('vscode:fetchShellEnv', event => { });
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
@@ -154,6 +166,7 @@ app.on('ready', () => {
 			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
 			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
+			contextIsolation: false,
 			enableWebSQL: false,
 			enableRemoteModule: false,
 			spellcheck: false,
@@ -167,8 +180,44 @@ app.on('ready', () => {
 			win.show();
 			win.webContents.openDevTools();
 		}
-		win.webContents.send('run', argv);
+
+		if (argv.waitServer) {
+			waitForServer(Number(argv.waitServer)).then(sendRun);
+		} else {
+			sendRun();
+		}
 	});
+
+	async function waitForServer(port) {
+		let timeout;
+		let socket;
+
+		return new Promise(resolve => {
+			socket = net.connect(port, '127.0.0.1');
+			socket.on('error', e => {
+				console.error('error connecting to waitServer', e);
+				resolve();
+			});
+
+			socket.on('close', () => {
+				resolve();
+			});
+
+			timeout = setTimeout(() => {
+				console.error('timed out waiting for before starting tests debugger');
+				resolve();
+			}, 7000);
+		}).finally(() => {
+			if (socket) {
+				socket.end();
+			}
+			clearTimeout(timeout);
+		});
+	}
+
+	function sendRun() {
+		win.webContents.send('run', argv);
+	}
 
 	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
 

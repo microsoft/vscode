@@ -102,9 +102,10 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointSupportsCondition = CONTEXT_BREAKPOINT_SUPPORTS_CONDITION.bindTo(contextKeyService);
 		this.breakpointInputFocused = CONTEXT_BREAKPOINT_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
+		this._register(this.debugService.onDidChangeState(() => this.onStateChange()));
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -174,7 +175,7 @@ export class BreakpointsView extends ViewPane {
 		}));
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		if (this.list) {
 			this.list.domFocus();
@@ -191,7 +192,7 @@ export class BreakpointsView extends ViewPane {
 		return this._inputBoxData;
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		if (this.ignoreLayout) {
 			return;
 		}
@@ -251,6 +252,22 @@ export class BreakpointsView extends ViewPane {
 			}
 		} else {
 			this.needsRefresh = true;
+		}
+	}
+
+	private onStateChange(): void {
+		const thread = this.debugService.getViewModel().focusedThread;
+		if (thread && thread.stoppedDetails && thread.stoppedDetails.hitBreakpointIds && thread.stoppedDetails.hitBreakpointIds.length > 0) {
+			const hitBreakpointIds = thread.stoppedDetails.hitBreakpointIds;
+			const elements = this.elements;
+			const index = elements.findIndex(e => {
+				const id = e.getIdFromAdapter(thread.session.getId());
+				return typeof id === 'number' && hitBreakpointIds.indexOf(id) !== -1;
+			});
+			if (index >= 0) {
+				this.list.setFocus([index]);
+				this.list.setSelection([index]);
+			}
 		}
 	}
 
@@ -473,7 +490,8 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 	renderElement(exceptionBreakpoint: IExceptionBreakpoint, index: number, data: IExceptionBreakpointTemplateData): void {
 		data.context = exceptionBreakpoint;
 		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
-		data.breakpoint.title = exceptionBreakpoint.description || data.name.textContent;
+		data.breakpoint.title = exceptionBreakpoint.verified ? (exceptionBreakpoint.description || data.name.textContent) : exceptionBreakpoint.message || localize('unverifiedExceptionBreakpoint', "Unverified Exception Breakpoint");
+		data.breakpoint.classList.toggle('disabled', !exceptionBreakpoint.verified);
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 		data.condition.textContent = exceptionBreakpoint.condition || '';
 		data.condition.title = localize('expressionCondition', "Expression condition: {0}", exceptionBreakpoint.condition);

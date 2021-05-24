@@ -102,14 +102,14 @@ flakySuite('WorkspacesManagementMainService', () => {
 				super(parseArgs(process.argv, OPTIONS), productService);
 			}
 
-			get untitledWorkspacesHome(): URI {
+			override get untitledWorkspacesHome(): URI {
 				return URI.file(untitledWorkspacesHomePath);
 			}
 		};
 
 		service = new WorkspacesManagementMainService(environmentMainService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService(), productService);
 
-		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
+		return pfs.Promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});
 
 	teardown(() => {

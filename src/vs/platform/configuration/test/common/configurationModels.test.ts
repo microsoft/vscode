@@ -242,10 +242,10 @@ suite('CustomConfigurationModel', () => {
 
 	test('simple merge using models', () => {
 		let base = new ConfigurationModelParser('base');
-		base.parseContent(JSON.stringify({ 'a': 1, 'b': 2 }));
+		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
 
 		let add = new ConfigurationModelParser('add');
-		add.parseContent(JSON.stringify({ 'a': 3, 'c': 4 }));
+		add.parse(JSON.stringify({ 'a': 3, 'c': 4 }));
 
 		let result = base.configurationModel.merge(add.configurationModel);
 		assert.deepStrictEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
@@ -253,14 +253,14 @@ suite('CustomConfigurationModel', () => {
 
 	test('simple merge with an undefined contents', () => {
 		let base = new ConfigurationModelParser('base');
-		base.parseContent(JSON.stringify({ 'a': 1, 'b': 2 }));
+		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
 		let add = new ConfigurationModelParser('add');
 		let result = base.configurationModel.merge(add.configurationModel);
 		assert.deepStrictEqual(result.contents, { 'a': 1, 'b': 2 });
 
 		base = new ConfigurationModelParser('base');
 		add = new ConfigurationModelParser('add');
-		add.parseContent(JSON.stringify({ 'a': 1, 'b': 2 }));
+		add.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
 		result = base.configurationModel.merge(add.configurationModel);
 		assert.deepStrictEqual(result.contents, { 'a': 1, 'b': 2 });
 
@@ -272,25 +272,25 @@ suite('CustomConfigurationModel', () => {
 
 	test('Recursive merge using config models', () => {
 		let base = new ConfigurationModelParser('base');
-		base.parseContent(JSON.stringify({ 'a': { 'b': 1 } }));
+		base.parse(JSON.stringify({ 'a': { 'b': 1 } }));
 		let add = new ConfigurationModelParser('add');
-		add.parseContent(JSON.stringify({ 'a': { 'b': 2 } }));
+		add.parse(JSON.stringify({ 'a': { 'b': 2 } }));
 		let result = base.configurationModel.merge(add.configurationModel);
 		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 } });
 	});
 
 	test('Test contents while getting an existing property', () => {
 		let testObject = new ConfigurationModelParser('test');
-		testObject.parseContent(JSON.stringify({ 'a': 1 }));
+		testObject.parse(JSON.stringify({ 'a': 1 }));
 		assert.deepStrictEqual(testObject.configurationModel.getValue('a'), 1);
 
-		testObject.parseContent(JSON.stringify({ 'a': { 'b': 1 } }));
+		testObject.parse(JSON.stringify({ 'a': { 'b': 1 } }));
 		assert.deepStrictEqual(testObject.configurationModel.getValue('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
 		const testObject = new ConfigurationModelParser('test');
-		testObject.parseContent(JSON.stringify({
+		testObject.parse(JSON.stringify({
 			awesome: true
 		}));
 
@@ -305,7 +305,7 @@ suite('CustomConfigurationModel', () => {
 
 	test('Test configWithOverrides gives all content merged with overrides', () => {
 		const testObject = new ConfigurationModelParser('test');
-		testObject.parseContent(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
+		testObject.parse(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
 
 		assert.deepStrictEqual(testObject.configurationModel.override('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
 	});
@@ -318,17 +318,17 @@ suite('CustomConfigurationModel', () => {
 
 	test('Test update with empty data', () => {
 		const testObject = new ConfigurationModelParser('test');
-		testObject.parseContent('');
+		testObject.parse('');
 
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
-		testObject.parseContent(null!);
+		testObject.parse(null!);
 
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
-		testObject.parseContent(undefined!);
+		testObject.parse(undefined!);
 
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
@@ -380,7 +380,7 @@ suite('Configuration', () => {
 
 	test('Test update value', () => {
 		const parser = new ConfigurationModelParser('test');
-		parser.parseContent(JSON.stringify({ 'a': 1 }));
+		parser.parse(JSON.stringify({ 'a': 1 }));
 		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel());
 
 		testObject.updateValue('a', 2);
@@ -390,7 +390,7 @@ suite('Configuration', () => {
 
 	test('Test update value after inspect', () => {
 		const parser = new ConfigurationModelParser('test');
-		parser.parseContent(JSON.stringify({ 'a': 1 }));
+		parser.parse(JSON.stringify({ 'a': 1 }));
 		const testObject: Configuration = new Configuration(parser.configurationModel, new ConfigurationModel());
 
 		testObject.inspect('a', {}, undefined);
@@ -503,7 +503,7 @@ suite('Configuration', () => {
 
 	function parseConfigurationModel(content: any): ConfigurationModel {
 		const parser = new ConfigurationModelParser('test');
-		parser.parseContent(JSON.stringify(content));
+		parser.parse(JSON.stringify(content));
 		return parser.configurationModel;
 	}
 
@@ -951,6 +951,6 @@ suite('AllKeysConfigurationChangeEvent', () => {
 
 function toConfigurationModel(obj: any): ConfigurationModel {
 	const parser = new ConfigurationModelParser('test');
-	parser.parseContent(JSON.stringify(obj));
+	parser.parse(JSON.stringify(obj));
 	return parser.configurationModel;
 }

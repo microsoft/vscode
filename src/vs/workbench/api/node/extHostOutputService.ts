@@ -8,25 +8,26 @@ import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { toLocalISOString } from 'vs/base/common/date';
-import { SymlinkSupport } from 'vs/base/node/pfs';
-import { promises } from 'fs';
+import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
 import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputService, LazyOutputChannel } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
-import { RotatingLogger } from 'spdlog';
+import { Logger } from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 
 class OutputAppender {
 
-	private appender: RotatingLogger;
+	static async create(name: string, file: string): Promise<OutputAppender> {
+		const appender = await createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
+		appender.clearFormatters();
 
-	constructor(name: string, readonly file: string) {
-		this.appender = createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
-		this.appender.clearFormatters();
+		return new OutputAppender(name, file, appender);
 	}
+
+	private constructor(readonly name: string, readonly file: string, private readonly appender: Logger) { }
 
 	append(content: string): void {
 		this.appender.critical(content);
@@ -38,7 +39,7 @@ class OutputAppender {
 }
 
 
-export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
+class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
 	private _appender: OutputAppender;
 
@@ -47,23 +48,23 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 		this._appender = appender;
 	}
 
-	append(value: string): void {
+	override append(value: string): void {
 		super.append(value);
 		this._appender.append(value);
 		this._onDidAppend.fire();
 	}
 
-	update(): void {
+	override update(): void {
 		this._appender.flush();
 		super.update();
 	}
 
-	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+	override show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
 		this._appender.flush();
 		super.show(columnOrPreserveFocus, preserveFocus);
 	}
 
-	clear(): void {
+	override clear(): void {
 		this._appender.flush();
 		super.clear();
 	}
@@ -85,7 +86,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 		this._logsLocation = initData.logsLocation;
 	}
 
-	$setVisibleChannel(channelId: string): void {
+	override $setVisibleChannel(channelId: string): void {
 		if (channelId) {
 			const channel = this._channels.get(channelId);
 			if (channel) {
@@ -94,7 +95,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 		}
 	}
 
-	createOutputChannel(name: string): vscode.OutputChannel {
+	override createOutputChannel(name: string): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
@@ -109,11 +110,11 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 			const exists = await SymlinkSupport.existsDirectory(outputDirPath);
 			if (!exists) {
-				await promises.mkdir(outputDirPath, { recursive: true });
+				await Promises.mkdir(outputDirPath, { recursive: true });
 			}
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
 			const file = URI.file(join(outputDirPath, `${fileName}.log`));
-			const appender = new OutputAppender(fileName, file.fsPath);
+			const appender = await OutputAppender.create(fileName, file.fsPath);
 			return new ExtHostOutputChannelBackedByFile(name, appender, this._proxy);
 		} catch (error) {
 			// Do not crash if logger cannot be created

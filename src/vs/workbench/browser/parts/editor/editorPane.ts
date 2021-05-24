@@ -76,7 +76,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		super(id, telemetryService, themeService, storageService);
 	}
 
-	create(parent: HTMLElement): void {
+	override create(parent: HTMLElement): void {
 		super.create(parent);
 
 		// Create Editor
@@ -133,7 +133,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		this._options = options;
 	}
 
-	setVisible(visible: boolean, group?: IEditorGroup): void {
+	override setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);
 
 		// Propagate to Editor
@@ -163,7 +163,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		return editorMemento;
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Save all editor memento for this editor type
 		for (const [, editorMemento] of EditorPane.EDITOR_MEMENTOS) {
@@ -175,7 +175,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		super.saveState();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._input = undefined;
 		this._options = undefined;
 
@@ -193,7 +193,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	private editorDisposables: Map<EditorInput, IDisposable> | undefined;
 
 	constructor(
-		public readonly id: string,
+		readonly id: string,
 		private key: string,
 		private memento: MementoObject,
 		private limit: number,

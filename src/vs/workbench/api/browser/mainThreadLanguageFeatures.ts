@@ -499,6 +499,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
 	}
 
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void {
+		const provider: modes.InlineCompletionsProvider = {
+			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> => {
+				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+			}
+		};
+		this._registrations.set(handle, modes.InlineCompletionsProviderRegistry.register(selector, provider));
+	}
+
 	// --- parameter hints
 
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void {
@@ -524,10 +533,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- inline hints
 
-	$registerInlineHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
-		const provider = <modes.InlineHintsProvider>{
-			provideInlineHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlineHint[] | undefined> => {
-				const result = await this._proxy.$provideInlineHints(handle, model.uri, range, token);
+	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.InlayHintsProvider>{
+			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlayHint[] | undefined> => {
+				const result = await this._proxy.$provideInlayHints(handle, model.uri, range, token);
 				return result?.hints;
 			}
 		};
@@ -535,13 +544,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		if (typeof eventHandle === 'number') {
 			const emitter = new Emitter<void>();
 			this._registrations.set(eventHandle, emitter);
-			provider.onDidChangeInlineHints = emitter.event;
+			provider.onDidChangeInlayHints = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.InlineHintsProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
 	}
 
-	$emitInlineHintsEvent(eventHandle: number, event?: any): void {
+	$emitInlayHintsEvent(eventHandle: number, event?: any): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
 			obj.fire(event);

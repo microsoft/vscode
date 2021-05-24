@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
+import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, TerminalLaunchConfig, ITerminalDimensionsDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ExtHostContext, ExtHostTerminalServiceShape, IExtHostContext, ITerminalDimensionsDto, MainContext, MainThreadTerminalServiceShape, TerminalIdentifier, TerminalLaunchConfig } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IAvailableProfilesRequest as IAvailableProfilesRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -29,11 +31,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	 * This comes in play only when dealing with terminals created on the extension host side
 	 */
 	private _extHostTerminalIds = new Map<string, number>();
-	private _remoteAuthority: string | null;
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
-	private _extHostKind: ExtensionHostKind;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
 	 * provider, this is registered with the terminal on the renderer side and all links are
@@ -42,25 +42,25 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	 */
 	private _linkProvider: IDisposable | undefined;
 
+	private _os: OperatingSystem = OS;
+
 	constructor(
-		extHostContext: IExtHostContext,
+		private readonly _extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ILogService private readonly _logService: ILogService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
-		this._remoteAuthority = extHostContext.remoteAuthority;
+		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
 		// ITerminalService listeners
 		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
 			this._onTerminalOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
-
-		this._extHostKind = extHostContext.extensionHostKind;
 
 		this._toDispose.add(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
 		this._toDispose.add(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
@@ -69,13 +69,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.add(_terminalService.onInstanceRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
 		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
-		this._toDispose.add(_terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
-		this._toDispose.add(_terminalService.onRequestAvailableProfiles(e => this._onRequestAvailableProfiles(e)));
-
-		// ITerminalInstanceService listeners
-		if (terminalInstanceService.onRequestDefaultShellAndArgs) {
-			this._toDispose.add(terminalInstanceService.onRequestDefaultShellAndArgs(e => this._onRequestDefaultShellAndArgs(e)));
-		}
 
 		// Set initial ext host state
 		this._terminalService.terminalInstances.forEach(t => {
@@ -94,12 +87,23 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
 
-		this._terminalService.extHostReady(extHostContext.remoteAuthority!); // TODO@Tyriar: remove null assertion
+		remoteAgentService.getEnvironment().then(async env => {
+			this._os = env?.os || OS;
+			this._updateDefaultProfile();
+		});
+		this._terminalService.onDidChangeAvailableProfiles(() => this._updateDefaultProfile());
 	}
 
 	public dispose(): void {
 		this._toDispose.dispose();
 		this._linkProvider?.dispose();
+	}
+
+	private async _updateDefaultProfile() {
+		const remoteAuthority = withNullAsUndefined(this._extHostContext.remoteAuthority);
+		const defaultProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os });
+		const defaultAutomationProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os, allowAutomationShell: true });
+		this._proxy.$acceptDefaultProfile(...await Promise.all([defaultProfile, defaultAutomationProfile]));
 	}
 
 	private _getTerminalId(id: TerminalIdentifier): number | undefined {
@@ -130,7 +134,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			env: launchConfig.env,
 			strictEnv: launchConfig.strictEnv,
 			hideFromUser: launchConfig.hideFromUser,
-			isExtensionCustomPtyTerminal: launchConfig.isExtensionCustomPtyTerminal,
+			customPtyImplementation: launchConfig.isExtensionCustomPtyTerminal
+				? (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService)
+				: undefined,
 			extHostTerminalId: extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal
@@ -206,10 +212,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalTitleChange(terminalId, name);
 	}
 
-	private _onWorkspacePermissionsChanged(isAllowed: boolean): void {
-		this._proxy.$acceptWorkspacePermissionsChanged(isAllowed);
-	}
-
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode);
 	}
@@ -267,7 +269,15 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitTitle(title);
+		// Since title events can only come from vscode.Pseudoterminals right now, these are routed
+		// directly to the instance as API source events such that they will replace the initial
+		// `name` property provided for the Pseudoterminal. If we support showing both Api and
+		// Process titles at the same time we may want to pass this through as a Process source
+		// event.
+		const instance = this._terminalService.getInstanceFromId(terminalId);
+		if (instance) {
+			instance.setTitle(title, TitleEventSource.Api);
+		}
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
@@ -308,28 +318,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			sum += sw.elapsed();
 		}
 		this._getTerminalProcess(terminalId)?.emitLatency(sum / COUNT);
-	}
-
-	private _isPrimaryExtHost(): boolean {
-		// The "primary" ext host is the remote ext host if there is one, otherwise the local
-		const conn = this._remoteAgentService.getConnection();
-		if (conn) {
-			return this._remoteAuthority === conn.remoteAuthority;
-		}
-		return this._extHostKind !== ExtensionHostKind.LocalWebWorker;
-	}
-
-	private async _onRequestAvailableProfiles(req: IAvailableProfilesRequest): Promise<void> {
-		if (this._isPrimaryExtHost()) {
-			req.callback(await this._proxy.$getAvailableProfiles(req.configuredProfilesOnly));
-		}
-	}
-
-	private async _onRequestDefaultShellAndArgs(req: IDefaultShellAndArgsRequest): Promise<void> {
-		if (this._isPrimaryExtHost()) {
-			const res = await this._proxy.$getDefaultShellAndArgs(req.useAutomationShell);
-			req.callback(res.shell, res.args);
-		}
 	}
 
 	private _getTerminalProcess(terminalId: number): ITerminalProcessExtHostProxy | undefined {

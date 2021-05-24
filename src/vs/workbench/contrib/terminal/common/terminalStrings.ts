@@ -6,7 +6,7 @@
 /**
  * Formats a message from the product to be written to the terminal.
  */
-export function formatMessageForTerminal(message: string): string {
+export function formatMessageForTerminal(message: string, excludeLeadingNewLine: boolean = false): string {
 	// Wrap in bold and ensure it's on a new line
-	return `\r\n\x1b[1m${message}\x1b[0m\n\r`;
+	return `${excludeLeadingNewLine ? '' : '\r\n'}\x1b[1m${message}\x1b[0m\n\r`;
 }

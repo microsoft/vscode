@@ -351,7 +351,7 @@ export class ContextView extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.hide();
 
 		super.dispose();

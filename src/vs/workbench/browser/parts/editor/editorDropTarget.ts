@@ -18,12 +18,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { ByteSize } from 'vs/platform/files/common/files';
 
@@ -55,7 +55,7 @@ class DropOverlay extends Themable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(themeService);
@@ -97,7 +97,7 @@ class DropOverlay extends Themable {
 		this.updateStyles();
 	}
 
-	protected updateStyles(): void {
+	protected override updateStyles(): void {
 		const overlay = assertIsDefined(this.overlay);
 
 		// Overlay drop background
@@ -313,7 +313,7 @@ class DropOverlay extends Themable {
 
 						// Skip for very large files because this operation is unbuffered
 						if (file.size > DropOverlay.MAX_FILE_UPLOAD_SIZE) {
-							this.notificationService.warn(localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
+							this.dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."), [localize('ok', 'OK')]);
 							continue;
 						}
 
@@ -332,8 +332,8 @@ class DropOverlay extends Themable {
 									proposedFilePath = joinPath(defaultFilePath, name);
 								}
 
-								// Open as untitled file with the provided contents
-								const untitledEditor = this.editorService.createEditorInput({
+								// Open as untitled text file with the provided contents
+								const untitledTextEditor = this.editorService.createEditorInput({
 									resource: proposedFilePath,
 									forceUntitled: true,
 									contents: VSBuffer.wrap(new Uint8Array(event.target.result)).toString()
@@ -343,7 +343,7 @@ class DropOverlay extends Themable {
 									targetGroup = ensureTargetGroup();
 								}
 
-								await targetGroup.openEditor(untitledEditor);
+								await this.editorService.openEditor(untitledTextEditor, undefined, targetGroup.id);
 							}
 						};
 					}
@@ -355,15 +355,13 @@ class DropOverlay extends Themable {
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
 			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => {
-				if (targetGroup) {
-					targetGroup.focus();
-				}
+				targetGroup?.focus();
 			});
 		}
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor?.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
+		if (draggedEditor?.editor instanceof EditorInput && !draggedEditor.editor.canSplit()) {
 			return false;
 		}
 
@@ -543,7 +541,7 @@ class DropOverlay extends Themable {
 		return element === this.container || element === this.overlay;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this._disposed = true;
@@ -652,7 +650,7 @@ export class EditorDropTarget extends Themable {
 		this.container.classList.toggle('dragged-over', isDraggedOver);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.disposeOverlay();

@@ -39,7 +39,7 @@ export class EditorWalkThroughAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<void> {
+	public override run(): Promise<void> {
 		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
 		return this.editorService.openEditor(input, { pinned: true, override: EditorOverride.DISABLED })
 			.then(() => void (0));
@@ -55,10 +55,10 @@ export class EditorWalkThroughInputSerializer implements IEditorInputSerializer 
 	}
 
 	public serialize(editorInput: EditorInput): string {
-		return '{}';
+		return '';
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): WalkThroughInput {
+	public deserialize(instantiationService: IInstantiationService): WalkThroughInput {
 		return instantiationService.createInstance(WalkThroughInput, inputOptions);
 	}
 }
