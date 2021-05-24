@@ -79,10 +79,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
 	constructor(
+		private readonly _reconnectConstants: ReconnectConstants,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		private readonly _reconnectConstants: ReconnectConstants
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -106,7 +106,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
-					VSCODE_RECONNECT_CONSTANTS: JSON.stringify(this._reconnectConstants)
+					VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.GraceTime,
+					VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.ShortGraceTime
 				}
 			}
 		);
