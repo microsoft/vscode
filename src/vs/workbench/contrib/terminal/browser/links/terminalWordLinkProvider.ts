@@ -66,23 +66,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			return [];
 		}
 
-		const words: string[] = [];
-		const separators: string[] = wordSeparators.split('');
-		let startIndex = 0;
-		const charArray = text.split('');
-
-		// loop through the characters, creating words
-		// when a separator is encountered
-		for (let i = 0; i < text.length; i++) {
-			if (separators.includes(charArray[i])) {
-				words.push(text.substring(startIndex, i));
-				startIndex = i + 1;
-			}
-		}
-
-		if (startIndex < text.length) {
-			words.push(text.substring(startIndex));
-		}
+		const words: string[] = this._getWords(text, wordSeparators.split(''));
 
 		let stringIndex = -1;
 		for (const word of words) {
@@ -99,6 +83,25 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			links.push(this._createTerminalLink(word, activateCallback, bufferRange));
 		}
 		return links;
+	}
+
+	private _getWords(text: string, separators: string[]): string[] {
+		const words: string[] = [];
+		let startIndex = 0;
+		const charArray = text.split('');
+
+		// loop through the characters, creating words
+		// when a separator is encountered
+		for (let i = 0; i < text.length; i++) {
+			if (separators.includes(charArray[i])) {
+				words.push(text.substring(startIndex, i));
+				startIndex = i + 1;
+			}
+		}
+		if (startIndex < text.length) {
+			words.push(text.substring(startIndex));
+		}
+		return words;
 	}
 
 	private _createTerminalLink(text: string, activateCallback: XtermLinkMatcherHandler, bufferRange: IBufferRange): TerminalLink {
