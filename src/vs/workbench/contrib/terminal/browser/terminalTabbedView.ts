@@ -469,6 +469,13 @@ export class TerminalTabbedView extends Disposable {
 		];
 	}
 
+	setEditable(isEditing: boolean): void {
+		if (!isEditing) {
+			this._tabList.domFocus();
+		}
+		return this._tabList.render();
+	}
+
 	focusTabs(): void {
 		if (!this._shouldShowTabs()) {
 			return;

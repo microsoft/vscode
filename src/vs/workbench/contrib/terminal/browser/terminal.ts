@@ -17,6 +17,7 @@ import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IEditableData } from 'vs/workbench/common/views';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -205,6 +206,8 @@ export interface ITerminalService {
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
+	getEditableData(stat: ITerminalInstance): IEditableData | undefined;
+	setEditable(stat: ITerminalInstance, data: IEditableData | null): Promise<void>;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
@@ -599,12 +602,14 @@ export interface ITerminalInstance {
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
 
 	/**
-	 * Triggers a quick pick to rename this terminal.
+	 * TODO:@meganrogge update this when the single tab action uses this too
+	 * If a title is provided via the inline tab rename action, that is set as the terminal's name.
+	 * Otherwise, this triggers a quick pick to rename this terminal.
 	 */
-	rename(): Promise<void>;
+	rename(title?: string): Promise<void>;
 
 	/**
-	 * Triggers a quick pick to rename this terminal.
+	 * Triggers a quick pick to change the icon of this terminal.
 	 */
 	changeIcon(): Promise<void>;
 

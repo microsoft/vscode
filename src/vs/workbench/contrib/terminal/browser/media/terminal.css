@@ -253,6 +253,10 @@
 	display: none;
 }
 
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .tab-edited {
+	flex: 0;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
 	vertical-align: text-bottom;
 }

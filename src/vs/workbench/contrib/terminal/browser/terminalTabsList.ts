@@ -26,7 +26,7 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/wor
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
@@ -34,6 +34,14 @@ import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { Schemas } from 'vs/base/common/network';
+import { IEditableData } from 'vs/workbench/common/views';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { once } from 'vs/base/common/functional';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { joinPath } from 'vs/base/common/resources';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const $ = DOM.$;
 
@@ -182,7 +190,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IListService private readonly _listService: IListService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
 	}
 
@@ -231,95 +240,189 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
-		const group = this._terminalService.getGroupForInstance(instance);
-		if (!group) {
-			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
-		}
+		const editableData = this._terminalService.getEditableData(instance);
 
-		const hasText = !this.shouldHideText();
-		template.element.classList.toggle('has-text', hasText);
-
-		let prefix: string = '';
-		if (group.terminalInstances.length > 1) {
-			const terminalIndex = group.terminalInstances.indexOf(instance);
-			if (terminalIndex === 0) {
-				prefix = `┌ `;
-			} else if (terminalIndex === group!.terminalInstances.length - 1) {
-				prefix = `└ `;
-			} else {
-				prefix = `├ `;
+		if (!editableData) {
+			const group = this._terminalService.getGroupForInstance(instance);
+			if (!group) {
+				throw new Error(`Could not find group for instance "${instance.instanceId}"`);
 			}
-		}
 
-		let title = instance.title;
-		const statuses = instance.statusList.statuses;
-		template.context.hoverActions = [];
-		for (const status of statuses) {
-			title += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
-			if (status.hoverActions) {
-				template.context.hoverActions.push(...status.hoverActions);
+			const hasText = !this.shouldHideText();
+			template.element.classList.toggle('has-text', hasText);
+			template.label.element.style.display = 'block';
+			let prefix: string = '';
+			if (group.terminalInstances.length > 1) {
+				const terminalIndex = group.terminalInstances.indexOf(instance);
+				if (terminalIndex === 0) {
+					prefix = `┌ `;
+				} else if (terminalIndex === group!.terminalInstances.length - 1) {
+					prefix = `└ `;
+				} else {
+					prefix = `├ `;
+				}
 			}
-		}
-		const iconId = getIconId(instance);
-		const hasActionbar = !this.shouldHideActionBar();
-		let label: string = '';
-		if (!hasText) {
-			const primaryStatus = instance.statusList.primary;
-			// Don't show ignore severity
-			if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
-				label = `${prefix}$(${primaryStatus.icon?.id || iconId})`;
+
+			let title = instance.title;
+			const statuses = instance.statusList.statuses;
+			template.context.hoverActions = [];
+			for (const status of statuses) {
+				title += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
+				if (status.hoverActions) {
+					template.context.hoverActions.push(...status.hoverActions);
+				}
+			}
+			const iconId = getIconId(instance);
+			const hasActionbar = !this.shouldHideActionBar();
+			let label: string = '';
+			if (!hasText) {
+				const primaryStatus = instance.statusList.primary;
+				// Don't show ignore severity
+				if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
+					label = `${prefix}$(${primaryStatus.icon?.id || iconId})`;
+				} else {
+					label = `${prefix}$(${iconId})`;
+				}
 			} else {
+				this.fillActionBar(instance, template);
 				label = `${prefix}$(${iconId})`;
+				// Only add the title if the icon is set, this prevents the title jumping around for
+				// example when launching with a ShellLaunchConfig.name and no icon
+				if (instance.icon) {
+					label += ` ${instance.title}`;
+				}
 			}
+
+			if (!hasActionbar) {
+				template.actionBar.clear();
+			}
+
+			if (!template.elementDispoables) {
+				template.elementDispoables = new DisposableStore();
+			}
+
+			// Kill terminal on middle click
+			template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
+				if (e.button === 1/*middle*/) {
+					instance.dispose();
+				}
+			}));
+
+			const extraClasses: string[] = [];
+			const colorClass = getColorClass(instance);
+			if (colorClass) {
+				extraClasses.push(colorClass);
+			}
+			const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+			if (uriClasses) {
+				extraClasses.push(...uriClasses);
+			}
+
+			template.label.setResource({
+				resource: instance.resource,
+				name: label,
+				description: hasText ? instance.shellLaunchConfig.description : undefined
+			}, {
+				fileDecorations: {
+					colors: true,
+					badges: hasText
+				},
+				title: {
+					markdown: new MarkdownString(title, { supportThemeIcons: true }),
+					markdownNotSupportedFallback: undefined
+				},
+				extraClasses
+			});
 		} else {
-			this.fillActionBar(instance, template);
-			label = `${prefix}$(${iconId})`;
-			// Only add the title if the icon is set, this prevents the title jumping around for
-			// example when launching with a ShellLaunchConfig.name and no icon
-			if (instance.icon) {
-				label += ` ${instance.title}`;
-			}
+			template.label.element.style.display = 'none';
+			console.log(template.label.element);
+			console.log(template.label.element.parentElement!);
+			this._renderInputBox(template.label.element.parentElement!, instance, editableData);
 		}
+	}
 
-		if (!hasActionbar) {
-			template.actionBar.clear();
-		}
+	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
 
-		if (!template.elementDispoables) {
-			template.elementDispoables = new DisposableStore();
-		}
+		const label = this._labels.create(container);
+		const extraClasses = ['tab-edited'];
+		const labelOptions = { hidePath: true, hideLabel: true, extraClasses };
 
-		// Kill terminal on middle click
-		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
-			if (e.button === 1/*middle*/) {
-				instance.dispose();
-			}
-		}));
+		const parent = instance.resource;
+		const value = instance.title || '';
 
-		const extraClasses: string[] = [];
-		const colorClass = getColorClass(instance);
-		if (colorClass) {
-			extraClasses.push(colorClass);
-		}
-		const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
-		if (uriClasses) {
-			extraClasses.push(...uriClasses);
-		}
+		const inputBox = new InputBox(label.element, this._contextViewService, {
+			validationOptions: {
+				validation: (value) => {
+					const message = editableData.validationMessage(value);
+					if (!message || message.severity !== Severity.Error) {
+						return null;
+					}
 
-		template.label.setResource({
-			resource: instance.resource,
-			name: label,
-			description: hasText ? instance.shellLaunchConfig.description : undefined
-		}, {
-			fileDecorations: {
-				colors: true,
-				badges: hasText
+					return {
+						content: message.content,
+						formatContent: true,
+						type: MessageType.ERROR
+					};
+				}
 			},
-			title: {
-				markdown: new MarkdownString(title, { supportThemeIcons: true }),
-				markdownNotSupportedFallback: undefined
-			},
-			extraClasses
+			ariaLabel: localize('fileInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel.")
+		});
+		const styler = attachInputBoxStyler(inputBox, this._themeService);
+
+		inputBox.value = value;
+		inputBox.focus();
+		inputBox.select({ start: 0, end: value.length });
+
+		const done = once((success: boolean, finishEditing: boolean) => {
+			label.element.style.display = 'none';
+			const value = inputBox.value;
+			dispose(toDispose);
+			label.element.remove();
+			if (finishEditing) {
+				editableData.onFinish(value, success);
+			}
+		});
+
+		const showInputBoxNotification = () => {
+			if (inputBox.isInputValid()) {
+				const message = editableData.validationMessage(inputBox.value);
+				if (message) {
+					inputBox.showMessage({
+						content: message.content,
+						formatContent: true,
+						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
+					});
+				} else {
+					inputBox.hideMessage();
+				}
+			}
+		};
+		showInputBoxNotification();
+
+		const toDispose = [
+			inputBox,
+			inputBox.onDidChange(value => {
+				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
+			}),
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+				if (e.equals(KeyCode.Enter)) {
+					done(inputBox.isInputValid(), true);
+				} else if (e.equals(KeyCode.Escape)) {
+					done(false, true);
+				}
+			}),
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
+				showInputBoxNotification();
+			}),
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
+				done(inputBox.isInputValid(), true);
+			}),
+			label,
+			styler
+		];
+
+		return toDisposable(() => {
+			done(false, false);
 		});
 	}
 

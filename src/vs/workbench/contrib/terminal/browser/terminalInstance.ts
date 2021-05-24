@@ -1788,7 +1788,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.registerExternalLinkProvider(this, provider);
 	}
 
-	async rename() {
+	async rename(title?: string) {
+		// set via the inline tab rename action
+		if (title) {
+			return this.setTitle(title, TitleEventSource.Api);
+		}
+		// ask the user
 		const name = await this._quickInputService.input({
 			value: this.title,
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
