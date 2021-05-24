@@ -39,6 +39,10 @@ const terminalProfileSchema: IJSONSchema = {
 			enum: Array.from(iconRegistry.all, icon => icon.id),
 			markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
 		},
+		color: {
+			description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
+			type: 'string'
+		},
 		env: {
 			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
 			type: 'object',
@@ -203,6 +207,10 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 								type: 'string',
 								enum: Array.from(iconRegistry.all, icon => icon.id),
 								markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
+							},
+							color: {
+								description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
+								type: 'string'
 							},
 							env: {
 								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
@@ -384,6 +392,9 @@ function createProfileDescription(profile: ITerminalProfile): string {
 	}
 	if (profile.overrideName !== undefined) {
 		description += `\n- overrideName: ${profile.overrideName}`;
+	}
+	if (profile.color) {
+		description += `\n- color: ${profile.color}`;
 	}
 	if (profile.env) {
 		description += `\n- env: ${JSON.stringify(profile.env)}`;

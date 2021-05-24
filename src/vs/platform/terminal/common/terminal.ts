@@ -560,6 +560,7 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
+	color?: string;
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
@@ -582,6 +583,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	color?: string;
 	env?: ITerminalEnvironment;
 }
 

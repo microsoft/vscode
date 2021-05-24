@@ -1007,6 +1007,7 @@ export class TerminalService implements ITerminalService {
 				args: profile.args,
 				env: profile.env,
 				icon: profile.icon,
+				color: profile.color,
 				name: profile.overrideName ? profile.profileName : undefined,
 				cwd
 			};

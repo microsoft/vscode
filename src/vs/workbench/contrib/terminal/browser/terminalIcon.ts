@@ -14,9 +14,9 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 export function getColorClass(terminal: ITerminalInstance): string | undefined {
 	let color = undefined;
 	if (terminal.color) {
-		color = terminal.color;
+		color = terminal.color.replace(/\./g, '_');
 	} else if (ThemeIcon.isThemeIcon(terminal.icon) && terminal.icon.color) {
-		color = terminal.icon.color.id.replace('.', '_');
+		color = terminal.icon.color.id.replace(/\./g, '_');
 	}
 	if (color) {
 		return `terminal-icon-${color}`;
