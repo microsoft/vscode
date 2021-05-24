@@ -274,7 +274,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// which would result in the wrong profile being selected and the wrong icon being
 		// permanently attached to the terminal.
 		if (!this.shellLaunchConfig.executable && !workbenchEnvironmentService.remoteAuthority) {
-			// TODO: Icon flashes white first
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
 
