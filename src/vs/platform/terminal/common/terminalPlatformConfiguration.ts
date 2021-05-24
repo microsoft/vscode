@@ -41,7 +41,18 @@ const terminalProfileSchema: IJSONSchema = {
 		},
 		color: {
 			description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
-			type: 'string'
+			type: ['string', 'null'],
+			enum: [
+				'terminal.ansiBlack',
+				'terminal.ansiRed',
+				'terminal.ansiGreen',
+				'terminal.ansiYellow',
+				'terminal.ansiBlue',
+				'terminal.ansiMagenta',
+				'terminal.ansiCyan',
+				'terminal.ansiWhite'
+			],
+			default: null
 		},
 		env: {
 			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
@@ -210,7 +221,18 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 							},
 							color: {
 								description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
-								type: 'string'
+								type: ['string', 'null'],
+								enum: [
+									'terminal.ansiBlack',
+									'terminal.ansiRed',
+									'terminal.ansiGreen',
+									'terminal.ansiYellow',
+									'terminal.ansiBlue',
+									'terminal.ansiMagenta',
+									'terminal.ansiCyan',
+									'terminal.ansiWhite'
+								],
+								default: null
 							},
 							env: {
 								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),

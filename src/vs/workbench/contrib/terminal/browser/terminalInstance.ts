@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { activeContrastBorder, Extensions, IColorRegistry, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -60,7 +60,6 @@ import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1855,7 +1854,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.matchOnDescription = true;
 		quickPick.title = nls.localize('changeTerminalColor', "Change Color");
 		quickPick.show();
-		let disposables: IDisposable[] = [];
+		const disposables: IDisposable[] = [];
 		const result = await new Promise<IQuickPickItem | undefined>(r => {
 			disposables.push(quickPick.onDidHide(() => r(undefined)));
 			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
@@ -1863,47 +1862,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		dispose(disposables);
 
 		if (result) {
-			if (result === showAllColorsItem) {
-				let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
-				const colorItems: IQuickPickItem[] = [];
-				for (const colorContribution of colorRegistry.getColors()) {
-					if (standardColors.includes(colorContribution.id)) {
-						continue;
-					}
-					const colorClass = getColorClass(colorContribution.id);
-					colorItems.push({
-						label: `$(${Codicon.circleFilled.id}) ${colorContribution.id}`,
-						id: colorContribution.id,
-						iconClasses: [colorClass]
-					});
-					const color = colorTheme.getColor(colorContribution.id);
-					if (color) {
-						css += `.monaco-workbench .${colorClass} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
-					}
-				}
-				colorItems.sort((a, b) => a.label.localeCompare(b.label));
-				styleElement.textContent = css;
-				quickPick.items = quickPick.items.slice(0, quickPick.items.length - 1).concat(colorItems);
-				disposables = [];
-				const result = await new Promise<IQuickPickItem | undefined>(r => {
-					disposables.push(quickPick.onDidHide(() => r(undefined)));
-					disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
-				});
-				dispose(disposables);
-				quickPick.hide();
-				if (result) {
-					this.shellLaunchConfig.color = result?.id;
-					this._onIconChanged.fire(this);
-				}
-			} else {
-				quickPick.hide();
-				this.shellLaunchConfig.color = result.id;
-				this._onIconChanged.fire(this);
-			}
-		} else {
-			quickPick.hide();
+			this.shellLaunchConfig.color = result.id;
+			this._onIconChanged.fire(this);
 		}
 
+		quickPick.hide();
 		document.body.removeChild(styleElement);
 	}
 }
