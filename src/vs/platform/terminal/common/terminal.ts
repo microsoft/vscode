@@ -497,7 +497,7 @@ export interface ITerminalChildProcess {
 	getLatency(): Promise<number>;
 }
 
-export interface ReconnectConstants {
+export interface IReconnectConstants {
 	GraceTime: number,
 	ShortGraceTime: number
 }
