@@ -120,6 +120,7 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
 	onInstanceIconChanged: Event<ITerminalInstance | undefined>;
+	onInstanceColorChanged: Event<ITerminalInstance | undefined>;
 	onInstancePrimaryStatusChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onDidRegisterProcessSupport: Event<void>;
