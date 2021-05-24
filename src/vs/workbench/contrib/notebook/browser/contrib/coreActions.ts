@@ -24,6 +24,7 @@ import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/n
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { EditorsOrder, IEditorCommandsContext } from 'vs/workbench/common/editor';
@@ -1764,6 +1765,32 @@ registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAc
 
 	getMetadataDelta(): NotebookCellMetadata {
 		return { outputCollapsed: false };
+	}
+});
+
+registerAction2(class NotebookConfigureLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.notebook.layout.configure',
+			title: localize('workbench.notebook.layout.configure.label', "Configure Notebook Editor Layout Settings"),
+			f1: true,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					group: 'notebookLayout',
+					when: ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					group: 'notebookLayout',
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+				}
+			]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IPreferencesService).openSettings(false, '@tag:notebookLayout');
 	}
 });
 
