@@ -31,7 +31,7 @@ import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { isLinux, isMacintosh, isWindows, OperatingSystem as OS, platform } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
