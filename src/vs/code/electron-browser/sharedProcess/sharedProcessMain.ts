@@ -77,7 +77,7 @@ import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/con
 import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { LocalReconnectConstants, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
@@ -272,7 +272,19 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
 		// Terminal
-		services.set(ILocalPtyService, this._register(new PtyHostService(configurationService, logService, telemetryService)));
+		services.set(
+			ILocalPtyService,
+			this._register(
+				new PtyHostService({
+					GraceTime: LocalReconnectConstants.GraceTime,
+					ShortGraceTime: LocalReconnectConstants.ShortGraceTime
+				},
+					configurationService,
+					logService,
+					telemetryService
+				)
+			)
+		);
 
 		return new InstantiationService(services);
 	}
