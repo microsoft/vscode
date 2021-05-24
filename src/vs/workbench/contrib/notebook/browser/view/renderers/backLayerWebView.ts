@@ -660,7 +660,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						}
 
 						dragging {
-							background-color: var(--vscode-editor-background);
+							background-color: var(--theme-background);
 						}
 					</style>
 				</template>
@@ -682,7 +682,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						padding-bottom: var(--notebook-output-node-padding);
 						padding-left: var(--notebook-output-node-left-padding);
 						box-sizing: border-box;
-						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
+						background-color: var(--theme-notebook-output-background);
 					}
 
 					/* markdown */
@@ -697,7 +697,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						white-space: nowrap;
 						overflow: hidden;
 						white-space: initial;
-						color: var(--vscode-foreground);
+						color: var(--theme-ui-foreground);
 					}
 
 					#container > div.preview.draggable {
@@ -714,11 +714,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div.preview.selected {
-						background: var(--vscode-notebook-selectedCellBackground);
+						background: var(--theme-notebook-cell-selected-background);
 					}
 
 					#container > div.preview.dragging {
-						background-color: var(--vscode-editor-background);
+						background-color: var(--theme-background);
 					}
 
 					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
@@ -727,15 +727,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div.nb-symbolHighlight {
-						background-color: var(--vscode-notebook-symbolHighlightBackground);
+						background-color: var(--theme-notebook-symbol-highlight-background);
 					}
 
 					#container > div.nb-cellDeleted {
-						background-color: var(--vscode-diffEditor-removedTextBackground);
+						background-color: var(--theme-notebook-diff-removed-background);
 					}
 
 					#container > div.nb-cellAdded {
-						background-color: var(--vscode-diffEditor-insertedTextBackground);
+						background-color: var(--theme-notebook-diff-inserted-background);
 					}
 
 					#container > div > div:not(.preview) > div {
