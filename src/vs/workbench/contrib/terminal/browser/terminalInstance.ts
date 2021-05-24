@@ -1874,7 +1874,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 class TerminalInstanceDropAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
 
-
 	private readonly _onDropFile = new Emitter<string>();
 	get onDropFile(): Event<string> { return this._onDropFile.event; }
 	private readonly _onDropTerminal = new Emitter<IRequestAddInstanceToGroupEvent>();
