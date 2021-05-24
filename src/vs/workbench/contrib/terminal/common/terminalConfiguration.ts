@@ -29,10 +29,11 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TabsHideCondition]: {
 			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
 			type: 'string',
-			enum: ['never', 'singleTerminal'],
+			enum: ['never', 'singleTerminal', 'singleGroup'],
 			enumDescriptions: [
 				localize('terminal.integrated.tabs.hideCondition.never', "Never hide the terminal tabs view"),
 				localize('terminal.integrated.tabs.hideCondition.singleTerminal', "Hide the terminal tabs view when there is only a single terminal opened"),
+				localize('terminal.integrated.tabs.hideCondition.singleGroup', "Hide the terminal tabs view when there is only a single terminal group opened"),
 			],
 			default: 'singleTerminal',
 		},

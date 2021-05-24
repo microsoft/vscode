@@ -104,6 +104,10 @@ export interface ITerminalService {
 	initializeTerminals(): Promise<void>;
 	onActiveGroupChanged: Event<void>;
 	onGroupDisposed: Event<ITerminalGroup>;
+	/**
+	 * An event that fires when a terminal group is created, disposed of, or shown (in the case of a background group)
+	 */
+	onGroupsChanged: Event<void>;
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
