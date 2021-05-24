@@ -152,6 +152,7 @@ h1 {
 
 table {
 	border-collapse: collapse;
+	margin-bottom: 0.7em;
 }
 
 th {
