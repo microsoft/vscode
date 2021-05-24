@@ -369,7 +369,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._updateForNotebookConfiguration();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize) {
+			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.insertToolbarAlignment) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
@@ -564,6 +564,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			compactView,
 			focusIndicator,
 			insertToolbarPosition,
+			insertToolbarAlignment,
 			fontSize
 		} = this._notebookOptions.getLayoutConfiguration();
 
@@ -667,6 +668,35 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { display: none; }`);
 			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { display: none; }`);
+		}
+
+		if (insertToolbarAlignment === 'left') {
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child,
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .action-item:first-child {
+				margin-right: 0px !important;
+			}`);
+
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label,
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label {
+				padding: 0px !important;
+				justify-content: center;
+			}`);
+
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
+				align-items: flex-start;
+				justify-content: left;
+				margin: 0 16px 0 8px;
+			}`);
+
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
+			.notebookOverlay .cell-bottom-toolbar-container .action-item {
+				border: 0px;
+			}`);
 		}
 
 		// top insert toolbar

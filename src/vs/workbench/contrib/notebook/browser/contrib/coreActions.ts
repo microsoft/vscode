@@ -1027,7 +1027,25 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	},
 	order: 0,
 	group: 'inline',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
+	command: {
+		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+		title: localize('notebookActions.menu.insertCode.minimalToolbar', "Add Code"),
+		icon: Codicon.add,
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+	},
+	order: 0,
+	group: 'inline',
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.equals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
@@ -1054,7 +1072,25 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	},
 	order: 0,
 	group: 'inline',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
+	command: {
+		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
+		title: localize('notebookActions.menu.insertCode.minimaltoolbar', "Add Code"),
+		icon: Codicon.add,
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+	},
+	order: 0,
+	group: 'inline',
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.equals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
 });
 
 registerAction2(class InsertMarkdownCellAboveAction extends InsertCellCommand {
@@ -1097,7 +1133,10 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	},
 	order: 1,
 	group: 'inline',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
@@ -1124,7 +1163,10 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	},
 	order: 1,
 	group: 'inline',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
 });
 
 registerAction2(class EditCellAction extends NotebookCellAction {
