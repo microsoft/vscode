@@ -366,6 +366,10 @@ export function registerTerminalActions() {
 									ContextKeyExpr.has('isTerminalTabsNarrow')
 								)
 							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleGroup'),
+								ContextKeyExpr.equals('terminalGroupCount', 1)
+							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
 						)
 					]),

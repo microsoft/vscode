@@ -165,12 +165,14 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 
 	public readonly onProcessData = this.processDataEmitter.event;
 	public readonly onProcessExit = this._register(new Emitter<number | undefined>()).event;
-	public readonly onProcessReady = this._register(new Emitter<{ pid: number; cwd: string; }>()).event;
+	private readonly _onProcessReady = this._register(new Emitter<{ pid: number; cwd: string; }>());
+	public readonly onProcessReady = this._onProcessReady.event;
 	public readonly onProcessTitleChanged = this.titleEmitter.event;
 	public readonly onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>()).event;
 
 	public start(): Promise<ITerminalLaunchError | undefined> {
 		this.startedDeferred.complete();
+		this._onProcessReady.fire({ pid: -1, cwd: '' });
 		return Promise.resolve(undefined);
 	}
 	public shutdown(): void {

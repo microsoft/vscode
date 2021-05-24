@@ -331,6 +331,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 				return this._configurationService.getValue(key) as any;
 			}
 			const inspected = this._configurationService.inspect(key);
+			if (!inspected) {
+				return undefined;
+			}
+			if (inspected.userValue && typeof inspected.userValue === 'object' && inspected.defaultValue && typeof inspected.defaultValue === 'object') {
+				return { ...inspected.defaultValue, ...inspected.userValue };
+			}
 			return inspected?.userValue || inspected?.defaultValue;
 		};
 	}

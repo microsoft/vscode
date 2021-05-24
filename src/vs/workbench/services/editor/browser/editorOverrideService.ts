@@ -244,6 +244,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return contributions.sort((a, b) => priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority));
 	}
 
+	public getEditorIds(resource: URI): string[] {
+		const contributionPoints = this.findMatchingContributions(resource);
+		return contributionPoints.map(contribution => contribution.editorInfo.id);
+	}
+
 	/**
 	 * Given a resource and an override selects the best possible contribution point
 	 * @returns The contribution point and whether there was another default which conflicted with it
